@@ -87,6 +87,19 @@ www.{$OZITUMA_DOMAIN} {
 {$OZITUMA_DOMAIN} {
 	import ozituma_common
 
+	# ozituma.com/learn/* -> learn.ozituma.com/*
+	#
+	# The dictionary's own navigation has a "Learn" item pointing at /learn, and the courses now
+	# live on their own host. Redirecting HERE rather than in the app is deliberate: doing it in the
+	# app would mean rebuilding and redeploying the dictionary to fix a link, which is exactly the
+	# coupling the split removed.
+	#
+	# `path_regexp` captures everything after /learn so the prefix is stripped: /learn/igbo must
+	# become learn.ozituma.com/igbo, not learn.ozituma.com/learn/igbo. The capture group is empty for
+	# the bare /learn, which is what makes one rule cover both.
+	@learn path_regexp learn ^/learn(?:/(.*))?$
+	redir @learn https://learn.{$OZITUMA_DOMAIN}/{re.learn.1} permanent
+
 	reverse_proxy web:3000 {
 		import ozituma_proxy_headers
 	}
