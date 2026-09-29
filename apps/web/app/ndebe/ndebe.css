@@ -1,0 +1,204 @@
+/*
+ * The Ndebe chart.
+ *
+ * A grid of 42 bodies by 9 vowels is 378 cells, and every one of them is a link. That is a
+ * table rather than a set of divs, because it IS a table: each cell belongs to one row
+ * (the consonant body) and one column (the vowel), and a screen reader should be able to
+ * say so. The markup carries the row and column headers; this file only draws them.
+ *
+ * The chart scrolls sideways on a narrow screen rather than shrinking. A syllabary is
+ * looked at, not read in passing, and a glyph scaled to 9 px is not the glyph.
+ */
+.ndebe-chart-wrap {
+  overflow-x: auto;
+  margin-top: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper-raised);
+}
+
+.ndebe-chart {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 46rem;
+}
+
+.ndebe-chart th,
+.ndebe-chart td {
+  border: 1px solid var(--line);
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.ndebe-chart thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper-raised);
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  padding: 0.4rem 0;
+  z-index: 1;
+}
+
+.ndebe-chart-corner {
+  width: 6rem;
+}
+
+/* The body column stays put while the vowels scroll past it. */
+.ndebe-chart tbody th {
+  position: sticky;
+  left: 0;
+  background: var(--paper-raised);
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  padding: 0 0.5rem;
+  white-space: nowrap;
+  text-align: right;
+  z-index: 1;
+}
+
+.ndebe-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.35rem 0.25rem;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.ndebe-cell:hover,
+.ndebe-cell:focus-visible {
+  background: color-mix(in oklch, var(--clay) 12%, transparent);
+}
+
+/* The glyph, in the script's own font. */
+.ndebe-glyph {
+  font-family: 'Ndebe Rounded', var(--font-serif), serif;
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+/* The romanisation, kept small and quiet so the chart reads as a chart of the script. */
+.ndebe-cell-roman {
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+/* --- One syllable ------------------------------------------------------- */
+
+.ndebe-tone-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ndebe-tone {
+  flex: 1 1 8rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  padding: 1rem;
+  text-align: center;
+}
+
+/* Large on its own page: the point of the page is to look at the character. */
+.ndebe-tone .ndebe-glyph {
+  font-size: 3.4rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.ndebe-tone-name {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.ndebe-tone-roman {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  margin: 0.15rem 0 0;
+}
+
+/* --- The words a syllable appears in ------------------------------------ */
+
+.ndebe-word-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.4rem;
+}
+
+.ndebe-word {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.ndebe-word:hover {
+  border-color: var(--clay);
+}
+
+.ndebe-word-head {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+}
+
+.ndebe-word-script {
+  font-family: 'Ndebe Rounded', var(--font-serif), serif;
+  font-synthesis: none;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
+/* --- The sibling syllables --------------------------------------------- */
+
+.ndebe-sibling-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.ndebe-sibling {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--paper-raised);
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.ndebe-sibling:hover {
+  border-color: var(--clay);
+}
+
+/* The one the reader is already on, so the row reads as a position in a set. */
+.ndebe-sibling-on {
+  border-color: var(--clay);
+  background: color-mix(in oklch, var(--clay) 10%, transparent);
+}

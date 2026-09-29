@@ -1,0 +1,46 @@
+Ekpeye dictionary: circulation version
+2.2 Consonants
+Table 2 shows the consonants of Ekpeye;
+Table 2. Ekpeye consonant inventory
+Bilabial Alve-
+olar
+p b
+t d
+Alveop Palatal Velar Labial Glottal
+alatal
+kg
+-velar
+kp gb
+Plosive
+Implosive
+Fricative
+Affricates
+Nasals
+Laterals
+Approximant
+Palatal
+Lateral Approximant
+S3
+tf d3
+W
+An unresolved phonological problem is the status of /f/ and /&p/, transcribed a K and KP in Clark. These
+are not the ejectives usually represented by this symbol in Hausa.
+For reasons that are unclear, Clark (1969) does not list /h/ as a phoneme, but /hw/. /h/ mostly occurs
+labialised before back vowels, but this is generally non-phonemic. Thus;
+hwuhwu make a noise
+h/ + central vowel is usually labialised. Thus;
+play (instrument)
+But in at least one case, the labial prosody is absent;
+iha mortar
+On the other hand, h + back vowel is non-labialised;
+hò
+choose among many
+and in one case, /h/ precedes a tront vowel:
+èhê ape
+A phonemic contrast that establishes /h and /hw/ as indenendent phonemes when vreceding a central
+vowel is shown above. It may be that this co-exists with positional allophony determined by height; mid-
+vowels are not labialised in contrast to high vowels.
+2.3 Tone
+Ekpeye has a typical Igboid tone-system with two level tones, and downstep as well as falling and rising
+glides. Williamson and Ohiri-Aniche (ms.) occasionally mark phonetic upstep (1) which is reproduced
+here, but this is so rare that it may be an artetact ot the phonetic data. The basic conventions are as

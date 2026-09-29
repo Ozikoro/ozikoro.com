@@ -1,0 +1,123 @@
+# Ozituma — production stack, one host.
+#
+# Three containers: Postgres, the application image, and Caddy terminating TLS
+# in front of it. Deliberately the same shape as docker-compose.yml so the
+# production topology is one you have already run locally, just without MinIO —
+# media lives in Cloudflare R2 in production, reached through the same
+# S3-compatible code path the local stack exercises.
+#
+#   docker compose -f docker/docker-compose.prod.yml up -d --build
+#
+# Configuration comes from /opt/ozituma/.env, written at boot from Secrets
+# Manager rather than baked into the image or the instance metadata.
+#
+# Postgres is not published. Only Caddy binds host ports, so the database and
+# the app are unreachable from outside the compose network.
+
+name: ozituma
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ozituma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ozituma
+      # C collation keeps ORDER BY stable and index-friendly for the
+      # diacritic-bearing headwords we sort. Must match how the data was
+      # imported, or ordering and unique indexes drift.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8 --locale=C'
+    volumes:
+      # A bind mount onto the root EBS volume, not a named volume, so it is
+      # visible to the host for snapshotting and easy to inspect.
+      - /opt/ozituma/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ozituma -d ozituma']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ozituma:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
+      OZITUMA_SITE_URL: ${OZITUMA_SITE_URL:-https://ozituma.com}
+      NODE_ENV: production
+      # Media: Cloudflare R2 via the S3-compatible API. R2 charges no egress,
+      # which is what makes 46,419 audio files affordable to serve.
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL}
+      # Donations. Only the SECRET key appears here: this uses Paystack's redirect
+      # flow, where the amount is fixed server-side and the checkout page is hosted
+      # by Paystack, so the public key is never needed and no key material reaches
+      # a browser or the client bundle. Deliberately allowed to be empty — with no
+      # key the donate page says donations are not open yet, rather than failing at
+      # the moment someone tries to give.
+      PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      # Mail. The only thing Ozituma sends is a password-recovery link, and it is
+      # the one message whose failure locks somebody out of their own account.
+      #
+      # These have to be listed HERE. Compose passes a service only the variables
+      # the service names, so adding them to /opt/ozituma/.env is not enough — and
+      # the symptom of forgetting is not an error but a page that says email is not
+      # switched on while the credentials sit in the environment file unused.
+      #
+      # Either transport will do. SMTP wins when it is set, because a mailbox is the
+      # one an operator has deliberately configured for this site; the AWS variables
+      # are otherwise on the box for the media bucket and would be picked up by
+      # accident. Both are allowed to be empty: the recovery form then says so
+      # plainly and an administrator hands the link over instead.
+      OZITUMA_MAIL_FROM: ${OZITUMA_MAIL_FROM:-}
+      OZITUMA_SMTP_HOST: ${OZITUMA_SMTP_HOST:-}
+      OZITUMA_SMTP_PORT: ${OZITUMA_SMTP_PORT:-}
+      OZITUMA_SMTP_USER: ${OZITUMA_SMTP_USER:-}
+      OZITUMA_SMTP_PASSWORD: ${OZITUMA_SMTP_PASSWORD:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    expose:
+      - '3000'
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - web
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Cloudflare Origin CA certificate. Valid ~15 years and trusted by
+      # Cloudflare, so there is no renewal loop to run on the host.
+      - /opt/ozituma/certs:/etc/caddy/certs:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    environment:
+      OZITUMA_DOMAIN: ${OZITUMA_DOMAIN:-ozituma.com}
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+volumes:
+  caddydata:
+  caddyconfig:

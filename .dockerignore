@@ -1,0 +1,45 @@
+# Keep the Docker build context small and reproducible.
+# Raw corpora, local databases and build output are all regenerated, so they
+# must never travel into an image layer.
+
+.git
+.gitignore
+.github
+
+node_modules
+**/node_modules
+
+# Local database and caches
+.data
+pgdata
+.npm-cache
+
+# Build output
+.next
+**/.next
+out
+dist
+build
+*.tsbuildinfo
+
+# Raw and derived corpora — large, third-party, re-downloadable
+data/sources
+data/derived
+data/media
+
+# ...except the owner's own corrections, which are neither large nor third-party and
+# ARE an input to an importer that has to be runnable in the container. `data/sources`
+# is excluded wholesale, so without these exceptions `name-corrections` fails on the
+# server with a missing file while working perfectly on a developer's machine — which
+# is exactly the kind of difference that makes a repair look like it worked.
+!data/sources/names/owner
+!data/sources/names/owner/**
+
+# Docs and editor noise not needed at runtime
+docs
+.scratch
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example

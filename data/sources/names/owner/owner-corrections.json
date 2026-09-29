@@ -1,0 +1,115 @@
+{
+  "_comment": "Corrections the owner has stated directly. These outrank every source and the morphology rule, because they are the owner's own knowledge of particular names rather than an inference from the name's shape. `groups` lists spellings the owner reads as one name in different dialects; they are merged into the first. `meanings` lists the meaning the owner states for a name, which replaces what the sources said. `groups` merges spellings that fold together; spellings that fold apart stay separate entries and are held together by `meanings` and `variants`. `renames` corrects the ENTRY'S OWN spelling, where a source carried an anglicised form of an Igbo name.",
+  "gender": {
+    "Asanze": "female",
+    "Ijele": "male",
+    "Òkèìlòlò": "unisex",
+    "Elozonachukwu": "unisex",
+    "Elozonam": "unisex",
+    "Elozona": "unisex"
+  },
+  "variants": {
+    "Ezendieze": [
+      "Ezendeze"
+    ],
+    "Elozonam": [
+      "Elozenem",
+      "Echezonam"
+    ],
+    "Ikenga": [
+      "Ikenge"
+    ],
+    "Adannaya": [
+      "Adannia",
+      "Adannịa",
+      "Adanna"
+    ],
+    "Adannia": [
+      "Adannaya",
+      "Adannịa",
+      "Adanna"
+    ],
+    "Adannịa": [
+      "Adannaya",
+      "Adannia",
+      "Adanna"
+    ],
+    "Adanna": [
+      "Adannaya",
+      "Adannia",
+      "Adannịa"
+    ],
+    "Elozonachukwu": [
+      "Elozonechukwu",
+      "Elozose",
+      "Echezonachukwu"
+    ],
+    "Ezeajughi": [
+      "Ezeaju",
+      "Ezeajuro"
+    ],
+    "Ezeala": [
+      "Ezeana",
+      "Ezeali"
+    ],
+    "Ezeakọnobi": [
+      "Ezeakọnobu"
+    ],
+    "Echiluemeze": [
+      "Echimeze",
+      "Echirimeze"
+    ],
+    "Afuzuo": [
+      "Afuzue",
+      "Avuzue"
+    ],
+    "Aguigom": [
+      "Aguilam"
+    ],
+    "Ahamefula": [
+      "Ahamefule",
+      "Afamefune",
+      "Avamevune",
+      "Efamefune",
+      "Avamevuna"
+    ]
+  },
+  "groups": [
+    [
+      "Anuli",
+      "Anuri",
+      "Awuri",
+      "Anwuri",
+      "Anwuli"
+    ]
+  ],
+  "_ownerStatements": {
+    "Asanze": "Stated female. Contains nze, so the title rule would make it male; the nze in Asanze and in Adanze is not the title. Adanze needs no correction because the ada prefix is tested first.",
+    "Ijele": "Stated male. Carries no gendering morpheme at all, so the rule calls it unisex. This is the case the `owner` basis exists for: a name whose gender the owner knows and the rule cannot see.",
+    "Òkèìlòlò": "Stated unisex, 2026-09-27: \"Òkèìlòlò is a unisex name, not female.\" It was imported as female. Its variant Òkìlòlò is not a separate entry, so it needs no ruling of its own.",
+    "Ikenga": "Stated, 2026-09-27: \"the variant of ikenga is ikenge\". Ikenga carried no variants; Ikenge is the same word in the northern varieties.",
+    "Adannaya": "Stated, 2026-09-27: \"Adannaya and Adannia are same name, just variations and dialects. they both mean: eldest daughter of her father; Her father's first daughter; Her father's daughter\". The corpus held Adannaya, Adannịa and Adanna as separate entries with three different meanings (Adannia survived only as a variant of Adanna). All four spellings now carry the owner's meaning and list each other. They are deliberately NOT in `groups`: that merges spellings which fold to one key, and Adannaya, Adanna and Adannia fold apart, so a group would have merged the tone twins and left the other rows behind carrying the old meanings.",
+    "Elozonachukwu": "Stated unisex, 2026-09-27: \"these names are unisex, not male: Elozonachukwu (Elozonechukwu, Elozose, and Echezonachukwu are the variants)\". It was imported as male.",
+    "Elozonam": "Stated unisex, 2026-09-27: \"Elozonam (Echezonam is another variant of the name)\". It was imported as male. Elozenem was already recorded as a variant and is kept.",
+    "Ezeajughi": "Stated, 2026-09-27: \"Ezeajughi (Ezeaju and Ezeajuro are variant)\".",
+    "Ezeala": "Stated, 2026-09-27: \"Ezeala (Ezeana and Ezeali are another variants)\".",
+    "Ezeakọnobi": "Stated, 2026-09-27: \"Ezeakọnobi (Ezeakọnobu is another variant)\".",
+    "Echiluemeze": "Stated, 2026-09-27: \"Echiluemeze (Echimeze and Echirimeze are another variants)\".",
+    "Afuzuo": "Stated, 2026-09-27: \"Afuzuo (Afuzue and Avuzue are another variants)\".",
+    "Aguigom": "Stated, 2026-09-27: \"Aguigom (Aguilam is another variant)\". Aguinam was already recorded as a variant and is kept.",
+    "Ahamefula": "Stated, 2026-09-27: \"Ahamefula (Ahamefule, Afamefune, Avamevune, Efamefune and Avamevuna are variants)\". Afamefuna was already recorded and is kept.",
+    "Ezeasor": "Stated, 2026-09-27: \"change Ezeasor to Ezeaso. no anglicised names allowed.\" The entry's own spelling was anglicised, so this is a rename rather than a variant. It is deliberately NOT made a general rule for names ending in -r: Okafor, Jideofor, Mgbafor, Ofor, Izuakor, Maduakor, Ihebuzor and 19 others end in -r legitimately, so a rule would have renamed 26 names to fix 2.",
+    "Adunchezor": "Stated, 2026-09-27: \"Adunchezor, which is variant of Adinlofu should be 'Adunchezo'. never use anglicised version. i warned before.\" Renamed, and its link to Adinlofu is kept: Adunchezor was already listed as a variant of Adinlofu and the other way round, so the pair is rewritten to Adunchezo on both sides.",
+    "Elozona": "Stated unisex, 2026-09-28: \"Elozona is unisex, not male.\" It was imported as male. Elozonachukwu and Elozonam were corrected the same day and for the same reason."
+  },
+  "meanings": {
+    "Adannaya": "eldest daughter of her father; Her father's first daughter; Her father's daughter",
+    "Adannia": "eldest daughter of her father; Her father's first daughter; Her father's daughter",
+    "Adannịa": "eldest daughter of her father; Her father's first daughter; Her father's daughter",
+    "Adanna": "eldest daughter of her father; Her father's first daughter; Her father's daughter"
+  },
+  "renames": {
+    "Ezeasor": "Ezeaso",
+    "Adunchezor": "Adunchezo"
+  }
+}

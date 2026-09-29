@@ -1,0 +1,36 @@
+Ekpeye dictionary: circulation version
+1. Conversion of the original files to Times Roman
+2. Cross-checking the results against Clark's original mss.
+3. Entering hand-written Ekpeye words
+4. Cross-checking the tonal transcription using letter symbols.
+5. Deleting the multiple entries and deciding between two spellings of the same word.
+6. Adding scientific names where these were clearly assignable
+7. Adding parts of speech
+8. Adding etymologies and notes on relations with Igboid
+A presently unresolved problem is the status of labialised consonants. Ekpeye has non-phonemic
+labialisation before back vowels and Williamson and Ohiri-Aniche record this as they considered it
+possibly significant for reconstruction. Clark omits and this sometimes creates two transcriptions of the
+same word
+2. Phonology and orthography
+2.1 Vowels
+Ekpeye has nine phonemic vowels (Table 1);
+Table 1. Ekpeye vowels
+Hront
+Central
+Back
+Close
+Close-Mid
+Open-mid
+Open
+These can be arranged as follows using the Nigerian orthographic convention of subdots;
++ATR
+-ATR
+Nearly all Ekpeye words form harmony sets, the vowels will always be either + or - expanded
+throughout the word. Exceptions are usually transparent compounds and there is every reason to believe
+exceptions are former compounds. Nonetheless, there are some clear exceptions such as;
+ishudò
+gecko
+okpulugwe python
+ishâni
+bedroom
+ugbanuko

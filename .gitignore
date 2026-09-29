@@ -1,0 +1,96 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build output
+.next/
+out/
+dist/
+build/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Local database (PGlite / Postgres data dir)
+.data/
+pgdata/
+*.sqlite
+*.db
+
+# Raw dictionary sources — large, third-party, re-downloadable.
+# See docs/DATA-SOURCES.md for provenance and how to fetch them.
+data/sources/*
+
+# ...except the owner's own corrections, which are not third-party material and are the
+# input a re-import reads. They were living only on disk and in the image, so the rulings
+# — which name is unisex, which spelling is anglicised — had no history and could not be
+# reviewed. `data/sources/*` does not match below one level, so re-including the directory
+# is enough; the raw scraped corpora stay ignored by their own rule.
+!data/sources/names/
+data/sources/names/scraped/
+data/sources/names/owner/owner-list-*.txt
+!data/sources/.gitkeep
+!data/sources/README.md
+data/derived/*
+!data/derived/.gitkeep
+
+# Third-party reference material, at ANY path.
+#
+# Corpus files get dropped into the workspace root by hand, where the
+# data/sources/* rules above do not reach. That happened: 211 MB of scanned Edo
+# dictionaries were staged for a push before anyone noticed. Two reasons this
+# must never be committed — the scans are other people's copyrighted print
+# dictionaries and redistributing them in a repository is not ours to do, and a
+# 200 MB blob is permanent in git history even after deletion.
+#
+# Keep them on disk in data/sources/<language>/, which is ignored above.
+*.pdf
+*.djvu
+*.epub
+*.doc
+*.docx
+*.odt
+*.rtf
+# Scanned page images and audio corpora
+*.tif
+*.tiff
+*.jp2
+*.wav
+*.flac
+
+# Media
+data/media/
+*.mp3
+*.wav
+*.webm
+*.ogg
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Scratch
+.scratch/
+/tmp-scratch/
+
+# npm cache kept inside the workspace (the default ~/.npm may not be writable)
+.npm-cache/
+
+# Secrets
+*.pem
+*.key
+!**/public/*.key

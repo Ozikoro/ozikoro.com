@@ -1,0 +1,658 @@
+{
+  "_comment": "Forms the same Igbo name takes in a neighbouring variety. NOT spelling variants: Wike is not a misspelling of Nwike, it is the Ikwerre form of it. One row per form-per-variety; the entry page groups them back together. confidence is \"stated\" when a source says outright that the two forms are the same name, \"listed\" when a source gives both with the same meaning but does not assert correspondence. Every row carries its evidence; nothing here was inferred from how two names look. Twenty-eight of the Igbo names have no gloss in the research and none is invented \u2014 the gloss shown to a reader is the one the entry already carries. Adjudicated by hand after the research: the rows are the research output plus one pair the research found but could not file under its own contract \u2014 Ashinedu / Ashiedu, keyed on Ashinedu because that is the spelling this corpus holds. Rows the research excluded for good reason are NOT here: the Ogba and Ekpeye \"forms\" identical to the Igbo name (Amadi, Nwoke, Obioma \u2014 shared usage rather than a distinct form), and Ekpeye names matched to an Igbo name only by a similar gloss.",
+  "_generated": "2026-09-26",
+  "forms": [
+    {
+      "name": "Nwike",
+      "form": "Wike",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "Owner, stated directly: the Igbo form is Nwike and the Ikwerre form is Wike, \"child of strength\", from nwa (child) + ike (strength, power, might).",
+        "https://www.vanguardngr.com/2021/11/nwike-in-name-and-action/",
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Seed pair. Vanguard (Ochereome Nnanna, 3 Nov 2021) states that the governor's Igbo name is 'Nwike (Strong or brave lad)' and that 'in his Ikwerre dialect of the Igbo language, it is written as \"Nyesom Wike\"'; the same article states 'The Ikwerre are among Igbo groups which pronounce the alphabet \"Nw\" as \"W\"'. On the Nairaland thread a poster gives the correspondence as 'Wike = Nwaike'."
+    },
+    {
+      "name": "Obinna",
+      "form": "Ovunda",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "Owner, stated directly: Obinna of Igbo and Ovunda of Ikwerre and Ohaji mean the same thing.",
+        "https://www.nairaland.com/150208/ikwerre-names-meanings",
+        "https://www.nairaland.com/1933683/igbos-attention-needed-here-enlightenment/19"
+      ],
+      "note": "Seed pair. The Ikwerre attribution is well evidenced on the thread, which gives the correspondence in three separate tables ('Ovunda(Obunda) - Obinna'; 'Ovunda. Obinna'; 'Ovunda = Obinna'), glosses Ovunda as 'Father's mind' and, in the thread's baby-name list, as 'Father's mind'. The Ogba attribution is a single post: '(Ovunda is like Obinna in ogba)'. The Ohaji attribution comes from the user's own knowledge supplied with this task and was NOT independently documented in any source I read \u2014 treat the Ohaji half of this pair as unevidenced here. The only independent support is indirect dialect context: a poster on another Nairaland thread writes that 'parts of Ohaji speaks Ikwerre language' and that around the Ohaji area 'the dialect becomes more Ikwerre-like and not easily distinguishable with some Ikwerre dialects spoken around Elele, Ubima, Omerelu etc.', which makes an Ohaji Ovunda plausible but does not document the name."
+    },
+    {
+      "name": "Obinna",
+      "form": "Ovunda",
+      "variety": "Ogba",
+      "confidence": "stated",
+      "evidence": [
+        "Owner, stated directly: Obinna of Igbo and Ovunda of Ikwerre and Ohaji mean the same thing.",
+        "https://www.nairaland.com/150208/ikwerre-names-meanings",
+        "https://www.nairaland.com/1933683/igbos-attention-needed-here-enlightenment/19"
+      ],
+      "note": "Seed pair. The Ikwerre attribution is well evidenced on the thread, which gives the correspondence in three separate tables ('Ovunda(Obunda) - Obinna'; 'Ovunda. Obinna'; 'Ovunda = Obinna'), glosses Ovunda as 'Father's mind' and, in the thread's baby-name list, as 'Father's mind'. The Ogba attribution is a single post: '(Ovunda is like Obinna in ogba)'. The Ohaji attribution comes from the user's own knowledge supplied with this task and was NOT independently documented in any source I read \u2014 treat the Ohaji half of this pair as unevidenced here. The only independent support is indirect dialect context: a poster on another Nairaland thread writes that 'parts of Ohaji speaks Ikwerre language' and that around the Ohaji area 'the dialect becomes more Ikwerre-like and not easily distinguishable with some Ikwerre dialects spoken around Elele, Ubima, Omerelu etc.', which makes an Ohaji Ovunda plausible but does not document the name."
+    },
+    {
+      "name": "Obinna",
+      "form": "Ovunda",
+      "variety": "Ohaji",
+      "confidence": "stated",
+      "evidence": [
+        "Owner, stated directly: Obinna of Igbo and Ovunda of Ikwerre and Ohaji mean the same thing.",
+        "https://www.nairaland.com/150208/ikwerre-names-meanings",
+        "https://www.nairaland.com/1933683/igbos-attention-needed-here-enlightenment/19"
+      ],
+      "note": "Seed pair. The Ikwerre attribution is well evidenced on the thread, which gives the correspondence in three separate tables ('Ovunda(Obunda) - Obinna'; 'Ovunda. Obinna'; 'Ovunda = Obinna'), glosses Ovunda as 'Father's mind' and, in the thread's baby-name list, as 'Father's mind'. The Ogba attribution is a single post: '(Ovunda is like Obinna in ogba)'. The Ohaji attribution comes from the user's own knowledge supplied with this task and was NOT independently documented in any source I read \u2014 treat the Ohaji half of this pair as unevidenced here. The only independent support is indirect dialect context: a poster on another Nairaland thread writes that 'parts of Ohaji speaks Ikwerre language' and that around the Ohaji area 'the dialect becomes more Ikwerre-like and not easily distinguishable with some Ikwerre dialects spoken around Elele, Ubima, Omerelu etc.', which makes an Ohaji Ovunda plausible but does not document the name."
+    },
+    {
+      "name": "Uloma",
+      "form": "Oroma",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "A poster's 'Comparison to more centralised Igbo versions' table gives 'Oroma - Uloma'; a later table gives 'Oro-oma = Ulo-oma'. The gloss 'good house' is the one the same thread attaches to Oroma in its baby-name list ('Oroma - Ikwerre of Nigeria, good house')."
+    },
+    {
+      "name": "Nnanta",
+      "form": "Ndamati",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the poster's comparison table ('Ndamati - Nnanta'); the same poster glosses Ndamati as 'Lil' Father' elsewhere in the thread."
+    },
+    {
+      "name": "Orlunta",
+      "form": "Orlumati",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the same comparison table ('Orlumati - Orlunta'), with Orlumati glossed by the poster as 'Lil' 2nd child'. The Igbo side 'Orlunta' is the poster's own ad hoc rendering and is not an attested standard Igbo name \u2014 this is the weakest pair in the file and should be verified before use."
+    },
+    {
+      "name": "Nwannenna",
+      "form": "Wenenda",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Given as 'Wenenda - Nwannenna' in the comparison table and as 'Wenenda = Nwannennaya' in a later one. Two posts gloss the name: 'Wenenda - Father's brother' and 'Nwenenda in my dialect is Nwannennaya and they both mean \"father's sibling\"'. A third poster gives the Igbo form as 'Nwanyinna'. Spelling of the Igbo form varies (Nwannenna, Nwannennaya, Nwanyinna)."
+    },
+    {
+      "name": "Nwanneka",
+      "form": "Weneka",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the comparison table ('Weneka - Nwanneka'). No source read glosses either form, so no meaning is recorded."
+    },
+    {
+      "name": "Ihechikara",
+      "form": "Hachikaru",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Given as 'Hachikaru - Ihechikara' in the comparison table, and glossed by the same poster as 'Hachikaru - What God has said/wished'. Spelling varies in the thread (Hachikaru, hachikaru, Hachikoro)."
+    },
+    {
+      "name": "Iheoma",
+      "form": "Homa",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated four separate times on the thread: 'Homa - Iheoma - Ifeoma' in the comparison table; 'I should have used Ifeoma and Iheoma. The Ikwerre version is Homa'; 'Homa = Iheoma / Ifeoma'; and glossed by the poster as 'Homa - Good deed/thing'. The Etche and Ohaji forms come from one poster's statement that 'if you take a look at \"Homa\" it is the same in spoken Igbo from Mbaise to Owerri to Ngwa to Etche to Ohaji'. That same poster's point is that 'He', 'Hwe', 'Ho' replace 'Ihe'/'Ife' across Southern Igbo generally, so Homa is not exclusive to Ikwerre."
+    },
+    {
+      "name": "Iheoma",
+      "form": "Homa",
+      "variety": "Etche",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated four separate times on the thread: 'Homa - Iheoma - Ifeoma' in the comparison table; 'I should have used Ifeoma and Iheoma. The Ikwerre version is Homa'; 'Homa = Iheoma / Ifeoma'; and glossed by the poster as 'Homa - Good deed/thing'. The Etche and Ohaji forms come from one poster's statement that 'if you take a look at \"Homa\" it is the same in spoken Igbo from Mbaise to Owerri to Ngwa to Etche to Ohaji'. That same poster's point is that 'He', 'Hwe', 'Ho' replace 'Ihe'/'Ife' across Southern Igbo generally, so Homa is not exclusive to Ikwerre."
+    },
+    {
+      "name": "Iheoma",
+      "form": "Homa",
+      "variety": "Ohaji",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated four separate times on the thread: 'Homa - Iheoma - Ifeoma' in the comparison table; 'I should have used Ifeoma and Iheoma. The Ikwerre version is Homa'; 'Homa = Iheoma / Ifeoma'; and glossed by the poster as 'Homa - Good deed/thing'. The Etche and Ohaji forms come from one poster's statement that 'if you take a look at \"Homa\" it is the same in spoken Igbo from Mbaise to Owerri to Ngwa to Etche to Ohaji'. That same poster's point is that 'He', 'Hwe', 'Ho' replace 'Ihe'/'Ife' across Southern Igbo generally, so Homa is not exclusive to Ikwerre."
+    },
+    {
+      "name": "Chidinma",
+      "form": "Chiburuoma",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the comparison table ('Chiburuoma - Chidinma'); the same poster glosses Chiburuoma as 'God is good'. A later poster lists 'Chiburoma' among Ikwerre female names."
+    },
+    {
+      "name": "Nwala",
+      "form": "Weli",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings",
+        "http://eajournals.org/wp-content/uploads/A-New-Dawn-in-Etche-Names.pdf"
+      ],
+      "note": "Given as 'Wali - Nwala - Nwani' in the comparison table, and glossed by the same poster as 'Weli - Son of the soil'. Note the source offers two Igbo spellings, Nwala and Nwani. Nwala, M. A. (2018), 'A New Dawn in Etche Names', independently lists 'Nwala' among Etche personal names with the gloss 'The son of the soil or an indigene', although that paper does not relate it to the Ikwerre forms."
+    },
+    {
+      "name": "Nwala",
+      "form": "Wali",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings",
+        "http://eajournals.org/wp-content/uploads/A-New-Dawn-in-Etche-Names.pdf"
+      ],
+      "note": "Given as 'Wali - Nwala - Nwani' in the comparison table, and glossed by the same poster as 'Weli - Son of the soil'. Note the source offers two Igbo spellings, Nwala and Nwani. Nwala, M. A. (2018), 'A New Dawn in Etche Names', independently lists 'Nwala' among Etche personal names with the gloss 'The son of the soil or an indigene', although that paper does not relate it to the Ikwerre forms."
+    },
+    {
+      "name": "Elewechi",
+      "form": "Aleruchi",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings",
+        "https://journals.flvc.org/sal/article/download/107654/102994"
+      ],
+      "note": "Given as 'Aleruchi - Elewechi-Nebolisa' in the comparison table, and in a separate post as 'Aleruchi in other parts of Igbo dialects is Elewechi and other variants are Elechi, Enechi, Anenechi, Kanenechukwu and they all simply mean let's keep our eyes on God / looking unto God'. Osu, S. N. (2018), 'Quand le dictionnaire donne a voir la culture', Studies in African Linguistics 47(1&2), lists the Ikwere name Aleruchi [aleruci] with the English gloss 'Let's look unto the Lord', independently confirming the meaning."
+    },
+    {
+      "name": "Chiemela",
+      "form": "Chimenem",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From a poster's two-column 'Ikwerre name / Igbo name' table. Neither form is glossed anywhere in the sources read, so no meaning is recorded."
+    },
+    {
+      "name": "Ezenwa",
+      "form": "Ezenwo",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the same two-column table. A separate post glosses the similar-looking 'Ezinwo' as 'Good child', but that is a different spelling and is not offered as the meaning of Ezenwo, so no meaning is recorded."
+    },
+    {
+      "name": "Nmeregini",
+      "form": "Nmerukini",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Given as 'Nmerukini. Nmeregini' in the two-column table. Elsewhere on the thread: 'Nmerukini simply means mmeregini, owerri people will say mmerenini' and 'Mmeregini means what have I done?'. Spelling varies freely in the thread (Nmerukini, Mmerikini, Mmeregini, Mmerenini). The Igbo form is recorded here as the poster's Igbo column gives it."
+    },
+    {
+      "name": "Ginikanwa",
+      "form": "Kinikanwo",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Given as 'Kinikanwo. Ginikanwa' and stated as 'Kinikanwo means ginikanwa it's just a difference in the Ikwere Igbo dialect'. Neither form is glossed anywhere in the thread, so no meaning is recorded."
+    },
+    {
+      "name": "Chidi",
+      "form": "Chizi",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated twice: 'Chizi is the same as Chidi same meaning' and 'Chizi = Chidi'. The gloss 'god exists' is the one the thread attaches to Chizi in its baby-name list ('Chizi - Ikwerre of Nigeria, God exists'); the two correspondence statements themselves say only that the meanings are the same without restating the gloss."
+    },
+    {
+      "name": "Chizara",
+      "form": "Chisaro",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated as 'Chisaro --- Chizara, Chinaza' by a poster comparing the thread's baby-name list with standard Igbo. The gloss is the thread's baby-name gloss for Chisaro ('God answered me'); the variant Chisaru is glossed 'God answered one'. Chinaza is offered by the same poster as an additional Igbo equivalent."
+    },
+    {
+      "name": "Okpara",
+      "form": "Epara",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated twice: 'Epara -- Opara (Owerri) -- Okpara (I think Enugu and Anambra)' and 'Epara = Opara/Opkara/Okwara'. The gloss is the thread's baby-name gloss for Epara ('first-born son'). The source offers Opara, Okpara and Okwara as Igbo forms; Okpara is given here as the standard spelling."
+    },
+    {
+      "name": "Ihunnaya",
+      "form": "Ihunda",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the two-column 'Ikwerre name / Igbo name' table ('Ihunda = Ihunnaya'). Not glossed in any source read. A separate poster lists 'ruhunda' among Ikwerre female names."
+    },
+    {
+      "name": "Nwokekoro",
+      "form": "Wokekoro",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the two-column table ('Wokekoro = Nwokekoro'). Not glossed. A poster who cites Wokekoro alongside Hanachor and Hanetu says only that such names 'signify the continuity of the family' \u2014 that is a comment on the naming theme, not a gloss, so no meaning is recorded."
+    },
+    {
+      "name": "Chinna",
+      "form": "Chinda",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the two-column table ('Chinda = Chinna'). Not glossed anywhere in the sources read; the Igbo form is recorded exactly as the poster gives it."
+    },
+    {
+      "name": "Enyinna",
+      "form": "Enyinda",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings",
+        "https://ichekejournal.com/wp-content/uploads/2021/06/6-CONTINUITIES-AND-DISCONTINUITIES-IN-MBA-CLAN-OF-ETCHE-WORLD-VIEW.pdf"
+      ],
+      "note": "The correspondence is from the two-column table ('Enyinda = Enyinna'); the Nairaland sources give no meaning. The gloss comes from a different source: Amadi, E. E. (2020), 'Continuities and Discontinuities in Mba Clan of Etche World-View', Icheke Journal 18(2), which lists the Etche name 'Enyinna (his father's friend)' among names reflecting belief in reincarnation. Note that the same paper shows Etche itself using the Igbo-shaped form Enyinna rather than Enyinda."
+    },
+    {
+      "name": "Onyemaechi",
+      "form": "Nyemaechi",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the two-column table ('Nyemaechi = Onyemaech'). Elsewhere a poster states 'Nyema is usually shortened form of Nyemachi or Nyemaechi'. No gloss for either form was found in the sources read."
+    },
+    {
+      "name": "Onyeso",
+      "form": "Nyeso",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "From the two-column table ('Nyeso = Onyeso'). No gloss found in any source read."
+    },
+    {
+      "name": "Onyekazi",
+      "form": "Nyekazi",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated as 'Nyekazi is Onyekazi nah.' No gloss for either form was found in the sources read; the poster who offered the identification did not supply a meaning and another poster asked for one without receiving it."
+    },
+    {
+      "name": "Ogonnaya",
+      "form": "Ogonda",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated as 'nda means nna meaning father. so instead of Ogonnaya Ikwerre people say ogonda, same thing.' Neither name is glossed, so no meaning is recorded."
+    },
+    {
+      "name": "Okogbue",
+      "form": "Okogbule",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "Stated as 'Okogbule is the same as Okogbue; some Igbos will say Okogbuo depending on dialect.' A later two-column table leaves the Igbo column blank beside Okogbule, and neither form is glossed anywhere in the thread."
+    },
+    {
+      "name": "Iheanacho",
+      "form": "Nhn\u1eb9an\u1ecdtnu",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://journals.flvc.org/sal/article/download/107654/102994"
+      ],
+      "note": "Osu, S. N. (2018), 'Quand le dictionnaire donne a voir la culture', Studies in African Linguistics 47(1&2), 79-90, presents the Ikwere name \u0144h\u025b\u0302\u0330\u00e1n\u00f2t\u00fa\u0330 (official Ikwere orthography \u0144hn\u1ec7\u00e1n\u00f2tn\u00fa) meaning 'ce que nous cherchons' / 'what we are looking for', and states of its variant \u0269\u0301h\u00e9\u00e1n\u00e0c\u0254\u0301: 'Il s'agit l\u00e0 de la forme correspondante igbo' \u2014 this is the corresponding Igbo form \u2014 adding that the Igbo form 'peut tout a fait s'employer chez les Ikwere' (can quite well be used among the Ikwere). The Igbo form is recorded here in standard Igbo spelling; the source transcribes it phonetically as \u0269\u0301h\u00e9\u00e1n\u00e0c\u0254\u0301."
+    },
+    {
+      "name": "Osu",
+      "form": "Ofu",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://journals.flvc.org/sal/article/download/107654/102994"
+      ],
+      "note": "Osu, S. N. (2018), Studies in African Linguistics 47(1&2), states of the lineage name Ofu [\u00f2f\u00fa] in the Ogbakiri dialect of Ikwere: 'Il a pour variante Osu qu'on rencontre dans d'autres dialectes mais aussi en igbo' \u2014 it has the variant Osu, found in other dialects but also in Igbo. This is a family/lineage name rather than a given name, and the source gives no gloss, so no meaning is recorded."
+    },
+    {
+      "name": "Nwachukwu",
+      "form": "Wachukwu",
+      "variety": "Ikwerre",
+      "confidence": "listed",
+      "evidence": [
+        "https://www.vanguardngr.com/2021/11/nwike-in-name-and-action/"
+      ],
+      "note": "Vanguard (2021) states that the Ikwerre 'are among Igbo groups which pronounce the alphabet \"Nw\" as \"W\"', and illustrates the Nw/W alternation by pairing 'Jaja Wachukwu' with 'Nwachukwu' and 'Adolpus Wabara' with 'Nwagbara'. The article presents those two bearers as Ngwa and Ukwa people of Abia ('Ngwa and Ukwa people in Abia sometimes do the same, thus ...'), so it pairs the forms but attributes these particular examples to Ngwa/Ukwa rather than to Ikwerre. The Ikwerre attribution therefore rests only on the general Nw-to-W rule the article states for Ikwerre, which is why this is marked 'listed' rather than 'stated'. No meaning is supplied."
+    },
+    {
+      "name": "Nwagbara",
+      "form": "Wabara",
+      "variety": "Ikwerre",
+      "confidence": "listed",
+      "evidence": [
+        "https://www.vanguardngr.com/2021/11/nwike-in-name-and-action/"
+      ],
+      "note": "Same source and same caveat as Nwachukwu/Wachukwu: Vanguard (2021) pairs 'Adolpus Wabara' with 'Nwagbara' as an illustration of the Nw-to-W pronunciation, in a sentence that attributes the examples to Ngwa and Ukwa people of Abia while stating the Nw-to-W rule for the Ikwerre. No meaning is supplied."
+    },
+    {
+      "name": "Ego",
+      "form": "Abi",
+      "variety": "Etche",
+      "confidence": "listed",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "A poster states: '\"Abi\" means a type of money in both Etche (Rivers State) and Ezilihite (Imo State). People also bare it as a name just like Aku, Ego and Okpo.' The source thus lists the Etche personal name Abi alongside the Igbo money-names Aku, Ego and Okpo with the same meaning, but does not say they correspond, hence 'listed'. Ego is recorded as the Igbo headword because it is the commonest of the three as a personal name; Aku and Okpo are equally supported by the same sentence. This is the weakest kind of entry in this file."
+    },
+    {
+      "name": "Okoro",
+      "form": "Okolo",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "A poster writes 'Even Okolo (Anioma-Igbo) is the same as Okoro (in other Igbo towns)' and, elsewhere in the same post, 'Okolo is the same as Okoro but Okolo is more common in Delta state and even in Amaobia and Awka areas.' The poster supplies no gloss for either form, so no meaning is recorded. This is the only Anioma/Ika/Ukwuani-family correspondence I found in any source."
+    },
+    {
+      "name": "Ibekwele",
+      "form": "Bekwele",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "A poster asked 'What is the Igbo variant of Nwenenda, Aleruchi and Bekwele?' and another answered 'Bekwele = Ibekwele'. Bekwele is described elsewhere in the thread as a typical Ikwerre name ('I don't think Igbos answer typical Ikwerre names like Bekwele, Aleruchi, Alekiri or Nwenenda'). No gloss for either form appears anywhere in the thread, so no meaning is recorded."
+    },
+    {
+      "name": "Amaefuna",
+      "form": "Amewhule",
+      "variety": "Ikwerre",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "A poster writing under his own name states: 'MY NAME IS AMEWHULE and igbo variants are AMAEFUNA, AFANAMEFUNA, AHANAMEFUNA, AMAEFULE AHAMEFULE which in both culture signify continuity', adding 'continuity is ultimate objective in these cultures. May we continue to have male children.' A second poster in the same exchange confirms the Anambra spelling as 'Afamefuna' against the Ikwerre 'Ahamewhule/Amaewhule'. The Igbo variants are recorded under the headword Amaefuna; Ahamefule and Afamefuna are equally supported by the same source."
+    },
+    {
+      "name": "Iheanyinacho",
+      "form": "Hanachor",
+      "variety": "Ikwerre",
+      "confidence": "listed",
+      "evidence": [
+        "https://www.nairaland.com/150208/ikwerre-names-meanings"
+      ],
+      "note": "A poster writes: 'check out the names; HANACHOR, HANETU, WOKEKORO for ikwerre and IHEANYINACHOR, IFEANYINACHOR are for ibos ... names on both sides that signify the continuity of the family.' The source thus lists Ikwerre names and Igbo names together under one shared meaning, but it does NOT map them one to one, so the Hanachor/Iheanyinacho pairing is the natural reading of the parallel lists and of the phonology (Hanachor ~ ihe-anyi-na-achor) rather than an explicit statement by the source - hence 'listed'. Hanachor is very probably the same name family as the Iheanacho/Nhn\u1eb9an\u1ecdtnu pair recorded separately in this file, which a peer-reviewed source glosses 'what we are looking for'; the two are kept apart because the sources name different Igbo forms and neither equates them. Hanetu is named by the same source but no Igbo counterpart is given for it."
+    },
+    {
+      "name": "Chukwuma",
+      "form": "Chuku-lami-rari",
+      "variety": "Ogba",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.facebook.com/ogba.nation.520799/posts/122220118286367349/"
+      ],
+      "note": "On a public Facebook post by the page 'Ogba Nation' (10 August, asking which Ogba names begin with CHUKWU), a commenter writes: 'Chukwuma is Egbema, Aeboh, Kwale and Ndoni names by extension Igbo name too. In Ogba it is pronounced..Chuku-lami-rari. That's Chukwu is ibo spelling.' The comment is an explicit statement of the Ogba pronunciation of the name Chukwuma, so the two forms are paired by the source. Caveats, all applying to the three Ogba entries taken from this thread: it is a Facebook comment rather than a publication, the commenter is arguing that Ogba is distinct from Igbo and so has a motive, and no meaning is supplied for either form. The post and its comments were read through headless Chrome because the page refuses a plain HTTP client; the rendered text is saved at names-region-work/chrome/fb-ogbanation.txt."
+    },
+    {
+      "name": "Chukwuladi",
+      "form": "Chuku-ladih",
+      "variety": "Ogba",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.facebook.com/ogba.nation.520799/posts/122220118286367349/"
+      ],
+      "note": "Same Facebook thread: 'In Ogba Chukwuladi is spelt and pronounced Chuku-ladih.' The Ogba-spelling/sound is stated directly against the Igbo-spelled form, so the source pairs them. Same caveats as Chukwuma (lay Facebook comment, motivated commenter, no meaning given). Note that the post itself introduces CHUKWULADI as one of only three Ogba names beginning with CHUKWU, so the Igbo spelling is the source's own rendering of an Ogba name rather than a separately attested Standard Igbo name - a reason to treat this entry with more caution than Chukwuma."
+    },
+    {
+      "name": "Chukwukadibia",
+      "form": "Chuku-laka-dibiah",
+      "variety": "Ogba",
+      "confidence": "listed",
+      "evidence": [
+        "https://www.facebook.com/ogba.nation.520799/posts/122220118286367349/"
+      ],
+      "note": "Same Facebook thread: 'Chukwukadibia is Aeboh (Aboh & Ndoni) language names. In ogba it is Chuku-laka-dibiah.' The source gives the two forms side by side and states the second as the Ogba one, but it attributes the base form to Aboh/Ndoni and Kwale rather than to Standard Igbo, so the Igbo headword here is the standard spelling of a name the source places in the Ndoni/Aboh area. Marked 'listed' rather than 'stated' for that reason. Same caveats as Chukwuma. A later commenter in the same thread, arguing the opposite way, writes 'Chima is lgbo while Chukuma is Ogba' - which is a claim of difference, not a correspondence, and was not used."
+    },
+    {
+      "name": "Egbuna",
+      "form": "Egbune",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta"
+      ],
+      "note": "The thread 'Naming System of the Anioma People of Delta State' is a long numbered account of Anioma naming categories written by a poster describing his own people's practice; it is community self-documentation rather than scholarship, but the statements are explicit. Item 24 states the rule and gives this as its first example: 'Anioma names tend to end with \"e\" (e as in egg) rather than \"a\" in the eastern Igbo area e.g Egbune rather than Egbuna or Emeke rather than Emeka.' No meaning is given for either form."
+    },
+    {
+      "name": "Emeka",
+      "form": "Emeke",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta",
+        "https://www.nairaland.com/7832739/dialect-translate-name"
+      ],
+      "note": "The thread 'Naming System of the Anioma People of Delta State' is a long numbered account of Anioma naming categories written by a poster describing his own people's practice; it is community self-documentation rather than scholarship, but the statements are explicit. Item 24 gives 'Emeke rather than Emeka' as the second example of the Anioma preference for final -e. Independently, on the thread 'Dialect: Translate The Name', a poster writes 'Take for instance, Emeka is Eastern whereas, Emeke is Ika.' The same correspondence is therefore stated twice, once for Anioma generally and once for Ika specifically, and both are recorded here. No gloss in either source."
+    },
+    {
+      "name": "Emeka",
+      "form": "Emeke",
+      "variety": "Ika",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta",
+        "https://www.nairaland.com/7832739/dialect-translate-name"
+      ],
+      "note": "The thread 'Naming System of the Anioma People of Delta State' is a long numbered account of Anioma naming categories written by a poster describing his own people's practice; it is community self-documentation rather than scholarship, but the statements are explicit. Item 24 gives 'Emeke rather than Emeka' as the second example of the Anioma preference for final -e. Independently, on the thread 'Dialect: Translate The Name', a poster writes 'Take for instance, Emeka is Eastern whereas, Emeke is Ika.' The same correspondence is therefore stated twice, once for Anioma generally and once for Ika specifically, and both are recorded here. No gloss in either source."
+    },
+    {
+      "name": "Ajudua",
+      "form": "Ajudue",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta"
+      ],
+      "note": "The thread 'Naming System of the Anioma People of Delta State' is a long numbered account of Anioma naming categories written by a poster describing his own people's practice; it is community self-documentation rather than scholarship, but the statements are explicit. Item 24: 'Occassionally many Anioma names because of contact with Eastern Igbo names like Ajudua instead of Ajudue, Emeka instead of Emeke and Maduemezia instead of Maduemezie.' Note the direction of this sentence: the poster is saying Anioma speakers sometimes fall back on the eastern forms. The pairing of the two forms is explicit either way. No gloss."
+    },
+    {
+      "name": "Maduemezia",
+      "form": "Maduemezie",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta"
+      ],
+      "note": "The thread 'Naming System of the Anioma People of Delta State' is a long numbered account of Anioma naming categories written by a poster describing his own people's practice; it is community self-documentation rather than scholarship, but the statements are explicit. Item 24, third example: 'Maduemezia instead of Maduemezie'. No gloss."
+    },
+    {
+      "name": "Nweze",
+      "form": "Nwabueze",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta"
+      ],
+      "note": "The thread 'Naming System of the Anioma People of Delta State' is a long numbered account of Anioma naming categories written by a poster describing his own people's practice; it is community self-documentation rather than scholarship, but the statements are explicit. Item 22: 'Anioma people have some \"Nwa\" names peculiar to them such as Nwagbogwu, Nwaka, Nwabuokei, Nwabueze(rather than Nweze), Nwabudike(Nwadike), Nwoliwe, ...' The source sets the two forms against each other explicitly. Caveat: Nwabueze is itself a widespread Igbo name, so this may be a full-form/short-form distinction as much as a dialect one; the source offers no gloss for either form."
+    },
+    {
+      "name": "Nwadike",
+      "form": "Nwabudike",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta"
+      ],
+      "note": "The thread 'Naming System of the Anioma People of Delta State' is a long numbered account of Anioma naming categories written by a poster describing his own people's practice; it is community self-documentation rather than scholarship, but the statements are explicit. Item 22: 'Nwabudike(Nwadike)' in the same list. Same caveat as Nweze/Nwabueze - Nwabudike is a transparent fuller form of Nwadike, so the contrast may be full-form versus short-form rather than strictly dialectal. No gloss given."
+    },
+    {
+      "name": "Arinze",
+      "form": "Ashinze",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta",
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta/3"
+      ],
+      "note": "On page 3 of the Anioma naming thread a poster writes: 'Arinze/Ashinze/Ahinze for example are dialectical variations for \"thank God\". \"r\", \"h\", \"sh\" are often interchanged in dialects', and then, of Ehinze: 'It would seem to me that the \"ehi\" in Ehinze is the e-conforming variation of ahi/ashi/ari that make up the name Arinze.' Item 5 on page 1 supplies the variety labels: 'There are also the \"Ashi\"(pronounced \"Ehi\" or \"Ahi\" in Ika) names ... Names like Ashimedua, Ashibofu, Ehiwario, Ashinze, Ashibuogwu, Ashiedu (Ashinedu in Ukwuani) or Ehima belongs to this category.' So Ashi- is the Anioma form while Ahi-/Ehi- are the Ika pronunciations, which is how the varieties are assigned here. The gloss 'thank God' is the poster's own and is looser than the usual Igbo sense of Arinze; it is copied as stated rather than corrected."
+    },
+    {
+      "name": "Arinze",
+      "form": "Ahinze",
+      "variety": "Ika",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta",
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta/3"
+      ],
+      "note": "On page 3 of the Anioma naming thread a poster writes: 'Arinze/Ashinze/Ahinze for example are dialectical variations for \"thank God\". \"r\", \"h\", \"sh\" are often interchanged in dialects', and then, of Ehinze: 'It would seem to me that the \"ehi\" in Ehinze is the e-conforming variation of ahi/ashi/ari that make up the name Arinze.' Item 5 on page 1 supplies the variety labels: 'There are also the \"Ashi\"(pronounced \"Ehi\" or \"Ahi\" in Ika) names ... Names like Ashimedua, Ashibofu, Ehiwario, Ashinze, Ashibuogwu, Ashiedu (Ashinedu in Ukwuani) or Ehima belongs to this category.' So Ashi- is the Anioma form while Ahi-/Ehi- are the Ika pronunciations, which is how the varieties are assigned here. The gloss 'thank God' is the poster's own and is looser than the usual Igbo sense of Arinze; it is copied as stated rather than corrected."
+    },
+    {
+      "name": "Arinze",
+      "form": "Ehinze",
+      "variety": "Ika",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta",
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta/3"
+      ],
+      "note": "On page 3 of the Anioma naming thread a poster writes: 'Arinze/Ashinze/Ahinze for example are dialectical variations for \"thank God\". \"r\", \"h\", \"sh\" are often interchanged in dialects', and then, of Ehinze: 'It would seem to me that the \"ehi\" in Ehinze is the e-conforming variation of ahi/ashi/ari that make up the name Arinze.' Item 5 on page 1 supplies the variety labels: 'There are also the \"Ashi\"(pronounced \"Ehi\" or \"Ahi\" in Ika) names ... Names like Ashimedua, Ashibofu, Ehiwario, Ashinze, Ashibuogwu, Ashiedu (Ashinedu in Ukwuani) or Ehima belongs to this category.' So Ashi- is the Anioma form while Ahi-/Ehi- are the Ika pronunciations, which is how the varieties are assigned here. The gloss 'thank God' is the poster's own and is looser than the usual Igbo sense of Arinze; it is copied as stated rather than corrected."
+    },
+    {
+      "name": "Ikechukwu",
+      "form": "Ikenchukwu",
+      "variety": "Ika",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/7832739/dialect-translate-name"
+      ],
+      "note": "On the thread 'Dialect: Translate The Name' a poster writes 'Ikechukwu is Eastern whereas, Ikenchukwu is Ika.' Explicit pairing, no gloss. A later poster disputes that such forms make Ika names unique, but does not dispute the forms themselves."
+    },
+    {
+      "name": "Ada",
+      "form": "Eda",
+      "variety": "Ika",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/1314254/traditional-ika-names"
+      ],
+      "note": "On the thread 'Traditional Ika Names', after a list including Ada and Emeka, a poster writes: 'I think they use emeke and not emeka in ika, and their ada sounds like eda.' The Ada/Eda pairing is explicit though hedged with 'I think', and the same post independently corroborates the Emeka/Emeke pair recorded above. No gloss."
+    },
+    {
+      "name": "Chukwuemeka",
+      "form": "Olisemeka",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.ibusa.net/mysite/emeka.htm",
+        "https://emekaesogbue.blogspot.com/2024/11/nostalgic-reflections-meaningful-names.html"
+      ],
+      "note": "Ibusa.net (Emeka Esogbue, 'Chukwuemeka: an Igbo Name') states: 'Chukwuemeka therefore means \"God has done well\". The Anioma could fully pronounce it as \"Chukwuemekalimife\", the name Chukwuemeka may be known among the Anioma people as \"Olisemeka\" (Olisemekalimife) or in the typical dialect of the people as \"Olisemilimumkeh.\"' That is an explicit statement of the Anioma forms with a stated gloss, and it is the strongest single Anioma entry in this file. The fifth form, Olisemenke, comes from the same author's blog post 'Nostalgic Reflections: Meaningful Names', where he writes 'Alongside Emeka, my first name, I am also known as Oguguamakwa (or Ogugua for short) and Olisemenke or Menke' and groups 'These names - Chukwuemeka, Olisemenke, and Oguguamaka'. The blog lists Olisemenke beside Chukwuemeka as names of the same man without glossing it, so it is recorded as a spelling variant of Olisemeka rather than as a separately stated correspondence."
+    },
+    {
+      "name": "Chukwuemeka",
+      "form": "Olisemekalimife",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.ibusa.net/mysite/emeka.htm",
+        "https://emekaesogbue.blogspot.com/2024/11/nostalgic-reflections-meaningful-names.html"
+      ],
+      "note": "Ibusa.net (Emeka Esogbue, 'Chukwuemeka: an Igbo Name') states: 'Chukwuemeka therefore means \"God has done well\". The Anioma could fully pronounce it as \"Chukwuemekalimife\", the name Chukwuemeka may be known among the Anioma people as \"Olisemeka\" (Olisemekalimife) or in the typical dialect of the people as \"Olisemilimumkeh.\"' That is an explicit statement of the Anioma forms with a stated gloss, and it is the strongest single Anioma entry in this file. The fifth form, Olisemenke, comes from the same author's blog post 'Nostalgic Reflections: Meaningful Names', where he writes 'Alongside Emeka, my first name, I am also known as Oguguamakwa (or Ogugua for short) and Olisemenke or Menke' and groups 'These names - Chukwuemeka, Olisemenke, and Oguguamaka'. The blog lists Olisemenke beside Chukwuemeka as names of the same man without glossing it, so it is recorded as a spelling variant of Olisemeka rather than as a separately stated correspondence."
+    },
+    {
+      "name": "Chukwuemeka",
+      "form": "Chukwuemekalimife",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.ibusa.net/mysite/emeka.htm",
+        "https://emekaesogbue.blogspot.com/2024/11/nostalgic-reflections-meaningful-names.html"
+      ],
+      "note": "Ibusa.net (Emeka Esogbue, 'Chukwuemeka: an Igbo Name') states: 'Chukwuemeka therefore means \"God has done well\". The Anioma could fully pronounce it as \"Chukwuemekalimife\", the name Chukwuemeka may be known among the Anioma people as \"Olisemeka\" (Olisemekalimife) or in the typical dialect of the people as \"Olisemilimumkeh.\"' That is an explicit statement of the Anioma forms with a stated gloss, and it is the strongest single Anioma entry in this file. The fifth form, Olisemenke, comes from the same author's blog post 'Nostalgic Reflections: Meaningful Names', where he writes 'Alongside Emeka, my first name, I am also known as Oguguamakwa (or Ogugua for short) and Olisemenke or Menke' and groups 'These names - Chukwuemeka, Olisemenke, and Oguguamaka'. The blog lists Olisemenke beside Chukwuemeka as names of the same man without glossing it, so it is recorded as a spelling variant of Olisemeka rather than as a separately stated correspondence."
+    },
+    {
+      "name": "Chukwuemeka",
+      "form": "Olisemilimumkeh",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.ibusa.net/mysite/emeka.htm",
+        "https://emekaesogbue.blogspot.com/2024/11/nostalgic-reflections-meaningful-names.html"
+      ],
+      "note": "Ibusa.net (Emeka Esogbue, 'Chukwuemeka: an Igbo Name') states: 'Chukwuemeka therefore means \"God has done well\". The Anioma could fully pronounce it as \"Chukwuemekalimife\", the name Chukwuemeka may be known among the Anioma people as \"Olisemeka\" (Olisemekalimife) or in the typical dialect of the people as \"Olisemilimumkeh.\"' That is an explicit statement of the Anioma forms with a stated gloss, and it is the strongest single Anioma entry in this file. The fifth form, Olisemenke, comes from the same author's blog post 'Nostalgic Reflections: Meaningful Names', where he writes 'Alongside Emeka, my first name, I am also known as Oguguamakwa (or Ogugua for short) and Olisemenke or Menke' and groups 'These names - Chukwuemeka, Olisemenke, and Oguguamaka'. The blog lists Olisemenke beside Chukwuemeka as names of the same man without glossing it, so it is recorded as a spelling variant of Olisemeka rather than as a separately stated correspondence."
+    },
+    {
+      "name": "Chukwuemeka",
+      "form": "Olisemenke",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.ibusa.net/mysite/emeka.htm",
+        "https://emekaesogbue.blogspot.com/2024/11/nostalgic-reflections-meaningful-names.html"
+      ],
+      "note": "Ibusa.net (Emeka Esogbue, 'Chukwuemeka: an Igbo Name') states: 'Chukwuemeka therefore means \"God has done well\". The Anioma could fully pronounce it as \"Chukwuemekalimife\", the name Chukwuemeka may be known among the Anioma people as \"Olisemeka\" (Olisemekalimife) or in the typical dialect of the people as \"Olisemilimumkeh.\"' That is an explicit statement of the Anioma forms with a stated gloss, and it is the strongest single Anioma entry in this file. The fifth form, Olisemenke, comes from the same author's blog post 'Nostalgic Reflections: Meaningful Names', where he writes 'Alongside Emeka, my first name, I am also known as Oguguamakwa (or Ogugua for short) and Olisemenke or Menke' and groups 'These names - Chukwuemeka, Olisemenke, and Oguguamaka'. The blog lists Olisemenke beside Chukwuemeka as names of the same man without glossing it, so it is recorded as a spelling variant of Olisemeka rather than as a separately stated correspondence."
+    },
+    {
+      "name": "Ashinedu",
+      "form": "Ashiedu",
+      "variety": "Anioma",
+      "confidence": "stated",
+      "evidence": [
+        "https://www.nairaland.com/3725258/naming-system-anioma-people-delta"
+      ],
+      "note": "Nairaland topic 3725258, item 5 of the Anioma onomastics article: \"Ashiedu (Ashinedu in Ukwuani)\". The source gives Anioma Ashiedu and Ukwuani Ashinedu as one name in two spellings, and no Standard Igbo form. The research that found this recorded it as Anioma = Ukwuani and left it out of its pairs, because its own contract required the Igbo side of a pair to be Standard Igbo. This corpus holds Ashinedu and not Ashiedu, so it is recorded the other way round: the entry is the Ukwuani spelling and Ashiedu is the Anioma one. It is the only documented Ukwuani form found anywhere in the work."
+    }
+  ]
+}

@@ -1,0 +1,338 @@
+{
+  "_note": [
+    "Traditional peoples of the Nigerian nations other than the Igbo, for the registry.",
+    "",
+    "Proposed by a model and then checked by a second pass that was told to reject anything",
+    "it could not place: a town, a dialect, a quarter or a family is not a people, and an",
+    "invented people is worse than a missing one. Names the check could not place are",
+    "listed under _dropped rather than published.",
+    "",
+    "The owner's ruling is that the registry is not only Igbo. These entries carry their",
+    "nation in `nation`, so the section can group and filter by it."
+  ],
+  "_dropped": [
+    "Egun (Gbe)"
+  ],
+  "peoples": [
+    {
+      "name": "Ife",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Osun",
+      "summary": "Found in Osun State and known as the ancient spiritual cradle of the Yoruba civilization.",
+      "confidence": "high"
+    },
+    {
+      "name": "Oyo",
+      "nation": "Yoruba",
+      "kind": "kingdom",
+      "states": "Oyo, Osun",
+      "summary": "Found mainly in Oyo State and renowned for the historic military and political legacy of the old Oyo Empire.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ohori",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Ogun",
+      "summary": "Found in Ogun State and the Republic of Benin, known for rich agricultural traditions and borderland heritage.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ekiti",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Ekiti, Kwara",
+      "summary": "Found in Ekiti State and celebrated for its rolling hills, high level of education, and distinct sub-dialect.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ife-Togo",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Togo",
+      "summary": "Found in Togo and recognized as an external diaspora branch maintaining deep Yoruba ancestral ties.",
+      "confidence": "medium"
+    },
+    {
+      "name": "Oworo",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Kogi",
+      "summary": "Found in Kogi State along the banks of the Niger River, known for a unique culture blending Yoruba and central Nigerian influences.",
+      "confidence": "high"
+    },
+    {
+      "name": "Akoko",
+      "nation": "Yoruba",
+      "kind": "confederation",
+      "states": "Ondo",
+      "summary": "Found in Ondo State and known for extreme linguistic and cultural diversity within a compact geographic area.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ijesa",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Osun",
+      "summary": "Found in Osun State and famed for historical trading prowess, rich cultural festivals, and industrious craftsmanship.",
+      "confidence": "high"
+    },
+    {
+      "name": "Egba",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Ogun",
+      "summary": "Found in Ogun State and historically prominent in Nigerian commerce, education, and early print media.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ijebu",
+      "nation": "Yoruba",
+      "kind": "kingdom",
+      "states": "Ogun, Lagos",
+      "summary": "Found in Ogun State and celebrated for ancient commercial acumen, historic defensive walls, and distinct age-grade systems.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ondo",
+      "nation": "Yoruba",
+      "kind": "kingdom",
+      "states": "Ondo",
+      "summary": "Found in Ondo State and known for a centralized monarchy and cocoa farming heritage.",
+      "confidence": "high"
+    },
+    {
+      "name": "Owo",
+      "nation": "Yoruba",
+      "kind": "kingdom",
+      "states": "Ondo",
+      "summary": "Found in Ondo State and renowned for world-class ivory carving and ancient artistic traditions influenced by Benin and Ife.",
+      "confidence": "high"
+    },
+    {
+      "name": "Igbomina",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Kwara, Osun",
+      "summary": "Found in Kwara and Osun States, traditionally recognized for agricultural skill and woodcarving artistry.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ketu",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Ogun",
+      "summary": "Found across Ogun State and the Republic of Benin, noted for ancient kingship traditions and resilient cultural identity.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ede",
+      "nation": "Yoruba",
+      "kind": "town",
+      "states": "Osun",
+      "summary": "Found in Osun State and historically established as a military outpost for the old Oyo Empire.",
+      "confidence": "medium"
+    },
+    {
+      "name": "Ijesha",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Osun",
+      "summary": "Found in Osun State, representing an alternate spelling variant of the Ijesa people.",
+      "confidence": "low"
+    },
+    {
+      "name": "Ijumu",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Kogi",
+      "summary": "Found in Kogi State and known for blending Yoruba cultural elements with the traditions of central Nigeria.",
+      "confidence": "high"
+    },
+    {
+      "name": "Yagba",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Kogi, Kwara",
+      "summary": "Found in Kogi and Kwara States, historically noted for iron-working and agricultural productivity.",
+      "confidence": "high"
+    },
+    {
+      "name": "Bunu",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Kogi",
+      "summary": "Found in Kogi State, known for close historical ties to neighboring central Nigerian groups while retaining a Yoruba identity.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ibadan",
+      "nation": "Yoruba",
+      "kind": "city-state",
+      "states": "Oyo",
+      "summary": "Found in Oyo State and famed as a 19th-century military powerhouse that became a massive urban center.",
+      "confidence": "high"
+    },
+    {
+      "name": "Awori",
+      "nation": "Yoruba",
+      "kind": "tribe",
+      "states": "Lagos, Ogun",
+      "summary": "Found in Lagos and Ogun States, traditionally recognized as the original settlers of the Lagos coastal swampland.",
+      "confidence": "high"
+    },
+    {
+      "name": "Nembe",
+      "nation": "Ijaw",
+      "kind": "tribe",
+      "states": "Bayelsa",
+      "summary": "Found in Bayelsa State and celebrated for maritime history, ancient trading states, and rich mangrove ecology.",
+      "confidence": "high"
+    },
+    {
+      "name": "Kalabari",
+      "nation": "Ijaw",
+      "kind": "tribe",
+      "states": "Rivers",
+      "summary": "Found in Rivers State and renowned for powerful canoe house trading kingdoms and coastal commerce.",
+      "confidence": "high"
+    },
+    {
+      "name": "Okrika",
+      "nation": "Ijaw",
+      "kind": "tribe",
+      "states": "Rivers",
+      "summary": "Found in Rivers State and known for seafaring prowess and strategic island settlements.",
+      "confidence": "high"
+    },
+    {
+      "name": "Boma",
+      "nation": "Ijaw",
+      "kind": "tribe",
+      "states": "Bayelsa, Rivers",
+      "summary": "Found across the riverine areas of Bayelsa and Rivers States, known for fishing and creek navigation.",
+      "confidence": "medium"
+    },
+    {
+      "name": "Beni",
+      "nation": "Edo",
+      "kind": "kingdom",
+      "states": "Edo",
+      "summary": "Found in Edo State and globally famous for the great Benin Empire, bronze casting, and a highly structured monarchy.",
+      "confidence": "high"
+    },
+    {
+      "name": "Esan",
+      "nation": "Edo",
+      "kind": "tribe",
+      "states": "Edo",
+      "summary": "Found in Edo State and known for agricultural achievements and numerous autonomous chiefdoms.",
+      "confidence": "high"
+    },
+    {
+      "name": "Etsako",
+      "nation": "Edo",
+      "kind": "tribe",
+      "states": "Edo",
+      "summary": "Found in Edo State and recognized for diverse linguistic sub-groups inhabiting the northern part of the state.",
+      "confidence": "high"
+    },
+    {
+      "name": "Owan",
+      "nation": "Edo",
+      "kind": "tribe",
+      "states": "Edo",
+      "summary": "Found in Edo State and known for rich forest resources and vibrant cultural festivals.",
+      "confidence": "high"
+    },
+    {
+      "name": "Akoko-Edo",
+      "nation": "Edo",
+      "kind": "confederation",
+      "states": "Edo",
+      "summary": "Found in Edo State and famous for possessing one of the highest concentrations of distinct languages in Nigeria.",
+      "confidence": "high"
+    },
+    {
+      "name": "Urhobo",
+      "nation": "Urhobo",
+      "kind": "confederation",
+      "states": "Delta",
+      "summary": "Found in Delta State and renowned for palm produce production, oil wealth, and decentralized democratic kingdoms.",
+      "confidence": "high"
+    },
+    {
+      "name": "Isoko",
+      "nation": "Isoko",
+      "kind": "confederation",
+      "states": "Delta",
+      "summary": "Found in Delta State and celebrated for farming, fishing, and rich spiritual folklore.",
+      "confidence": "high"
+    },
+    {
+      "name": "Itsekiri",
+      "nation": "Itsekiri",
+      "kind": "kingdom",
+      "states": "Delta",
+      "summary": "Found in Delta State and known for the revered Olu of Warri institution and a history of early European contact.",
+      "confidence": "high"
+    },
+    {
+      "name": "Igala",
+      "nation": "Igala",
+      "kind": "kingdom",
+      "states": "Kogi, Enugu, Anambra",
+      "summary": "Found mainly in Kogi State along the Niger-Benue confluence, led by the Attah Igala and known for rich historical kingdoms.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ebira",
+      "nation": "Ebira",
+      "kind": "tribe",
+      "states": "Kogi, Edo, Ondo, Nasarawa",
+      "summary": "Found in Kogi State and renowned for industrious textile weaving, vibrant masquerade festivals, and commerce.",
+      "confidence": "high"
+    },
+    {
+      "name": "Nupe",
+      "nation": "Nupe",
+      "kind": "kingdom",
+      "states": "Niger, Kwara, Kogi",
+      "summary": "Found in Niger State and famous for the majestic Nupe Kingdom, river transport, and intricate glass bead artistry.",
+      "confidence": "high"
+    },
+    {
+      "name": "Idoma",
+      "nation": "Idoma",
+      "kind": "confederation",
+      "states": "Benue, Nasarawa, Enugu",
+      "summary": "Found in Benue State and celebrated for the rich Alekwu ancestral worship and agricultural excellence.",
+      "confidence": "high"
+    },
+    {
+      "name": "Tiv",
+      "nation": "Tiv",
+      "kind": "confederation",
+      "states": "Benue, Taraba, Nasarawa, Plateau",
+      "summary": "Found in Benue State and renowned as the food basket of Nigeria through extensive yam farming and egalitarian social structures.",
+      "confidence": "high"
+    },
+    {
+      "name": "Efik",
+      "nation": "Efik",
+      "kind": "tribe",
+      "states": "Cross River",
+      "summary": "Found in Cross River State and celebrated for maritime trade, rich culinary arts, and the famous Ekpe secret society.",
+      "confidence": "high"
+    },
+    {
+      "name": "Ibibio",
+      "nation": "Ibibio",
+      "kind": "tribe",
+      "states": "Akwa Ibom",
+      "summary": "Found in Akwa Ibom State and recognized for ancient civilization, wood carving, and agricultural abundance.",
+      "confidence": "high"
+    }
+  ]
+}

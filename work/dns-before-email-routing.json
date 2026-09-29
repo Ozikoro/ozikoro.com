@@ -1,0 +1,32 @@
+[
+ {
+  "type": "MX",
+  "name": "ozituma.com",
+  "content": "eforward5.registrar-servers.com",
+  "priority": 20
+ },
+ {
+  "type": "MX",
+  "name": "ozituma.com",
+  "content": "eforward4.registrar-servers.com",
+  "priority": 15
+ },
+ {
+  "type": "MX",
+  "name": "ozituma.com",
+  "content": "eforward3.registrar-servers.com",
+  "priority": 10
+ },
+ {
+  "type": "MX",
+  "name": "ozituma.com",
+  "content": "eforward2.registrar-servers.com",
+  "priority": 10
+ },
+ {
+  "type": "MX",
+  "name": "ozituma.com",
+  "content": "eforward1.registrar-servers.com",
+  "priority": 10
+ }
+]

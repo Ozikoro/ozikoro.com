@@ -1,0 +1,42 @@
+Ekpeye dictionary: circulation version
+1. Introduction
+The Ekpeye language is spoken between the Orashi and Sambreiro rivers in Ahoada West LGA in Rivers
+State and Yenagoa LGA, Bayelsa State, Nigeria. Ekpeye (under the name Ekpaffia) is first mentioned in
+Forde & Jones (1950:49-51) who estimated there were 6800 adult males in the 1930s. Ekpeye has four
+recognised dialects, Ako, Ubye, Upata and Igbuduya. The immediate neighbours of the Ekpeye are the
+Ogba (Igboid), the Egene (Edoid) and Abua and Obogolo (Central Delta) and speakers are in contact
+with many Ijoid languages, the predominant speech community of the Niger Delta. A literacy programme
+was established among the Ekpeye and readers and teaching materials prepared as well as a guide to
+Ekpeye personal names (Ikpe 1972). Little has been published on Ekpeye culture, but Picton (1988) is a
+description of the masquerades and Briggs (2002) describes attitudes to female circumcision. Clark
+(2006) has published an informal account of living in Ekpeye. The present document is a wordlist of
+Ekpeye, based mainly on electronic mss. left by Kay Williamson, who regrettably died on January 3rd,
+2005. The only substantial work on the Ekpeye language is the unpublished thesis of David Clark (Clark
+1969), a reading and writing book (Clark 1971a) and some articles (Clark 1971b,c; 1972; 1974). Clark's
+thesis is highly formal and is based entirely on folktale and other texts recorded in the mid-1960s.
+David Clark' prepared a list of Ekpeye nouns and verbs in association with his thesis which has
+circulated in photocopy form but never properly edited. This list is not entirely consistent with the
+orthography used in his thesis and some of the problems will be explained below. Some time ago, Kay
+Williamson had Clark's mss. typed into the computer in an old Macintosh format, using keystroke
+sequences to represent vowels plus diacritics. She then appears to have gone through the mss. with a Mr.
+Odieke-Akoh?, putting in revised tonal transcriptions. For some reason, there were several versions of the
+same word in the computer file. There were also a few hand-written extra words on the mss. not in the
+electronic version. Further words relating mainly to Ekpeye dance and music terms were supplied by the
+present editor. Different orthographic conventions were used in the same file, so the implosives were
+sometimes represented as '' and '6', sometimes as 'dh' and 'bh'. Clark's manuscript mostly represents
+downstep as an apostrophe in a sequence of tone letters. Thus HH'H is High, High, Downstep, High.
+However, occasionally he uses macrons over the letters, such as in bositolo, for reasons that are not clear.
+This may be a fossil from the orthographic representation of tone, which does use a macron. Ikpe (1972),
+which is fully tone-marked, uses a macron for downstep throughout. This was retained in the electronic
+file and is allowed to remain here, pending further information on the meaning of this convention.
+The only other major source on Ekpeye are the entries in Kay Williamson and Chinyere Ohiri-Aniche's
+"Comparative Igboid', a massive electronic manuscript still in preparation. These are entered in an IPA-
+like, but this was not cross-checked against the other files. As a consequence there are occasional marked
+INconsistencies between the two records of Ekpeye. which cannot be reconciled without checking against
+further field data.
+Considerable re-organisation was required to make the data usable. The following processes were
+undertaken;
+1 David Clark contacted with me in June 2010 with some corrections and additional bibliography. He notes that
+there is a sti unpublished ms ot tolk-tale texts. have vet to work through al corrections. but this 1s in
+progress.
+2 I regret to say I have no further information about Mr. Odieke-Akoh, though I am trying to establish his identity.

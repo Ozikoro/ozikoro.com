@@ -1,0 +1,1210 @@
+{
+  "$comment": "Ozituma Learn — authored curriculum. This file is the source of truth for course content and is imported with `npm run import:learn`. It is deliberately NOT generated from the dictionary: see the header of migrations/0023_learn.sql for why sequencing is authored rather than derived.",
+  "course": {
+    "slug": "igbo",
+    "languageCode": "ibo",
+    "title": "Igbo",
+    "subtitle": "Speak Igbo from your first conversation",
+    "description": "A beginner course in Igbo (Igbo izugbe, the standard written form). It starts where every real conversation starts — greeting someone, asking how they are, thanking them and saying goodbye — and builds from there. Audio and every word link back to the dictionary entry, so you can always check the source.",
+    "level": "beginner",
+    "status": "draft",
+    "position": 10,
+    "units": [
+      {
+        "slug": "greetings",
+        "title": "Greetings and courtesy",
+        "summary": "The words that open and close every Igbo conversation. Learn to greet someone at any time of day, ask how they are, thank them, introduce yourself and take your leave.",
+        "position": 10,
+        "status": "draft",
+        "lessons": [
+          {
+            "slug": "saying-hello",
+            "title": "Saying hello",
+            "objective": "Greet someone in Igbo at any time of day.",
+            "estMinutes": 8,
+            "position": 10,
+            "status": "draft",
+            "body": [
+              {
+                "type": "paragraph",
+                "text": "In Igbo, a greeting is not small talk. It is how you acknowledge that the other person is there — and skipping it to get straight to business reads as abrupt, sometimes as rude. So this is the right place to start: before you can ask for anything, you greet."
+              },
+              {
+                "type": "vocab"
+              },
+              {
+                "type": "heading",
+                "text": "The greeting changes with the clock"
+              },
+              {
+                "type": "paragraph",
+                "text": "Igbo has no single word for hello that works at every hour. Instead you name the part of the day and add ọma, good. Get the time of day wrong and you have not made a grammar mistake — you have said something slightly absurd, like wishing someone a good night at breakfast."
+              },
+              {
+                "type": "table",
+                "title": "Greetings by time of day",
+                "columns": [
+                  "Time",
+                  "Igbo",
+                  "English"
+                ],
+                "rows": [
+                  [
+                    "Morning",
+                    "Ụtụtụ ọma",
+                    "Good morning"
+                  ],
+                  [
+                    "Afternoon",
+                    "Ehihie ọma",
+                    "Good afternoon"
+                  ],
+                  [
+                    "Evening",
+                    "Mgbede ọma",
+                    "Good evening"
+                  ],
+                  [
+                    "Night",
+                    "Abalị ọma",
+                    "Good night"
+                  ]
+                ]
+              },
+              {
+                "type": "grammar",
+                "title": "The pattern: part of day + ọma",
+                "text": "Ọma means good, and it comes after the noun it describes. So the greeting is literally morning-good, afternoon-good. This is a general Igbo pattern and worth noticing early: the describing word follows the thing described. Ụtụtụ (morning) comes first, ọma (good) second — never the other way round.",
+                "examples": [
+                  {
+                    "igbo": "Ụtụtụ ọma",
+                    "english": "Good morning — literally morning good"
+                  },
+                  {
+                    "igbo": "Mgbede ọma",
+                    "english": "Good evening — literally evening good"
+                  }
+                ]
+              },
+              {
+                "type": "note",
+                "title": "Ndeewo works at any hour",
+                "text": "If you cannot remember which greeting fits, ndeewo is safe. It is a general word of respect and acknowledgement rather than a clock-bound greeting, and it is acceptable at any time of day. Learners lean on it heavily at first, and Igbo speakers will not find that strange."
+              },
+              {
+                "type": "phrases"
+              },
+              {
+                "type": "dialogue",
+                "title": "A morning exchange",
+                "lines": [
+                  {
+                    "speaker": "Chidi",
+                    "igbo": "Ụtụtụ ọma, nne.",
+                    "english": "Good morning, mother."
+                  },
+                  {
+                    "speaker": "Nne",
+                    "igbo": "Ụtụtụ ọma, nwa m. Nnọọ.",
+                    "english": "Good morning, my child. Welcome."
+                  },
+                  {
+                    "speaker": "Chidi",
+                    "igbo": "Daalụ, nne.",
+                    "english": "Thank you, mother."
+                  }
+                ]
+              },
+              {
+                "type": "tip",
+                "title": "Say it out loud from the first lesson",
+                "text": "Igbo is a tonal language: the same letters said on a different pitch can be a different word. That is not something you can learn by reading. Say each greeting aloud as you meet it — even quietly — because your ear needs the pitch long before your eye will notice it."
+              }
+            ],
+            "vocab": [
+              {
+                "igbo": "Ndeewo",
+                "english": "Hello / greetings",
+                "pos": "greeting",
+                "pronunciation": "n-DEH-woh",
+                "note": "Respectful and usable at any time of day.",
+                "dictionaryHeadword": "ndeewo",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ụtụtụ ọma",
+                "english": "Good morning",
+                "pos": "greeting",
+                "pronunciation": "oo-TOO-too OH-mah",
+                "literal": "morning good",
+                "dictionaryHeadword": "ụtụtụ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ehihie ọma",
+                "english": "Good afternoon",
+                "pos": "greeting",
+                "pronunciation": "eh-HEE-hyeh OH-mah",
+                "literal": "afternoon good",
+                "dictionaryHeadword": "ehihie",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Mgbede ọma",
+                "english": "Good evening",
+                "pos": "greeting",
+                "pronunciation": "m-GBEH-deh OH-mah",
+                "literal": "evening good",
+                "dictionaryHeadword": "mgbede",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Abalị ọma",
+                "english": "Good night",
+                "pos": "greeting",
+                "pronunciation": "ah-bah-LEE OH-mah",
+                "literal": "night good",
+                "note": "Said on parting at night, not on arriving.",
+                "dictionaryHeadword": "abalị",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Nnọọ",
+                "english": "Welcome",
+                "pos": "greeting",
+                "pronunciation": "n-NAW-aw",
+                "note": "Said to someone who has arrived.",
+                "dictionaryHeadword": "nnọọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Bịakọ",
+                "english": "Welcome, come in",
+                "pos": "greeting",
+                "pronunciation": "BEE-ah-kaw",
+                "note": "Warmer and more inviting than nnọọ; invites the person in.",
+                "dictionaryHeadword": "bịakọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ọma",
+                "english": "Good, fine, beautiful",
+                "pos": "adjective",
+                "pronunciation": "OH-mah",
+                "note": "Follows the noun. You will meet it in almost every lesson.",
+                "dictionaryHeadword": "ọma",
+                "generationMethod": "ai"
+              }
+            ],
+            "phrases": [
+              {
+                "igbo": "Ụtụtụ ọma, nne.",
+                "english": "Good morning, mother.",
+                "pronunciation": "oo-TOO-too OH-mah, n-NEH",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ndeewo, nna.",
+                "english": "Hello, father.",
+                "pronunciation": "n-DEH-woh, n-NAH",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Nnọọ, bịakọ.",
+                "english": "Welcome, come in.",
+                "pronunciation": "n-NAW-aw, BEE-ah-kaw",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ụtụtụ ọma, ndeewo.",
+                "english": "Good morning, greetings.",
+                "note": "A common, slightly formal doubling of the greeting.",
+                "generationMethod": "ai"
+              }
+            ],
+            "generationMethod": "ai"
+          },
+          {
+            "slug": "asking-how-someone-is",
+            "title": "Asking how someone is",
+            "objective": "Ask how someone is doing and answer the question yourself.",
+            "estMinutes": 9,
+            "position": 20,
+            "status": "draft",
+            "body": [
+              {
+                "type": "paragraph",
+                "text": "A greeting opens the conversation; the next thing that happens is that somebody asks how the other is. Kèdú is the word that does it, and it is one of the most useful words in Igbo — you will hear it many times a day."
+              },
+              {
+                "type": "vocab"
+              },
+              {
+                "type": "grammar",
+                "title": "Kèdú asks, and also means",
+                "text": "Kèdú on its own is a question: how are you, how is it. Add ka (how, that) and you can ask about something specific — kèdú ka ọ dị is how are things. What is worth noticing is that kèdú is not a verb. The answer is a full statement built around dị, so you are not replying with a fixed phrase, you are making a sentence about how things are.",
+                "examples": [
+                  {
+                    "igbo": "Kèdú?",
+                    "english": "How are you?"
+                  },
+                  {
+                    "igbo": "Kèdú ka ọ dị?",
+                    "english": "How are things?"
+                  },
+                  {
+                    "igbo": "Ọ dị mma.",
+                    "english": "It is fine — things are good."
+                  }
+                ]
+              },
+              {
+                "type": "heading",
+                "text": "The verb dị: to be, in the sense of how something is"
+              },
+              {
+                "type": "paragraph",
+                "text": "Igbo has more than one word that English translates as to be, and they are not interchangeable. Dị describes a state or a quality — how something is. This is the one used for how-are-you. The next lesson but one introduces bụ, which is for identity, who or what something is. Getting them the wrong way round is one of the most common beginner errors, so it is worth learning them as a pair from the start."
+              },
+              {
+                "type": "table",
+                "title": "Pronouns with dị — how each person is",
+                "columns": [
+                  "Person",
+                  "Igbo",
+                  "English"
+                ],
+                "rows": [
+                  [
+                    "I",
+                    "M dị mma",
+                    "I am fine"
+                  ],
+                  [
+                    "You (one person)",
+                    "Ị dị mma?",
+                    "Are you fine?"
+                  ],
+                  [
+                    "He, she, it",
+                    "Ọ dị mma",
+                    "He / she / it is fine"
+                  ],
+                  [
+                    "We",
+                    "Anyị dị mma",
+                    "We are fine"
+                  ],
+                  [
+                    "You (several)",
+                    "Unu dị mma?",
+                    "Are you all fine?"
+                  ],
+                  [
+                    "They",
+                    "Ha dị mma",
+                    "They are fine"
+                  ]
+                ]
+              },
+              {
+                "type": "note",
+                "title": "Igbo has two words for you",
+                "text": "Ị is you when one person is being addressed. Unu is you when several are. English lost this distinction and Igbo never had any trouble with it, so a learner has to consciously choose: are you talking to one person or to a group? The pronoun is part of the verb phrase, so this is a decision you make every time you speak."
+              },
+              {
+                "type": "phrases"
+              },
+              {
+                "type": "dialogue",
+                "title": "Meeting on the road",
+                "lines": [
+                  {
+                    "speaker": "Adaeze",
+                    "igbo": "Ndeewo, Obinna.",
+                    "english": "Hello, Obinna."
+                  },
+                  {
+                    "speaker": "Obinna",
+                    "igbo": "Ndeewo. Kèdú?",
+                    "english": "Hello. How are you?"
+                  },
+                  {
+                    "speaker": "Adaeze",
+                    "igbo": "Ọ dị mma, daalụ. Gịnị banyere gị?",
+                    "english": "I am fine, thank you. What about you?"
+                  },
+                  {
+                    "speaker": "Obinna",
+                    "igbo": "Ọ dị mma. Daalụ.",
+                    "english": "I am fine. Thank you."
+                  }
+                ]
+              },
+              {
+                "type": "tip",
+                "title": "The answer is expected to be short",
+                "text": "Kèdú is a real question, not a formality, and it is normal to answer it honestly — but briefly. Ọ dị mma, daalụ resolves it. There is no obligation to describe your week."
+              }
+            ],
+            "vocab": [
+              {
+                "igbo": "Kèdú",
+                "english": "How are you? / How is it?",
+                "pos": "question",
+                "pronunciation": "keh-DOO",
+                "note": "One of the most frequently used words in Igbo.",
+                "dictionaryHeadword": "kedu",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ọ dị mma",
+                "english": "It is fine / I am fine",
+                "pos": "phrase",
+                "pronunciation": "aw dee m-MAH",
+                "literal": "it is good",
+                "dictionaryHeadword": "dị",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ọ dị njọ",
+                "english": "It is bad / I am not well",
+                "pos": "phrase",
+                "pronunciation": "aw dee n-JAW",
+                "literal": "it is bad",
+                "dictionaryHeadword": "njọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Dị",
+                "english": "to be (a state or quality)",
+                "pos": "verb",
+                "pronunciation": "dee",
+                "note": "Used for how something is. Compare bụ, which is for what something is.",
+                "dictionaryHeadword": "dị",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "M",
+                "english": "I, me",
+                "pos": "pronoun",
+                "pronunciation": "m",
+                "dictionaryHeadword": "m",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ị",
+                "english": "you (one person)",
+                "pos": "pronoun",
+                "pronunciation": "ee",
+                "note": "Subject form. Gị is the object and emphatic form.",
+                "dictionaryHeadword": "ị",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ọ",
+                "english": "he, she, it",
+                "pos": "pronoun",
+                "pronunciation": "aw",
+                "note": "Igbo does not mark gender on this pronoun.",
+                "dictionaryHeadword": "ọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Anyị",
+                "english": "we, us",
+                "pos": "pronoun",
+                "pronunciation": "ah-NYEE",
+                "dictionaryHeadword": "anyị",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Unu",
+                "english": "you (several people)",
+                "pos": "pronoun",
+                "pronunciation": "oo-NOO",
+                "dictionaryHeadword": "unu",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ha",
+                "english": "they, them",
+                "pos": "pronoun",
+                "pronunciation": "hah",
+                "dictionaryHeadword": "ha",
+                "generationMethod": "ai"
+              }
+            ],
+            "phrases": [
+              {
+                "igbo": "Kèdú ka ị mere?",
+                "english": "How are you doing? How have you been?",
+                "pronunciation": "keh-DOO kah ee meh-REH",
+                "note": "Literally how did you do — asked of someone you have not seen for a while.",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ọ dị mma, daalụ.",
+                "english": "I am fine, thank you.",
+                "pronunciation": "aw dee m-MAH, DAH-loo",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ị dị mma?",
+                "english": "Are you well?",
+                "pronunciation": "ee dee m-MAH",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Gịnị banyere gị?",
+                "english": "What about you?",
+                "pronunciation": "GEE-nee bah-NYEH-reh gee",
+                "generationMethod": "ai"
+              }
+            ],
+            "generationMethod": "ai"
+          },
+          {
+            "slug": "thank-you-please-sorry",
+            "title": "Thank you, please and sorry",
+            "objective": "Use Igbo's three essential courtesy words, and know which apology is which.",
+            "estMinutes": 9,
+            "position": 30,
+            "status": "draft",
+            "body": [
+              {
+                "type": "paragraph",
+                "text": "Three words carry almost all of Igbo politeness, and one of them is a trap for English speakers. Daalụ, biko and ndo look like thank you, please and sorry — and the first two are exactly that. The third is not, and using it as one is a mistake learners make for years."
+              },
+              {
+                "type": "vocab"
+              },
+              {
+                "type": "note",
+                "title": "Ndo is sympathy, not apology",
+                "text": "Ndo is what you say to someone who has stumbled, lost something, or had bad news. It means something close to I am sorry that happened to you. It is NOT what you say when you are the one at fault. If you have done something wrong, the word is gbaghara m — forgive me, excuse me. Saying ndo after stepping on someone's foot tells them you feel for their misfortune rather than that you are apologising for causing it."
+              },
+              {
+                "type": "grammar",
+                "title": "Two apologies, two jobs",
+                "text": "The distinction is worth holding onto because it also shows how Igbo treats responsibility. Ndo expresses that you share someone's feeling about something that happened to them. Gbaghara m asks them to release you from something you did. The verb is gbaghara, forgive, and m is me.",
+                "examples": [
+                  {
+                    "igbo": "Ndo.",
+                    "english": "I am sorry that happened to you — sympathy."
+                  },
+                  {
+                    "igbo": "Gbaghara m.",
+                    "english": "Forgive me, excuse me — I did this."
+                  },
+                  {
+                    "igbo": "Biko, gbaghara m.",
+                    "english": "Please forgive me — softened, and very normal."
+                  }
+                ]
+              },
+              {
+                "type": "heading",
+                "text": "Turning courtesy up and down"
+              },
+              {
+                "type": "paragraph",
+                "text": "Daalụ and biko are complete on their own and are used constantly. To add weight, daalụ takes nke ukwuu — very much. Notice that you do not need to raise your voice or add exclamation to sound sincere; the phrase does the work."
+              },
+              {
+                "type": "table",
+                "title": "Yes and no",
+                "columns": [
+                  "Igbo",
+                  "English",
+                  "Note"
+                ],
+                "rows": [
+                  [
+                    "Ee",
+                    "Yes",
+                    "Also used to agree, as in yes, that is so"
+                  ],
+                  [
+                    "Mba",
+                    "No",
+                    "Plain and not impolite"
+                  ],
+                  [
+                    "Ee, ọ dị mma",
+                    "Yes, that is fine",
+                    "A softened agreement"
+                  ],
+                  [
+                    "Mba, daalụ",
+                    "No, thank you",
+                    "The polite refusal"
+                  ]
+                ]
+              },
+              {
+                "type": "phrases"
+              },
+              {
+                "type": "dialogue",
+                "title": "At the market",
+                "lines": [
+                  {
+                    "speaker": "Adaeze",
+                    "igbo": "Biko, olee ebe ahịa dị?",
+                    "english": "Please, where is the market?"
+                  },
+                  {
+                    "speaker": "Onye ahịa",
+                    "igbo": "Ọ dị n'akụkụ ụlọ ahụ.",
+                    "english": "It is beside that building."
+                  },
+                  {
+                    "speaker": "Adaeze",
+                    "igbo": "Daalụ nke ukwuu.",
+                    "english": "Thank you very much."
+                  },
+                  {
+                    "speaker": "Onye ahịa",
+                    "igbo": "Ọ dị mma.",
+                    "english": "That is fine — you are welcome."
+                  }
+                ]
+              },
+              {
+                "type": "tip",
+                "title": "Biko is not only for requests",
+                "text": "Biko means please, but it is also what you say to get someone's attention politely — rather like excuse me. Opening with biko rather than launching into a question is the ordinary polite move, and it costs you one word."
+              }
+            ],
+            "vocab": [
+              {
+                "igbo": "Daalụ",
+                "english": "Thank you",
+                "pos": "courtesy",
+                "pronunciation": "DAH-loo",
+                "dictionaryHeadword": "daalụ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Daalụ nke ukwuu",
+                "english": "Thank you very much",
+                "pos": "courtesy",
+                "pronunciation": "DAH-loo n-keh oo-KWOO",
+                "literal": "thank you of muchness",
+                "dictionaryHeadword": "ukwuu",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Biko",
+                "english": "Please",
+                "pos": "courtesy",
+                "pronunciation": "BEE-koh",
+                "note": "Also used to open a request politely, like excuse me.",
+                "dictionaryHeadword": "biko",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ndo",
+                "english": "Sorry (sympathy)",
+                "pos": "courtesy",
+                "pronunciation": "n-DOH",
+                "note": "Sympathy for what happened to someone. Not an apology for your own fault.",
+                "dictionaryHeadword": "ndo",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Gbaghara m",
+                "english": "Forgive me, excuse me",
+                "pos": "phrase",
+                "pronunciation": "g-BAH-hah-rah m",
+                "note": "This is the apology you use when you are at fault.",
+                "dictionaryHeadword": "gbaghara",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ee",
+                "english": "Yes",
+                "pos": "particle",
+                "pronunciation": "eh-eh",
+                "dictionaryHeadword": "ee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Mba",
+                "english": "No",
+                "pos": "particle",
+                "pronunciation": "m-BAH",
+                "dictionaryHeadword": "mba",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Nke ukwuu",
+                "english": "Very much",
+                "pos": "adverb",
+                "pronunciation": "n-keh oo-KWOO",
+                "note": "Intensifies whatever it follows.",
+                "dictionaryHeadword": "ukwuu",
+                "generationMethod": "ai"
+              }
+            ],
+            "phrases": [
+              {
+                "igbo": "Daalụ nke ukwuu.",
+                "english": "Thank you very much.",
+                "pronunciation": "DAH-loo n-keh oo-KWOO",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Biko, nyere m aka.",
+                "english": "Please help me.",
+                "pronunciation": "BEE-koh, NYEH-reh m ah-KAH",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ndo.",
+                "english": "I am sorry that happened to you.",
+                "pronunciation": "n-DOH",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Gbaghara m, biko.",
+                "english": "Forgive me, please.",
+                "pronunciation": "g-BAH-hah-rah m, BEE-koh",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Mba, daalụ.",
+                "english": "No, thank you.",
+                "pronunciation": "m-BAH, DAH-loo",
+                "generationMethod": "ai"
+              }
+            ],
+            "generationMethod": "ai"
+          },
+          {
+            "slug": "introducing-yourself",
+            "title": "Introducing yourself",
+            "objective": "Give your name, ask someone theirs, and say where you are from.",
+            "estMinutes": 10,
+            "position": 40,
+            "status": "draft",
+            "body": [
+              {
+                "type": "paragraph",
+                "text": "Now that you can greet someone and ask how they are, the conversation turns to who you are. This lesson gives you the three sentences that open almost every first meeting in Igbo."
+              },
+              {
+                "type": "vocab"
+              },
+              {
+                "type": "grammar",
+                "title": "Bụ means is, and it is not dị",
+                "text": "This is the lesson where the other to be shows up. Dị, from the last lesson but one, describes how something is — a state or a quality. Bụ states what something is — an identity. Ọ dị mma means it is fine. Ọ bụ nwoke means he is a man. When you are giving your name you are stating an identity, so it is bụ every time.",
+                "examples": [
+                  {
+                    "igbo": "Aha m bụ Chidi.",
+                    "english": "My name is Chidi — identity, so bụ."
+                  },
+                  {
+                    "igbo": "Ọ dị mma.",
+                    "english": "It is fine — state, so dị."
+                  },
+                  {
+                    "igbo": "Abụ m onye Igbo.",
+                    "english": "I am an Igbo person — identity, so bụ."
+                  }
+                ]
+              },
+              {
+                "type": "table",
+                "title": "Bụ with each pronoun — who someone is",
+                "columns": [
+                  "Person",
+                  "Igbo",
+                  "English"
+                ],
+                "rows": [
+                  [
+                    "I",
+                    "Abụ m",
+                    "I am"
+                  ],
+                  [
+                    "You (one person)",
+                    "Ị bụ",
+                    "You are"
+                  ],
+                  [
+                    "He, she, it",
+                    "Ọ bụ",
+                    "He / she / it is"
+                  ],
+                  [
+                    "We",
+                    "Anyị bụ",
+                    "We are"
+                  ],
+                  [
+                    "You (several)",
+                    "Unu bụ",
+                    "You all are"
+                  ],
+                  [
+                    "They",
+                    "Ha bụ",
+                    "They are"
+                  ]
+                ]
+              },
+              {
+                "type": "note",
+                "title": "Abụ m, not m bụ",
+                "text": "For I am, the form is abụ m — the a comes first and the pronoun follows. Ị bụ, ọ bụ, anyị bụ and the rest put the pronoun first. This one irregular-looking form is worth memorising as a whole rather than working out, because it is the single most common sentence you will say about yourself."
+              },
+              {
+                "type": "heading",
+                "text": "Asking for a name, and where someone is from"
+              },
+              {
+                "type": "paragraph",
+                "text": "Kèdú aha gị is the ordinary way to ask someone's name — literally how is your name, using the same kèdú from the second lesson. For where someone is from, Igbo uses si, to come from. Ị si ebee is the question, and the answer swaps ebee for the place."
+              },
+              {
+                "type": "table",
+                "title": "Asking and answering",
+                "columns": [
+                  "Question",
+                  "English",
+                  "Answer"
+                ],
+                "rows": [
+                  [
+                    "Kèdú aha gị?",
+                    "What is your name?",
+                    "Aha m bụ Ngozi."
+                  ],
+                  [
+                    "Ebee ka ị si?",
+                    "Where are you from?",
+                    "Esi m na Lagos."
+                  ],
+                  [
+                    "Ebee ka ị bi?",
+                    "Where do you live?",
+                    "Ebi m na Abuja."
+                  ]
+                ]
+              },
+              {
+                "type": "phrases"
+              },
+              {
+                "type": "dialogue",
+                "title": "Two people meet for the first time",
+                "lines": [
+                  {
+                    "speaker": "Adaeze",
+                    "igbo": "Ndeewo. Kèdú aha gị?",
+                    "english": "Hello. What is your name?"
+                  },
+                  {
+                    "speaker": "Obinna",
+                    "igbo": "Aha m bụ Obinna. Gịnị bụ aha gị?",
+                    "english": "My name is Obinna. What is your name?"
+                  },
+                  {
+                    "speaker": "Adaeze",
+                    "igbo": "Aha m bụ Adaeze. Ebee ka ị si?",
+                    "english": "My name is Adaeze. Where are you from?"
+                  },
+                  {
+                    "speaker": "Obinna",
+                    "igbo": "Esi m na Enugu. Gị?",
+                    "english": "I am from Enugu. And you?"
+                  },
+                  {
+                    "speaker": "Adaeze",
+                    "igbo": "Esi m na Lagos.",
+                    "english": "I am from Lagos."
+                  }
+                ]
+              },
+              {
+                "type": "tip",
+                "title": "Igbo names say something",
+                "text": "Most Igbo names are complete sentences. Chidi is short for Chineke di — God exists. Ngozi means blessing. Adaeze means first daughter of a king. Obinna means heart of the father. When you learn someone's name you are learning a statement, and asking what a name means is a normal and welcome question in Igbo conversation."
+              }
+            ],
+            "vocab": [
+              {
+                "igbo": "Aha",
+                "english": "Name",
+                "pos": "noun",
+                "pronunciation": "ah-HAH",
+                "dictionaryHeadword": "aha",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Aha m bụ",
+                "english": "My name is",
+                "pos": "phrase",
+                "pronunciation": "ah-HAH m boo",
+                "literal": "name my is",
+                "dictionaryHeadword": "aha",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Bụ",
+                "english": "to be (an identity)",
+                "pos": "verb",
+                "pronunciation": "boo",
+                "note": "States what something is. Dị states how it is.",
+                "dictionaryHeadword": "bụ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Onye",
+                "english": "Person, who",
+                "pos": "noun",
+                "pronunciation": "OH-nyeh",
+                "dictionaryHeadword": "onye",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Gịnị",
+                "english": "What?",
+                "pos": "question",
+                "pronunciation": "GEE-nee",
+                "dictionaryHeadword": "gịnị",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ebee",
+                "english": "Where?",
+                "pos": "question",
+                "pronunciation": "eh-BEH",
+                "dictionaryHeadword": "ebee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Si",
+                "english": "to come from",
+                "pos": "verb",
+                "pronunciation": "see",
+                "note": "Esi m na — I am from.",
+                "dictionaryHeadword": "si",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Bi",
+                "english": "to live, to dwell",
+                "pos": "verb",
+                "pronunciation": "bee",
+                "note": "Ebi m na — I live in.",
+                "dictionaryHeadword": "bi",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Na",
+                "english": "in, at, from",
+                "pos": "preposition",
+                "pronunciation": "nah",
+                "note": "Used before a place name.",
+                "dictionaryHeadword": "na",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Gị",
+                "english": "you (object, emphatic)",
+                "pos": "pronoun",
+                "pronunciation": "gee",
+                "note": "The object form. Ị is the subject form.",
+                "dictionaryHeadword": "gị",
+                "generationMethod": "ai"
+              }
+            ],
+            "phrases": [
+              {
+                "igbo": "Aha m bụ Chidi.",
+                "english": "My name is Chidi.",
+                "pronunciation": "ah-HAH m boo CHEE-dee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Kèdú aha gị?",
+                "english": "What is your name?",
+                "pronunciation": "keh-DOO ah-HAH gee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ebee ka ị si?",
+                "english": "Where are you from?",
+                "pronunciation": "eh-BEH kah ee see",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Esi m na Lagos.",
+                "english": "I am from Lagos.",
+                "pronunciation": "eh-SEE m nah LAH-gos",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Abụ m onye Igbo.",
+                "english": "I am an Igbo person.",
+                "pronunciation": "ah-BOO m OH-nyeh EE-gboh",
+                "generationMethod": "ai"
+              }
+            ],
+            "generationMethod": "ai"
+          },
+          {
+            "slug": "saying-goodbye",
+            "title": "Saying goodbye",
+            "objective": "Close a conversation politely and arrange to meet again.",
+            "estMinutes": 8,
+            "position": 50,
+            "status": "draft",
+            "body": [
+              {
+                "type": "paragraph",
+                "text": "Igbo leave-takings are a matched pair, and once you see the pattern it is easy to remember. One person is going and one person is staying, and each gets the wish that fits."
+              },
+              {
+                "type": "vocab"
+              },
+              {
+                "type": "grammar",
+                "title": "Jee and nọọ — go well, stay well",
+                "text": "When someone leaves, you tell them jee nke ọma — go well. When someone stays behind, you tell them nọọ nke ọma — stay well. Jee is the verb go, nọọ is stay or remain, and nke ọma means well. English collapses all of this into goodbye; Igbo says something specific about what the other person is about to do, which is part of what makes the parting warm rather than merely polite.",
+                "examples": [
+                  {
+                    "igbo": "Jee nke ọma.",
+                    "english": "Go well — said to the person leaving."
+                  },
+                  {
+                    "igbo": "Nọọ nke ọma.",
+                    "english": "Stay well — said to the person remaining."
+                  },
+                  {
+                    "igbo": "Ka ọ dị.",
+                    "english": "Goodbye — literally let it be so."
+                  }
+                ]
+              },
+              {
+                "type": "note",
+                "title": "You say both",
+                "text": "In a real parting the two are exchanged, not chosen between. The person leaving says nọọ nke ọma to the one staying, and the one staying says jee nke ọma to the one leaving. If you only remember one, jee nke ọma is the safer half, because you are usually the one going."
+              },
+              {
+                "type": "heading",
+                "text": "Naming the next time you will meet"
+              },
+              {
+                "type": "paragraph",
+                "text": "Ka echi and ka anyị hụ ọzọ both defer the parting to a specific future. Ka is a versatile word meaning let or so that, and it opens all of these. Echi is tomorrow, ọzọ is again, and hụ is see."
+              },
+              {
+                "type": "table",
+                "title": "Ways to say goodbye",
+                "columns": [
+                  "Igbo",
+                  "English",
+                  "When"
+                ],
+                "rows": [
+                  [
+                    "Ka ọ dị",
+                    "Goodbye",
+                    "Any parting, and the safest choice"
+                  ],
+                  [
+                    "Ka echi",
+                    "Until tomorrow",
+                    "When you will meet the next day"
+                  ],
+                  [
+                    "Ka anyị hụ ọzọ",
+                    "Until we see each other again",
+                    "Open-ended, warm"
+                  ],
+                  [
+                    "Jee nke ọma",
+                    "Go well",
+                    "To the person leaving"
+                  ],
+                  [
+                    "Nọọ nke ọma",
+                    "Stay well",
+                    "To the person staying"
+                  ]
+                ]
+              },
+              {
+                "type": "phrases"
+              },
+              {
+                "type": "dialogue",
+                "title": "Leaving the house",
+                "lines": [
+                  {
+                    "speaker": "Chidi",
+                    "igbo": "Ehee, m na-aga ugbua. Ka ọ dị, nne.",
+                    "english": "Alright, I am going now. Goodbye, mother."
+                  },
+                  {
+                    "speaker": "Nne",
+                    "igbo": "Jee nke ọma, nwa m.",
+                    "english": "Go well, my child."
+                  },
+                  {
+                    "speaker": "Chidi",
+                    "igbo": "Nọọ nke ọma. Ka echi.",
+                    "english": "Stay well. Until tomorrow."
+                  },
+                  {
+                    "speaker": "Nne",
+                    "igbo": "Ka echi.",
+                    "english": "Until tomorrow."
+                  }
+                ]
+              },
+              {
+                "type": "tip",
+                "title": "Say the full pair once and it will stick",
+                "text": "Jee nke ọma and nọọ nke ọma are easy to mix up on paper and almost impossible to mix up out loud, because in a real parting you hear the other person say theirs. Practise them as a pair, one after the other."
+              }
+            ],
+            "vocab": [
+              {
+                "igbo": "Ka ọ dị",
+                "english": "Goodbye",
+                "pos": "phrase",
+                "pronunciation": "kah aw dee",
+                "literal": "let it be so",
+                "note": "The safest general goodbye.",
+                "dictionaryHeadword": "ka",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ka echi",
+                "english": "Until tomorrow",
+                "pos": "phrase",
+                "pronunciation": "kah EH-chee",
+                "literal": "until tomorrow",
+                "dictionaryHeadword": "echi",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ka anyị hụ ọzọ",
+                "english": "Until we meet again",
+                "pos": "phrase",
+                "pronunciation": "kah ah-NYEE hoo AW-zaw",
+                "literal": "let us see again",
+                "dictionaryHeadword": "ọzọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Jee nke ọma",
+                "english": "Go well",
+                "pos": "phrase",
+                "pronunciation": "JEH n-keh AW-mah",
+                "note": "Said to the person who is leaving.",
+                "dictionaryHeadword": "jee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Nọọ nke ọma",
+                "english": "Stay well",
+                "pos": "phrase",
+                "pronunciation": "n-NAW n-keh AW-mah",
+                "note": "Said to the person who is staying.",
+                "dictionaryHeadword": "nọọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Echi",
+                "english": "Tomorrow",
+                "pos": "noun",
+                "pronunciation": "EH-chee",
+                "dictionaryHeadword": "echi",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ọzọ",
+                "english": "Again",
+                "pos": "adverb",
+                "pronunciation": "AW-zaw",
+                "dictionaryHeadword": "ọzọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Jee",
+                "english": "to go (imperative)",
+                "pos": "verb",
+                "pronunciation": "jeh",
+                "dictionaryHeadword": "jee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Nọọ",
+                "english": "to stay, to remain (imperative)",
+                "pos": "verb",
+                "pronunciation": "n-NAW",
+                "dictionaryHeadword": "nọọ",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Nke ọma",
+                "english": "Well",
+                "pos": "adverb",
+                "pronunciation": "n-keh AW-mah",
+                "literal": "of goodness",
+                "dictionaryHeadword": "ọma",
+                "generationMethod": "ai"
+              }
+            ],
+            "phrases": [
+              {
+                "igbo": "Ka ọ dị.",
+                "english": "Goodbye.",
+                "pronunciation": "kah aw dee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ka echi.",
+                "english": "Until tomorrow.",
+                "pronunciation": "kah EH-chee",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Jee nke ọma.",
+                "english": "Go well.",
+                "pronunciation": "JEH n-keh AW-mah",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Nọọ nke ọma.",
+                "english": "Stay well.",
+                "pronunciation": "n-NAW n-keh AW-mah",
+                "generationMethod": "ai"
+              },
+              {
+                "igbo": "Ka anyị hụ ọzọ.",
+                "english": "Until we meet again.",
+                "pronunciation": "kah ah-NYEE hoo AW-zaw",
+                "generationMethod": "ai"
+              }
+            ],
+            "generationMethod": "ai"
+          }
+        ]
+      }
+    ],
+    "generationMethod": "ai"
+  },
+  "_quarantine": "QUARANTINED — unverified AI-authored draft. Every Igbo word, translation, grammar note and cultural claim in this file was written by an AI before the platform specification existed, and §2.1 of that specification forbids AI-authored Igbo reaching learners. It is retained ONLY as test data for the exercise and SRS engines. Every item is status=draft and generationMethod=ai, which the importer stores and every learner-facing query filters on, so none of it can render to a learner. Anything that is to ship must be re-authored or checked by a named linguist and a named native speaker under §11.5, with a recorded source per entry. See docs/decisions.md T5.",
+  "_generationMethod": "ai",
+  "_aiGenerated": true
+}

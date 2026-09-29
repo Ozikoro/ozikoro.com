@@ -1,0 +1,1743 @@
+[
+ {
+  "name": "Nimo",
+  "division": "Northern Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Chinese",
+   "Highlife",
+   "Huya Live",
+   "Koo Nimo",
+   "Liberian-born American",
+   "Nimo",
+   "Palm"
+  ],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 28-31, Table I, notes and geographical survey"
+ },
+ {
+  "name": "Achi",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Enugu"
+  ],
+  "statesFromSearch": "Enugu",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 28-30 and 33-36, Table II and notes"
+ },
+ {
+  "name": "Awgu",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Enugu"
+  ],
+  "statesFromSearch": "Enugu",
+  "townsFromOwnText": [
+   "Awgu"
+  ],
+  "townsFromSearch": [],
+  "parent": "Anike",
+  "source": "Forde & Jones (1950), pp. 28-30 and 33-36, Table II and notes"
+ },
+ {
+  "name": "Uturu",
+  "division": "Northern Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": "Abia",
+  "townsFromOwnText": [
+   "Uturu"
+  ],
+  "townsFromSearch": [],
+  "parent": "Otanzu",
+  "source": "Forde & Jones (1950), pp. 28-30 and 33-36, Table II and notes"
+ },
+ {
+  "name": "Nike",
+  "division": "Northern Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Nike"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 13, 23, 28-30 and 33-35, Table II and notes; Afigbo (1981), pp. 108-109"
+ },
+ {
+  "name": "Lengwe",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 28-30 and 33-36, Table II and notes; Afigbo (1981), p. 295"
+ },
+ {
+  "name": "Mbowo",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 28-30 and 33-36, Table II and notes"
+ },
+ {
+  "name": "Isiago",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 28-30 and 33-36, Table II and notes"
+ },
+ {
+  "name": "Ugboma",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Ama Igbo",
+   "Ehime",
+   "Ikeduru",
+   "Isu-",
+   "Mbaise",
+   "Mbama",
+   "Mbieri",
+   "Orlu",
+   "Ugboma"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 39-40, Table III, note and row; Afigbo (1981), p. 12"
+ },
+ {
+  "name": "Mbaise",
+  "division": "Southern Igbo",
+  "kind": "confederation",
+  "recordedState": [
+   "Imo"
+  ],
+  "statesFromSearch": "Imo",
+  "townsFromOwnText": [
+   "Afigbo",
+   "Ama Igbo",
+   "Ehime",
+   "Ikeduru",
+   "Isu-",
+   "Mbaise",
+   "Mbama",
+   "Mbieri",
+   "Ugboma"
+  ],
+  "townsFromSearch": [
+   "Mbaise"
+  ],
+  "parent": null,
+  "source": "Afigbo (1981), pp. 12 and 323"
+ },
+ {
+  "name": "Ohoba",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Imo"
+  ],
+  "statesFromSearch": "Imo",
+  "townsFromOwnText": [
+   "Awarra",
+   "Native Administration",
+   "Ohoba",
+   "Riverain Igbo",
+   "Umuakpo"
+  ],
+  "townsFromSearch": [
+   "Alaka",
+   "Eziama",
+   "Umugologo",
+   "Umukpo",
+   "Umukpoche",
+   "Umunwanyi"
+  ],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 41-42, Table IV and notes"
+ },
+ {
+  "name": "Umuakpo",
+  "division": "Southern Igbo",
+  "kind": "other",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Ohoba"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 41-42, Table IV and notes"
+ },
+ {
+  "name": "Emohua",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Rivers"
+  ],
+  "statesFromSearch": "Rivers",
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Alimini",
+   "Egbeda",
+   "Elele-",
+   "Emohua",
+   "Ibaa",
+   "Ndele",
+   "Obelle",
+   "Odegu",
+   "Omudioga",
+   "Ovogo",
+   "Rumuekpe",
+   "Rumuewhor",
+   "Rumuji",
+   "Rumuodogo",
+   "Ubimini"
+  ],
+  "parent": "Ikwerri",
+  "source": "Forde & Jones (1950), pp. 41-42, Table IV and notes"
+ },
+ {
+  "name": "Ikwerri",
+  "division": "Southern Igbo",
+  "kind": "confederation",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Etche",
+   "Ikwerre",
+   "Ndoki",
+   "Uratta"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 41-42, Table IV and notes; Afigbo (1981), pp. 4, 8 and 10"
+ },
+ {
+  "name": "Ngwa",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": "Abia",
+  "townsFromOwnText": [
+   "Akang",
+   "Cross River",
+   "Ekpo",
+   "Ibibio",
+   "Okonko"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 38, 43-44, Table V and notes; Afigbo (1981), pp. 14, 20 and 51"
+ },
+ {
+  "name": "Ozuitem",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 44-45, Table VI and notes"
+ },
+ {
+  "name": "Igbere",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": "Abia",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 44-45, Table VI and notes"
+ },
+ {
+  "name": "Umuhu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 44-45, Table VI and notes"
+ },
+ {
+  "name": "Arondizuogu",
+  "division": "Southern Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Imo"
+  ],
+  "statesFromSearch": "Abia",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Arondizuogu; Ohaukwu; List of villages in Ebonyi State (accessed 2026-09-28)"
+ },
+ {
+  "name": "Abavo",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes"
+ },
+ {
+  "name": "Idumu Asa",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Benin",
+   "Idumu Asa"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes"
+ },
+ {
+  "name": "Otolokpu",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes"
+ },
+ {
+  "name": "Akumazi",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes"
+ },
+ {
+  "name": "Umunede",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [
+   "Umunede"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes"
+ },
+ {
+  "name": "Igbodo",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes; pp. 33-34, Table II"
+ },
+ {
+  "name": "Mbiri",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes"
+ },
+ {
+  "name": "Ogwashi Uku",
+  "division": "Western Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-48, Table VII, notes and Distinctive Features"
+ },
+ {
+  "name": "Ibusa",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [
+   "Akuku Atuma",
+   "Atuma",
+   "Okpanam"
+  ],
+  "townsFromSearch": [
+   "Ibusa"
+  ],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 46-47, Table VII and notes"
+ },
+ {
+  "name": "Umunkwata",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII, notes and Distinctive Features"
+ },
+ {
+  "name": "Abedei",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Benin",
+   "Distinctive Features"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII, notes and Distinctive Features"
+ },
+ {
+  "name": "Abbi",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII and notes"
+ },
+ {
+  "name": "Amai",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Abbi",
+   "Amai",
+   "Benin",
+   "Effe",
+   "Orogun",
+   "Ughelli"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII and notes"
+ },
+ {
+  "name": "Akoko",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Abbi",
+   "Agbor",
+   "Akoko",
+   "Amai",
+   "Benin",
+   "Igala",
+   "Ogwashi Uku",
+   "Orogun",
+   "Utagba"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII, notes and Distinctive Features"
+ },
+ {
+  "name": "Onicha",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": "Ebonyi",
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Abaomege",
+   "Igboeze",
+   "Isinkwo",
+   "Onicha-",
+   "Oshiri",
+   "Ugwulangu",
+   "Ukawu"
+  ],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII and notes"
+ },
+ {
+  "name": "Emu",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII and notes"
+ },
+ {
+  "name": "Ogume",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-49, Table VIII, notes and Distinctive Features"
+ },
+ {
+  "name": "Nzam",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Anambra"
+  ],
+  "statesFromSearch": "Anambra",
+  "townsFromOwnText": [
+   "Ijaw"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX, notes and Distinctive Features"
+ },
+ {
+  "name": "Asaba",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Anambra"
+  ],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX, notes and Distinctive Features; Meek (1937), p. 15; Afigbo (1981), pp. 296-298 and 309-311"
+ },
+ {
+  "name": "Ossissa",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX and notes"
+ },
+ {
+  "name": "Abarra",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Abarra"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX and notes"
+ },
+ {
+  "name": "Okpai",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 48-51, Table IX and notes, with Table VIII notes"
+ },
+ {
+  "name": "Aboh",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX, notes and Distinctive Features; Meek (1937), p. 13; Afigbo (1981), pp. 133 and 135"
+ },
+ {
+  "name": "Ndoni",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": "Anambra",
+  "townsFromOwnText": [
+   "Aboh",
+   "Ndoni"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX and notes"
+ },
+ {
+  "name": "Ase",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "American Sign",
+   "Language",
+   "Yoruba"
+  ],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX and notes"
+ },
+ {
+  "name": "Ashaka",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Aboh",
+   "Akoi",
+   "Ashaka",
+   "Benin",
+   "Ossissa"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 49-51, Table IX and notes"
+ },
+ {
+  "name": "Afikpo",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Ebonyi"
+  ],
+  "statesFromSearch": "Ebonyi",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": "Ada",
+  "source": "Forde & Jones (1950), pp. 52-53, section 4 Distinctive Features, Table X and note 1; Afigbo (1981), pp. 14 and 301"
+ },
+ {
+  "name": "Amaseri",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": "Ada",
+  "source": "Forde & Jones (1950), pp. 53-56, Table X and note 1, and Table XII; Afigbo (1981), p. 204"
+ },
+ {
+  "name": "Okpoha",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": "Ada",
+  "source": "Forde & Jones (1950), p. 53, Table X and note 1"
+ },
+ {
+  "name": "Unwana",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Ebonyi"
+  ],
+  "statesFromSearch": "Ebonyi",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), p. 53, Table X and note 1"
+ },
+ {
+  "name": "Akaeze",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), p. 53, Table X and note 6"
+ },
+ {
+  "name": "Nkporo",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": "Abia",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 53-54, Table X and note 1, and Table XI note 3"
+ },
+ {
+  "name": "Abiriba",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": "Abia",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 54-55, Table XI, note 3 and distinctive features; Afigbo (1981), pp. 24, 136 and 140"
+ },
+ {
+  "name": "Ihe",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "New Zealand"
+  ],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 54-55, Table XI, notes 4-6 and distinctive features"
+ },
+ {
+  "name": "Ututu",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 54-55, Table XI, notes 4-6 and distinctive features"
+ },
+ {
+  "name": "Isu",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Mbaitoli; Mbieri; Bende, Nigeria; Isuikwuato; Umunneochi (accessed 2026-09-28)"
+ },
+ {
+  "name": "Ikwo",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Ebonyi"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 57-58, Table XIII and notes; Afigbo (1981), pp. 107, 250 and 295"
+ },
+ {
+  "name": "Izi",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Abia",
+   "Achara",
+   "Agbaja",
+   "Amagu",
+   "Edda",
+   "Enyiba",
+   "Ezza",
+   "Igbeagu",
+   "Ikwo",
+   "Inyimagu",
+   "Ishieke",
+   "Izzi",
+   "Ngbo",
+   "Nkaliki",
+   "North-",
+   "Nsukka",
+   "Okpuitumo"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 57-59, Table XIII and notes; Afigbo (1981), p. 107"
+ },
+ {
+  "name": "Ngbo",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": "Enugu",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 57-60, Table XIII and notes; Afigbo (1981), p. 107"
+ },
+ {
+  "name": "Ezangbo",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Ebonyi"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Arondizuogu; Ohaukwu; List of villages in Ebonyi State (accessed 2026-09-28)"
+ },
+ {
+  "name": "Agba",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 57-59, Table XIII and notes"
+ },
+ {
+  "name": "Isu",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Abam",
+   "Isu-",
+   "Item",
+   "Ohaffia"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Mbaitoli; Mbieri; Bende, Nigeria; Isuikwuato; Umunneochi (accessed 2026-09-28)"
+ },
+ {
+  "name": "Onicha",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Ebonyi"
+  ],
+  "statesFromSearch": "Ebonyi",
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Abaomege",
+   "Igboeze",
+   "Isinkwo",
+   "Onicha-",
+   "Oshiri",
+   "Ugwulangu",
+   "Ukawu"
+  ],
+  "parent": null,
+  "source": "Wikipedia: Onicha; Ohaozara; Afikpo North (accessed 2026-09-28)"
+ },
+ {
+  "name": "Okposi",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Abakaliki",
+   "Afikpo",
+   "British",
+   "Ezza",
+   "Igbo",
+   "Obubra Hill",
+   "Okposi",
+   "Uburu"
+  ],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 57-60, Table XIII and notes; Afigbo (1981), pp. 141 and 298"
+ },
+ {
+  "name": "Oshiri",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Forde & Jones (1950), pp. 57-59, Table XIII and notes"
+ },
+ {
+  "name": "Ugulangu",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": "Ezza",
+  "source": "Forde & Jones (1950), pp. 57-58, Table XIII and notes"
+ },
+ {
+  "name": "Ukawe",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [
+   "Afikpo",
+   "British",
+   "Ezza",
+   "Ikwo",
+   "Obubra Hill",
+   "Okposi",
+   "Ukawe"
+  ],
+  "townsFromSearch": [],
+  "parent": "Ezza",
+  "source": "Forde & Jones (1950), pp. 57-59, Table XIII and notes; Afigbo (1981), p. 298"
+ },
+ {
+  "name": "Ife",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": "Osun",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Oyo",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": "Oyo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ohori",
+  "division": null,
+  "kind": "section",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Aya Ohori",
+   "Japanese",
+   "Kouichi Oohori",
+   "Megumi Ohori",
+   "Takashi Ohori"
+  ],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ekiti",
+  "division": null,
+  "kind": "section",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ife-Togo",
+  "division": null,
+  "kind": "other",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Oworo",
+  "division": null,
+  "kind": "section",
+  "recordedState": [
+   "Edo"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Akoko",
+  "division": null,
+  "kind": "section",
+  "recordedState": [
+   "Ondo"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ijesa",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Adimula",
+   "Ijesaland",
+   "Imperial Majesty",
+   "Owa Obokun"
+  ],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Egba",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ijebu",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ondo",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": "Ondo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Owo",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": "Ondo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Igbomina",
+  "division": null,
+  "kind": "section",
+  "recordedState": [],
+  "statesFromSearch": "Osun",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ketu",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ede",
+  "division": null,
+  "kind": "town",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ijesha",
+  "division": null,
+  "kind": "section",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Adimula",
+   "Ijesaland",
+   "Imperial Majesty",
+   "Owa Obokun"
+  ],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ijumu",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [
+   "Kogi"
+  ],
+  "statesFromSearch": "Kogi",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Yagba",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [
+   "Kogi"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Bunu",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [
+   "Kogi"
+  ],
+  "statesFromSearch": "Kogi",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ibadan",
+  "division": null,
+  "kind": "town",
+  "recordedState": [
+   "Edo"
+  ],
+  "statesFromSearch": "Oyo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Awori",
+  "division": null,
+  "kind": "section",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Aggrey",
+   "Aggrey Awori",
+   "Grace Awori",
+   "Jeremy Awori",
+   "Judi Wakhungu",
+   "Kenyan",
+   "Maria Awori",
+   "Moody",
+   "Moody Awori",
+   "Susan",
+   "Ugandan"
+  ],
+  "parent": null,
+  "source": "Yoruba — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Nembe",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [
+   "Bayelsa"
+  ],
+  "statesFromSearch": "Bayelsa",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Ijaw — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Kalabari",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Assam",
+   "Calabar",
+   "India",
+   "Nigeria\nKalabari"
+  ],
+  "parent": null,
+  "source": "Ijaw — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Okrika",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [
+   "Rivers"
+  ],
+  "statesFromSearch": "Rivers",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Ijaw — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Boma",
+  "division": null,
+  "kind": "clan",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Ijaw — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Beni",
+  "division": null,
+  "kind": "other",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Edo — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Esan",
+  "division": null,
+  "kind": "other",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Edo — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Etsako",
+  "division": null,
+  "kind": "other",
+  "recordedState": [
+   "Edo"
+  ],
+  "statesFromSearch": "Edo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Edo — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Owan",
+  "division": null,
+  "kind": "other",
+  "recordedState": [
+   "Edo"
+  ],
+  "statesFromSearch": "Edo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Edo — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Akoko-Edo",
+  "division": null,
+  "kind": "other",
+  "recordedState": [
+   "Edo"
+  ],
+  "statesFromSearch": "Edo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [
+   "Akoko",
+   "Akoko Ondo",
+   "Edo States",
+   "Ondo"
+  ],
+  "parent": null,
+  "source": "Edo — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Urhobo",
+  "division": null,
+  "kind": "other",
+  "recordedState": [
+   "Delta",
+   "Edo"
+  ],
+  "statesFromSearch": "Edo",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Urhobo — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Isoko",
+  "division": null,
+  "kind": "other",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Isoko — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Itsekiri",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [
+   "Delta"
+  ],
+  "statesFromSearch": "Delta",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Itsekiri — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Igala",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Igala — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ebira",
+  "division": null,
+  "kind": "other",
+  "recordedState": [
+   "Edo"
+  ],
+  "statesFromSearch": "Benue",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Ebira — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Nupe",
+  "division": null,
+  "kind": "kingdom",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Nupe — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Idoma",
+  "division": null,
+  "kind": "other",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Idoma — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Tiv",
+  "division": null,
+  "kind": "other",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Tiv — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Efik",
+  "division": null,
+  "kind": "other",
+  "recordedState": [
+   "Cross River"
+  ],
+  "statesFromSearch": "Cross River",
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Efik — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Ibibio",
+  "division": null,
+  "kind": "other",
+  "recordedState": [],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Ibibio — model-proposed and second-pass checked, 2026-09-27"
+ },
+ {
+  "name": "Aguleri",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "recordedState": [
+   "Anambra"
+  ],
+  "statesFromSearch": "Anambra",
+  "townsFromOwnText": [
+   "Aguleri",
+   "Umueri"
+  ],
+  "townsFromSearch": [],
+  "parent": "Umu-Eri",
+  "source": "Wikipedia, \"Eri (king)\" (archived 2022-10-24); Forde & Jones (1950), Table I note 12 (as \"Agoleri\")"
+ },
+ {
+  "name": "Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Imo"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Njaba",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Abor Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Achara",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Ebonyi"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Aba",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Afor Mgbaleze-Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Agbabor",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Agbaja Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Umuozu Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Osuama",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Amawu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Amachi",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Awaa",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Ofia",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Ulo",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Owu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Ikem",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ },
+ {
+  "name": "Isu Okpu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "recordedState": [
+   "Abia"
+  ],
+  "statesFromSearch": null,
+  "townsFromOwnText": [],
+  "townsFromSearch": [],
+  "parent": null,
+  "source": "Wikipedia: Isu people (accessed 2026-09-28)"
+ }
+]

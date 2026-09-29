@@ -1,0 +1,110 @@
+# Ozituma — TLS termination and reverse proxy for two applications.
+#
+# TLS uses a Cloudflare Origin CA certificate rather than Let's Encrypt. The
+# domain is proxied by Cloudflare, so the certificate only ever has to be trusted
+# by Cloudflare, and an Origin CA cert is issued for up to 15 years with no
+# renewal job to run. That removes the whole class of failure where an unrenewed
+# certificate takes the site down.
+#
+# Cloudflare's SSL mode must be "full (strict)" to match. Anything less and the
+# Cloudflare-to-origin hop is unverified.
+#
+# TWO SITES, TWO SERVICES
+#
+# ozituma.com is the dictionary. learn.ozituma.com is Ozituma Learn, the courses.
+# They run as separate containers from the same image, which is §6.1's decision:
+# independent release cycles and a clean boundary, so a change to the lesson
+# player cannot take the dictionary down.
+#
+# WHAT THIS FILE DELIBERATELY DOES NOT DO
+#
+# It does not send both hostnames to one upstream, and it does not rewrite paths.
+# An earlier version did both, because the courses were once served by the
+# dictionary's own process and the app worked out which site it was from the Host
+# header. That machinery is gone: each site now names the container that serves
+# it, and a routing rule with no remaining reason to exist is a rule that
+# eventually becomes wrong without anybody noticing.
+
+{
+	admin off
+	# Structured logs to stdout, where the container logging driver collects them.
+	log {
+		output stdout
+		format json
+	}
+}
+
+# The policy both sites share. Headers, compression and the health-check
+# exemption are identical either side, and two hand-maintained copies would
+# drift — with the copy that drifted being the one nobody looked at.
+#
+# The UPSTREAM is deliberately not in here. A snippet that hard-codes one
+# container is precisely how the dictionary ended up serving the courses.
+(ozituma_common) {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# The framework is not something to advertise.
+		-Server
+	}
+
+	# Health checks must never be cached, or an unhealthy origin can keep
+	# reporting healthy to whatever is watching it.
+	@health path /api/health
+	header @health Cache-Control "no-store"
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# What every proxied request carries, so the app sees the real client and the
+# real scheme rather than the container network's view of them.
+(ozituma_proxy_headers) {
+	header_up X-Real-IP {remote_host}
+	# The app generates canonical URLs from OZITUMA_SITE_URL, so the host must
+	# survive the hop intact. Caddy preserves Host by default; this makes it
+	# explicit because the shared session cookie depends on the host being right.
+	header_up Host {host}
+	header_up X-Forwarded-Host {host}
+	header_up X-Forwarded-Proto {scheme}
+}
+
+# Canonical host for the dictionary. www redirects to the apex so there is one
+# address for the dictionary and no duplicate content for search engines.
+www.{$OZITUMA_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	redir https://{$OZITUMA_DOMAIN}{uri} permanent
+}
+
+# The dictionary.
+{$OZITUMA_DOMAIN} {
+	import ozituma_common
+
+	reverse_proxy web:3000 {
+		import ozituma_proxy_headers
+	}
+}
+
+# Ozituma Learn — the courses.
+#
+# Its own container, so it can be redeployed or restarted without touching the
+# dictionary. `www.learn` is not defined: a course URL is something a learner is
+# given, and a second spelling of it that redirects would only ever be a way for
+# a shared link to look wrong.
+learn.{$OZITUMA_DOMAIN} {
+	import ozituma_common
+
+	# The one line that has to be right. Both containers listen on 3000 inside
+	# their own network namespace, so this name is the only thing distinguishing
+	# the dictionary from the courses.
+	reverse_proxy learn:3000 {
+		import ozituma_proxy_headers
+	}
+}

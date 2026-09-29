@@ -1,0 +1,37 @@
+Ekpeye dictionary: circulation version
+High
+Low
+Downstep
+Rising
+Falling
+Unmarked
+Downstep could almost be marked as a mid-tone although it only occurs following a high tone. The
+sources are very inconsistent as to where the downstep symbol is place between two symbols with
+diacritics. Thus:
+egbe or egb'e
+Clark (1969) uses a rather unconventional notation with downstep as the unmarked tone, but later
+changes to the system in Ikpe (1972) plus following a word with tone-symbols.
+Kay Williamson clearly changed her mind over time over the transcription of downstep. The early
+additions to Clark used the same analysis, but later it seemed to her that falling tones were better
+transcribed as downstep plus high. Thus egbê, 'kite', appears in Comparative Igboid as e'gbe. This
+probably does not represent a real difference of opinion on the tones heard, merely a change in
+convention over time
+2.4 Ekpeye orthography
+Ekpeye orthographic conventions correspond to the IPA symbols used in the phonology as follows;
+а3
+ng
+ny
+sh
+3. Problems with the source materials
+1. Many words appear not to show vowel harmony (erroneous omission of diacritics?)
+2. Williamson and OA show verbs without prefixes, Clark quotes them with prefixes representing
+infinitives.
+3. Mixture of non-orthographic and orthographic
+4. Multiple transcriptions
+4. Morphology of Ekpeye
+Put simplistically, the difference between nouns and verbs in Ekpeye is that verbs begin with consonants
+and nouns begin with vowels or nasals. Ekpeye has many verbal nouns, created by prefixing the verb
+with a vowel, although the vowel quality is not always predictable. There are no verbs that begin with
+vowels, but a variety of nouns with an initial consonant (Table 3). The reason for this varies; it is possible
+to borrow a loanword without prefixing the consonant. Some terms, such as 'person' or 'cow' can hardly
+be loanwords and the reasons for these exceptions are unknown.

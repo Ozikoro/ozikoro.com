@@ -1,0 +1,260 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Ozituma - the Ozikoro dictionary. One Docker host running the application,
+  Postgres and Caddy, with an Elastic IP in front. Media lives in Cloudflare R2
+  rather than on this instance, so the host stays small and stateless apart from
+  the database volume. Cloudflare terminates the public edge and proxies to the
+  Elastic IP; the Origin CA certificate in Secrets Manager is what makes that hop
+  verifiable under SSL mode full (strict).
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t4g.medium
+    Description: >
+      t4g.medium (2 vCPU, 4 GB) is the floor that reliably builds the Next.js
+      bundle. The image build is the memory peak; once built, the running stack
+      fits in far less.
+  VolumeSize:
+    Type: Number
+    Default: 40
+    Description: Root EBS volume in GB. Holds the Docker image layers and the Postgres data directory.
+  AppSecretName:
+    Type: String
+    Default: ozituma/app
+  TlsSecretName:
+    Type: String
+    Default: ozituma/tls
+  RepoUrl:
+    Type: String
+    Default: https://github.com/oziikoro/Ozikoro.git
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Resources:
+
+  # ---------------------------------------------------------------------------
+  # Access. There is no SSH: the instance is reached with SSM Session Manager,
+  # so there is no key pair to leak, no port 22 to expose, and every session is
+  # logged in CloudTrail.
+  # ---------------------------------------------------------------------------
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ozituma-instance
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: read-boot-secrets
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: secretsmanager:GetSecretValue
+                Resource:
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AppSecretName}-*'
+                  - !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${TlsSecretName}-*'
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: ozituma-instance
+      Roles: [!Ref InstanceRole]
+
+  # ---------------------------------------------------------------------------
+  # Network. HTTP is kept only so Cloudflare can reach the origin and so Caddy
+  # can answer anything that arrives unencrypted; Caddy redirects it to HTTPS.
+  # Postgres and the app are never published - only Caddy binds host ports.
+  # ---------------------------------------------------------------------------
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: ozituma-web
+      GroupDescription: Ozituma web ingress - HTTP and HTTPS from Cloudflare only path
+      SecurityGroupIngress:
+        # Descriptions are quoted: a bare comma inside a flow mapping would end
+        # the value and CloudFormation rejects the template.
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: 'HTTP - redirects to HTTPS' }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: 'HTTPS' }
+      Tags: [{ Key: Name, Value: ozituma-web }]
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SecurityGroups: [!Ref SecurityGroup]
+      # IMDSv2 required, so a request that only presents the v1 header is refused.
+      # The app reads its configuration from Secrets Manager through the instance
+      # role, so it never needs the metadata service at all.
+      MetadataOptions:
+        HttpTokens: required
+        HttpEndpoint: enabled
+        HttpPutResponseHopLimit: 1
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: !Ref VolumeSize
+            VolumeType: gp3
+            Encrypted: true
+            DeleteOnTermination: true
+      Tags: [{ Key: Name, Value: ozituma-prod }]
+      UserData:
+        Fn::Base64: !Sub
+          - |
+            #!/bin/bash
+            # -----------------------------------------------------------------
+            # Ozituma first boot. Everything here is idempotent so the instance
+            # can be replaced and the stack re-run without hand-repair.
+            # -----------------------------------------------------------------
+            set -euo pipefail
+            exec > >(tee -a /var/log/ozituma-boot.log) 2>&1
+
+            REGION="${AWS::Region}"
+            APP_SECRET="${AppSecretName}"
+            TLS_SECRET="${TlsSecretName}"
+            REPO="${RepoUrl}"
+
+            # Swap. The Next.js build is the memory peak and a t4g.medium can
+            # otherwise OOM on it; swap makes the failure mode slow instead of fatal.
+            if [ ! -f /swapfile ]; then
+              dd if=/dev/zero of=/swapfile bs=1M count=4096 status=none
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+            fi
+
+            # 203 MB of database plus a Docker build wants a large page cache.
+            sysctl -w vm.swappiness=10
+
+            dnf install -y docker git jq
+            systemctl enable --now docker
+
+            # Compose plugin, pinned to the same channel Docker publishes.
+            if [ ! -x /usr/libexec/docker/cli-plugins/docker-compose ]; then
+              mkdir -p /usr/libexec/docker/cli-plugins
+              curl -sSL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64" \
+                -o /usr/libexec/docker/cli-plugins/docker-compose
+              chmod +x /usr/libexec/docker/cli-plugins/docker-compose
+            fi
+
+            mkdir -p /opt/ozituma/pgdata /opt/ozituma/certs
+
+            # ---- configuration, pulled from Secrets Manager -------------------
+            aws secretsmanager get-secret-value --secret-id "$APP_SECRET" --region "$REGION" \
+              --query SecretString --output text > /tmp/app.json
+            aws secretsmanager get-secret-value --secret-id "$TLS_SECRET" --region "$REGION" \
+              --query SecretString --output text > /tmp/tls.json
+
+            # The deploy token is deliberately NOT written into .env: that file is
+            # read by Compose and would hand the token to every container. It is
+            # needed once, for the clone, and kept afterwards in a root-only file
+            # for later pulls.
+            jq -r 'to_entries[] | select(.key != "GITHUB_TOKEN") | "\(.key)=\(.value)"' \
+              /tmp/app.json > /opt/ozituma/.env
+            chmod 600 /opt/ozituma/.env
+            jq -r '.GITHUB_TOKEN' /tmp/app.json > /opt/ozituma/.git-token
+            chmod 600 /opt/ozituma/.git-token
+
+            jq -r '.origin_pem' /tmp/tls.json > /opt/ozituma/certs/origin.pem
+            jq -r '.origin_key' /tmp/tls.json > /opt/ozituma/certs/origin.key
+            chmod 600 /opt/ozituma/certs/origin.pem /opt/ozituma/certs/origin.key
+            shred -u /tmp/app.json /tmp/tls.json
+
+            # ---- source ------------------------------------------------------
+            # Two rules govern this script, and both were learned by breaking them:
+            #
+            #  1. No brace-delimited bash expansions anywhere, comments included.
+            #     CloudFormation's Fn::Sub substitutes every such token before the
+            #     shell sees it, so one is read as a template variable and the whole
+            #     stack fails to validate. Plain $VAR is left alone.
+            #
+            #  2. The token never appears in a command. Embedding it in the clone URL
+            #     puts it in the process list, in git's error output, and in this log.
+            #     Git reads it from a root-only credentials file instead.
+            echo "[ozituma] cloning source"
+            cd /opt/ozituma
+            CRED_FILE=/opt/ozituma/.git-credentials
+            printf 'https://x-access-token:%s@github.com\n' "$(cat /opt/ozituma/.git-token)" > "$CRED_FILE"
+            chmod 600 "$CRED_FILE"
+            git config --global credential.helper "store --file=$CRED_FILE"
+            git config --global --add safe.directory /opt/ozituma/app
+
+            if [ ! -d app/.git ]; then
+              git clone --depth 1 "$REPO" app
+            else
+              git -C app fetch --depth 1 origin main
+              git -C app reset --hard origin/main
+            fi
+            echo "[ozituma] source at $(git -C app rev-parse --short HEAD)"
+
+
+            # ---- build and start ---------------------------------------------
+            echo "[ozituma] building and starting the stack (several minutes on first boot)"
+            cd /opt/ozituma/app
+            docker compose -f docker/docker-compose.prod.yml \
+              --env-file /opt/ozituma/.env up -d --build
+            echo "[ozituma] stack up"
+            docker compose -f docker/docker-compose.prod.yml --env-file /opt/ozituma/.env ps
+
+            # Survive reboots without a human: compose restart policies cover
+            # container crashes, this covers the host coming back up.
+            cat > /etc/systemd/system/ozituma.service <<'UNIT'
+            [Unit]
+            Description=Ozituma stack
+            After=docker.service network-online.target
+            Requires=docker.service
+
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            WorkingDirectory=/opt/ozituma/app
+            ExecStart=/usr/libexec/docker/cli-plugins/docker-compose -f docker/docker-compose.prod.yml --env-file /opt/ozituma/.env up -d
+            ExecStop=/usr/libexec/docker/cli-plugins/docker-compose -f docker/docker-compose.prod.yml down
+            TimeoutStartSec=0
+
+            [Install]
+            WantedBy=multi-user.target
+            UNIT
+            systemctl daemon-reload
+            systemctl enable ozituma.service
+
+            echo "ozituma boot complete"
+          - {}
+
+  # ---------------------------------------------------------------------------
+  # A stable public address. Without this the origin moves whenever the instance
+  # is replaced, and the Cloudflare record would silently point at nothing.
+  # ---------------------------------------------------------------------------
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags: [{ Key: Name, Value: ozituma-prod }]
+
+  ElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt ElasticIp.AllocationId
+      InstanceId: !Ref Instance
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+  ElasticIp:
+    Value: !Ref ElasticIp
+    Description: Point the Cloudflare A record for ozituma.com at this address.
+  OriginHostname:
+    Value: !Sub 'https://${ElasticIp}'
+  ShellAccess:
+    Value: !Sub 'aws ssm start-session --target ${Instance} --region ${AWS::Region} --profile ozikoro'
+    Description: There is no SSH. Reach the host with SSM Session Manager.

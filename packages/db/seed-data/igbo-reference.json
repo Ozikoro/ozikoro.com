@@ -1,0 +1,339 @@
+{
+  "_source": {
+    "name": "nkowaokwu/igbo_api",
+    "url": "https://github.com/nkowaokwu/igbo_api",
+    "license": "Apache-2.0",
+    "note": "Igbo dialect list, grammar classes and tense categories adapted from the Igbo API constants (src/shared/constants/Dialect.ts, WordClass.ts, Tenses.ts). Generalized into the language-scoped dialect/part_of_speech/form_type tables."
+  },
+  "dialects": [
+    {
+      "code": "ABI",
+      "name": "Abịrịba"
+    },
+    {
+      "code": "ACH",
+      "name": "Achala"
+    },
+    {
+      "code": "AFI",
+      "name": "Afiikpo"
+    },
+    {
+      "code": "AGU",
+      "name": "Aguata"
+    },
+    {
+      "code": "AJA",
+      "name": "Ajalị"
+    },
+    {
+      "code": "AMA",
+      "name": "Amaifeke"
+    },
+    {
+      "code": "ANA",
+      "name": "Anam"
+    },
+    {
+      "code": "ANI",
+      "name": "Anịọcha"
+    },
+    {
+      "code": "ASA",
+      "name": "Asa"
+    },
+    {
+      "code": "ECH",
+      "name": "Echee"
+    },
+    {
+      "code": "EGB",
+      "name": "Egbema"
+    },
+    {
+      "code": "EZA",
+      "name": "Ezaa"
+    },
+    {
+      "code": "EZE",
+      "name": "Ezeagu"
+    },
+    {
+      "code": "EZM",
+      "name": "Ezzamgbo"
+    },
+    {
+      "code": "ICH",
+      "name": "Ichi"
+    },
+    {
+      "code": "IDE",
+      "name": "Ideato"
+    },
+    {
+      "code": "IHU",
+      "name": "Ihuoma"
+    },
+    {
+      "code": "IKK",
+      "name": "Ika"
+    },
+    {
+      "code": "IKW",
+      "name": "Ikwere"
+    },
+    {
+      "code": "IQW",
+      "name": "Ikwo"
+    },
+    {
+      "code": "ISU",
+      "name": "Isuama"
+    },
+    {
+      "code": "IZZ",
+      "name": "Izii"
+    },
+    {
+      "code": "MBA",
+      "name": "Mbaise"
+    },
+    {
+      "code": "NKP",
+      "name": "Mkpọọ"
+    },
+    {
+      "code": "NDL",
+      "name": "Ndele"
+    },
+    {
+      "code": "NDO",
+      "name": "Ndoki"
+    },
+    {
+      "code": "NGW",
+      "name": "Ngwa"
+    },
+    {
+      "code": "NKA",
+      "name": "Nkanụ"
+    },
+    {
+      "code": "NKR",
+      "name": "Nkporo"
+    },
+    {
+      "code": "NSA",
+      "name": "Nsa"
+    },
+    {
+      "code": "NSU",
+      "name": "Nsụka"
+    },
+    {
+      "code": "OBO",
+      "name": "Obosi"
+    },
+    {
+      "code": "OGI",
+      "name": "Ogidi"
+    },
+    {
+      "code": "OWE",
+      "name": "Owere"
+    },
+    {
+      "code": "UDI",
+      "name": "Udi"
+    },
+    {
+      "code": "OGU",
+      "name": "Ugwuta"
+    },
+    {
+      "code": "UNW",
+      "name": "Unwana; Ungwana Lordji"
+    },
+    {
+      "code": "EKP",
+      "name": "Ẹkpẹyẹ"
+    },
+    {
+      "code": "OGA",
+      "name": "Ọgba"
+    },
+    {
+      "code": "OGK",
+      "name": "Ọgbakịrị"
+    },
+    {
+      "code": "OHU",
+      "name": "Ọhụhụ"
+    },
+    {
+      "code": "OKA",
+      "name": "Ọka"
+    },
+    {
+      "code": "AWK",
+      "name": "Ọkụzụ"
+    },
+    {
+      "code": "ORL",
+      "name": "Ọlụ"
+    },
+    {
+      "code": "ONI",
+      "name": "Ọnịcha"
+    },
+    {
+      "code": "BON",
+      "name": "Ụbanị"
+    },
+    {
+      "code": "UKW",
+      "name": "Ụkwụanị"
+    },
+    {
+      "code": "UMU",
+      "name": "Ụmụahịa"
+    }
+  ],
+  "partsOfSpeech": [
+    {
+      "code": "ADJ",
+      "name": "Adjective",
+      "description": "An adjective describes a noun. It explains how a noun is."
+    },
+    {
+      "code": "ADV",
+      "name": "Adverb",
+      "description": "A describer for how or the extent to which a verb is performed. Eg. nwayọnwayọ, Ikiike, Ọsịịsọ."
+    },
+    {
+      "code": "AV",
+      "name": "Active verb",
+      "description": "A verb that is pure action. Can be stopped and started instantly. Grammatically, it has a clear present/ongoing action. Eg ‘gba’, ‘ri’, ‘ga’ etc can be in the clear present/ongoing form ‘na-agba’, ‘na-eri’, ‘ga-aga’."
+    },
+    {
+      "code": "MV",
+      "name": "Medial verb",
+      "description": "A medial verb is a verb with two present tense concepts. One is inactive/stative, while the other is progressive/active."
+    },
+    {
+      "code": "PV",
+      "name": "Passive verb",
+      "description": "An action that tends to be mostly a situation/state. It is not performative. Its command is always spelled like past tense, though toned like a command while its present tense is always its root. Eg. ‘bụ’, ‘nọ’, ‘bi’ etc are conditions/states and"
+    },
+    {
+      "code": "CJN",
+      "name": "Conjunction",
+      "description": "A word joins or links two words or two sentences. Eg. Na(And,That), Maka, Ka(That)."
+    },
+    {
+      "code": "DEM",
+      "name": "Demonstrative",
+      "description": "A word is a pointing word. It shows. Eg. A, Ahụ, Nke, ugbua."
+    },
+    {
+      "code": "NM",
+      "name": "Name",
+      "description": "Person is uniquely called. Eg. Chiọma, Ezenwa, Naịjiria, Amerịka, etc."
+    },
+    {
+      "code": "NNC",
+      "name": "Noun",
+      "description": "Used to identify any people, place , or thing. Eg. ụlọ, iko, akwụkwọ."
+    },
+    {
+      "code": "ND",
+      "name": "Nominal Modifier",
+      "description": "Words act similar to the English adjective and noun. They are described as nominal modifiers since they are technically nouns that provide details like adjectives."
+    },
+    {
+      "code": "NNP",
+      "name": "Proper noun",
+      "description": "Person/place is uniquely called. Eg. Chiọma, Ezenwa, Naịjiria, Amerịka, etc."
+    },
+    {
+      "code": "CD",
+      "name": "Number",
+      "description": "What any digit or group of digits is called. Otu, Abụọ, Atọ."
+    },
+    {
+      "code": "PREP",
+      "name": "Preposition",
+      "description": "This is that word you mention before a location time or person. They cannot just exist on their own. A noun must come before them Eg. Na(In, On, At), mgbe/oge, elu, okpuru, Akụkụ."
+    },
+    {
+      "code": "PRN",
+      "name": "Pronoun",
+      "description": "Person/place is uniquely called. Eg. Chiọma, Ezenwa, Naịjiria, Amerịka, etc."
+    },
+    {
+      "code": "FW",
+      "name": "Foreign word",
+      "description": "A word that is known to not be an Igbo word. Mostly does not follow the Igbo words formation pattern."
+    },
+    {
+      "code": "QTF",
+      "name": "Quantifier",
+      "description": "A word that shows the amount of something. Niile, Ụfọdụ, Imeriime."
+    },
+    {
+      "code": "WH",
+      "name": "Interrogative",
+      "description": "The typical question tags. Eg. Kedụ?, Ebee?, Olee?, Gịnị?, Ole?."
+    },
+    {
+      "code": "INTJ",
+      "name": "Interjection",
+      "description": "These are exclamative words. Eg. Ewoo! Okokokoo! Olooo! Chaị! Ee! Mba!"
+    },
+    {
+      "code": "ISUF",
+      "name": "Inflectional suffix",
+      "description": "Explainable parts of a verb that an attached, especially at the beginning of a verb, to create a tense for the verb. They can occur in other contexts as an entirely different part of speech. Eg. I, Ị, O, Ọ, A, E, N, M, Na-, Ga-."
+    },
+    {
+      "code": "ESUF",
+      "name": "Extensional suffix",
+      "description": "Suffixes attached at the end of a verb to add more meaning to the verbs. They also tend to retain their idea when on their own. Some of them stem from other verbs. Eg. -kwa, -rịrị, -ghị, -la, -kwu, -ju, -pụ, etc."
+    },
+    {
+      "code": "SYM",
+      "name": "Punctuations",
+      "description": "These are punctuation marks used in the Igbo language."
+    }
+  ],
+  "formTypes": [
+    {
+      "code": "infinitive",
+      "name": "Infinitive"
+    },
+    {
+      "code": "imperative",
+      "name": "Imperative"
+    },
+    {
+      "code": "simplePast",
+      "name": "Simple Past"
+    },
+    {
+      "code": "presentPassive",
+      "name": "Present Passive"
+    },
+    {
+      "code": "simplePresent",
+      "name": "Simple Present"
+    },
+    {
+      "code": "presentContinuous",
+      "name": "Present Continuous"
+    },
+    {
+      "code": "future",
+      "name": "Future"
+    }
+  ]
+}

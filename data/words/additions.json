@@ -1,0 +1,273 @@
+{
+  "_note": [
+    "Additions to dictionary entries that come from us rather than from a corpus.",
+    "",
+    "The Igbo corpus reaches 12,291 published headwords but only 4,805 of them carry an",
+    "example sentence, and 1,120 of those hold eight or more while 7,486 hold none — the",
+    "sentences are concentrated on the words the corpora happened to illustrate. Some",
+    "entries also carry a single gloss where the word has several senses (bilie was",
+    "'rose' and nothing else), because a source gave one sense and the importer records",
+    "what the source said.",
+    "",
+    "WHY THIS IS A FILE",
+    "",
+    "Same reason as data/names/origins.json and the owner's corrections: it is OUR",
+    "knowledge, so it is tracked in git and reviewable, unlike everything under",
+    "data/sources/. And because the corpora are re-imported whenever a source is added,",
+    "an addition that lives only in the database is an addition that can be lost without",
+    "anyone noticing.",
+    "",
+    "WHAT THESE ARE, HONESTLY",
+    "",
+    "Meanings here are senses the word has that no imported source stated. Examples are",
+    "written by Ozikoro, not quoted from a publication, and they are attributed to an",
+    "editorial source rather than to a book that never printed them. They are drafts for",
+    "the owner to correct — a wrong example is worse than no example, so each one is",
+    "kept short, built from the word's plainest sense, and easy to replace.",
+    "",
+    "Fields: headword (required), meanings[] (added to the entry, never replacing what a",
+    "source said), examples[{igbo, english}], evidence (required: what the addition rests",
+    "Fields: headword (required), meanings[] (added to the entry, never replacing what a source said), variants[] (spelling variants, recorded as forum_type 'variant'), examples[{igbo, english}], evidence (required: what the addition rests on)."
+  ],
+  "words": [
+    {
+      "headword": "bilie",
+      "meanings": [
+        "rise; arise; get up; stand up"
+      ],
+      "examples": [
+        {
+          "igbo": "Bilie n'ụra, ọ dịla ehihie.",
+          "english": "Get up from sleep, it is daylight already."
+        }
+      ],
+      "evidence": "Owner, 2026-09-27: the entry showed only 'rose', and the word means more than that — \"add more than one meanings, like the bilie page shows only 'rose' as meaning, but we know it has more than that like 'arise'\". 'Rose' is the imported gloss and is kept; these are the senses it was missing."
+    },
+    {
+      "headword": "-kwusi ike",
+      "meanings": [
+        "insist; say emphatically"
+      ],
+      "examples": [
+        {
+          "igbo": "Ọ kwusiri ike na ya ga-abịa.",
+          "english": "He said emphatically that he would come."
+        }
+      ],
+      "evidence": "Owner, 2026-09-27: named this entry as one with no example — \"why not add examples of words to pages without it like https://ozituma.com/word/igbo/kwusi-ike\". The imported gloss is 'speak strongly or loudly', which is the literal sense; 'insist' is what the phrase does in ordinary use."
+    },
+    {
+      "headword": "ụfọdụ",
+      "meanings": [
+        "some; a few"
+      ],
+      "examples": [
+        {
+          "igbo": "Ụfọdụ ụmụ akwụkwọ abịaghị taa.",
+          "english": "Some students did not come today."
+        }
+      ],
+      "evidence": "Imported gloss was 'certain' alone, which is one sense of the English word rather than a translation of the Igbo. It is one of the commonest words in the corpus (frequency rank 7) and carried no example."
+    },
+    {
+      "headword": "ọzọ",
+      "meanings": [
+        "another; again"
+      ],
+      "examples": [
+        {
+          "igbo": "Biko nye m nke ọzọ.",
+          "english": "Please give me another one."
+        }
+      ],
+      "evidence": "Imported gloss was 'else' alone. Frequency rank 27, no example. 'another' and 'again' are the senses a learner meets first."
+    },
+    {
+      "headword": "ndị",
+      "meanings": [],
+      "examples": [
+        {
+          "igbo": "Ndị obodo a na-eche ndị ọbịa.",
+          "english": "The people of this town look after visitors."
+        }
+      ],
+      "evidence": "Frequency rank 28, no example. Its glosses ('people; plural of person') are right, so this adds only the example."
+    },
+    {
+      "headword": "ịbụ",
+      "meanings": [],
+      "examples": [
+        {
+          "igbo": "Ịbụ onye ọma dị mkpa karịa ịbụ onye ọgaranya.",
+          "english": "Being a good person matters more than being a rich person."
+        }
+      ],
+      "evidence": "Frequency rank 11, no example, and its single gloss is 'be' — the infinitive form a learner needs to see used."
+    },
+    {
+      "headword": "dibìà",
+      "variants": [
+        "dibie"
+      ],
+      "meanings": [],
+      "evidence": "Owner, 2026-09-27: \"add dibie as variant of dibia in the dictionary\". Recorded as a variant spelling rather than a dialect form: the owner named it a variant, and no variety was given, so it belongs in word_form rather than word_dialect."
+    },
+    {
+      "headword": "Ngboro",
+      "meanings": [
+        "calabash"
+      ],
+      "variants": [],
+      "evidence": "Owner's list, 2026-09-27: \"Ngboro (calabash)\"."
+    },
+    {
+      "headword": "Atuma mmanya",
+      "meanings": [
+        "local palm wine keg"
+      ],
+      "variants": [],
+      "evidence": "Owner's list, 2026-09-27: \"Atuma mmanya - local palm wine keg.\"."
+    },
+    {
+      "headword": "Iru eko",
+      "meanings": [
+        "lighting the fire of a blacksmith's forge"
+      ],
+      "variants": [],
+      "variety": "Ọka",
+      "evidence": "Owner's list, 2026-09-27: \"Iru eko - igniting blacksmithing fire (used in awka dialect by blacksmiths)\"."
+    },
+    {
+      "headword": "Mkpuru",
+      "meanings": [
+        "a small farm"
+      ],
+      "variants": [],
+      "variety": "Ọka",
+      "evidence": "Owner's list, 2026-09-27: \"Mkpuru - small farm (awka dialect)\"."
+    },
+    {
+      "headword": "Mba",
+      "meanings": [
+        "liver"
+      ],
+      "variants": [],
+      "variety": "Ichi",
+      "dialectOf": "ìmejū",
+      "evidence": "Owner's list, 2026-09-27: \"Mba - Liver (ichi dialect. Ichi is one of the notable towns in Ekwusigo Local Government Area of Anambra State)\". Attached to `ìmejū`, the entry this dictionary already holds for liver, because `mba` is also a published headword meaning nation and the two are different words."
+    },
+    {
+      "headword": "Akwara",
+      "meanings": [
+        "rope made from the palm wine tree"
+      ],
+      "variants": [],
+      "variety": "Mbaise",
+      "evidence": "Owner's list, 2026-09-27: \"Akwara - rope manufactured from palm wine tree (Mbaise dialect)\"."
+    },
+    {
+      "headword": "Nku opere",
+      "meanings": [
+        "firewood from the palm tree"
+      ],
+      "variants": [],
+      "variety": "Mbaise",
+      "evidence": "Owner's list, 2026-09-27: \"Nku opere - firewood from Palm tree (Mbaise dialect)\"."
+    },
+    {
+      "headword": "Etere",
+      "meanings": [
+        "leaves used by palm wine tappers to close the palm wine"
+      ],
+      "variants": [],
+      "variety": "Mbaise",
+      "evidence": "Owner's list, 2026-09-27: \"Etere - Leaves used by palm wine tappers to close palm wine (Mbaise dialect)\"."
+    },
+    {
+      "headword": "Adaba",
+      "meanings": [
+        "footwear"
+      ],
+      "variants": [],
+      "variety": "Nkanụ",
+      "dialectOf": "akpụkpọ ụkwụ",
+      "evidence": "Owner's list, 2026-09-27: \"Adaba - Footwear (Nkanu)\". Attached to `akpụkpọ ụkwụ`, this dictionary's entry for shoe, because that is the sense it carries."
+    },
+    {
+      "headword": "Mgburu",
+      "meanings": [
+        "walking stick"
+      ],
+      "variants": [],
+      "variety": "Nkanụ",
+      "dialectOf": "okpòkpò",
+      "evidence": "Owner's list, 2026-09-27: \"Mgburu - Walking stick (Nkanu)\". Attached to `okpòkpò`, the entry for walking stick."
+    },
+    {
+      "headword": "Azhi ugbo",
+      "meanings": [
+        "the back of a door"
+      ],
+      "variants": [],
+      "variety": "Nkanụ",
+      "evidence": "Owner's list, 2026-09-27: \"Azhi ugbo - back of door (Nkanu)\"."
+    },
+    {
+      "headword": "Tabute",
+      "meanings": [
+        "take a bite"
+      ],
+      "variants": [
+        "Tabite",
+        "Tabiri"
+      ],
+      "variety": "Nkanụ",
+      "evidence": "Owner's list, 2026-09-27: \"Tabute - take a bite ( variants are Tabite and Tabiri) (Nkanu)\"."
+    },
+    {
+      "headword": "Gbaghaashi",
+      "meanings": [
+        "troublesome; a tussle"
+      ],
+      "variants": [
+        "Ngbahaashi",
+        "mgbahasi"
+      ],
+      "variety": "Ideato",
+      "evidence": "Owner's list, 2026-09-27: \"Gbaghaashi - troublesome; it means tussle (ideato dialect) (vairants are Ngbahaashi (Aguata dialect) and mgbahasi)\". Ngbahaashi is the Aguata form of the same word; the Aguata variety is recorded here rather than as a variety of its own entry."
+    },
+    {
+      "headword": "anọ",
+      "meanings": [
+        "four"
+      ],
+      "examples": [
+        {
+          "igbo": "Ụmụaka anọ na-egwu egwu.",
+          "english": "Four children are playing."
+        }
+      ],
+      "evidence": "Scan of the Acholonu VCV list, 2026-09-27: entry 200 is \"Ano - Four\". The entry here carried only \"stay\" (the verb -nọ), and the numeral, which is the word's other everyday sense, was missing. The numeral series in this dictionary reads otu, abụọ, atọ, anọ; atọ is recorded as \"third\" and was left alone."
+    },
+    {
+      "headword": "atọ",
+      "meanings": [
+        "three"
+      ],
+      "examples": [
+        {
+          "igbo": "Ọ nwere ụmụ atọ.",
+          "english": "She has three children."
+        }
+      ],
+      "evidence": "Scan of the Acholonu VCV list, 2026-09-27: entry 319 is \"Ato - Three\". The entry here carried only \"third\" (the ordinal), so the cardinal sense of the numeral was added."
+    },
+    {
+      "headword": "Enyinnaya",
+      "variants": [
+        "Enyinnia"
+      ],
+      "evidence": "Owner, 2026-09-27: \"On this https://ozituma.com/word/igbo/enyinnaya has a variation, and that is Enyinnia\". Recorded as a `word_form` row of type 'variant' so the entry page lists it beside the headword."
+    }
+  ]
+}

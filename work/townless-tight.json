@@ -1,0 +1,1178 @@
+[
+ {
+  "name": "Nimo",
+  "division": "Northern Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Achi",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "states": [
+   "Enugu"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Awgu",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "states": [
+   "Enugu"
+  ],
+  "parent": "Anike",
+  "settlements": []
+ },
+ {
+  "name": "Uturu",
+  "division": "Northern Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": "Otanzu",
+  "settlements": []
+ },
+ {
+  "name": "Nike",
+  "division": "Northern Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Lengwe",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Mbowo",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isiago",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ugboma",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Mbaise",
+  "division": "Southern Igbo",
+  "kind": "confederation",
+  "states": [
+   "Imo"
+  ],
+  "parent": null,
+  "settlements": [
+   "Mbama",
+   "Mbieri",
+   "Ikeduru",
+   "Osu",
+   "Ehime",
+   "Ugboma"
+  ]
+ },
+ {
+  "name": "Ohoba",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Imo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Umuakpo",
+  "division": "Southern Igbo",
+  "kind": "other",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Emohua",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Rivers"
+  ],
+  "parent": "Ikwerri",
+  "settlements": []
+ },
+ {
+  "name": "Ikwerri",
+  "division": "Southern Igbo",
+  "kind": "confederation",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ngwa",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": [
+   "Ntigha",
+   "Nsulu",
+   "Mbosi",
+   "Umiioha",
+   "Ovokwu",
+   "Ovungwu",
+   "Amaise",
+   "Okpuruahaba",
+   "Amavo",
+   "Mboko Umuanunu",
+   "Ahiaba Na"
+  ]
+ },
+ {
+  "name": "Ozuitem",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Igbere",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Umuhu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Arondizuogu",
+  "division": "Southern Igbo",
+  "kind": "town",
+  "states": [
+   "Imo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Abavo",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Idumu Asa",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Otolokpu",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Akumazi",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Umunede",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Igbodo",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Mbiri",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ogwashi Uku",
+  "division": "Western Igbo",
+  "kind": "town",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": [
+   "Oda Igbe"
+  ]
+ },
+ {
+  "name": "Ibusa",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": [
+   "Umejei"
+  ]
+ },
+ {
+  "name": "Umunkwata",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Abedei",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Abbi",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Amai",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Akoko",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Onicha",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Emu",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ogume",
+  "division": "Western Igbo",
+  "kind": "clan",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Nzam",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "states": [
+   "Anambra"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Asaba",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "states": [
+   "Anambra"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ossissa",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Abarra",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Okpai",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Aboh",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ndoni",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ase",
+  "division": "Riverine Igbo",
+  "kind": "clan",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ashaka",
+  "division": "Riverine Igbo",
+  "kind": "town",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Afikpo",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "states": [
+   "Ebonyi"
+  ],
+  "parent": "Ada",
+  "settlements": []
+ },
+ {
+  "name": "Amaseri",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": "Ada",
+  "settlements": []
+ },
+ {
+  "name": "Okpoha",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": "Ada",
+  "settlements": []
+ },
+ {
+  "name": "Unwana",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "states": [
+   "Ebonyi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Akaeze",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Nkporo",
+  "division": "Cross River Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Abiriba",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ihe",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ututu",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu",
+  "division": "Cross River Igbo",
+  "kind": "town",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ikwo",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "states": [
+   "Ebonyi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Izi",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": [
+   "Edda",
+   "Enyiba",
+   "Igbeagu",
+   "Inyimagu",
+   "Ishieke",
+   "Okpuitumo",
+   "Achara",
+   "Agbaja",
+   "Nkaliki"
+  ]
+ },
+ {
+  "name": "Ngbo",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ezangbo",
+  "division": "Northeast Igbo",
+  "kind": "clan",
+  "states": [
+   "Ebonyi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Agba",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Onicha",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "states": [
+   "Ebonyi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Okposi",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Oshiri",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ugulangu",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": "Ezza",
+  "settlements": []
+ },
+ {
+  "name": "Ukawe",
+  "division": "Northeast Igbo",
+  "kind": "town",
+  "states": [],
+  "parent": "Ezza",
+  "settlements": [
+   "Ugulangu"
+  ]
+ },
+ {
+  "name": "Ife",
+  "division": null,
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Oyo",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ohori",
+  "division": null,
+  "kind": "section",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ekiti",
+  "division": null,
+  "kind": "section",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ife-Togo",
+  "division": null,
+  "kind": "other",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Oworo",
+  "division": null,
+  "kind": "section",
+  "states": [
+   "Edo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Akoko",
+  "division": null,
+  "kind": "section",
+  "states": [
+   "Ondo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ijesa",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Egba",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ijebu",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ondo",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Owo",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Igbomina",
+  "division": null,
+  "kind": "section",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ketu",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ede",
+  "division": null,
+  "kind": "town",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ijesha",
+  "division": null,
+  "kind": "section",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ijumu",
+  "division": null,
+  "kind": "clan",
+  "states": [
+   "Kogi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Yagba",
+  "division": null,
+  "kind": "clan",
+  "states": [
+   "Kogi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Bunu",
+  "division": null,
+  "kind": "clan",
+  "states": [
+   "Kogi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ibadan",
+  "division": null,
+  "kind": "town",
+  "states": [
+   "Edo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Awori",
+  "division": null,
+  "kind": "section",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Nembe",
+  "division": null,
+  "kind": "clan",
+  "states": [
+   "Bayelsa"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Kalabari",
+  "division": null,
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Okrika",
+  "division": null,
+  "kind": "clan",
+  "states": [
+   "Rivers"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Boma",
+  "division": null,
+  "kind": "clan",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Beni",
+  "division": null,
+  "kind": "other",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Esan",
+  "division": null,
+  "kind": "other",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Etsako",
+  "division": null,
+  "kind": "other",
+  "states": [
+   "Edo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Owan",
+  "division": null,
+  "kind": "other",
+  "states": [
+   "Edo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Akoko-Edo",
+  "division": null,
+  "kind": "other",
+  "states": [
+   "Edo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Urhobo",
+  "division": null,
+  "kind": "other",
+  "states": [
+   "Delta",
+   "Edo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isoko",
+  "division": null,
+  "kind": "other",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Itsekiri",
+  "division": null,
+  "kind": "kingdom",
+  "states": [
+   "Delta"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Igala",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ebira",
+  "division": null,
+  "kind": "other",
+  "states": [
+   "Edo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Nupe",
+  "division": null,
+  "kind": "kingdom",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Idoma",
+  "division": null,
+  "kind": "other",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Tiv",
+  "division": null,
+  "kind": "other",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Efik",
+  "division": null,
+  "kind": "other",
+  "states": [
+   "Cross River"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Ibibio",
+  "division": null,
+  "kind": "other",
+  "states": [],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Aguleri",
+  "division": "Northern Igbo",
+  "kind": "town",
+  "states": [
+   "Anambra"
+  ],
+  "parent": "Umu-Eri",
+  "settlements": []
+ },
+ {
+  "name": "Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Imo"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Njaba",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Abor Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Achara",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Ebonyi"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Aba",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Afor Mgbaleze-Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Agbabor",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Agbaja Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Umuozu Isu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Osuama",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Amawu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Amachi",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Awaa",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Ofia",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Ulo",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Owu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Ikem",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ },
+ {
+  "name": "Isu Okpu",
+  "division": "Southern Igbo",
+  "kind": "clan",
+  "states": [
+   "Abia"
+  ],
+  "parent": null,
+  "settlements": []
+ }
+]

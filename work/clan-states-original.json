@@ -1,0 +1,275 @@
+[
+ {
+  "name": "Umulokpa",
+  "region": "Anambra",
+  "recorded": [
+   "Enugu"
+  ]
+ },
+ {
+  "name": "Umunri",
+  "region": "Anambra",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Nkwoagu",
+  "region": "Anambra",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Agbaja",
+  "region": "Anambra",
+  "recorded": [
+   "Kogi"
+  ]
+ },
+ {
+  "name": "Elugu",
+  "region": "Anambra",
+  "recorded": [
+   "Benue"
+  ]
+ },
+ {
+  "name": "Ogboli",
+  "region": "Enugu",
+  "recorded": [
+   "Anambra"
+  ]
+ },
+ {
+  "name": "Uburu (Nsukka)",
+  "region": "Enugu",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Nkpologu",
+  "region": "Enugu",
+  "recorded": [
+   "Anambra"
+  ]
+ },
+ {
+  "name": "Igbodo",
+  "region": "Enugu",
+  "recorded": [
+   "Delta"
+  ]
+ },
+ {
+  "name": "Eha Amufu",
+  "region": "Enugu",
+  "recorded": [
+   "Ebonyi"
+  ]
+ },
+ {
+  "name": "Anike",
+  "region": "Enugu",
+  "recorded": [
+   "Bayelsa"
+  ]
+ },
+ {
+  "name": "Isuochi",
+  "region": "Imo",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Otanzu",
+  "region": "Imo",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Uturu",
+  "region": "Imo",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Amagunze",
+  "region": "Enugu",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Ugbawka",
+  "region": "Enugu",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Isu-Mbieri",
+  "region": "Imo",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Ugboma",
+  "region": "Imo",
+  "recorded": [
+   "Anambra"
+  ]
+ },
+ {
+  "name": "Abaja (Owerri)",
+  "region": "Imo",
+  "recorded": [
+   "Anambra"
+  ]
+ },
+ {
+  "name": "Orsu I",
+  "region": "Anambra",
+  "recorded": [
+   "Imo"
+  ]
+ },
+ {
+  "name": "Obowo",
+  "region": "Imo",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Ihite",
+  "region": "Imo",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Umuakpo",
+  "region": "Imo",
+  "recorded": [
+   "Enugu"
+  ]
+ },
+ {
+  "name": "Ikwerri",
+  "region": "Rivers",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Ndokki",
+  "region": "Abia",
+  "recorded": [
+   "Cross River"
+  ]
+ },
+ {
+  "name": "Arondizuogu",
+  "region": "Imo",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Ezechima",
+  "region": "Delta",
+  "recorded": [
+   "Anambra"
+  ]
+ },
+ {
+  "name": "Orogun",
+  "region": "Delta",
+  "recorded": [
+   "Rivers"
+  ]
+ },
+ {
+  "name": "Oko Okwe",
+  "region": "Anambra",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Ndoni",
+  "region": "Delta",
+  "recorded": [
+   "Anambra"
+  ]
+ },
+ {
+  "name": "Egbema",
+  "region": "Rivers",
+  "recorded": [
+   "Imo"
+  ]
+ },
+ {
+  "name": "Okpoha",
+  "region": "Ebonyi",
+  "recorded": [
+   "Edo"
+  ]
+ },
+ {
+  "name": "Akaeze",
+  "region": "Ebonyi",
+  "recorded": [
+   "Delta"
+  ]
+ },
+ {
+  "name": "Ngbo",
+  "region": "Ebonyi",
+  "recorded": [
+   "Enugu"
+  ]
+ },
+ {
+  "name": "Isu (Afikpo)",
+  "region": "Ebonyi",
+  "recorded": [
+   "Anambra"
+  ]
+ },
+ {
+  "name": "Okposi",
+  "region": "Ebonyi",
+  "recorded": [
+   "Abia"
+  ]
+ },
+ {
+  "name": "Uburu",
+  "region": "Ebonyi",
+  "recorded": [
+   "Imo"
+  ]
+ },
+ {
+  "name": "Kalabari",
+  "region": "Rivers",
+  "recorded": [
+   "Delta"
+  ]
+ },
+ {
+  "name": "Urhobo",
+  "region": "Delta",
+  "recorded": [
+   "Edo"
+  ]
+ }
+]
