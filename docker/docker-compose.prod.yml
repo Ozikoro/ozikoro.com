@@ -45,7 +45,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    image: ozituma:latest
+      # The dictionary's own build target. `--target web` never builds the courses,
+      # and `--target learn` never builds this. See the note on the learn service.
+      target: web
+    image: ozituma-web:latest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -97,11 +100,56 @@ services:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
 
+  # ---------------------------------------------------------------------------
+  # Ozituma Learn — the courses, at learn.ozituma.com.
+  # ---------------------------------------------------------------------------
+  #
+  # Its OWN image, built from its own target. That is the isolation §6.1 asks for: building and
+  # deploying the courses never builds the dictionary, so a half-finished change in `apps/web`
+  # cannot fail this deploy, and this deploy cannot ship it.
+  #
+  # A separate service too, so either can be restarted or redeployed without touching the other.
+  #
+  # Deploy it alone with:  docker compose -f docker-compose.prod.yml up -d --build learn
+  #
+  # No Paystack key: the courses take no payments in v1.0 (§18 #7 defaults to payments off).
+  learn:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: learn
+    image: ozituma-learn:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
+      # The canonical origin written into course canonical links.
+      OZITUMA_LEARN_URL: ${OZITUMA_LEARN_URL:-https://learn.ozituma.com}
+      # Where the chrome's links back to the dictionary point.
+      OZITUMA_SITE_URL: ${OZITUMA_SITE_URL:-https://ozituma.com}
+      # The SAME cookie domain as the dictionary service. This is the mechanism by which one
+      # account works on both: leave it empty and a learner who signs in on ozituma.com arrives
+      # at the courses signed out.
+      OZITUMA_AUTH_COOKIE_DOMAIN: ${OZITUMA_AUTH_COOKIE_DOMAIN:-}
+      # Analytics is server-side only, and nothing is sent unless consent is granted.
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
+      OZITUMA_ANALYTICS_CONSENT: ${OZITUMA_ANALYTICS_CONSENT:-false}
+      NODE_ENV: production
+    expose:
+      - '3000'
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
     depends_on:
       - web
+      - learn
     ports:
       - '80:80'
       - '443:443'
