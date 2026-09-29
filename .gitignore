@@ -94,3 +94,6 @@ Thumbs.db
 *.pem
 *.key
 !**/public/*.key
+
+# Local tooling (AWS CLI venv etc). Never committed.
+.tools/
