@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { IBM_Plex_Sans, Libre_Baskerville } from 'next/font/google';
 import { LearnFooter, LearnHeader } from '@/components/learn/learn-chrome';
 import { learnHost } from '@/lib/learn-request';
+import { getCurrentAccount } from '@/lib/session';
 import './globals.css';
 
 /**
@@ -47,11 +48,15 @@ export default async function LearnLayout({ children }: { children: React.ReactN
   // Still resolved per request, because the canonical origin and the outbound links to the
   // dictionary are configuration rather than constants.
   const info = await learnHost();
+  // The session is read here rather than in the header component so the header stays a plain
+  // presentational component with no database access of its own — which is what lets the one
+  // chrome serve every page without each of them remembering to pass a session.
+  const session = await getCurrentAccount();
 
   return (
     <html lang="en" className={`${plexSans.variable} ${libreBaskerville.variable}`}>
       <body>
-        <LearnHeader info={info} />
+        <LearnHeader info={info} signedIn={session !== null} />
         <main>{children}</main>
         <LearnFooter info={info} />
       </body>

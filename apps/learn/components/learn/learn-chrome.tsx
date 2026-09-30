@@ -18,7 +18,7 @@ import { learnHref, type LearnHostInfo } from '@/lib/learn-host';
 
 const DICTIONARY_URL = process.env.OZITUMA_SITE_URL ?? 'https://ozituma.com';
 
-export function LearnHeader({ info }: { info: LearnHostInfo }) {
+export function LearnHeader({ info, signedIn }: { info: LearnHostInfo; signedIn: boolean }) {
   return (
     <header className="site-header">
       <div className="wrap">
@@ -31,8 +31,25 @@ export function LearnHeader({ info }: { info: LearnHostInfo }) {
         </Link>
         <NavMenu>
           <Link href={learnHref(info, '/')}>Courses</Link>
+          {/*
+            Practice is second, not last. It is the only surface that works today — the courses
+            cannot publish until a linguist and two native reviewers are named (§18 #4) — so putting
+            it behind "Igbo" would bury the one thing a visitor can actually do.
+          */}
+          <Link href={learnHref(info, '/practice')}>Practice</Link>
           <Link href={learnHref(info, '/igbo')}>Igbo</Link>
           <a href={DICTIONARY_URL}>Dictionary</a>
+          {/*
+            Account settings live on the dictionary, because that is where the account pages are and
+            it is the SAME account — one `account` row, one password. Sending a learner to a second
+            account page here would imply two accounts, which is the thing this arrangement exists to
+            avoid.
+          */}
+          {signedIn ? (
+            <a href={`${DICTIONARY_URL}/account`}>Your account</a>
+          ) : (
+            <Link href={learnHref(info, '/signin')}>Sign in</Link>
+          )}
         </NavMenu>
       </div>
     </header>
