@@ -25,6 +25,7 @@
  * `?next=` parameter is accepted for that and deliberately restricted to same-site paths.
  */
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getDb } from '@ozituma/db/client';
 import {
   AccountError,
@@ -62,6 +63,37 @@ function formValue(form: FormData, name: string, max = 400): string {
 }
 
 /**
+ * Read the posted form, tolerating a request that has none.
+ *
+ * `request.formData()` THROWS when the body is missing or the content type is not a form — it does
+ * not return an empty FormData. Sign-out legitimately has no body, so parsing eagerly at the top of
+ * the handler took the whole action down with
+ *
+ *   TypeError: Content-Type was not one of "multipart/form-data" or
+ *   "application/x-www-form-urlencoded".
+ *
+ * A browser posting a real form always sends the right content type, which is why this survived a
+ * hand-built curl and would have looked fine in a browser — while breaking any client that posts
+ * an empty body, which is exactly what a `fetch('/api/auth/signout', {method:'POST'})` does.
+ *
+ * Returning an empty FormData keeps the downstream logic unchanged: the fields are simply absent,
+ * and each action already decides for itself what a missing field means.
+ */
+async function readForm(request: Request): Promise<FormData> {
+  const contentType = request.headers.get('content-type') ?? '';
+  const isForm =
+    contentType.includes('application/x-www-form-urlencoded') ||
+    contentType.includes('multipart/form-data');
+  if (!isForm) return new FormData();
+
+  try {
+    return await request.formData();
+  } catch {
+    return new FormData();
+  }
+}
+
+/**
  * Where to send a learner after they sign in.
  *
  * Restricted to a path on this site. `next=https://evil.example` would otherwise turn the sign-in
@@ -83,7 +115,7 @@ export async function POST(
   context: { params: Promise<{ action: string }> }
 ): Promise<NextResponse> {
   const { action } = await context.params;
-  const form = await request.formData();
+  const form = await readForm(request);
   const db = await getDb();
 
   const meta = {
@@ -94,7 +126,7 @@ export async function POST(
   if (action === 'signout') {
     // Revoked server-side, not merely cleared. Clearing the cookie alone would leave a still-valid
     // token in the hands of anyone who had copied it.
-    const store = await (await import('next/headers')).cookies();
+    const store = await cookies();
     const raw = store.get(SESSION_COOKIE)?.value;
     if (raw) await revokeSession(db, raw);
 
