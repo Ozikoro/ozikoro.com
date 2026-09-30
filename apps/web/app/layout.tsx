@@ -138,7 +138,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/names">Names</Link>
               <Link href="/clans">Clans</Link>
               <Link href="/languages">Languages</Link>
-              <Link href="/practice">Practice</Link>
               <Link href="/learn">Learn</Link>
               <Link href="/proverbs">Proverbs</Link>
               <Link href="/contribute">Contribute</Link>

@@ -190,7 +190,7 @@ export default async function AboutPage() {
           earned.
         </p>
         <p>
-          There is more here than reading. The <Link href="/practice">practice section</Link> turns
+          There is more here than reading. The <a href="https://learn.ozituma.com/practice">practice section</a> turns
           entries into questions — a meaning to choose, a recording to identify a word by, a variety
           to place a spelling in — and the <Link href="/docs">public API</Link> gives anyone a free
           key from their own <Link href="/account">account page</Link>, so a keyboard, a learning

@@ -100,6 +100,16 @@ www.{$OZITUMA_DOMAIN} {
 	@learn path_regexp learn ^/learn(?:/(.*))?$
 	redir @learn https://learn.{$OZITUMA_DOMAIN}/{re.learn.1} permanent
 
+	# Practice moved off the dictionary entirely. It belongs with the rest of the learning:
+	# it is the same reviewed words, but with a schedule that remembers them, XP, and a
+	# streak -- none of which the dictionary has any business holding.
+	#
+	# The path was public and may be bookmarked or linked from elsewhere, so it redirects
+	# rather than 404s. No query is carried over: the old page took ?mode= and ?language=,
+	# and neither means anything to the learning site's practice.
+	@practice path /practice
+	redir @practice https://learn.{$OZITUMA_DOMAIN}/practice permanent
+
 	reverse_proxy web:3000 {
 		import ozituma_proxy_headers
 	}

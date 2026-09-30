@@ -24,7 +24,6 @@
     "./learn-gamification": "./src/learn-gamification.ts",
     "./learn-tutor": "./src/learn-tutor.ts",
     "./learn-review": "./src/learn-review.ts",
-    "./learn-culture": "./src/learn-culture.ts",
     "./dashboard": "./src/dashboard.ts",
     "./clans": "./src/clans.ts",
     "./account-keys": "./src/account-keys.ts",
