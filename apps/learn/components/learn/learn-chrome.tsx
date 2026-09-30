@@ -32,9 +32,15 @@ export function LearnHeader({ info, signedIn }: { info: LearnHostInfo; signedIn:
         <NavMenu>
           <Link href={learnHref(info, '/')}>Courses</Link>
           {/*
-            Practice is second, not last. It is the only surface that works today — the courses
-            cannot publish until a linguist and two native reviewers are named (§18 #4) — so putting
-            it behind "Igbo" would bury the one thing a visitor can actually do.
+            Today comes first among the working surfaces, because it is the one a returning learner
+            should be sent to. It is also the only entry that carries state — the number due — and a
+            learner with eight words waiting should be able to see that without opening the page.
+          */}
+          {signedIn ? <Link href={learnHref(info, '/plan')}>Today</Link> : null}
+          {/*
+            Practice is next, not last. It is the surface that works for everyone — the courses cannot
+            publish until a linguist and two native reviewers are named (§18 #4) — so putting it
+            behind "Igbo" would bury the one thing an anonymous visitor can actually do.
           */}
           <Link href={learnHref(info, '/practice')}>Practice</Link>
           <Link href={learnHref(info, '/igbo')}>Igbo</Link>

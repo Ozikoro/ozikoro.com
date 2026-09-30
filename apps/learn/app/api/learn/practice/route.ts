@@ -32,6 +32,8 @@ import {
   toPracticeClientSet,
 } from '@ozituma/db/learn-practice';
 import { gradeExerciseSet } from '@ozituma/db/learn-exercises';
+import { recordReview } from '@ozituma/db/learn-srs';
+import { getCurrentAccount } from '@/lib/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -223,16 +225,66 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Feed the spaced-repetition schedule.
+  //
+  // This is what turns practice into study. Without it a learner can answer the same word correctly
+  // eight times in one sitting and the platform has learned nothing about whether they will remember
+  // it tomorrow — which is the only question a review schedule exists to answer.
+  //
+  // THE RATING COMES FROM CORRECTNESS, AND ONLY FROM THAT.
+  //
+  // `correct` -> good, `wrong` -> again. SM-2 has four ratings and this uses two, deliberately:
+  // "hard" and "easy" are the learner's own judgement of their recall, and an exercise that grades a
+  // typed answer cannot observe that. Inferring "easy" from a fast response would be inventing a
+  // signal, and a wrong ease is worse than a coarse one — it silently retimes every future review.
+  // Two honest values beat four fabricated ones.
+  //
+  // Signed-in only: the state table is keyed by account, and there is no anonymous deck to write to.
+  // ---------------------------------------------------------------------------
+  const account = await getCurrentAccount();
+  let reviewsRecorded = 0;
+
+  if (account) {
+    const correctIds = result.items.filter((item) => item.correct).map((item) => item.id);
+    const wrongIds = result.items.filter((item) => !item.correct).map((item) => item.id);
+
+    for (const word of words) {
+      const numericId = String(word.id);
+      // Exercise ids are `${lessonId}-${answer.id}-${kind}`, so a word is matched by its position in
+      // that string rather than by re-deriving which exercise it produced. If the id format ever
+      // changes this stops matching, which fails toward "no review recorded" rather than toward
+      // recording a review against the wrong word.
+      const wasCorrect = correctIds.some((id) => id.includes(`-${numericId}-`));
+      const wasWrong = wrongIds.some((id) => id.includes(`-${numericId}-`));
+      if (!wasCorrect && !wasWrong) continue;
+
+      try {
+        await recordReview(db, {
+          accountId: account.account.id,
+          itemId: numericId,
+          itemKind: 'lexeme',
+          rating: wasCorrect ? 'good' : 'again',
+        });
+        reviewsRecorded += 1;
+      } catch (error) {
+        // One failed write must not lose the whole set's result. The learner's score is already
+        // computed; the schedule is what suffers, and it suffers for one word.
+        console.error('[practice] could not record a review', error);
+      }
+    }
+  }
+
   return NextResponse.json({
     items: result.items,
     correct: result.correct,
     total: result.total,
     score: result.score,
-    // Practice is deliberately NOT recorded. There is no `recordAttempt` call because practice
-    // items have no lesson to attach a score to, and inventing a synthetic lesson row to hold one
-    // would put practice into the same table as reviewed curriculum progress. The SRS queue is
-    // where practice is remembered, and that is M5 work.
-    recorded: false,
-    signedIn: false,
+    // Practice is not a LESSON result, so there is no best-score to attach — but when the learner is
+    // signed in the reviews ARE durable, and saying so is the difference between "nothing was saved"
+    // and "your schedule moved".
+    recorded: account !== null && reviewsRecorded > 0,
+    signedIn: account !== null,
+    reviewsRecorded,
   });
 }
