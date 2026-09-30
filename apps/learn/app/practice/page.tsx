@@ -59,7 +59,14 @@ export default async function PracticePage() {
 
       <section className="learn-section">
         <h2 className="learn-section-title">Your set</h2>
-        <PracticeRunner signedIn={session !== null} />
+        {
+          /* Passed from the server: the dictionary is a different origin, and a client component
+              cannot read a non-NEXT_PUBLIC variable. */
+        }
+        <PracticeRunner
+          signedIn={session !== null}
+          dictionaryUrl={process.env.OZITUMA_SITE_URL ?? 'https://ozituma.com'}
+        />
       </section>
 
       <section className="learn-section">

@@ -62,7 +62,14 @@ function describeInterval(days: number): string {
   return `in ${Math.round(days / 30)} months`;
 }
 
-export function PlanRunner({ signedIn }: { signedIn: boolean }) {
+export function PlanRunner({
+  signedIn,
+  dictionaryUrl,
+}: {
+  signedIn: boolean;
+  /** The dictionary's origin. See the note in practice-runner.tsx for why it is a prop. */
+  dictionaryUrl: string;
+}) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [plan, setPlan] = useState<PlanResponse | null>(null);
   const [index, setIndex] = useState(0);
@@ -306,7 +313,7 @@ export function PlanRunner({ signedIn }: { signedIn: boolean }) {
               <strong>{current.english}</strong>
             </p>
             <p className="muted" style={{ margin: '0.4rem 0 0', fontSize: '0.86rem' }}>
-              <Link href={`/word/igbo/${current.slug}`}>Open the full entry</Link>
+              <a href={`${dictionaryUrl}/word/igbo/${current.slug}`}>Open the full entry</a>
             </p>
           </div>
 

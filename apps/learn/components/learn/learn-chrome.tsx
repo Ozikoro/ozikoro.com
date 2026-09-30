@@ -44,6 +44,11 @@ export function LearnHeader({ info, signedIn }: { info: LearnHostInfo; signedIn:
           */}
           <Link href={learnHref(info, '/practice')}>Practice</Link>
           <Link href={learnHref(info, '/igbo')}>Igbo</Link>
+          {/*
+            The lookup comes BEFORE the outbound dictionary link. A learner who wants to check a word
+            should stay here; the link out is for the full entry with its dialects and sources.
+          */}
+          <Link href={learnHref(info, '/lookup')}>Look up</Link>
           <a href={DICTIONARY_URL}>Dictionary</a>
           {signedIn ? <Link href={learnHref(info, '/progress')}>Progress</Link> : null}
           {/*

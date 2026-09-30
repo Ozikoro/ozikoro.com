@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 // Type-only, so none of the database package reaches the browser bundle.
 import type { Exercise } from '@ozituma/db/learn-exercises';
@@ -59,7 +58,22 @@ interface GradeResponse {
 
 type Phase = 'loading' | 'error' | 'running' | 'empty';
 
-export function PracticeRunner({ signedIn }: { signedIn: boolean }) {
+export function PracticeRunner({
+  signedIn,
+  dictionaryUrl,
+}: {
+  signedIn: boolean;
+  /**
+   * The dictionary's origin, passed down from the server page.
+   *
+   * Not read from `process.env` here: this is a client component, and a non-`NEXT_PUBLIC_` variable
+   * is not available in the browser bundle. Reading it here would silently yield `undefined` and
+   * produce a link to `undefined/word/...`, which is exactly the class of bug this prop replaces —
+   * the earlier version of this file pointed at `/word/...` on the learn host, where no such route
+   * exists and every vocabulary link 404d.
+   */
+  dictionaryUrl: string;
+}) {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [words, setWords] = useState<PracticeWordSummary[]>([]);
   const [phase, setPhase] = useState<Phase>('loading');
@@ -333,9 +347,9 @@ export function PracticeRunner({ signedIn }: { signedIn: boolean }) {
           <strong>{feedback.correct ? 'Correct.' : `Not quite — ${feedback.expected}`}</strong>
           {currentWord ? (
             <p style={{ margin: '0.4rem 0 0' }}>
-              <Link href={`/word/igbo/${currentWord.slug}`}>
+              <a href={`${dictionaryUrl}/word/igbo/${currentWord.slug}`}>
                 {currentWord.headword} — {currentWord.english}
-              </Link>
+              </a>
             </p>
           ) : null}
           {!feedback.correct && current.kind === 'recall' ? (
