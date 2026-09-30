@@ -63,6 +63,7 @@ export function LearnHeader({
             should stay here; the link out is for the full entry with its dialects and sources.
           */}
           <Link href={learnHref(info, '/lookup')}>Look up</Link>
+          <Link href={learnHref(info, '/culture')}>Culture</Link>
           <Link href={learnHref(info, '/tutor')}>Tutor</Link>
           <a href={DICTIONARY_URL}>Dictionary</a>
           {signedIn ? <Link href={learnHref(info, '/progress')}>Progress</Link> : null}
