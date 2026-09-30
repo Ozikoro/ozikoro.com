@@ -1,136 +1,4 @@
 /*
- * ===========================================================================
- * TAILWIND, AND THE DESIGN'S OWN THEME — verbatim from
- * idenze/paper-whisperer-forge (src/styles.css).
- * ===========================================================================
- *
- * WHY TAILWIND IS HERE AT ALL
- *
- * The first attempt at this rebuild TRANSLATED the design's utilities into the
- * hand-written classes below. That was a mistake: a translation is an
- * approximation, and the approximations were visible — this app's shell is 68rem
- * where the design's is 1440px, its gaps and icon sizes were chosen by eye, and
- * the sticky offsets did not match. "Same width, same length, everything" is only
- * achievable by running the same utilities through the same engine.
- *
- * So Tailwind v4 is a real dependency now, and the design's classes are used as
- * written rather than reinterpreted. The rules below this block are untouched and
- * keep working: they use different class names, and this app's `--paper`, `--ink`
- * and friends coexist with the design's `--background`, `--card` and `--primary`.
- *
- * `tw-animate-css` is NOT imported. The design's single animation, `rise-in`, is
- * declared below in full, so the package would be a dependency for one keyframe.
- */
-@import "tailwindcss";
-
-@theme inline {
-  --font-sans: "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", Georgia, serif;
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --color-brand: var(--brand);
-  --color-brand-foreground: var(--brand-foreground);
-  --color-highlight: var(--highlight);
-  --color-highlight-foreground: var(--highlight-foreground);
-  --color-warm: var(--warm);
-  /* The design's own `--ink`, which is a dark teal and NOT this app's `--ink`. The two are
-     different ideas that happen to share a word, so this one is namespaced to avoid the clash. */
-  --color-dash-ink: var(--dash-ink);
-  --radius-sm: calc(var(--radius) - 3px);
-  --radius-md: var(--radius);
-  --radius-lg: calc(var(--radius) + 2px);
-}
-
-:root {
-  /* The design's semantic palette. Distinct names from this app's `--paper`/`--ink` set, which is
-     why both can live in one file. */
-  --background: oklch(0.975 0.014 92);
-  --foreground: oklch(0.22 0.03 155);
-  --card: oklch(0.997 0.004 90);
-  --card-foreground: oklch(0.22 0.03 155);
-  --primary: oklch(0.45 0.115 152);
-  --primary-foreground: oklch(0.99 0.005 95);
-  --secondary: oklch(0.93 0.045 86);
-  --secondary-foreground: oklch(0.28 0.035 145);
-  --muted: oklch(0.94 0.014 94);
-  --muted-foreground: oklch(0.49 0.028 130);
-  --accent: oklch(0.67 0.16 37);
-  --accent-foreground: oklch(0.99 0.005 95);
-  --border: oklch(0.88 0.025 95);
-  --input: oklch(0.9 0.02 95);
-  --ring: oklch(0.51 0.12 152);
-  --brand: oklch(0.37 0.105 153);
-  --brand-foreground: oklch(0.99 0.005 95);
-  --highlight: oklch(0.71 0.16 37);
-  --highlight-foreground: oklch(0.22 0.03 30);
-  --warm: oklch(0.89 0.09 86);
-  --dash-ink: oklch(0.27 0.038 202);
-  --radius: 0.5rem;
-}
-
-@layer base {
-  html {
-    scroll-behavior: smooth;
-  }
-  body {
-    background: var(--color-background);
-    color: var(--color-foreground);
-    font-family: var(--font-sans);
-  }
-  ::selection {
-    background: color-mix(in oklch, var(--color-highlight) 35%, transparent);
-  }
-}
-
-@utility font-display {
-  font-family: var(--font-display);
-}
-
-/*
- * The design's entrance animation, declared here rather than imported from
- * `tw-animate-css`. Inside `prefers-reduced-motion: no-preference`, so a reader who
- * asked their system for less motion never receives it — §12 asks for a
- * reduced-motion option and honouring the OS setting is the version needing no UI.
- */
-@keyframes rise-in {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .rise-in {
-    animation: rise-in 500ms ease-out both;
-  }
-  .rise-in-delay {
-    animation: rise-in 600ms 120ms ease-out both;
-  }
-}
-
-/* ===========================================================================
- * THIS APP'S OWN STYLES, BELOW, UNCHANGED
- * ===========================================================================
- */
-
-/*
  * Ozituma design tokens and base styles.
  *
  * Deliberately plain CSS rather than a utility framework: the platform has to
@@ -3012,4 +2880,551 @@ main {
 .ndebe-module-pending {
   border-style: dashed;
   background: transparent;
+}
+
+/* ===========================================================================
+   THE LEARN DASHBOARD
+
+   The home page as the design has it: a daily-journey dashboard rather than a
+   course index. Every value here is taken from the design at
+   idenze/paper-whisperer-forge (src/routes/index.tsx and src/styles.css) and
+   translated from its Tailwind utilities into the class names this app uses.
+
+   TRANSLATED, NOT COPIED, and the reason is worth stating: the design is Tailwind
+   v4, and this app has no Tailwind. Adding it would mean a second styling system
+   in one codebase, and the ~2,800 lines below already work. So the utilities are
+   read as a specification — `rounded-md border border-border bg-card p-4
+   shadow-sm` is five facts about a box, not a class name — and expressed here.
+   =========================================================================== */
+
+/* --- the greeting ---------------------------------------------------------- */
+
+.dash-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+  .dash-hero {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.dash-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.dash-greeting {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 7vw, 3rem);
+  font-weight: 600;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.dash-lede {
+  margin: 0.5rem 0 0;
+  max-width: 36rem;
+  color: var(--ink-soft);
+}
+
+/* The level and XP card. */
+.dash-level {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 16rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-level-badge {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--ochre-soft);
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 0.9rem;
+}
+
+.dash-level-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-level-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.dash-level-track {
+  margin-top: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.dash-level-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ochre);
+}
+
+/* --- the continue card ----------------------------------------------------- */
+
+.dash-continue {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--indigo);
+  color: #fff;
+  box-shadow: var(--shadow);
+  display: grid;
+}
+
+@media (min-width: 768px) {
+  .dash-continue {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+}
+
+.dash-continue-body {
+  padding: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .dash-continue-body {
+    padding: 2rem;
+  }
+}
+
+.dash-continue-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.75);
+}
+
+.dash-continue-eyebrow::before {
+  content: '';
+  display: block;
+  width: 2rem;
+  height: 1px;
+  background: var(--ochre);
+}
+
+.dash-continue-title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.6rem, 5vw, 2.25rem);
+  font-weight: 600;
+  margin: 0;
+}
+
+.dash-continue-text {
+  margin: 0.75rem 0 0;
+  max-width: 32rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: rgb(255 255 255 / 0.8);
+}
+
+/*
+  The decorative panel. The design builds a woven pattern from two crossed
+  linear-gradients — raffia cloth, abstractly. It is `aria-hidden` because it
+  carries no information, and the motto beside it is the part that does.
+*/
+.dash-continue-art {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  border-left: 1px solid rgb(255 255 255 / 0.15);
+}
+
+@media (min-width: 768px) {
+  .dash-continue-art {
+    display: block;
+  }
+}
+
+.dash-continue-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.25;
+  background-image:
+    linear-gradient(30deg, transparent 35%, currentColor 36%, currentColor 38%, transparent 39%),
+    linear-gradient(-30deg, transparent 35%, currentColor 36%, currentColor 38%, transparent 39%);
+  background-size: 42px 72px;
+}
+
+.dash-continue-motto {
+  position: absolute;
+  left: 1.5rem;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  padding-left: 1rem;
+  border-left: 4px solid var(--ochre);
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+/* --- section headings ------------------------------------------------------ */
+
+.dash-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.dash-section-kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.dash-section-title {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* --- the journey cards ----------------------------------------------------- */
+
+.dash-journey {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .dash-journey {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dash-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 8rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+/* The lift. Suppressed for a reader who asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+}
+
+.dash-card-icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius);
+  /* Default tone. The three others are set by the modifiers below. */
+  background: var(--ink);
+  color: #fff;
+}
+
+.dash-card-icon-green {
+  background: var(--green);
+  color: #fff;
+}
+.dash-card-icon-coral {
+  background: var(--clay);
+  color: #fff;
+}
+.dash-card-icon-gold {
+  background: var(--ochre-soft);
+  color: var(--ink);
+}
+.dash-card-icon-ink {
+  background: var(--ink);
+  color: #fff;
+}
+
+.dash-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-card-title {
+  font-weight: 700;
+  margin: 0;
+}
+
+.dash-card-detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+/* --- the sidebar ----------------------------------------------------------- */
+
+.dash-aside {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.dash-panel {
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-panel-warm {
+  background: var(--ochre-soft);
+}
+
+.dash-panel-title {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/*
+  The progress ring, as a conic gradient with the card punched out of the middle.
+  Cheaper than an SVG arc and it scales with the font, which matters on a phone.
+*/
+.dash-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+}
+
+.dash-ring-inner {
+  display: grid;
+  place-items: center;
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 50%;
+  background: var(--paper-raised);
+  text-align: center;
+}
+
+.dash-ring-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.dash-ring-unit {
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+/* The week strip. */
+.dash-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--ink-faint);
+}
+
+.dash-week-day {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0 auto 0.4rem;
+  border-radius: 50%;
+  background: var(--paper-raised);
+}
+
+.dash-week-day-on {
+  background: var(--green);
+  color: #fff;
+}
+
+/* A label that says what the content is, or is not. §2.1. */
+.dash-tag {
+  display: inline-flex;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--line);
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* --- the course path ------------------------------------------------------- */
+
+.dash-units {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dash-unit {
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-unit-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dash-unit-num {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius);
+  font-weight: 900;
+  background: var(--line);
+  color: var(--ink-soft);
+}
+
+.dash-unit-num-on {
+  background: var(--green);
+  color: #fff;
+}
+
+.dash-unit-title {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.dash-unit-track {
+  margin-top: 0.75rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.dash-unit-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.dash-lessons {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .dash-lessons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dash-lesson {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dash-lesson-current {
+  border-color: var(--green);
+  background: var(--ochre-soft);
+}
+
+.dash-lesson:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.dash-lesson-mark {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink-soft);
+}
+
+.dash-lesson-mark-done {
+  background: var(--green);
+  color: #fff;
+}
+
+/* --- the two-column shell -------------------------------------------------- */
+
+.dash-shell {
+  display: grid;
+  align-items: start;
+  gap: 1.75rem;
+}
+
+@media (min-width: 1280px) {
+  .dash-shell {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+  .dash-aside {
+    position: sticky;
+    top: 6.5rem;
+  }
+}
+
+.dash-main {
+  display: grid;
+  gap: 2rem;
 }
