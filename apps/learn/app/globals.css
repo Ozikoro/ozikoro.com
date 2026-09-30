@@ -2393,3 +2393,95 @@ main {
   }
 }
 
+
+/* ---------------------------------------------------------------------------
+   Match pairs and sentence builder
+   ---------------------------------------------------------------------------
+   The two exercises that are neither chosen from a list nor typed. Both reuse
+   `.learn-option` for the individual tappable item so they inherit the same
+   radius, border and hover as everything else — a learner should not be able to
+   tell from a button that it belongs to a different exercise type.
+   --------------------------------------------------------------------------- */
+
+/* Two columns, side by side on anything wider than a phone. */
+.learn-match {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.learn-match-column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* The selected left item. Outlined rather than filled: the chip inside it is
+   already carrying the attached meaning, and two emphases in one row compete. */
+.learn-option.is-active {
+  border-color: var(--indigo);
+  box-shadow: 0 0 0 2px var(--accent-wash);
+}
+
+/* The attached meaning, shown inside the left item so a learner can read the
+   pair they have made without looking across the gap. */
+.learn-option .chip {
+  display: block;
+  margin-top: 0.35rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+/* The sentence being built. A minimum height so the layout does not jump when
+   the first word lands. */
+.learn-build-slot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 3.4rem;
+  padding: 0.6rem;
+  margin-bottom: 0.8rem;
+  background: var(--paper-raised);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+/* The word bank. */
+.learn-build-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.learn-token {
+  font-family: inherit;
+  font-size: 1rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--paper-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.learn-token:hover:not(:disabled) {
+  border-color: var(--indigo);
+}
+
+.learn-token:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* On a narrow phone the two match columns would each be too narrow to read, so
+   they stack. The exercise still works; it just becomes two lists. */
+@media (max-width: 34rem) {
+  .learn-match {
+    grid-template-columns: 1fr;
+  }
+}

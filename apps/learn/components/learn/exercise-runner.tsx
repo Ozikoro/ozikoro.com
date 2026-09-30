@@ -73,6 +73,21 @@ export function ExerciseRunner({
   const [result, setResult] = useState<GradeResponse | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
+  // ---------------------------------------------------------------------------
+  // State for the two exercises that are not answered by choosing or typing.
+  //
+  // Both are built up in the browser and submitted as an encoded string, which is the shape the
+  // grading route takes — see the note on FIELD_SEP in learn-exercises.ts for why a mapping travels
+  // as text rather than as a nested object.
+  // ---------------------------------------------------------------------------
+  /** `match`: left id -> the right-hand label currently attached to it. */
+  const [pairing, setPairing] = useState<Record<string, string>>({});
+  /** `match`: which left item the next tapped meaning will be attached to. */
+  const [activeLeft, setActiveLeft] = useState<string | null>(null);
+  /** `build`: bank indices the learner has placed, in order. Indices rather than strings, so a
+   * word that appears twice in a sentence is offered twice rather than once. */
+  const [ordered, setOrdered] = useState<number[]>([]);
+
   const current = exercises[index] ?? null;
 
   const load = useCallback(async () => {
@@ -103,7 +118,9 @@ export function ExerciseRunner({
 
   // Focus the input for a typing question, so a learner can just start writing.
   useEffect(() => {
-    if (current?.kind === 'recall' && !feedback) inputRef.current?.focus();
+    if ((current?.kind === 'recall' || current?.kind === 'gap') && !feedback) {
+      inputRef.current?.focus();
+    }
   }, [current, feedback]);
 
   /** Grade one answer immediately, without recording anything. */
@@ -148,12 +165,52 @@ export function ExerciseRunner({
     void submitAnswer(current, typed.trim());
   }
 
+  // ---------------------------------------------------------------------------
+  // match and build
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Submit the pairing built so far.
+   *
+   * Encoded exactly as the server decodes it: `leftId<US>value<RS>…`. The server re-sorts by id
+   * before comparing, so the order this object happens to have is irrelevant — which is why the
+   * learner can pair in any order and still be right.
+   */
+  function checkMapping() {
+    if (!current || feedback || checking) return;
+    const encoded = Object.keys(pairing)
+      .sort()
+      .map((id) => `${id}\u001f${pairing[id] ?? ''}`)
+      .join('\u001e');
+    void submitAnswer(current, encoded);
+  }
+
+  /**
+   * Submit the placed tokens in order, joined by the same separator the server splits on.
+   *
+   * The separator cannot occur in Igbo, so a sentence can never be split ambiguously.
+   */
+  function checkOrdering() {
+    if (!current || feedback || checking || ordered.length === 0) return;
+    const bank = current.tokens ?? [];
+    void submitAnswer(
+      current,
+      ordered.map((bankIndex) => bank[bankIndex] ?? '').join('\u001f')
+    );
+  }
+
   /** Move on. On the last exercise, finish and record. */
   async function advance() {
     if (index < exercises.length - 1) {
       setIndex(index + 1);
       setFeedback(null);
       setTyped('');
+      // Reset the non-text answers too. Without this, a match board from the previous question
+      // would still be on screen when the next one arrives — and worse, `pairing` would be
+      // submitted against the new question's ids.
+      setPairing({});
+      setActiveLeft(null);
+      setOrdered([]);
       return;
     }
 
@@ -317,7 +374,149 @@ export function ExerciseRunner({
         )}
       </div>
 
-      {current.options ? (
+      {/*
+        MATCH PAIRS
+        Two columns. Tapping a word selects it, tapping a meaning attaches it. Tapping an already
+        paired word detaches it, so a mistake costs one tap rather than a restart — which matters
+        because matching is graded all-or-nothing.
+      */}
+      {current.kind === 'match' && current.left ? (
+        <>
+          <div className="learn-match">
+            <div className="learn-match-column">
+              {current.left.map((item) => {
+                const attached = pairing[item.id];
+                const isActive = activeLeft === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`learn-option ${isActive ? 'is-active' : ''} ${
+                      feedback && attached ? (feedback.correct ? 'is-right' : 'is-wrong') : ''
+                    }`}
+                    onClick={() => {
+                      if (feedback) return;
+                      if (attached) {
+                        const next = { ...pairing };
+                        delete next[item.id];
+                        setPairing(next);
+                        setActiveLeft(item.id);
+                        return;
+                      }
+                      setActiveLeft(item.id);
+                    }}
+                    disabled={feedback !== null}
+                  >
+                    {item.label}
+                    {attached ? <span className="chip">{attached}</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="learn-match-column">
+              {(current.options ?? []).map((option) => {
+                const used = Object.values(pairing).includes(option.label);
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    className="learn-option"
+                    onClick={() => {
+                      if (feedback || !activeLeft) return;
+                      setPairing({ ...pairing, [activeLeft]: option.label });
+                      setActiveLeft(null);
+                    }}
+                    disabled={feedback !== null || used}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {!feedback ? (
+            <div className="learn-actions">
+              <button
+                className="button"
+                type="button"
+                onClick={checkMapping}
+                disabled={checking || Object.keys(pairing).length < current.left.length}
+              >
+                {checking ? 'Checking…' : 'Check'}
+              </button>
+              <span className="muted" style={{ fontSize: '0.84rem' }}>
+                {activeLeft
+                  ? 'Now tap the meaning.'
+                  : `${Object.keys(pairing).length} of ${current.left.length} paired`}
+              </span>
+            </div>
+          ) : null}
+        </>
+      ) : current.kind === 'build' && current.tokens ? (
+        /* ------------------------------------------------------------------
+           SENTENCE BUILDER
+           The placed tokens sit above, the bank below. Tapping a placed token returns it to the
+           bank; tapping a bank token appends it. Indices are tracked rather than strings so a
+           repeated word is offered as many times as the sentence contains it.
+        ------------------------------------------------------------------ */
+        <>
+          <div className="learn-build-slot">
+            {ordered.length === 0 ? (
+              <span className="muted">Tap the words below, in order.</span>
+            ) : (
+              ordered.map((bankIndex, position) => (
+                <button
+                  key={`placed-${position}`}
+                  type="button"
+                  className="learn-token"
+                  onClick={() => {
+                    if (feedback) return;
+                    setOrdered(ordered.filter((_, at) => at !== position));
+                  }}
+                  disabled={feedback !== null}
+                >
+                  {current.tokens![bankIndex]}
+                </button>
+              ))
+            )}
+          </div>
+
+          <div className="learn-build-bank">
+            {current.tokens.map((token, bankIndex) => {
+              const placed = ordered.includes(bankIndex);
+              return (
+                <button
+                  key={`bank-${bankIndex}`}
+                  type="button"
+                  className="learn-token"
+                  onClick={() => {
+                    if (feedback || placed) return;
+                    setOrdered([...ordered, bankIndex]);
+                  }}
+                  disabled={feedback !== null || placed}
+                >
+                  {token}
+                </button>
+              );
+            })}
+          </div>
+
+          {!feedback ? (
+            <div className="learn-actions">
+              <button
+                className="button"
+                type="button"
+                onClick={checkOrdering}
+                disabled={checking || ordered.length !== current.tokens.length}
+              >
+                {checking ? 'Checking…' : 'Check'}
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : current.options ? (
         <div className="learn-options">
           {current.options.map((option) => {
             const isAnswer = feedback?.expected === option.label;
@@ -348,7 +547,7 @@ export function ExerciseRunner({
           }}
         >
           <label className="learn-recall-label" htmlFor="learn-recall-input">
-            Type the Igbo
+            {current.kind === 'gap' ? 'Type the missing word' : 'Type the Igbo'}
           </label>
           <input
             id="learn-recall-input"
@@ -377,7 +576,7 @@ export function ExerciseRunner({
           {feedback.explanation ? (
             <p style={{ margin: '0.4rem 0 0' }}>{feedback.explanation}</p>
           ) : null}
-          {!feedback.correct && current.kind === 'recall' ? (
+          {!feedback.correct && (current.kind === 'recall' || current.kind === 'gap') ? (
             <p style={{ margin: '0.4rem 0 0' }} className="muted">
               Tone marks and the dots under ị, ọ, ụ and ṅ are not marked wrong here — they are on
               every card in the lesson, and your keyboard is not the thing being tested.

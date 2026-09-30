@@ -44,6 +44,7 @@
     "test:learn": "node src/test-learn.ts",
     "test:srs": "node src/test-srs.ts",
     "test:gamification": "node src/test-gamification.ts",
+    "test:exercises": "node src/test-exercises.ts",
     "import:learn": "node src/import/learn-curriculum.ts",
     "test:headword-audio": "node src/test-headword-audio.ts",
     "test:proverb-rendering": "node src/test-proverb-rendering.ts",
