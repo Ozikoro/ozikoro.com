@@ -27,7 +27,10 @@
 import { NextResponse } from 'next/server';
 import { getDb } from '@ozituma/db/client';
 import { getDailyPlan, getReviewSummary, recordReview } from '@ozituma/db/learn-srs';
+import { awardXp, recordActivity } from '@ozituma/db/learn-gamification';
 import { getCurrentAccount } from '@/lib/session';
+import { learnerTimeZone } from '@/lib/timezone';
+import { localDay } from '@ozituma/core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -174,6 +177,26 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const summary = await getReviewSummary(db, account.account.id);
 
+  // ---------------------------------------------------------------------------
+  // XP and the streak.
+  //
+  // `review_session_completed` is keyed by the LOCAL DAY, not by the word, so a learner who reviews
+  // twenty words in one evening is rewarded once for the session — which is what §F7 says the award
+  // is for: returning, not grinding. Keying it by word would make the daily plan a way to farm XP by
+  // reviewing the same eight items in a loop.
+  //
+  // The award is attempted on every review; the unique constraint turns all but the first that day
+  // into no-ops, so no "have I already counted today" check is needed here. That check is exactly the
+  // kind of state that goes wrong when two requests arrive together.
+  // ---------------------------------------------------------------------------
+  const timeZone = learnerTimeZone(request, body);
+  await awardXp(db, {
+    accountId: account.account.id,
+    source: 'review_session_completed',
+    reference: `review:${localDay(Date.now(), timeZone)}`,
+  });
+  const activity = await recordActivity(db, account.account.id, timeZone);
+
   return NextResponse.json({
     // What the scheduler decided, so the page can say when the word comes back rather than leaving
     // the learner to guess whether their answer mattered.
@@ -184,5 +207,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     dueNow: summary.dueNow,
     tracked: summary.tracked,
     learned: summary.learned,
+    // Only true on the call that actually moved it, so the UI can celebrate the streak once rather
+    // than on every answer.
+    streakChanged: activity.changed,
+    streakCurrent: activity.state.current,
   });
 }

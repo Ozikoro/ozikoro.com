@@ -33,7 +33,9 @@ import {
 } from '@ozituma/db/learn-practice';
 import { gradeExerciseSet } from '@ozituma/db/learn-exercises';
 import { recordReview } from '@ozituma/db/learn-srs';
+import { awardXp, recordActivity } from '@ozituma/db/learn-gamification';
 import { getCurrentAccount } from '@/lib/session';
+import { learnerTimeZone } from '@/lib/timezone';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -272,6 +274,43 @@ export async function POST(request: Request): Promise<NextResponse> {
         // computed; the schedule is what suffers, and it suffers for one word.
         console.error('[practice] could not record a review', error);
       }
+
+      // -----------------------------------------------------------------
+      // XP for the correct ones, keyed by the word.
+      //
+      // The reference is the word id, so answering the SAME word correctly twice in one session
+      // awards once — which is the whole reason `learn_xp_event` carries a unique constraint. A
+      // learner cannot farm XP by running the same ten words repeatedly.
+      //
+      // `exercise_correct` is awarded per correct answer rather than per session, matching
+      // `XP_AWARDS`: the lesson-completion award is the session-shaped one, and practice has no
+      // lesson to complete.
+      // -----------------------------------------------------------------
+      if (wasCorrect) {
+        try {
+          await awardXp(db, {
+            accountId: account.account.id,
+            source: 'exercise_correct',
+            reference: `practice:${numericId}`,
+          });
+        } catch (error) {
+          console.error('[practice] could not award xp', error);
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------
+    // The streak, once for the session rather than once per word.
+    //
+    // `recordActivity` is idempotent within a local day, so calling it here and again from the plan
+    // route costs nothing — but calling it inside the loop above would be a hundred round trips to
+    // say the same thing. The zone comes from the request because §F7 defines the day where the
+    // learner is, not where the server is.
+    // -------------------------------------------------------------------
+    try {
+      await recordActivity(db, account.account.id, learnerTimeZone(request, body));
+    } catch (error) {
+      console.error('[practice] could not record activity', error);
     }
   }
 

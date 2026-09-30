@@ -45,6 +45,7 @@ export function LearnHeader({ info, signedIn }: { info: LearnHostInfo; signedIn:
           <Link href={learnHref(info, '/practice')}>Practice</Link>
           <Link href={learnHref(info, '/igbo')}>Igbo</Link>
           <a href={DICTIONARY_URL}>Dictionary</a>
+          {signedIn ? <Link href={learnHref(info, '/progress')}>Progress</Link> : null}
           {/*
             Account settings live on the dictionary, because that is where the account pages are and
             it is the SAME account — one `account` row, one password. Sending a learner to a second
