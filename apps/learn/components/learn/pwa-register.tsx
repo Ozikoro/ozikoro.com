@@ -68,10 +68,29 @@ export function PwaRegister({ signedIn }: { signedIn: boolean }) {
     setOnline(navigator.onLine);
     setQueued(readQueue().length);
 
-    // Registration is best-effort. A browser without service workers — or a page served over plain
-    // HTTP, where they are refused — should still be a working site, just without offline support.
+    /*
+     * Register, and tell the browser never to serve the worker itself from the HTTP cache.
+     *
+     * WHY THIS AND NOT A CACHE-CONTROL HEADER
+     *
+     * The header was tried first and does not hold here. The origin sets it, and Cloudflare's
+     * Browser Cache TTL — four hours by default — REWRITES the browser-facing `Cache-Control`
+     * whatever the origin said. Measured on the deployed site: `/sw.js` came back as
+     * `max-age=14400, must-revalidate` rather than the `no-cache` that was configured, and the icons
+     * showed the same four hours. Fixing that properly means a Cloudflare cache rule, which is
+     * another project's configuration and another project's credential.
+     *
+     * `updateViaCache: 'none'` is the mechanism that does not depend on any of that. It is a
+     * browser-side instruction: the worker script is always revalidated with the server rather than
+     * taken from the HTTP cache, so a stale worker cannot outlive a deploy no matter what the CDN
+     * says about caching.
+     *
+     * Registration itself is best-effort. A browser without service workers — or a page served over
+     * plain HTTP, where they are refused — should still be a working site, just without offline
+     * support.
+     */
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+      navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => undefined);
     }
 
     const goOnline = () => {

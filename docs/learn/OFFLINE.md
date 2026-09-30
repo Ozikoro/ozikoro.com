@@ -120,7 +120,30 @@ the mark itself; a separate entry claims `maskable` for launchers that want it.
 
 ---
 
-## 6. What is not built yet
+## 6. One thing the CDN decides, not this app
+
+The service worker must never be served stale: a browser running last week's worker keeps last
+week's caching rules whatever is deployed, and the symptom is a site that appears not to update.
+
+The obvious fix is a `Cache-Control: no-cache` header on `/sw.js`, and that is what
+`apps/learn/next.config.ts` sets. **It does not hold.** Cloudflare's Browser Cache TTL — four hours by
+default — rewrites the browser-facing `Cache-Control` whatever the origin says. Measured on the
+deployed site, `/sw.js` came back as `max-age=14400, must-revalidate` rather than the `no-cache` that
+was configured, and the icons showed the same four hours. Correcting that properly means a
+Cloudflare cache rule, which lives in another project's configuration and needs another project's
+credential (see `AGENTS.md`).
+
+So the fix used is `updateViaCache: 'none'` at registration. That is a **browser-side** instruction:
+the worker script is always revalidated with the server rather than taken from the HTTP cache. It
+does not depend on the origin, on the CDN, or on a header surviving a translation layer, which is
+exactly why it is the right mechanism here.
+
+The `no-cache` header is left in place as well. It is correct, it costs nothing, and it will start
+working the moment a cache rule is added — but nothing relies on it.
+
+---
+
+## 7. What is not built yet
 
 - **Explicit "download this unit"**. The worker handles a `CACHE_URLS` message and reports how many
   URLs it stored, but no page sends one yet, because the authored curriculum that units would come
