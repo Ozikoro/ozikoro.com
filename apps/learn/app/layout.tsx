@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { IBM_Plex_Sans, Libre_Baskerville } from 'next/font/google';
 import { LearnFooter, LearnHeader } from '@/components/learn/learn-chrome';
+import { PwaRegister } from '@/components/learn/pwa-register';
 import { learnHost } from '@/lib/learn-request';
 import { getCurrentAccount } from '@/lib/session';
 import './globals.css';
@@ -63,6 +64,11 @@ export default async function LearnLayout({ children }: { children: React.ReactN
         />
         <main>{children}</main>
         <LearnFooter info={info} />
+        {/*
+          Registers the service worker and drains the offline queue. A client component because
+          both are browser concerns; it renders nothing unless there is something to say.
+        */}
+        <PwaRegister signedIn={session !== null} />
       </body>
     </html>
   );

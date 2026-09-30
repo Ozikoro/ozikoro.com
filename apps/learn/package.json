@@ -2,12 +2,13 @@
   "name": "@ozituma/learn",
   "version": "0.1.0",
   "private": true,
-  "description": "Ozituma Learn — the language courses at learn.ozituma.com.",
+  "description": "Ozituma Learn \u2014 the language courses at learn.ozituma.com.",
   "scripts": {
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start -p 3001",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:offline": "node lib/offline-queue.test.ts"
   },
   "dependencies": {
     "@ozituma/core": "*",
