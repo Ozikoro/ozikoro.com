@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { Fraunces, Nunito_Sans } from 'next/font/google';
 import { LearnFooter, LearnHeader } from '@/components/learn/learn-chrome';
 import { PwaRegister } from '@/components/learn/pwa-register';
+import { ChromeGate } from '@/components/learn/chrome-gate';
 import { learnHost } from '@/lib/learn-request';
 import { getCurrentAccount } from '@/lib/session';
 import './globals.css';
@@ -77,13 +78,17 @@ export default async function LearnLayout({ children }: { children: React.ReactN
   return (
     <html lang="en" className={`${nunitoSans.variable} ${fraunces.variable}`}>
       <body>
-        <LearnHeader
+        <ChromeGate>
+          <LearnHeader
           info={info}
           signedIn={session !== null}
           canReview={session?.canReviewLearn ?? false}
         />
+      </ChromeGate>
         <main>{children}</main>
-        <LearnFooter info={info} />
+        <ChromeGate>
+          <LearnFooter info={info} />
+          </ChromeGate>
         {/*
           Registers the service worker and drains the offline queue. A client component because
           both are browser concerns; it renders nothing unless there is something to say.
