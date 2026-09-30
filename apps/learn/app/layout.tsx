@@ -56,7 +56,11 @@ export default async function LearnLayout({ children }: { children: React.ReactN
   return (
     <html lang="en" className={`${plexSans.variable} ${libreBaskerville.variable}`}>
       <body>
-        <LearnHeader info={info} signedIn={session !== null} />
+        <LearnHeader
+          info={info}
+          signedIn={session !== null}
+          canReview={session?.canReviewLearn ?? false}
+        />
         <main>{children}</main>
         <LearnFooter info={info} />
       </body>

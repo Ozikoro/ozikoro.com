@@ -51,12 +51,60 @@ export const SESSION_COOKIE = 'ozituma_session';
  * `owner` outranks `admin`, and every check that asks for an admin has to admit the
  * owner. That is easy to get wrong by accident, so the comparisons live in the two
  * helpers below and callers ask those rather than comparing role names themselves.
+ *
+ * The four learn roles were added to the DATABASE enum by migration 0029 and were missing here,
+ * which is a mismatch with consequences rather than a tidiness problem: a `linguist` could be
+ * stored, sign in, and then fail every TypeScript check that reads `account.role`, and — because
+ * `isReviewer` knows only editor, admin and owner — could not reach the review queue they exist to
+ * work in. The type now matches the enum.
+ *
+ * `learner` is here because the enum has it, NOT because a learner is staff. `isReviewer` and
+ * `isLearnStaff` both return false for it, which is the point.
  */
-export type AccountRole = 'contributor' | 'editor' | 'admin' | 'owner';
+export type AccountRole =
+  | 'learner'
+  | 'contributor'
+  | 'linguist'
+  | 'native_reviewer'
+  | 'content_editor'
+  | 'editor'
+  | 'admin'
+  | 'owner';
 
-/** May moderate: an editor, an admin, or the owner. */
+/**
+ * May moderate the DICTIONARY: an editor, an admin, or the owner.
+ *
+ * Deliberately NOT widened to the learn roles. A linguist reviews Igbo curriculum; giving them the
+ * dictionary's contribution queue as a side effect would hand out access nobody asked for, in a
+ * helper whose whole purpose is to be the one place that decides. The learn side has its own check
+ * below.
+ */
 export function isReviewer(role: AccountRole): boolean {
   return role === 'editor' || role === 'admin' || role === 'owner';
+}
+
+/**
+ * May work the LEARN content queue: anybody §5.3 gives a hand in the lifecycle.
+ *
+ * §5.3 splits the work across three roles — a linguist approves the language, a native reviewer
+ * approves the audio and naturalness, a content editor publishes — so all three must be able to
+ * REACH the queue. Which transitions each may actually perform is a separate question, and
+ * `ALLOWED` in `packages/core/src/review-workflow.ts` is where it is answered; this only decides who
+ * gets through the door.
+ *
+ * A `contributor` is included because a contributor authors and resubmits content, and the queue is
+ * where they see their own work sent back with a reason.
+ */
+export function isLearnStaff(role: AccountRole): boolean {
+  return (
+    role === 'contributor' ||
+    role === 'linguist' ||
+    role === 'native_reviewer' ||
+    role === 'content_editor' ||
+    role === 'editor' ||
+    role === 'admin' ||
+    role === 'owner'
+  );
 }
 
 /** May administer the site: an admin, or the owner. */

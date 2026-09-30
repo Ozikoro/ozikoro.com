@@ -18,7 +18,21 @@ import { learnHref, type LearnHostInfo } from '@/lib/learn-host';
 
 const DICTIONARY_URL = process.env.OZITUMA_SITE_URL ?? 'https://ozituma.com';
 
-export function LearnHeader({ info, signedIn }: { info: LearnHostInfo; signedIn: boolean }) {
+export function LearnHeader({
+  info,
+  signedIn,
+  canReview,
+}: {
+  info: LearnHostInfo;
+  signedIn: boolean;
+  /**
+   * Whether this account may work the §5.3 content queue.
+   *
+   * Passed in rather than derived, so the header does no database work of its own and the layout
+   * stays the one place that reads the session.
+   */
+  canReview: boolean;
+}) {
   return (
     <header className="site-header">
       <div className="wrap">
@@ -52,6 +66,11 @@ export function LearnHeader({ info, signedIn }: { info: LearnHostInfo; signedIn:
           <Link href={learnHref(info, '/tutor')}>Tutor</Link>
           <a href={DICTIONARY_URL}>Dictionary</a>
           {signedIn ? <Link href={learnHref(info, '/progress')}>Progress</Link> : null}
+          {/*
+            Review appears only for staff. A learner seeing an item they cannot open is a
+            dead end, and the queue is an internal working surface rather than a feature.
+          */}
+          {canReview ? <Link href={learnHref(info, '/review')}>Review</Link> : null}
           {/*
             Account settings live on the dictionary, because that is where the account pages are and
             it is the SAME account — one `account` row, one password. Sending a learner to a second

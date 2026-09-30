@@ -9,6 +9,7 @@ import { cookies } from 'next/headers';
 import { getDb } from '@ozituma/db/client';
 import {
   canReview,
+  isLearnStaff,
   resolveSession,
   SESSION_COOKIE,
   sessionCookieOptions,
@@ -18,7 +19,17 @@ import {
 
 export interface CurrentAccount {
   account: Account;
+  /** May moderate the DICTIONARY. Editor, admin or owner. */
   canReview: boolean;
+  /**
+   * May work the LEARN content queue: contributor, linguist, native_reviewer, content_editor,
+   * editor, admin or owner.
+   *
+   * Separate from `canReview` on purpose. A linguist must reach the curriculum queue — §5.3 makes
+   * them the first of the two approvals — but that is not a reason to hand them the dictionary's
+   * contribution queue as well, and a single boolean could not express the difference.
+   */
+  canReviewLearn: boolean;
 }
 
 /**
@@ -38,7 +49,11 @@ export async function getCurrentAccount(): Promise<CurrentAccount | null> {
   const session = await resolveSession(db, token);
   if (!session) return null;
 
-  return { account: session.account, canReview: canReview(session.account) };
+  return {
+    account: session.account,
+    canReview: canReview(session.account),
+    canReviewLearn: isLearnStaff(session.account.role),
+  };
 }
 
 /** Cookie options for setting a session, and for clearing it. */
