@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { IBM_Plex_Sans, Libre_Baskerville } from 'next/font/google';
+import { Fraunces, Nunito_Sans } from 'next/font/google';
 import { LearnFooter, LearnHeader } from '@/components/learn/learn-chrome';
 import { PwaRegister } from '@/components/learn/pwa-register';
 import { learnHost } from '@/lib/learn-request';
@@ -15,22 +15,28 @@ import './globals.css';
  * class of bug where a learner on the subdomain is shown the dictionary's eleven-item navigation
  * cannot occur.
  *
- * The same two typefaces as the dictionary, so the two read as one family. §7 requires fonts be
- * tested for Igbo diacritics; both carry the dot-below vowels and the dotted ṅ, which is why the
- * vocabulary cards render correctly.
+ * THE TWO TYPEFACES THE DESIGN SPECIFIES.
+ *
+ * This replaced IBM Plex Sans and Libre Baskerville. Both were competent and both were wrong here:
+ * the design sets Fraunces for display and Nunito Sans for body, and that difference is most of why
+ * the app read as a reference tool rather than a place to learn. Fraunces is a soft, slightly wonky
+ * serif with real presence at 4xl; Libre Baskerville is a book face that wants a printed page.
+ *
+ * On Igbo diacritics, which §7 requires be checked: Nunito Sans carries the dot-below vowels
+ * (ị ọ ụ ẹ) and Fraunces carries them too, so no vocabulary word falls back to another font
+ * mid-word. Both are variable, so the weights below cost one file each.
  */
-const plexSans = IBM_Plex_Sans({
+const nunitoSans = Nunito_Sans({
   subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-plex-sans',
+  weight: ['400', '600', '700', '800', '900'],
+  variable: '--font-nunito-sans',
   display: 'swap',
 });
 
-const libreBaskerville = Libre_Baskerville({
+const fraunces = Fraunces({
   subsets: ['latin'],
-  weight: ['400', '700'],
-  style: ['normal', 'italic'],
-  variable: '--font-libre-baskerville',
+  weight: ['400', '600', '700'],
+  variable: '--font-fraunces',
   display: 'swap',
 });
 
@@ -69,7 +75,7 @@ export default async function LearnLayout({ children }: { children: React.ReactN
   const session = await getCurrentAccount();
 
   return (
-    <html lang="en" className={`${plexSans.variable} ${libreBaskerville.variable}`}>
+    <html lang="en" className={`${nunitoSans.variable} ${fraunces.variable}`}>
       <body>
         <LearnHeader
           info={info}

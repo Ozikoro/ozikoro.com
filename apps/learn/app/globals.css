@@ -63,23 +63,43 @@
    * differently (--paper here is `--parchment` there, --indigo is `--primary`),
    * and keeping this side's names means every rule below keeps working.
    */
-  --ink: oklch(0.29 0.058 247);
-  --ink-soft: oklch(0.42 0.04 246);
-  --ink-faint: oklch(0.55 0.03 245);
+  /*
+   * THE PALETTE OF THE DESIGN, from idenze/paper-whisperer-forge.
+   *
+   * This replaced indigo ink and raffia ochre. The token NAMES are unchanged, so every existing
+   * rule below keeps working — what changed is the VALUES, and with them the whole app's colour.
+   *
+   * Why the change matters more than it sounds: indigo-and-ochre is an ARCHIVE palette. It suits a
+   * dictionary, which is a record, and it is what this app inherited from ozituma.com. The design
+   * puts a deep forest green at the centre with a coral highlight on warm paper, which reads as
+   * somewhere you do something rather than somewhere you look something up.
+   *
+   * `--indigo` keeps its name and now holds the design's `--brand`. `--ochre` holds its `--highlight`.
+   * Renaming them across ~2,800 lines of CSS would be churn with no reader benefit; a comment
+   * saying what they now mean is the honest fix.
+   */
+  --ink: oklch(0.27 0.038 202);
+  --ink-soft: oklch(0.4 0.032 190);
+  --ink-faint: oklch(0.53 0.026 165);
 
-  --paper: oklch(0.945 0.022 88);
-  --paper-raised: oklch(0.975 0.012 88);
-  --line: oklch(0.79 0.035 82);
-  --line-strong: oklch(0.7 0.042 80);
+  --paper: oklch(0.975 0.014 92);
+  --paper-raised: oklch(0.997 0.004 90);
+  --line: oklch(0.88 0.025 95);
+  --line-strong: oklch(0.82 0.03 95);
 
-  --indigo: oklch(0.29 0.058 247);
-  --indigo-bright: oklch(0.44 0.1 256);
-  --ochre: oklch(0.74 0.14 78);
-  --ochre-soft: oklch(0.94 0.045 85);
-  --clay: oklch(0.49 0.15 35);
-  --green: oklch(0.55 0.11 155);
+  /* The design's `--brand`: deep forest green. Was indigo. */
+  --indigo: oklch(0.37 0.105 153);
+  /* The design's `--primary`: the green used for actions. */
+  --indigo-bright: oklch(0.45 0.115 152);
+  /* The design's `--highlight`: coral. Was raffia ochre. */
+  --ochre: oklch(0.71 0.16 37);
+  /* The design's `--secondary`: warm sand. */
+  --ochre-soft: oklch(0.93 0.045 86);
+  /* The design's `--accent`: terracotta. */
+  --clay: oklch(0.67 0.16 37);
+  --green: oklch(0.45 0.115 152);
   --red: oklch(0.55 0.2 27);
-  --accent-wash: oklch(0.94 0.022 265);
+  --accent-wash: oklch(0.93 0.03 150);
 
   --radius-sm: 0.25rem;
   --radius: 0.5rem;
@@ -92,9 +112,11 @@
   /* Libre Baskerville for headings, IBM Plex Sans for body. Both are supplied
      by next/font in layout.tsx, hence the fallback chain rather than naming the
      families directly. */
-  --font-body: var(--font-plex-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
+  /* Nunito Sans for body, Fraunces for display — the design's two faces. Named `--font-serif`
+     because every heading rule already asks for it; what it points at is what changed. */
+  --font-body: var(--font-nunito-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
     'Helvetica Neue', Arial, sans-serif;
-  --font-serif: var(--font-libre-baskerville), ui-serif, Georgia, 'Times New Roman', serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, 'Times New Roman', serif;
   --font-mono: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
 
   --wrap: 68rem;
@@ -800,6 +822,34 @@ main {
   letter-spacing: 0.08em;
   white-space: nowrap;
   margin: 0;
+}
+
+/*
+   The design's entrance animation. Applied to a section that should feel like it arrived rather
+   than appeared — the hero and the brand card.
+
+   Inside `prefers-reduced-motion: no-preference` rather than disabled afterwards, so a reader who
+   has asked their system for less motion never receives the animation in the first place. §12 asks
+   for a reduced-motion option; honouring the OS setting is the version of that which needs no UI.
+*/
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rise-in {
+    animation: rise-in 500ms ease-out both;
+  }
+  .rise-in-delay {
+    animation: rise-in 600ms 120ms ease-out both;
+  }
 }
 
 .sr-only {
@@ -2484,4 +2534,897 @@ main {
   .learn-match {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===========================================================================
+   NDEBE TYPING COURSE
+
+   The styles for /ndebe. Kept together rather than scattered, because the
+   section is self-contained and a reader looking for "how does the keyboard
+   look" should find one block rather than rules in five places.
+
+   THE FONT IS ALREADY DECLARED, at the top of this file, and the files are
+   served from /fonts. `font-synthesis: none` is repeated on every element that
+   renders the script: Ndebe Rounded has one real face, and a browser faking a
+   bold would draw a DIFFERENT CHARACTER rather than a heavier one.
+   =========================================================================== */
+
+/* The whole script, wherever it appears. */
+.ndk-glyph,
+.ndk-word,
+.ndebe-glyph {
+  font-family: 'Ndebe Rounded', var(--font-serif), serif;
+  font-weight: 400;
+  font-synthesis: none;
+  line-height: 1.25;
+}
+
+/* --- the keyboard shell ---------------------------------------------------- */
+
+.ndk {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  padding: 1rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.ndk-prompt {
+  font-size: 1.02rem;
+  margin-bottom: 0.8rem;
+}
+
+/* --- the composed word ----------------------------------------------------- */
+
+.ndk-output {
+  min-height: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.6rem;
+  margin-bottom: 1rem;
+  border-radius: var(--radius);
+  background: var(--ochre-soft);
+  border: 1px solid var(--line);
+}
+
+.ndk-word {
+  font-size: clamp(2rem, 8vw, 3rem);
+  letter-spacing: 0.06em;
+  /* Wraps rather than overflowing: a long word on a narrow phone must not push the keyboard off. */
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.ndk-roman {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- the three steps ------------------------------------------------------- */
+
+.ndk-step {
+  margin-bottom: 0.9rem;
+}
+
+.ndk-step-label {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  font-size: 0.86rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  margin-bottom: 0.4rem;
+}
+
+.ndk-step-label b {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.ndk-step-label em {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/*
+  The body row scrolls horizontally. See the note in ndebe-keyboard.tsx: 42
+  bodies will not fit across a phone, and a vertical list would push the vowel
+  row off screen — which breaks the three-step reading of the thing.
+*/
+.ndk-bodies {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+  padding-bottom: 0.35rem;
+  scrollbar-width: thin;
+  /* Snap so a body lands under the thumb rather than between two keys. */
+  scroll-snap-type: x proximity;
+}
+
+.ndk-bodies > .ndk-key {
+  scroll-snap-align: start;
+  flex: 0 0 auto;
+  min-width: 3rem;
+}
+
+.ndk-vowels,
+.ndk-tones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ndk-vowels > .ndk-key {
+  flex: 1 1 3rem;
+  min-width: 3rem;
+  font-size: 1.15rem;
+}
+
+.ndk-tones > .ndk-key {
+  flex: 1 1 5rem;
+}
+
+/*
+  44px minimum, per §9.1. Enforced with min-height rather than padding so it
+  cannot drift below the target on a small screen.
+*/
+.ndk-key {
+  position: relative;
+  min-height: 44px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  /* No hover-dependent affordance: §9.1 forbids relying on hover or long-press. */
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.ndk-key:hover {
+  border-color: var(--ink-soft);
+}
+
+.ndk-key-on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--paper);
+}
+
+.ndk-key sup {
+  font-size: 0.65em;
+  opacity: 0.75;
+  line-height: 1;
+}
+
+/* A dot under a digraph, and under a dotted vowel. Both are marks, not decoration. */
+.ndk-digraph,
+.ndk-dotted {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--clay);
+}
+
+.ndk-key-on .ndk-digraph,
+.ndk-key-on .ndk-dotted {
+  background: var(--ochre);
+}
+
+/* --- preview and commit ---------------------------------------------------- */
+
+.ndk-commit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+
+.ndk-preview {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+}
+
+.ndk-glyph {
+  font-size: 2.6rem;
+  line-height: 1;
+}
+
+.ndk-preview-roman {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.ndk-commit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ndk-note {
+  margin: 0.7rem 0 0;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}
+
+.ndk-copy {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.7rem;
+}
+
+.ndk-copy-hint {
+  font-size: 0.8rem;
+}
+
+/* --- Module 0: the font check ---------------------------------------------- */
+
+.ndebe-fontcheck {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+}
+
+.ndebe-fontcheck-test {
+  font-family: 'Ndebe Rounded', var(--font-serif), serif;
+  font-weight: 400;
+  font-synthesis: none;
+  font-size: clamp(1.6rem, 7vw, 2.4rem);
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 0.8rem;
+  background: var(--ochre-soft);
+  border-radius: var(--radius);
+  overflow-wrap: anywhere;
+}
+
+.ndebe-fontcheck-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+/* --- the module list ------------------------------------------------------- */
+
+.ndebe-modules {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.ndebe-module {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.ndebe-module-num {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--ochre-soft);
+  border: 1px solid var(--line-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ndebe-module-body {
+  min-width: 0;
+}
+
+.ndebe-module-title {
+  font-weight: 600;
+  margin: 0 0 0.15rem;
+}
+
+.ndebe-module-goal {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.ndebe-module-meta {
+  font-size: 0.8rem;
+  color: var(--ink-faint);
+  margin-top: 0.2rem;
+}
+
+/* A module that cannot be built yet, because a decision is outstanding. Marked
+   rather than hidden: a learner who wonders where module 9 is should find it. */
+.ndebe-module-pending {
+  border-style: dashed;
+  background: transparent;
+}
+
+/* ===========================================================================
+   THE LEARN DASHBOARD
+
+   The home page as the design has it: a daily-journey dashboard rather than a
+   course index. Every value here is taken from the design at
+   idenze/paper-whisperer-forge (src/routes/index.tsx and src/styles.css) and
+   translated from its Tailwind utilities into the class names this app uses.
+
+   TRANSLATED, NOT COPIED, and the reason is worth stating: the design is Tailwind
+   v4, and this app has no Tailwind. Adding it would mean a second styling system
+   in one codebase, and the ~2,800 lines below already work. So the utilities are
+   read as a specification — `rounded-md border border-border bg-card p-4
+   shadow-sm` is five facts about a box, not a class name — and expressed here.
+   =========================================================================== */
+
+/* --- the greeting ---------------------------------------------------------- */
+
+.dash-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  margin-bottom: 2rem;
+}
+
+@media (min-width: 768px) {
+  .dash-hero {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.dash-eyebrow {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.dash-greeting {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 7vw, 3rem);
+  font-weight: 600;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.dash-lede {
+  margin: 0.5rem 0 0;
+  max-width: 36rem;
+  color: var(--ink-soft);
+}
+
+/* The level and XP card. */
+.dash-level {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 16rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-level-badge {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: var(--ochre-soft);
+  color: var(--ink);
+  font-weight: 900;
+  font-size: 0.9rem;
+}
+
+.dash-level-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-level-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.dash-level-track {
+  margin-top: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.dash-level-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--ochre);
+}
+
+/* --- the continue card ----------------------------------------------------- */
+
+.dash-continue {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--indigo);
+  color: #fff;
+  box-shadow: var(--shadow);
+  display: grid;
+}
+
+@media (min-width: 768px) {
+  .dash-continue {
+    grid-template-columns: minmax(0, 1fr) 240px;
+  }
+}
+
+.dash-continue-body {
+  padding: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  .dash-continue-body {
+    padding: 2rem;
+  }
+}
+
+.dash-continue-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 2rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.75);
+}
+
+.dash-continue-eyebrow::before {
+  content: '';
+  display: block;
+  width: 2rem;
+  height: 1px;
+  background: var(--ochre);
+}
+
+.dash-continue-title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.6rem, 5vw, 2.25rem);
+  font-weight: 600;
+  margin: 0;
+}
+
+.dash-continue-text {
+  margin: 0.75rem 0 0;
+  max-width: 32rem;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: rgb(255 255 255 / 0.8);
+}
+
+/*
+  The decorative panel. The design builds a woven pattern from two crossed
+  linear-gradients — raffia cloth, abstractly. It is `aria-hidden` because it
+  carries no information, and the motto beside it is the part that does.
+*/
+.dash-continue-art {
+  position: relative;
+  display: none;
+  overflow: hidden;
+  border-left: 1px solid rgb(255 255 255 / 0.15);
+}
+
+@media (min-width: 768px) {
+  .dash-continue-art {
+    display: block;
+  }
+}
+
+.dash-continue-art::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.25;
+  background-image:
+    linear-gradient(30deg, transparent 35%, currentColor 36%, currentColor 38%, transparent 39%),
+    linear-gradient(-30deg, transparent 35%, currentColor 36%, currentColor 38%, transparent 39%);
+  background-size: 42px 72px;
+}
+
+.dash-continue-motto {
+  position: absolute;
+  left: 1.5rem;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  padding-left: 1rem;
+  border-left: 4px solid var(--ochre);
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  line-height: 1.2;
+}
+
+/* --- section headings ------------------------------------------------------ */
+
+.dash-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.dash-section-kicker {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.dash-section-title {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+/* --- the journey cards ----------------------------------------------------- */
+
+.dash-journey {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .dash-journey {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dash-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 8rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+/* The lift. Suppressed for a reader who asked for less motion. */
+@media (prefers-reduced-motion: no-preference) {
+  .dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+  }
+}
+
+.dash-card-icon {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius);
+  /* Default tone. The three others are set by the modifiers below. */
+  background: var(--ink);
+  color: #fff;
+}
+
+.dash-card-icon-green {
+  background: var(--green);
+  color: #fff;
+}
+.dash-card-icon-coral {
+  background: var(--clay);
+  color: #fff;
+}
+.dash-card-icon-gold {
+  background: var(--ochre-soft);
+  color: var(--ink);
+}
+.dash-card-icon-ink {
+  background: var(--ink);
+  color: #fff;
+}
+
+.dash-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.dash-card-title {
+  font-weight: 700;
+  margin: 0;
+}
+
+.dash-card-detail {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+/* --- the sidebar ----------------------------------------------------------- */
+
+.dash-aside {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.dash-panel {
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-panel-warm {
+  background: var(--ochre-soft);
+}
+
+.dash-panel-title {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/*
+  The progress ring, as a conic gradient with the card punched out of the middle.
+  Cheaper than an SVG arc and it scales with the font, which matters on a phone.
+*/
+.dash-ring {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 6rem;
+  height: 6rem;
+  border-radius: 50%;
+}
+
+.dash-ring-inner {
+  display: grid;
+  place-items: center;
+  width: 4.6rem;
+  height: 4.6rem;
+  border-radius: 50%;
+  background: var(--paper-raised);
+  text-align: center;
+}
+
+.dash-ring-value {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.dash-ring-unit {
+  font-size: 0.7rem;
+  color: var(--ink-soft);
+}
+
+/* The week strip. */
+.dash-week {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--ink-faint);
+}
+
+.dash-week-day {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0 auto 0.4rem;
+  border-radius: 50%;
+  background: var(--paper-raised);
+}
+
+.dash-week-day-on {
+  background: var(--green);
+  color: #fff;
+}
+
+/* A label that says what the content is, or is not. §2.1. */
+.dash-tag {
+  display: inline-flex;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--line);
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+/* --- the course path ------------------------------------------------------- */
+
+.dash-units {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.dash-unit {
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  box-shadow: var(--shadow-sm);
+}
+
+.dash-unit-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.dash-unit-num {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 auto;
+  border-radius: var(--radius);
+  font-weight: 900;
+  background: var(--line);
+  color: var(--ink-soft);
+}
+
+.dash-unit-num-on {
+  background: var(--green);
+  color: #fff;
+}
+
+.dash-unit-title {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.dash-unit-track {
+  margin-top: 0.75rem;
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.dash-unit-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--green);
+}
+
+.dash-lessons {
+  margin-top: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .dash-lessons {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.dash-lesson {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 3rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  text-align: left;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dash-lesson-current {
+  border-color: var(--green);
+  background: var(--ochre-soft);
+}
+
+.dash-lesson:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.dash-lesson-mark {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--ink-soft);
+}
+
+.dash-lesson-mark-done {
+  background: var(--green);
+  color: #fff;
+}
+
+/* --- the two-column shell -------------------------------------------------- */
+
+.dash-shell {
+  display: grid;
+  align-items: start;
+  gap: 1.75rem;
+}
+
+@media (min-width: 1280px) {
+  .dash-shell {
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+  .dash-aside {
+    position: sticky;
+    top: 6.5rem;
+  }
+}
+
+.dash-main {
+  display: grid;
+  gap: 2rem;
 }

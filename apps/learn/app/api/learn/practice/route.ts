@@ -308,7 +308,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     // learner is, not where the server is.
     // -------------------------------------------------------------------
     try {
-      await recordActivity(db, account.account.id, learnerTimeZone(request, body));
+      await recordActivity(db, account.account.id, learnerTimeZone(request.headers, body));
     } catch (error) {
       console.error('[practice] could not record activity', error);
     }

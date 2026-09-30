@@ -43,12 +43,25 @@ export const DEFAULT_TIME_ZONE = 'UTC';
  * body field has to be remembered at each call site. Accepting both means a JSON client can send
  * either, and the form-posted routes (which have no body to speak of) still work.
  */
+/**
+ * A headers object, from wherever it came.
+ *
+ * This takes HEADERS rather than a `Request`, because the two callers do not both have one: an API
+ * route holds a `Request` and passes `request.headers`, while a server component holds the
+ * `ReadonlyHeaders` that `headers()` returns. Both are `{ get(name) }`, which is the only thing
+ * this module uses, so each passes what it actually has instead of one of them fabricating a
+ * Request to satisfy a signature.
+ */
+export interface HeaderSource {
+  get(name: string): string | null;
+}
+
 export function learnerTimeZone(
-  request: Request,
+  headers: HeaderSource,
   body?: Record<string, unknown> | null
 ): string {
   const fromBody = typeof body?.timeZone === 'string' ? body.timeZone : '';
-  const fromHeader = request.headers.get('x-learner-timezone') ?? '';
+  const fromHeader = headers.get('x-learner-timezone') ?? '';
   const candidate = (fromHeader || fromBody).trim();
 
   if (candidate && candidate.length <= 64 && isValidTimeZone(candidate)) return candidate;

@@ -189,7 +189,7 @@ export async function POST(request: Request): Promise<NextResponse> {
   // into no-ops, so no "have I already counted today" check is needed here. That check is exactly the
   // kind of state that goes wrong when two requests arrive together.
   // ---------------------------------------------------------------------------
-  const timeZone = learnerTimeZone(request, body);
+  const timeZone = learnerTimeZone(request.headers, body);
   await awardXp(db, {
     accountId: account.account.id,
     source: 'review_session_completed',

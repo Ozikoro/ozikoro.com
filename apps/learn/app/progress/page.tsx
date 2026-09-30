@@ -55,9 +55,7 @@ export default async function ProgressPage() {
   }
 
   // The zone travels on the request; a server-side default would place a Lagos learner's day in UTC.
-  const timeZone = learnerTimeZone({
-    headers: await headers(),
-  } as unknown as Request);
+  const timeZone = learnerTimeZone(await headers());
 
   const db = await getDb();
   const progress = await getLearnerProgress(db, session.account.id, timeZone);
