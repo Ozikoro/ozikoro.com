@@ -27,6 +27,34 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
   reactStrictMode: true,
+
+  /**
+   * The service worker must never be cached.
+   *
+   * Everything else in `public/` is a static asset with a long max-age, which is right — the icons
+   * and the favicon never change. The service worker is the exception, and the difference matters: a
+   * browser holding a stale worker keeps running last week's caching rules and last week's fetch
+   * handler no matter what is deployed, and the symptom is a site that appears not to update.
+   *
+   * Measured on the deployed site: without this the header is `max-age=14400`, four hours. Chrome
+   * caps script caching at 24 hours regardless, so the worst case is bounded — but a day of a broken
+   * worker is still a day of a broken worker, and this costs one header.
+   *
+   * `no-cache`, not `no-store`: the browser may keep a copy, it must simply revalidate before using
+   * it. The request is conditional and normally answered 304, so this is a few bytes per navigation.
+   */
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, must-revalidate' },
+          // Lets the worker control the whole origin, which it needs in order to serve the shell.
+          { key: 'Service-Worker-Allowed', value: '/' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

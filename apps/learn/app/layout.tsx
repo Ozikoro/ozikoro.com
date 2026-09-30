@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Sans, Libre_Baskerville } from 'next/font/google';
 import { LearnFooter, LearnHeader } from '@/components/learn/learn-chrome';
 import { PwaRegister } from '@/components/learn/pwa-register';
@@ -33,6 +33,20 @@ const libreBaskerville = Libre_Baskerville({
   variable: '--font-libre-baskerville',
   display: 'swap',
 });
+
+/**
+ * `theme_color` in the manifest colours the installed app's own chrome; this colours the browser UI
+ * on an ordinary visit, which the manifest does not reach. Both are declared because they apply to
+ * different things and only one is in play at a time.
+ */
+export const viewport: Viewport = {
+  themeColor: '#1b1a2e',
+  width: 'device-width',
+  initialScale: 1,
+  // Not capped. A learner may want to zoom in on a tone mark, and preventing that is an
+  // accessibility failure — §13 asks for WCAG 2.2 AA.
+  maximumScale: 5,
+};
 
 export const metadata: Metadata = {
   title: {
