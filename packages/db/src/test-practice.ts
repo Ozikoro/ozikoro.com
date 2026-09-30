@@ -151,23 +151,43 @@ for (let i = 0; i < 60; i += 1) {
 }
 assert('no two meaning options are the same gloss', sharedGloss === 0, `${sharedGloss} duplicates`);
 
-console.log('\n--- Dialect distractors are not also correct ---');
-let invalidDialectDistractors = 0;
-for (let i = 0; i < 60; i += 1) {
-  const question = await generateQuestion(db, { mode: 'dialect', language });
-  if (!question) continue;
-  // Every option must be a real dialect of this language.
-  const ids = question.options.map((o) => Number(o.id));
-  const rows = await db.rows<{ id: string }>(
-    `select id from dialect where language_code = $1 and id = any($2::bigint[])`,
-    [language, ids]
-  );
-  if (rows.length !== ids.length) invalidDialectDistractors += 1;
+/*
+ * The dialect mode was removed on the owner's instruction — "I want you to not display any
+ * other igbo dialect there that is not Central Igbo (Igbo Izugbe)" — so what is asserted here
+ * instead is the rule that replaced it: nothing Practice offers is a dialect form.
+ *
+ * The test to apply is the same one the queries apply. A word is a dialect form when some
+ * OTHER entry records that spelling as its form in some other dialect; a standard headword is
+ * one that no other entry claims as its own dialect spelling.
+ */
+console.log('\n--- Practice stays in Central Igbo ---');
+
+let dialectsOffered = 0;
+let checked = 0;
+for (let i = 0; i < 120; i += 1) {
+  for (const mode of PRACTICE_MODES) {
+    const question = await generateQuestion(db, { mode, language });
+    if (!question) continue;
+    checked += 1;
+
+    // Every option offered, and the prompt itself, must be standard Igbo.
+    const labels = [question.prompt, ...question.options.map((o) => o.label)];
+    const dialectRows = await db.rows<{ spelling: string }>(
+      `select spelling from word_dialect where lower(spelling) = any($1::text[])`,
+      [labels.map((l) => l.trim().toLowerCase())]
+    );
+    if (dialectRows.length > 0) dialectsOffered += 1;
+  }
 }
 assert(
-  'every dialect option is a real dialect of the language',
-  invalidDialectDistractors === 0,
-  `${invalidDialectDistractors} questions with a foreign option`
+  'no question offers a dialect spelling',
+  dialectsOffered === 0,
+  `${dialectsOffered} of ${checked} questions did`
+);
+assert('the modes are meanings and listening only', PRACTICE_MODES.length === 2, PRACTICE_MODES.join(', '));
+assert(
+  'the dialect mode is gone from the type',
+  !(PRACTICE_MODES as string[]).includes('dialect')
 );
 
 console.log('\n--- Unknown language is refused ---');

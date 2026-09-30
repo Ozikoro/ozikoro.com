@@ -142,7 +142,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/learn">Learn</Link>
               <Link href="/proverbs">Proverbs</Link>
               <Link href="/contribute">Contribute</Link>
-              <Link href="/volunteer">Volunteer</Link>
               <Link href="/ndebe">Ndebe</Link>
               <Link href="/donate" className="nav-donate">
                 Support us

@@ -11,7 +11,7 @@
  * enhancement on top of that: the same endpoint accepts a file upload.
  */
 import { NextResponse } from 'next/server';
-import { languageUrlSlug } from '@ozituma/core';
+import { deriveForms, languageUrlSlug } from '@ozituma/core';
 import { getDb } from '@ozituma/db/client';
 import { ContributionError, submitSuggestion } from '@ozituma/db/contributions';
 import {
@@ -43,8 +43,33 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const form = await request.formData();
   const wordIdRaw = form.get('wordId');
-  const wordId = Number(typeof wordIdRaw === 'string' ? wordIdRaw : NaN);
+  let wordId = Number(typeof wordIdRaw === 'string' ? wordIdRaw : NaN);
   const language = String(form.get('language') ?? 'ibo');
+  const headword = String(form.get('headword') ?? '').trim();
+
+  /*
+   * A recording is made of a word, and the contributor may name that word rather than know its
+   * database id — which is how the form on /contribute works, because a person knows the word they
+   * are saying and not its row. The id is resolved here, in the same language, exactly as the
+   * dictionary resolves a headword anywhere else: an exact hit wins over the folded one, so "ụlọ"
+   * and "ulo" do not become the same recording by accident.
+   */
+  if ((!Number.isInteger(wordId) || wordId <= 0) && headword.length > 0) {
+    const db = await getDb();
+    const found = await db.one<{ id: string }>(
+      `select id from word
+        where language_code = $1 and (headword = $2 or search_form = $3) and status = 'published'
+        order by case when headword = $2 then 0 else 1 end
+        limit 1`,
+      [language, headword, deriveForms(headword).searchForm]
+    );
+    wordId = found ? Number(found.id) : NaN;
+    if (!found) {
+      return redirectTo('/contribute', {
+        error: `No published entry "${headword}" in that language. Add the word first, then record it.`,
+      });
+    }
+  }
 
   if (!Number.isInteger(wordId) || wordId <= 0) {
     return redirectTo('/contribute', { error: 'A recording must be attached to a word.' });

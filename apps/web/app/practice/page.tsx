@@ -10,13 +10,12 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = {
   title: 'Practice',
   description:
-    'Practise Igbo with questions generated from the dictionary: meanings, listening, and dialects.',
+    'Practise Igbo with questions generated from the dictionary: meanings and listening, in Igbo Izugbe.',
 };
 
 const MODE_LABELS: Record<PracticeMode, string> = {
   meaning: 'Meanings',
   listening: 'Listening',
-  dialect: 'Dialects',
 };
 
 export default async function PracticePage({
@@ -45,9 +44,9 @@ export default async function PracticePage({
     <div className="wrap wrap-narrow">
       <h1>Practice</h1>
       <p className="hero-lede">
-        Questions generated from the dictionary itself — its definitions, its recordings and its
-        dialect spellings. No account needed, and nothing is stored: this is for learning, not for
-        scoring.
+        Questions generated from the dictionary itself — its definitions and its recordings, in
+        Igbo Izugbe, the standard Igbo the dictionary is written in. No account needed, and nothing
+        is stored: this is for learning, not for scoring.
       </p>
 
       <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', margin: '1.5rem 0' }}>

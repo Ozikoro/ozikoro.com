@@ -134,6 +134,15 @@ export default async function ReviewPage({
             const isNameEdit = suggestion.kind === 'name_edit';
             const isClanEdit = suggestion.kind === 'clan_edit';
             /*
+             * The three that ADD something rather than change it. They are shown in the same
+             * before/after table as an edit so a reviewer reads one shape whatever kind they are
+             * looking at, with the "as it stands" column empty because there is nothing there yet.
+             */
+            const isNewClan = suggestion.kind === 'new_clan';
+            const isNewName = suggestion.kind === 'new_name';
+            const isNewProverb = suggestion.kind === 'new_proverb';
+            const isNewDialect = suggestion.kind === 'new_dialect';
+            /*
              * A proposed edit to an entry or a name is shown the same way a proverb edit is:
              * before and after, so the reviewer is comparing two texts rather than reading a
              * payload. The fields differ, so the rows are built per kind.
@@ -209,11 +218,77 @@ export default async function ReviewPage({
                         : '',
                     ],
                   ]
-                : [];
+                : isNewClan
+                  ? [
+                      ['Name', '', String(payload.name ?? '')],
+                      ['What it is', '', String(payload.kind ?? 'clan')],
+                      ['Division', '', String(payload.division ?? '')],
+                      [
+                        'States',
+                        '',
+                        Array.isArray(payload.states) ? (payload.states as string[]).join(', ') : '',
+                      ],
+                      [
+                        'Local government areas',
+                        '',
+                        Array.isArray(payload.lgas) ? (payload.lgas as string[]).join(', ') : '',
+                      ],
+                      [
+                        'Towns',
+                        '',
+                        Array.isArray(payload.towns) ? (payload.towns as string[]).join(', ') : '',
+                      ],
+                      ['Summary', '', String(payload.origin ?? '')],
+                      [
+                        'Description',
+                        '',
+                        Array.isArray(payload.description)
+                          ? (payload.description as string[]).join('\n\n')
+                          : '',
+                      ],
+                    ]
+                  : isNewName
+                    ? [
+                        ['Name', '', String(payload.name ?? '')],
+                        ['Meaning', '', String(payload.meaning ?? '')],
+                        ['Gender', '', String(payload.gender ?? 'unisex')],
+                        [
+                          'Other spellings',
+                          '',
+                          Array.isArray(payload.variants)
+                            ? (payload.variants as string[]).join(', ')
+                            : '',
+                        ],
+                        [
+                          'Where it is borne',
+                          '',
+                          Array.isArray(payload.origins)
+                            ? (payload.origins as string[]).join(', ')
+                            : '',
+                        ],
+                      ]
+                    : isNewProverb
+                      ? [
+                          ['The proverb', '', String(payload.text ?? '')],
+                          ['English', '', String(payload.translation ?? '')],
+                        ]
+                      : isNewDialect
+                        ? [
+                            ['Variety', '', String(payload.name ?? '')],
+                            ['Code', '', String(payload.code ?? '')],
+                            ['Native name', '', String(payload.nativeName ?? '')],
+                            ['Region', '', String(payload.region ?? '')],
+                          ]
+                        : [];
             const previousText = typeof payload.previousText === 'string' ? payload.previousText : null;
             const nextText = typeof payload.text === 'string' ? payload.text : null;
             const nextTranslation =
               typeof payload.translation === 'string' ? payload.translation : null;
+            /*
+             * Kept as a mark on the card rather than a bar to deciding: a reviewer's own
+             * submission is theirs to publish, but it is worth seeing at a glance which rows
+             * came from you.
+             */
             const selfSubmission = suggestion.submittedBy === current.account.id;
 
             return (
@@ -222,10 +297,14 @@ export default async function ReviewPage({
                   <h3 style={{ margin: 0 }}>
                     {isProverbEdit
                       ? nextText ?? `Proverb edit #${suggestion.id}`
-                      : headword ?? `Submission #${suggestion.id}`}
+                      : headword ??
+                        (typeof payload.text === 'string' ? payload.text : null) ??
+                        (typeof payload.name === 'string' ? payload.name : null) ??
+                        `Submission #${suggestion.id}`}
                   </h3>
                   <span className="chip">{suggestion.kind.replace(/_/g, ' ')}</span>
                   <span className="chip chip-pos">{suggestion.languageCode ?? '—'}</span>
+                  {selfSubmission ? <span className="chip chip-dialect">yours</span> : null}
                   <span className="muted" style={{ fontSize: '0.83rem', marginLeft: 'auto' }}>
                     #{suggestion.id} · {new Date(suggestion.submittedAt).toLocaleString()}
                   </span>
@@ -269,7 +348,12 @@ export default async function ReviewPage({
                           <td style={{ whiteSpace: 'pre-wrap' }}>{before || '—'}</td>
                           <td style={{ whiteSpace: 'pre-wrap' }}>
                             {after || '—'}
-                            {after !== before ? (
+                            {/*
+                              Only a change gets the chip. On a new entry the "as it stands" column
+                              is empty by definition, and calling that "changed" would read as though
+                              something had been replaced.
+                            */}
+                            {before && after !== before ? (
                               <span className="chip chip-dialect" style={{ marginLeft: '0.4rem' }}>
                                 changed
                               </span>
@@ -383,12 +467,20 @@ export default async function ReviewPage({
                   </p>
                 ) : null}
 
+                {/*
+                  Everyone who reaches this page may decide what is on it, including their own
+                  submission.
+
+                  The owner: "editors should not need admin approval to publish anything. they can
+                  also review what other contributors added." This used to tell an editor that
+                  their own submission was theirs to look at but not to decide — which addressed an
+                  editor as though they were a contributor waiting on somebody, when they are the
+                  somebody. An editor's submission is now published as they make it and rarely
+                  appears here at all; when one does appear it is because applying it failed, and
+                  the right person to retry it is the one who wrote it.
+                */}
                 {suggestion.status === 'pending' ? (
-                  selfSubmission ? (
-                    <div className="notice notice-warn" style={{ fontSize: '0.9rem' }}>
-                      This is your own submission, so you cannot review it. Ask another editor.
-                    </div>
-                  ) : (
+                  (
                     <div style={{ display: 'grid', gap: '0.6rem', marginTop: '0.9rem' }}>
                       <form
                         method="post"

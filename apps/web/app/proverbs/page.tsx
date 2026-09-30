@@ -20,13 +20,17 @@ export const metadata: Metadata = {
 /**
  * Rows per page.
  *
- * The design lists proverbs in one continuous column with no pager, because the
- * collection it was drawn against was small enough to read that way. This one is
- * 1,920 and growing, and an unlinked tail would be invisible with no way to
- * reach it — so the pager stays, drawn in the page's own voice: small, clay, and
- * below the list, where it does not compete with the proverbs.
+ * The design lists proverbs in one continuous column with no pager, because the collection it
+ * was drawn against was small enough to read that way. This one is not, and an unlinked tail
+ * would be invisible with no way to reach it — so the pager stays, drawn in the page's own
+ * voice: small, clay, and below the list, where it does not compete with the proverbs.
+ *
+ * The owner: "On the proverbs page, please list only 20 proverbs, not 100, then one can click
+ * next to see the others." Twenty is also the number a reader can take in without scrolling
+ * past the point of remembering what they were looking for, and it makes the page light
+ * enough that moving to the next one is instant.
  */
-const PER_PAGE = 50;
+const PER_PAGE = 20;
 
 const THEMES = ['All', ...PROVERB_THEMES] as const;
 

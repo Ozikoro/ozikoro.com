@@ -59,19 +59,37 @@ export default async function LearnHome() {
                 : 'Go straight to lesson one'}
             </Link>
           ) : null}
+          {/*
+            Always present, and deliberately not conditional on a course existing. Practice runs on
+            the dictionary's own published words, so it works from day one — where the courses
+            cannot, because §18 #4 has no default and no lesson may publish until a linguist and two
+            native reviewers are named. Without this the landing page offers a visitor nothing to
+            do, which is what it did before.
+          */}
+          <Link className="button button-secondary" href={learnHref(info, '/practice')}>
+            Practise vocabulary
+          </Link>
         </div>
       </section>
 
       <section className="learn-section">
         <h2 className="learn-section-title">Courses</h2>
+        <p className="muted" style={{ marginTop: '-0.4rem', marginBottom: '0.8rem' }}>
+          A course is ordered teaching, and the order is written by hand. It publishes when a
+          linguist and two native reviewers have approved it — so this list is short until that work
+          is done, and it will grow.
+        </p>
         {courses.length === 0 ? (
-          <div className="notice notice-warn">
+          <div className="notice">
             <strong>No courses are published yet.</strong>
-            <p style={{ margin: '0.4rem 0 0' }}>
-              The curriculum is being written. In the meantime, the{' '}
-              <a href={process.env.OZITUMA_SITE_URL ?? 'https://ozituma.com'}>dictionary</a> is
-              complete and open.
+            <p style={{ margin: '0.4rem 0 0.8rem' }}>
+              The curriculum is being written and reviewed. You do not have to wait for it to start
+              learning: practice uses the dictionary&rsquo;s own reviewed words and recordings, and
+              it is open now.
             </p>
+            <Link className="button" href={learnHref(info, '/practice')}>
+              Practise vocabulary
+            </Link>
           </div>
         ) : (
           <div className="grid learn-course-grid">

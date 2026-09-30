@@ -19,6 +19,7 @@
     "./practice": "./src/practice.ts",
     "./learn": "./src/learn.ts",
     "./learn-exercises": "./src/learn-exercises.ts",
+    "./learn-practice": "./src/learn-practice.ts",
     "./dashboard": "./src/dashboard.ts",
     "./clans": "./src/clans.ts",
     "./account-keys": "./src/account-keys.ts",

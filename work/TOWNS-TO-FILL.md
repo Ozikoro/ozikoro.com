@@ -1,0 +1,213 @@
+# Clans still without towns or without a state
+
+Generated 2026-09-29 from data/clans/clans.json, after the origin pass. 253 entries in the registry; 95 have no town recorded and 80 have no state recorded, 24 have neither.
+
+The registry's own rule is that a clan with no town under it and no state to place it in is not finished.
+
+## Neither a town nor a state (24)
+
+- **Awori** — section, no division
+- **Beni** — other, no division
+- **Boma** — clan, no division
+- **Ede** — town, no division
+- **Egba** — kingdom, no division
+- **Ekiti** — section, no division
+- **Esan** — other, no division
+- **Ibibio** — other, no division
+- **Idoma** — other, no division
+- **Ife** — clan, no division
+- **Igala** — kingdom, no division
+- **Igbomina** — section, no division
+- **Ijebu** — kingdom, no division
+- **Ijesa** — kingdom, no division
+- **Ijesha** — section, no division
+- **Isoko** — other, no division
+- **Kalabari** — clan, no division
+- **Ketu** — kingdom, no division
+- **Nupe** — kingdom, no division
+- **Ohori** — section, no division
+- **Ondo** — kingdom, no division
+- **Owo** — kingdom, no division
+- **Oyo** — kingdom, no division
+- **Tiv** — other, no division
+
+## No town recorded (95)
+
+- **Abam** — clan, Cross River Igbo, Abia
+- **Abarra** — clan, Riverine Igbo, Delta
+- **Abbi** — clan, Western Igbo, Delta
+- **Abor Isu** — clan, Southern Igbo, Abia
+- **Achi** — town, Northern Igbo, Enugu
+- **Afor Mgbaleze-Isu** — clan, Southern Igbo, Abia
+- **Agbaja Isu** — clan, Southern Igbo, Abia
+- **Aguleri** — town, Northern Igbo, Anambra
+- **Akaeze** — town, Cross River Igbo, Ebonyi
+- **Akoko** — section, no division, Ondo
+- **Akoko-Edo** — other, no division, Edo
+- **Akumazi** — town, Western Igbo, Delta
+- **Amai** — clan, Western Igbo, Delta
+- **Aro** — confederation, Cross River Igbo, Abia
+- **Asaba** — town, Riverine Igbo, Anambra
+- **Ase** — clan, Riverine Igbo, Delta
+- **Ashaka** — town, Riverine Igbo, Delta
+- **Awgu** — town, Northern Igbo, Enugu
+- **Awori** — section, no division, no state
+- **Beni** — other, no division, no state
+- **Boma** — clan, no division, no state
+- **Bunu** — clan, no division, Kogi
+- **Ebira** — other, no division, Edo
+- **Ede** — town, no division, no state
+- **Efik** — other, no division, Cross River
+- **Egba** — kingdom, no division, no state
+- **Ekiti** — section, no division, no state
+- **Emohua** — clan, Southern Igbo, Rivers
+- **Esan** — other, no division, no state
+- **Etsako** — other, no division, Edo
+- **Ezangbo** — clan, Northeast Igbo, Ebonyi
+- **Ibadan** — town, no division, Edo
+- **Ibibio** — other, no division, no state
+- **Idoma** — other, no division, no state
+- **Ife** — clan, no division, no state
+- **Ife-Togo** — other, no division, Delta
+- **Igala** — kingdom, no division, no state
+- **Igbere** — clan, Southern Igbo, Abia
+- **Igbomina** — section, no division, no state
+- **Ihechiowa** — clan, Cross River Igbo, Abia
+- **Ijebu** — kingdom, no division, no state
+- **Ijesa** — kingdom, no division, no state
+- **Ijesha** — section, no division, no state
+- **Ijumu** — clan, no division, Kogi
+- **Ikwerri** — confederation, Southern Igbo, Rivers
+- **Isoko** — other, no division, no state
+- **Isu** — town, Cross River Igbo, Imo
+- **Isu** — town, Northeast Igbo, Imo
+- **Isu** — clan, Southern Igbo, Imo
+- **Isu Aba** — clan, Southern Igbo, Abia
+- **Isu Achara** — clan, Southern Igbo, Ebonyi
+- **Isu Agbabor** — clan, Southern Igbo, Abia
+- **Isu Amachi** — clan, Southern Igbo, Abia
+- **Isu Amawu** — clan, Southern Igbo, Abia
+- **Isu Awaa** — clan, Southern Igbo, Abia
+- **Isu Ikem** — clan, Southern Igbo, Abia
+- **Isu Njaba** — clan, Southern Igbo, Abia
+- **Isu Ofia** — clan, Southern Igbo, Abia
+- **Isu Okpu** — clan, Southern Igbo, Abia
+- **Isu Osuama** — clan, Southern Igbo, Abia
+- **Isu Owu** — clan, Southern Igbo, Abia
+- **Isu Ulo** — clan, Southern Igbo, Abia
+- **Itsekiri** — kingdom, no division, Delta
+- **Kalabari** — clan, no division, no state
+- **Ketu** — kingdom, no division, no state
+- **Mbaise** — confederation, Southern Igbo, Imo
+- **Ndoni** — town, Riverine Igbo, Delta, Rivers
+- **Nembe** — clan, no division, Bayelsa
+- **Nike** — clan, Northern Igbo, Enugu
+- **Nimo** — clan, Northern Igbo, Anambra
+- **Nupe** — kingdom, no division, no state
+- **Ogboli** — section, Western Igbo, Delta
+- **Ogume** — clan, Western Igbo, Delta
+- **Ogwashi Uku** — town, Western Igbo, Delta
+- **Ohoba** — clan, Southern Igbo, Imo
+- **Ohori** — section, no division, no state
+- **Okpoha** — town, Cross River Igbo, Ebonyi
+- **Okrika** — clan, no division, Rivers
+- **Ondo** — kingdom, no division, no state
+- **Ossissa** — town, Riverine Igbo, Delta
+- **Owan** — other, no division, Edo
+- **Owo** — kingdom, no division, no state
+- **Oworo** — section, no division, Edo
+- **Oyo** — kingdom, no division, no state
+- **Ozuitem** — clan, Southern Igbo, Abia
+- **Tiv** — other, no division, no state
+- **Ugulangu** — town, Northeast Igbo, Ebonyi
+- **Ukawe** — town, Northeast Igbo, Ebonyi
+- **Umuhu** — clan, Southern Igbo, Abia
+- **Umunede** — kingdom, Western Igbo, Delta
+- **Umuozu Isu** — clan, Southern Igbo, Abia
+- **Unwana** — town, Cross River Igbo, Ebonyi
+- **Urhobo** — other, no division, Delta, Edo
+- **Uturu** — clan, Northern Igbo, Abia
+- **Yagba** — clan, no division, Kogi
+
+## No state recorded (80)
+
+- **Abaja** — clan, Northern Igbo, 33 town(s)
+- **Abaja** — clan, Southern Igbo, 6 town(s)
+- **Abbo** — other, Northern Igbo, 4 town(s)
+- **Aboyikata** — clan, Northern Igbo, 2 town(s)
+- **Agbaja** — clan, Northern Igbo, 3 town(s)
+- **Agugu Agu** — section, Northern Igbo, 3 town(s)
+- **Aguinyi** — clan, Northern Igbo, 3 town(s)
+- **Allua and Igrita** — clan, Southern Igbo, 2 town(s)
+- **Amagunze** — clan, Northern Igbo, 4 town(s)
+- **Anike** — clan, Northern Igbo, 7 town(s)
+- **Awori** — section, no division, 0 town(s)
+- **Beni** — other, no division, 0 town(s)
+- **Boma** — clan, no division, 0 town(s)
+- **Ebeteghete** — section, Northern Igbo, 3 town(s)
+- **Ede** — town, no division, 0 town(s)
+- **Edomani** — confederation, Northern Igbo, 5 town(s)
+- **Egba** — kingdom, no division, 0 town(s)
+- **Ehime** — clan, Southern Igbo, 5 town(s)
+- **Eketekele** — section, Northern Igbo, 4 town(s)
+- **Ekiti** — section, no division, 0 town(s)
+- **Ekpeya** — clan, Riverine Igbo, 1 town(s)
+- **Elugu** — clan, Northern Igbo, 1 town(s)
+- **Emerienwe** — clan, Southern Igbo, 2 town(s)
+- **Esan** — other, no division, 0 town(s)
+- **Etchi** — clan, Northern Igbo, 4 town(s)
+- **Ezenihite** — clan, Southern Igbo, 7 town(s)
+- **Ibibio** — other, no division, 0 town(s)
+- **Idoma** — other, no division, 0 town(s)
+- **Ife** — clan, no division, 0 town(s)
+- **Igala** — kingdom, no division, 0 town(s)
+- **Igbodo** — section, Northern Igbo, 4 town(s)
+- **Igbomina** — section, no division, 0 town(s)
+- **Ijebu** — kingdom, no division, 0 town(s)
+- **Ijesa** — kingdom, no division, 0 town(s)
+- **Ijesha** — section, no division, 0 town(s)
+- **Ikem** — clan, Northern Igbo, 3 town(s)
+- **Isienu** — clan, Northern Igbo, 2 town(s)
+- **Isoko** — other, no division, 0 town(s)
+- **Isu-Mbieri** — clan, Southern Igbo, 9 town(s)
+- **Isuochi** — clan, Southern Igbo, 6 town(s)
+- **Item** — clan, Southern Igbo, 5 town(s)
+- **Kalabari** — clan, no division, 0 town(s)
+- **Ketu** — kingdom, no division, 0 town(s)
+- **Mbalolie** — section, Northern Igbo, 5 town(s)
+- **Mbanasa** — section, Northern Igbo, 7 town(s)
+- **Mbanasato** — confederation, Northern Igbo, 4 town(s)
+- **Mbanese** — clan, Northern Igbo, 5 town(s)
+- **Mbanesi** — clan, Northern Igbo, 6 town(s)
+- **Ndienyi** — clan, Northern Igbo, 4 town(s)
+- **Nkalu** — clan, Northern Igbo, 5 town(s)
+- **Nkpologu** — section, Northern Igbo, 3 town(s)
+- **Nkwoagu** — section, Northern Igbo, 2 town(s)
+- **Nupe** — kingdom, no division, 0 town(s)
+- **Oba** — clan, Riverine Igbo, 1 town(s)
+- **Obero** — clan, Southern Igbo, 1 town(s)
+- **Obia** — clan, Southern Igbo, 3 town(s)
+- **Obike** — clan, Southern Igbo, 1 town(s)
+- **Ohori** — section, no division, 0 town(s)
+- **Ohuhu or Igbo** — clan, Southern Igbo, 6 town(s)
+- **Oke** — clan, Southern Igbo, 4 town(s)
+- **Okpombu Tolu** — clan, Southern Igbo, 1 town(s)
+- **Ondo** — kingdom, no division, 0 town(s)
+- **Oratta** — confederation, Southern Igbo, 12 town(s)
+- **Oru** — clan, Southern Igbo, 6 town(s)
+- **Osu** — clan, Southern Igbo, 11 town(s)
+- **Otanchara** — clan, Northern Igbo, 6 town(s)
+- **Otanzu** — clan, Northern Igbo, 3 town(s)
+- **Owelli** — confederation, Northern Igbo, 11 town(s)
+- **Owo** — kingdom, no division, 0 town(s)
+- **Oyo** — kingdom, no division, 0 town(s)
+- **Tiv** — other, no division, 0 town(s)
+- **Uburu** — section, Northern Igbo, 4 town(s)
+- **Uburuku** — town, Western Igbo, 3 town(s)
+- **Ugbawka** — clan, Northern Igbo, 2 town(s)
+- **Ugiri** — clan, Southern Igbo, 6 town(s)
+- **Ugwuochi** — clan, Northern Igbo, 4 town(s)
+- **Umu-Eri** — clan, Northern Igbo, 10 town(s)
+- **Umuabarra Utchi** — clan, Riverine Igbo, 3 town(s)
+- **Umudunukofia** — clan, Northern Igbo, 2 town(s)
+- **Umunri** — clan, Northern Igbo, 5 town(s)

@@ -26,6 +26,21 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
 
+  /*
+   * /volunteer is gone.
+   *
+   * The owner: "delete the volunteer page. Contribute page is already enough, so remove
+   * volunteer." The page, its navigation entry and its footer link are removed. This
+   * redirect stays so that the address does not become a 404 for anybody who has it in a
+   * history, a bookmark or a message — the work it described is what /contribute is for,
+   * and a reader who followed a link to it lands where the doing happens.
+   */
+  async redirects() {
+    return [
+      { source: '/volunteer', destination: '/contribute', permanent: true },
+    ];
+  },
+
   async headers() {
     return [
       {

@@ -1,5 +1,5 @@
 /**
- * POST /api/contributions — submit a word, definition or correction.
+ * POST /api/contributions — submit a word, a clan, a name, a proverb, or a correction.
  *
  * A form endpoint, so contributing needs no JavaScript. Requires a signed-in
  * account so that every submission has an accountable author — anonymous
@@ -262,6 +262,101 @@ export async function POST(request: Request): Promise<NextResponse> {
       return redirectTo(`/clans/${encodeURIComponent(text('previousSlug', 120))}`, {
         suggested: String(result.id),
       });
+    }
+
+    /*
+     * The three things a contributor can add that are not words. Each is its own branch rather than
+     * one generic one, because each lands in a different table with different required fields, and a
+     * branch that guessed would have to be told which table it was writing to anyway.
+     */
+    if (kind === 'new_clan') {
+      /*
+       * Divisions and local government areas arrive as free text, one per line, because the person
+       * filling the form knows the name of the place and not our slugs. An unknown value is not an
+       * error: the server resolves what it can and leaves the rest out.
+       */
+      const lines = (name: string) =>
+        String(form.get(name) ?? '')
+          .split(/[,\n]/)
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0);
+      const paragraphs = (name: string) =>
+        String(form.get(name) ?? '')
+          .split(/\n\s*\n/)
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0);
+
+      const result = await submitSuggestion(db, current.account.id, {
+        kind: 'new_clan',
+        // A clan is not a thing in a language, so it carries no language code and no word target.
+        language: undefined,
+        targetWordId: null,
+        payload: {
+          name: text('name', 120),
+          kind: text('entryKind', 20) || 'clan',
+          division: text('division', 120) || null,
+          origin: text('origin', 600) || null,
+          description: paragraphs('description'),
+          states: lines('states'),
+          lgas: lines('lgas'),
+          towns: lines('towns'),
+          note: text('note', 1000) || null,
+        },
+      });
+      return redirectTo('/contribute', { submitted: String(result.id) });
+    }
+
+    if (kind === 'new_name') {
+      const result = await submitSuggestion(db, current.account.id, {
+        kind: 'new_name',
+        language,
+        targetWordId: null,
+        payload: {
+          name: text('name', 120),
+          meaning: text('meaning', 600) || null,
+          gender: text('gender', 20) || 'unisex',
+          variants: text('variants', 600)
+            .split(',')
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0),
+          origins: text('origins', 600)
+            .split(/[,\n]/)
+            .map((value) => value.trim())
+            .filter((value) => value.length > 0),
+          note: text('note', 1000) || null,
+        },
+      });
+      return redirectTo('/contribute', { submitted: String(result.id) });
+    }
+
+    if (kind === 'new_dialect') {
+      const result = await submitSuggestion(db, current.account.id, {
+        kind: 'new_dialect',
+        language,
+        targetWordId: null,
+        payload: {
+          code: text('code', 24),
+          name: text('name', 120),
+          nativeName: text('nativeName', 120) || null,
+          region: text('region', 120) || null,
+          note: text('note', 1000) || null,
+        },
+      });
+      return redirectTo('/contribute', { submitted: String(result.id) });
+    }
+
+    if (kind === 'new_proverb') {
+      const result = await submitSuggestion(db, current.account.id, {
+        kind: 'new_proverb',
+        language,
+        targetWordId: null,
+        payload: {
+          text: text('text', 600),
+          translation: text('translation', 600) || null,
+          note: text('note', 1000) || null,
+        },
+      });
+      return redirectTo('/contribute', { submitted: String(result.id) });
     }
 
     if (kind === 'correction') {

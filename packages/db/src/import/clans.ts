@@ -188,6 +188,8 @@ export async function importClans(
 
   let updated = 0;
   let townCount = 0;
+  /** Towns the file no longer lists, removed so a page cannot hold a town nobody claims. */
+  let droppedTowns = 0;
   for (const [index, clan] of clans.entries()) {
     const slug = clan.slug ?? slugify(clan.name);
     const row = await db.one<{ id: string }>(
@@ -238,6 +240,33 @@ export async function importClans(
     const id = Number(row?.id ?? 0);
     if (!id) continue;
     updated += 1;
+
+    /*
+     * The towns, reconciled rather than only added.
+     *
+     * This loop used to insert and update and never remove, so a town taken out of the file
+     * stayed on the clan's page for ever — which is how the Aro confederation went on showing
+     * its member clans under "Towns in Aro" after the file had stopped listing them. The
+     * contributions layer has always reconciled (`applySuggestion` deletes the towns an
+     * accepted edit drops); the importer was the one place that did not, which made it the
+     * inconsistent one rather than the careful one.
+     *
+     * The file is authoritative for this field, as it already is for the description, the
+     * states and the origin summary, so the reconciliation matches what the rest of the
+     * import does. An addition an editor has had accepted is at risk here until accepted
+     * edits are written back to the file; that is a real gap and it is one thing rather than
+     * a reason to leave towns unreconciled while everything else is overwritten.
+     */
+    const fileTowns = (clan.towns ?? []).map((town) =>
+      typeof town === 'string' ? town : town.name
+    );
+    const removedTowns = await db.rows<{ name: string }>(
+      `delete from clan_town
+        where clan_id = $1 and not (name = any($2::text[]))
+        returning name`,
+      [id, fileTowns]
+    );
+    droppedTowns += removedTowns.length;
 
     for (const town of clan.towns ?? []) {
       const name = typeof town === 'string' ? town : town.name;
@@ -330,6 +359,7 @@ export async function importClans(
   );
 
   log(`  wrote ${tribeId.size} tribes, ${updated} clans, ${townCount} town rows`);
+  if (droppedTowns > 0) log(`  removed ${droppedTowns} towns the file no longer lists`);
   if (emptied.length > 0) {
     log(`  removed ${emptied.length} empty divisions the file no longer names: ${emptied.map((r) => r.name).join(', ')}`);
   }

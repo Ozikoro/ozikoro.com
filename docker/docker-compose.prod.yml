@@ -133,6 +133,21 @@ services:
       # account works on both: leave it empty and a learner who signs in on ozituma.com arrives
       # at the courses signed out.
       OZITUMA_AUTH_COOKIE_DOMAIN: ${OZITUMA_AUTH_COOKIE_DOMAIN:-}
+      # Media. These are here for the SAME reason the dictionary has them, and their absence is
+      # silent: with no S3_BUCKET the storage helper falls back to a local directory and returns
+      # URLs like /media/audio/ibo/corpus/… which 404 at the edge. Every listening exercise would
+      # render a play button that does nothing, and nothing in the logs would say why.
+      #
+      # The courses need no write access — recordings belong to dictionary words and are uploaded
+      # by the dictionary's own pipeline — but they must be able to RESOLVE a storage key to a
+      # public URL, which is what these are for.
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL}
       # Analytics is server-side only, and nothing is sent unless consent is granted.
       NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
       NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}

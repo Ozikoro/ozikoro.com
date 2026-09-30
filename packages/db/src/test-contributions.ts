@@ -116,6 +116,9 @@ const createdAccountIds: number[] = [];
  * page can reach. verify.ts flags those, which is how this was caught.
  */
 const createdExampleIds: number[] = [];
+/** Clans and names added by this run, removed on cleanup so the registry is left as it was. */
+const createdClanIds: number[] = [];
+const createdNameIds: number[] = [];
 /** The existing corpus entry the merge test extends, needed by cleanup. */
 let uloId: number | null = null;
 /** Storage keys written by the audio section, removed from the bucket on cleanup. */
@@ -372,6 +375,34 @@ const wordCountAfter = await db.one<{ n: number }>(
 );
 assert('approval created exactly one entry', Number(wordCountAfter?.n ?? 0) === 1, `${wordCountAfter?.n} rows`);
 
+/*
+ * An editor's own work does not wait for an administrator.
+ *
+ * The owner: "editors should not need admin approval to publish anything. they can also review what
+ * other contributors added." An editor reviewing a contributor is checked above; this checks the
+ * other half — that an editor submitting something themselves gets it published on the spot rather
+ * than sitting in the queue for somebody with a bigger badge.
+ */
+console.log('\n--- Review: an editor publishes without asking anyone ---');
+const editorOwn = await submitSuggestion(db, editor.id, {
+  kind: 'new_proverb',
+  language: 'ibo',
+  targetWordId: null,
+  payload: { text: `Ilu ndezi ${suffix}`, translation: null },
+});
+createdSuggestionIds.push(editorOwn.id);
+assert(
+  "an editor's own submission is applied at once",
+  editorOwn.status === 'approved',
+  editorOwn.status
+);
+const editorProverb = await db.one<{ id: string }>(
+  `select id from example where language_code = 'ibo' and text = $1`,
+  [`Ilu ndezi ${suffix}`]
+);
+assert("the editor's proverb was published", editorProverb !== null);
+if (editorProverb) createdExampleIds.push(Number(editorProverb.id));
+
 console.log('\n--- Review: merging into an existing entry ---');
 // "ụlọ" already exists in the corpus. Adding a sense should attach to it rather
 // than create a near-duplicate entry.
@@ -590,6 +621,182 @@ if (publishedClip) {
   const served = await storage.get(stored.key);
   assert('the published URL resolves to real bytes', served?.body.length === wav.length);
 }
+
+/*
+ * The three additions, which are not words.
+ *
+ * The owner asked for them in one sentence — "there should be an option for contributors to add new
+ * words, clans, names, or proverbs" — and each reaches a different table by a different road, so
+ * each is exercised here rather than assumed to work because the branch compiles. What is checked
+ * is what would be a data problem if it broke: the row lands in the right table, it is published
+ * with something in every field that was filled, and an entry that says nothing about itself never
+ * reaches a reviewer at all.
+ */
+console.log('\n--- Contributions: a clan, a name and a proverb ---');
+
+const clanName = `Nkata ${suffix}`;
+const clanSubmission = await submitSuggestion(db, contributor.id, {
+  kind: 'new_clan',
+  targetWordId: null,
+  payload: {
+    name: clanName,
+    kind: 'clan',
+    division: 'Southern Igbo',
+    origin: `A test clan recorded by the suite, ${suffix}.`,
+    description: [`First paragraph for ${suffix}.`, `Second paragraph for ${suffix}.`],
+    states: ['Abia'],
+    lgas: ['Test Local Government'],
+    towns: [`Town One ${suffix}`, `Town Two ${suffix}`],
+  },
+});
+createdSuggestionIds.push(clanSubmission.id);
+assert('a clan can be submitted', clanSubmission.status === 'pending', clanSubmission.status);
+
+await assertRejects(
+  'a clan with nothing said about it is refused',
+  () =>
+    submitSuggestion(db, contributor.id, {
+      kind: 'new_clan',
+      targetWordId: null,
+      payload: { name: `Empty ${suffix}`, description: [], states: [], lgas: [], towns: [] },
+    }),
+  'invalid_submission'
+);
+
+await assertRejects(
+  'an entry kind the registry does not hold is refused',
+  () =>
+    submitSuggestion(db, contributor.id, {
+      kind: 'new_clan',
+      targetWordId: null,
+      payload: { name: `Odd ${suffix}`, kind: 'duchy', origin: 'x', description: [] },
+    }),
+  'invalid_submission'
+);
+
+const clanApproved = await reviewSuggestion(db, {
+  suggestionId: clanSubmission.id,
+  reviewerId: editor.id,
+  decision: 'approve',
+});
+assert(
+  'clan approval created the entry',
+  clanApproved.applied?.outcome === 'created',
+  clanApproved.applied?.detail ?? ''
+);
+
+const clanRow = await db.one<{ id: string; slug: string; published: boolean; states: string[] }>(
+  `select id, slug, published, states from clan where lower(name) = lower($1)`,
+  [clanName]
+);
+assert('the clan is in the registry', clanRow !== null);
+if (clanRow) createdClanIds.push(Number(clanRow.id));
+assert('a contributed clan is published', clanRow?.published === true);
+assert('the clan carries the state it was given', clanRow?.states?.[0] === 'Abia', clanRow?.states?.join(', ') ?? 'none');
+
+const clanTownRows = clanRow
+  ? await db.rows<{ name: string }>(`select name from clan_town where clan_id = $1`, [clanRow.id])
+  : [];
+assert('the clan carries its towns', clanTownRows.length === 2, `${clanTownRows.length} town(s)`);
+
+const nameValue = `Chinwete${suffix}`;
+const nameSubmission = await submitSuggestion(db, contributor.id, {
+  kind: 'new_name',
+  language: 'ibo',
+  targetWordId: null,
+  payload: {
+    name: nameValue,
+    meaning: `test meaning ${suffix}`,
+    gender: 'unisex',
+    variants: [`Chin${suffix}`],
+    origins: [`Town One ${suffix}`],
+  },
+});
+createdSuggestionIds.push(nameSubmission.id);
+
+await assertRejects(
+  'a gender outside the three words is refused',
+  () =>
+    submitSuggestion(db, contributor.id, {
+      kind: 'new_name',
+      language: 'ibo',
+      targetWordId: null,
+      payload: { name: `Bad${suffix}`, gender: 'sometimes', variants: [], origins: [] },
+    }),
+  'invalid_submission'
+);
+
+const nameApproved = await reviewSuggestion(db, {
+  suggestionId: nameSubmission.id,
+  reviewerId: editor.id,
+  decision: 'approve',
+});
+assert(
+  'name approval created the entry',
+  nameApproved.applied?.outcome === 'created',
+  nameApproved.applied?.detail ?? ''
+);
+
+const nameRow = await db.one<{ id: string; slug: string; gender_basis: string; origins: string[] }>(
+  `select id, slug, gender_basis, origins from person_name where language_code = 'ibo' and name = $1`,
+  [nameValue]
+);
+assert('the name is in the dictionary', nameRow !== null);
+if (nameRow) createdNameIds.push(Number(nameRow.id));
+assert('the name carries the place it is borne', nameRow?.origins?.[0] === `Town One ${suffix}`, nameRow?.origins?.join(', ') ?? 'none');
+
+/*
+ * The proverb, and the duplicate guard with it.
+ *
+ * The old duplicate index read only `payload ->> 'headword'`, which a proverb does not have, so the
+ * expression folded to the empty string and two identical pending submissions were both let
+ * through. Resubmitting the same proverb while the first is still pending is the exact case, and it
+ * now has to be refused.
+ */
+const proverbText = `Ilu nnwale ${suffix}`;
+const proverbSubmission = await submitSuggestion(db, contributor.id, {
+  kind: 'new_proverb',
+  language: 'ibo',
+  targetWordId: null,
+  payload: { text: proverbText, translation: `A test proverb recorded by the suite, ${suffix}.` },
+});
+createdSuggestionIds.push(proverbSubmission.id);
+
+await assertRejects(
+  'the same proverb submitted twice is refused',
+  () =>
+    submitSuggestion(db, contributor.id, {
+      kind: 'new_proverb',
+      language: 'ibo',
+      targetWordId: null,
+      payload: { text: proverbText, translation: null },
+    }),
+  'duplicate_submission'
+);
+
+const proverbApproved = await reviewSuggestion(db, {
+  suggestionId: proverbSubmission.id,
+  reviewerId: editor.id,
+  decision: 'approve',
+});
+assert(
+  'proverb approval created the entry',
+  proverbApproved.applied?.outcome === 'created',
+  proverbApproved.applied?.detail ?? ''
+);
+
+const proverbRow = await db.one<{ id: string; translation: string | null; style: string | null }>(
+  `select id, translation, style from example where language_code = 'ibo' and text = $1`,
+  [proverbText]
+);
+assert('the proverb is in the collection', proverbRow !== null);
+assert('it is stored as a proverb', proverbRow?.style === 'proverb', proverbRow?.style ?? 'none');
+assert(
+  'its English was kept',
+  proverbRow?.translation === `A test proverb recorded by the suite, ${suffix}.`,
+  proverbRow?.translation ?? 'none'
+);
+if (proverbRow) createdExampleIds.push(Number(proverbRow.id));
 }
 
 /**
@@ -627,6 +834,13 @@ async function cleanup(): Promise<void> {
   for (const id of createdSuggestionIds) {
     await db.query(`delete from suggestion where id = $1`, [id]);
   }
+  for (const id of createdClanIds) {
+    // The towns go with it: `clan_town` cascades from `clan`.
+    await db.query(`delete from clan where id = $1`, [id]);
+  }
+  for (const id of createdNameIds) {
+    await db.query(`delete from person_name where id = $1`, [id]);
+  }
   for (const id of createdWordIds) {
     await db.query(`delete from word where id = $1`, [id]);
   }
@@ -652,6 +866,18 @@ async function cleanup(): Promise<void> {
     [`%${suffix}%`, `%${suffix.toUpperCase()}%`]
   );
   assert('test entries removed', Number(leftoverWords?.n ?? 0) === 0, `${leftoverWords?.n} left`);
+
+  const leftoverClans = await db.one<{ n: number }>(
+    `select count(*)::int as n from clan where name like $1`,
+    [`%${suffix}%`]
+  );
+  assert('test clans removed', Number(leftoverClans?.n ?? 0) === 0, `${leftoverClans?.n} left`);
+
+  const leftoverNames = await db.one<{ n: number }>(
+    `select count(*)::int as n from person_name where name like $1`,
+    [`%${suffix}%`]
+  );
+  assert('test names removed', Number(leftoverNames?.n ?? 0) === 0, `${leftoverNames?.n} left`);
 
   // This is the assertion that would have caught the orphaned-example bug at
   // the source instead of in verify.ts.

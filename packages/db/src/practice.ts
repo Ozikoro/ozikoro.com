@@ -38,15 +38,48 @@
 import { requireLanguage } from '@ozituma/core';
 import type { Db } from './client.ts';
 
-export type PracticeMode = 'meaning' | 'listening' | 'dialect';
+/**
+ * The modes.
+ *
+ * There was a third — `dialect`, which showed a dialect spelling and asked which dialect it
+ * belonged to. The owner removed it: "On the practice part, I want you to not display any
+ * other igbo dialect there that is not Central Igbo (Igbo Izugbe)." That mode was about
+ * other dialects by definition, since a question with one answer cannot be about the
+ * standard, so it went rather than being narrowed.
+ */
+export type PracticeMode = 'meaning' | 'listening';
 
-export const PRACTICE_MODES: PracticeMode[] = ['meaning', 'listening', 'dialect'];
+export const PRACTICE_MODES: PracticeMode[] = ['meaning', 'listening'];
 
 export const MODE_DESCRIPTIONS: Record<PracticeMode, string> = {
   meaning: 'See an Igbo word, choose its English meaning.',
   listening: 'Hear a recording, choose the word that was spoken.',
-  dialect: 'See a dialect spelling, choose the dialect it belongs to.',
 };
+
+/**
+ * Central Igbo only — Igbo Izugbe, the standard the dictionary is written in.
+ *
+ * A word is not tagged with a dialect; what a dialect row records is that some OTHER form of
+ * this word is spelled that way in some other place. So the test for a standard headword is
+ * that it is not itself recorded as a dialect spelling of a different entry: 1,098 published
+ * words are, and they are the dialect forms. Everything in the dictionary that is not one of
+ * those is the standard spelling, which is what a learner should be practising.
+ *
+ * Written once and used by every mode, so a mode cannot be added later that quietly offers a
+ * dialect form beside a standard one.
+ */
+export const IZUGBE_ONLY_SQL = `not exists (
+  select 1 from word_dialect wd
+   where wd.word_id <> w.id and lower(wd.spelling) = lower(w.headword)
+)`;
+
+/** The same test, aliased, for queries that join the word table under another name. */
+export function izugbeOnly(alias: string): string {
+  return `not exists (
+    select 1 from word_dialect wd
+     where wd.word_id <> ${alias}.id and lower(wd.spelling) = lower(${alias}.headword)
+  )`;
+}
 
 export class PracticeError extends Error {
   /** Set explicitly: without it every subclass reports its name as "Error". */
@@ -190,6 +223,8 @@ async function meaningQuestion(db: Db, language: string): Promise<PracticeQuesti
         and w.headword not like '%=%'
         and length(w.headword) >= 3
         and ${CLEAN_GLOSS_SQL}
+        -- Central Igbo only: a dialect form is not a word to test a learner on.
+        and ${IZUGBE_ONLY_SQL}
       order by random()
       limit 1`,
     [language]
@@ -321,71 +356,6 @@ async function listeningQuestion(db: Db, language: string): Promise<PracticeQues
 }
 
 // ---------------------------------------------------------------------------
-// Dialect mode: dialect spelling -> which dialect
-// ---------------------------------------------------------------------------
-
-async function dialectQuestion(db: Db, language: string): Promise<PracticeQuestion | null> {
-  // `word_dialect` carries no language_code — its scope comes from the word it
-  // belongs to and the dialect it names, both of which do.
-  const answer = await db.one<{
-    id: string;
-    spelling: string;
-    dialect_id: string;
-    dialect_name: string;
-    headword: string;
-    word_id: string;
-  }>(
-    `select wd.id, wd.spelling, dl.id as dialect_id, dl.name as dialect_name,
-            w.headword, w.id as word_id
-       from word_dialect wd
-       join dialect dl on dl.id = wd.dialect_id
-       join word w on w.id = wd.word_id
-      where w.language_code = $1
-        and w.status = 'published'
-        and dl.language_code = $1
-        and length(wd.spelling) >= 3
-        and wd.spelling <> w.headword
-      order by random()
-      limit 1`,
-    [language]
-  );
-
-  if (!answer) return null;
-
-  // Distractors must be real dialects of the same language that this word is
-  // NOT recorded in — otherwise the question has more than one right answer.
-  const distractors = await db.rows<{ id: string; name: string }>(
-    `select id, name from dialect
-      where language_code = $1
-        and is_active
-        and id <> $2
-        and id not in (select dialect_id from word_dialect where word_id = $3)
-      order by random()
-      limit $4`,
-    [language, answer.dialect_id, answer.word_id, OPTION_COUNT * 3]
-  );
-
-  if (distractors.length < OPTION_COUNT - 1) return null;
-
-  const chosen = shuffled(distractors).slice(0, OPTION_COUNT - 1);
-  const options: PracticeOption[] = shuffled([
-    { id: String(answer.dialect_id), label: answer.dialect_name },
-    ...chosen.map((d) => ({ id: String(d.id), label: d.name })),
-  ]);
-
-  return {
-    mode: 'dialect',
-    language,
-    prompt: answer.spelling,
-    promptSubtitle: `Which dialect spells "${answer.headword}" this way?`,
-    promptAudioUrl: null,
-    options,
-    answerId: String(answer.dialect_id),
-    explanation: `${answer.headword} is spelled "${answer.spelling}" in ${answer.dialect_name}.`,
-  };
-}
-
-// ---------------------------------------------------------------------------
 
 /**
  * Build one question. Returns null when the language does not yet have enough
@@ -409,8 +379,6 @@ export async function generateQuestion(
       return meaningQuestion(db, language);
     case 'listening':
       return listeningQuestion(db, language);
-    case 'dialect':
-      return dialectQuestion(db, language);
     default:
       throw new PracticeError('invalid_mode', `Unknown practice mode "${options.mode}".`);
   }
@@ -421,28 +389,24 @@ export async function practiceAvailability(
   db: Db,
   language: string
 ): Promise<Record<PracticeMode, number>> {
-  const row = await db.one<{
-    meaning: string;
-    listening: string;
-    dialect: string;
-  }>(
+  const row = await db.one<{ meaning: string; listening: string }>(
+    // Both counts carry the Izugbe test, so the buttons appear only when there is enough
+    // standard Igbo to build a question from.
     `select
        (select count(*)::int from word w
           join definition d on d.word_id = w.id and d.language_code = 'eng'
          where w.language_code = $1 and w.status = 'published'
-           and length(d.text) between 3 and 48) as meaning,
+           and length(d.text) between 3 and 48
+           and ${IZUGBE_ONLY_SQL}) as meaning,
        (select count(distinct w.id)::int from word w
           join audio a on a.word_id = w.id and a.status = 'published'
-         where w.language_code = $1 and w.status = 'published') as listening,
-       (select count(*)::int from word_dialect wd
-          join word w on w.id = wd.word_id
-         where w.language_code = $1 and w.status = 'published') as dialect`,
+         where w.language_code = $1 and w.status = 'published'
+           and ${IZUGBE_ONLY_SQL}) as listening`,
     [language]
   );
 
   return {
     meaning: Number(row?.meaning ?? 0),
     listening: Number(row?.listening ?? 0),
-    dialect: Number(row?.dialect ?? 0),
   };
 }
