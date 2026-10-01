@@ -1,14 +1,14 @@
 # What remains
 
-> **RESUME HERE — status as of round 97.** This file is a running record, newest at the BOTTOM.
+> **RESUME HERE — status as of round 120.** This file is a running record, newest at the BOTTOM.
 > Read this block and the round-26 status table; the rest is history, and some of it is superseded.
 >
-> **What is live.** **23 reader-facing routes and 7 under `/admin`** — 30 page routes in total (counted in round 97; the previous claim of "16 public routes" was wrong, and had been copied forward for many rounds without being checked); migrated records answer at their original WordPress addresses from
-> this platform's own database and media origin; 3,437 of 3,488 media served from our own storage with
-> **zero hotlinks**; typecheck clean; **20 verification steps green** via `./scripts/verify-all.sh`, plus
-> **3 live checks** via `./scripts/verify-live.sh`.
+> **What is live.** 23 reader-facing routes and 7 under `/admin` — 30 page routes. Migrated records answer
+> at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
+> media served from our own storage with **zero hotlinks**; typecheck clean; **20 offline verification
+> steps** via `./scripts/verify-all.sh` and **4 live checks** via `./scripts/verify-live.sh`.
 >
-> **Verified by exhaustive request, not by sampling.** All **14,667** sitemap URLs were requested and every
+> **Verified by exhaustive request, not sampling.** All **14,667** sitemap URLs were requested and every
 > page that answered returned 200 (round 70). The 120-page link walk is clean; 62 referenced assets load.
 >
 > **Done:** media into storage (1) · auth, ten roles and the byline claim path (2) · the editorial queue's
@@ -18,43 +18,60 @@
 > security fixes with regression tests · CI on the code-only half · a deploy artefact that builds and
 > serves · the Ozituma web app rescued into version control (round 92).
 >
-> **Not done:** the AI research assistant (9 — needs a provider credential) · notifications · deployment ·
-> manuscript upload · public screens for archaeology and oral history.
+> **Accessibility:** contrast · heading order and one h1 · landmarks and one main · alt text · link text
+> (0 vague, 0 unlabelled) · focus visibility · focus order · skip link and target — **all verified**.
+> Open: **form error messaging**, because the server actions do not pass a field name, so the page cannot
+> say which field an error concerns (round 110, investigated and deliberately not half-fixed).
 >
-> **Blocked on the owner — nothing here will be invented:** the map and timeline screens (none exist among
-> the 37 delivered designs) and the PostGIS decision (unavailable in PGlite) · `S3_BUCKET` and a server
-> Postgres · nonce-based CSP · backup scheduling and off-machine storage · media rights — **0 of 3,488
-> items has an actual licence** · **what the `/` → `/home/` row in `ozikoro_redirect` is for** (round 75:
-> building the handler as specified would send the homepage to a migrated page of the same name).
+> **The one live defect, precisely stated.** `app/not-found.tsx` is good work and **renders perfectly
+> server-side whenever Next handles a 404 as an unmatched route** — `<main>`, `<h1>`, correct status. It
+> defers instead (body becomes a Suspense placeholder, content only in the RSC payload) **only when a
+> matched dynamic route calls `notFound()`**. Affected: every nonexistent article, label, topic, document,
+> author or entity, the 3 waived in-body links and 4 strays, and any typo. Eliminated by measurement:
+> `force-dynamic` (116), the async layout (107), `await headers()` (118). Only the throw correlates (119).
+> No one-line fix: the good path needs *no route to match*, and a page cannot rewrite.
+>
+> **Blocked on the owner — nothing here will be invented:** the map and timeline screens (none among the
+> 37 delivered designs) and the PostGIS decision · `S3_BUCKET` and a server Postgres · nonce-based CSP
+> (**measured: 47 inline scripts per page**) · backup scheduling and off-machine storage · media rights —
+> **0 of 3,488 items has an actual licence** · **what the `/` → `/home/` row in `ozikoro_redirect` is for**
+> (round 75: the handler as specified would send the homepage to a migrated page of the same name).
 >
 > **The largest gap is human:** **0 of 1,051 records linked to an entity.** The machinery is built and
-> verified; the retagging is editorial work. Three dead in-body links and one dead image are waived, with
-> reasons, and they need a person who knows what the article meant to reference.
+> verified; the retagging is editorial work.
+>
+> **Seven checks, seven TESTED guards.** Every one distinguishes *"found nothing wrong"* from *"did not
+> look"*, and each guard was verified by making it look at nothing: `check:secrets` (self-test on a
+> known-positive), `check:residue` (102 tables or it refuses), `check:capabilities`, `check:links`,
+> `check:sitemap`, `check:assets`, `check-body-links`. Three waivers print on every run, each stating what
+> would remove it: one image never in the archive, three in-body links to things that never existed, and
+> the deferred 404. **Rule: waive in code, print the waiver, state the removal criterion.**
 >
 > **Six hazards that cost real time here:**
 > 1. A dev server holds the PGlite lock. `kill -9` corrupted the cluster once and forced a full rebuild.
 >    Kill **by port**, never `pkill -f node` — that killed the media download as collateral.
 > 2. `timeout` does not exist on macOS; `timeout 120 node …` exits 127 and mimics a database failure.
-> 3. BSD `sed` does not support `\?` and BSD `awk`/`sed` differ from GNU in ways that fail silently.
+> 3. BSD `sed` lacks `\?`; HTML does not quote attribute names; **a pattern that cannot match reports
+>    every repository clean.**
 > 4. Some importers default to dry-run, and a root script whose body is another `npm run` cannot forward
 >    flags.
-> 5. **Never read a checker's exit code after a pipe** — it is the pipe's last command's status. Cost three
->    rounds (31, 70, 86) before it became a habit.
-> 6. **A route that fails to compile takes the WHOLE server down**, not one page. Rounds 81 and 82 each
->    did this.
+> 5. **Never read a checker's exit code after a pipe** — it is the pipe's last command's status.
+> 6. **A route that fails to compile takes the WHOLE server down**, not one page (rounds 81, 82).
 >
-> **The verification habit, which is the most valuable thing in this file.** Fifteen times a check, a test
-> or a measurement produced a confidently wrong answer. Every one was caught by insisting on a measurement
-> that distinguishes the answer from a nearby one. They come in three shapes, all of them the method being
-> wrong about **where the answer lives**:
+> **Sixteen confidently wrong measurements, and the three shapes they come in** — all of them the method
+> being wrong about **where the answer lives**:
+> * the wrong **spelling** in a pattern (73, 101, 109) or an **exclusion** that hides the failing case (106)
+> * the wrong **set**: `git grep` reads the index, not the tree (92); a comparison against another app's
+>   file (95); source lines instead of runtime output (98)
+> * the wrong **object**: "is it in the file" instead of what the browser draws (112); a plausible cause
+>   read from code and never tested (117)
 >
-> * a pattern matching the wrong **spelling** (round 73 — reported zero dead links)
-> * a tool reading the wrong **set** — `git grep` reads the index, not the tree (round 92)
-> * a comparison against the wrong **file or app** (round 95 — invented 58 missing variables)
->
-> **Verify the verification. And print the input before theorising about it** — four rounds of theories
-> about an unreachable article were answered in one line by logging the value the route actually receives
-> (round 63).
+> **And the two habits that would have prevented most of it:**
+> * **Print the input before theorising about it** — four rounds on an unreachable article were answered by
+>   logging what the route actually receives (63).
+> * **Try to falsify your own diagnosis** — round 117 explained everything, named one line of code, and was
+>   refuted by two HTTP requests. **The value of a diagnosis is not how well it explains the evidence but
+>   whether anyone tried to knock it down.**
 
 
 The build plan (`Ozikoro_DSH_Main_Agent_Repository_Audit_and_Core_Build_Plan.docx`) defines done in
