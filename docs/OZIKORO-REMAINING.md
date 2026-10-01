@@ -2446,3 +2446,51 @@ and whether the middleware's `x-pathname` rewrite interferes. Each is a small, s
 **Recorded rather than guessed at**, and no further change made: the last time I "fixed" this by
 rewriting data, round 58, I destroyed an Igbo character in a published address and the suite caught it.
 A second guess on the same record is not worth the risk of the same mistake twice.
+
+---
+
+## ROUND 60 — NARROWED: THE REQUEST DIES IN ROUTING, BEFORE THE PAGE
+
+Round 59 left four candidates. Three experiments eliminated most of them.
+
+### Percent-encoding is not the problem
+
+    /ute-okpu-an-ika-igbo-clan-and-its-nri-roots/     200   (the real slug)
+    /u%74e-okpu-an-ika-igbo-clan-and-its-nri-roots/   200   (%74 = 't', one letter escaped)
+    /ute-okpu-an-ika-igbo-clan-%61nd-its-nri-roots/   200   (%61 = 'a')
+
+**Next matches and decodes percent-encoded segments correctly.** Any theory built on "the router rejects
+escapes" is dead.
+
+### It is not which spelling arrives either
+
+    raw UTF-8 (ǹ)     404
+    %C7%B9            404
+    %c7%b9            404      all three, with --path-as-is
+
+And the lookup itself succeeds for both spellings at the domain level — verified in round 59, and
+re-verified here. `slugVariants` contains the decoded form, the encoded form and the lowercased encoded
+form, one of which is byte-identical to the stored slug.
+
+### What the server log shows
+
+    GET /entrance-…-%c7%b9gwulu-…/      404 in 87ms
+    GET /entrance-…-%C7%B9gwulu-…/      404 in 87ms
+    GET /ute-okpu-an-ika-igbo-clan-and-its-nri-roots/   200 in 160ms
+
+The request **arrives**, is answered **404 in under 100 ms with no route error logged**, while a
+comparable slug renders in 160 ms. The page is not throwing — it is not running.
+
+### Conclusion
+
+Everything before the page is satisfied: the URL matches the dynamic route pattern, the encoding is
+handled, the slug is in the database, and the query returns it. **The request is being refused between
+arrival and dispatch.** The remaining candidate from round 59's list is the one I have not tested: the
+middleware, which runs before routing and sets `x-pathname`.
+
+### The next experiment, named rather than guessed
+
+Request the same path with the middleware disabled, and see whether the page renders. If it does, the
+middleware is the cause; if it does not, the refusal is in Next's own matching. **One experiment, one
+answer** — and no change made to data or route until it is run, because the last two attempts to fix
+this by changing things are the two mistakes recorded in this file.
