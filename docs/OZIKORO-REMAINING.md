@@ -43,6 +43,9 @@
 > 135 proved claimable byline -> pending -> approved -> account linked, using throwaways on both sides
 > and rolling back clean. So the whole of item 2 works and **no one can enter it.**
 > `npm run account:create <email> [role]` does it one address at a time; `--dry-run` first if you like.
+> `npm run account:reset <email> --actor <admin-email>` unlocks somebody who has forgotten theirs
+> (round 160 — built and proven end to end with throwaways on both sides), and `packages/db/src/role.ts`
+> already had `list`, `promote` and `create` before either (round 162).
 > **The addresses are NOT recoverable from the archive**: `data/ozikoro-wp/users.json` holds exactly
 > 11 records with no email field, because WordPress's REST API omits it from the public context.
 >
@@ -51,9 +54,11 @@
 > Comparing `apps/ozikoro` against `apps/web` found five absences that 30 green routes could not:
 >
 > * **`join`** — no way to create an account from the site; only `npm run account:create`
-> * **`forgot` and `reset`** — **no password recovery at all.** A contributor who forgets their
->   password is locked out permanently. This is the flow the dictionary has *because* its failure
->   locks somebody out of their own account, and the archive has no version of it
+> * **`forgot` and `reset`** — **no SELF-SERVICE recovery.** An author cannot recover their own
+>   password and no administrator can send them a link. **This is no longer a lockout**: round 160
+>   built and proved `npm run account:reset`, so an operator can unlock somebody with an attributed
+>   change. What is missing is the flow the author can start themselves, which is why `apps/web`
+>   has it — *its* failure locks somebody out of their own account entirely
 > * **`privacy` and `terms`** — the site stores accounts, claims and donations with neither
 > * **no favicon** — `public/` holds `a11y.css` and `design/` only, `layout.tsx` declares no
 >   `icons`, and the delivered design never included a mark; `learn/public/` has a full set
