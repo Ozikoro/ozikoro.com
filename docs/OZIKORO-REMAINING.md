@@ -2751,3 +2751,46 @@ which was true and told me almost nothing. This one said "120 pages, every inter
 which is four times the evidence.
 
     after the fix:  120 pages checked, every internal link resolved
+
+---
+
+## ROUND 67 — I CHECKED THE WRONG WEBSITE, AND THE CORRECTION IS A GOOD RESULT
+
+Round 66's lesson was that a cap is a coverage claim. So this round sampled the **depth** rather than
+walking the surface: 45 random URLs drawn from the 14,667-URL sitemap.
+
+The first run returned **41 non-200 of 45** — 301s and 404s across label and media pages. That looked
+like a catastrophe.
+
+**It was a measurement error, and mine.** The sitemap emits **absolute** URLs —
+`https://ozikoro.com/labels/ubulu/` — which is *correct*, because a sitemap must name the origin a
+crawler should use. My check fetched them verbatim, so it sampled **the live old WordPress site**, not
+the platform. The 404s were WordPress's.
+
+Re-run with the origin rewritten to the local server:
+
+    45 sampled paths — 33 labels, 8 documents, 4 articles
+    non-200: 0
+
+**Every deep page the sitemap advertises resolves.** That is the strongest evidence yet that the sitemap
+is sound, and it is a better result than a surface walk can produce: the walk covers what is *linked*,
+the sample covers what is *listed*.
+
+### The trap, recorded because the tooling invites it
+
+`check-links.sh` takes a `BASE_URL` and is therefore safe — it only ever follows links it finds on the
+pages it fetched. But **anything that reads the sitemap's `<loc>` values and requests them directly will
+hit production**, because that is what those values are for. The two must not be confused:
+
+    a link found on a page      -> same origin as the page, safe to follow
+    a <loc> from the sitemap    -> the PRODUCTION origin by design, never local
+
+The check above is the correct pattern: read the sitemap for the **paths**, then request them from the
+server under test.
+
+### A note on how convincing the wrong answer was
+
+41 failures out of 45 is exactly the kind of number that ends an investigation early — it looks like a
+finding, it is dramatic, and it would have been written into this file as one. The only reason it was
+not is that *the 404s named labels I had just verified worked*. **A result that contradicts a fact you
+already established is a measurement error until proven otherwise.**
