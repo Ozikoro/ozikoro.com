@@ -81,7 +81,8 @@
     "check:residue": "npm -w @ozikoro/platform run check:residue",
     "check:capabilities": "npm -w @ozikoro/platform run check:capabilities",
     "check:links": "bash scripts/check-links.sh",
-    "check:sitemap": "bash scripts/check-sitemap.sh"
+    "check:sitemap": "bash scripts/check-sitemap.sh",
+    "check:body-links": "node scripts/check-body-links.mjs"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",

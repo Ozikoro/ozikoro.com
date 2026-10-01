@@ -3480,3 +3480,59 @@ Round 67 taught that; round 85 needed it again, in a new disguise.
 These four have no shape in common with each other or with either fixed family. **They need a human
 decision about the original intent — a redirect, a correction, or an acknowledgement that the source
 article linked to something that never existed.**
+
+---
+
+## ROUND 86 — THE BODY-LINK CHECK IS A TOOL, AND THE ANSWER IS THREE
+
+The extraction behind rounds 73, 74, 81 and 85 was a **throwaway script written four times**, and three of
+those versions had bugs. It is now `scripts/check-body-links.mjs`, wired as `npm run check:body-links`.
+
+    articles with links : 91
+    anchors seen        : 300
+    internal links      : 195
+    DISTINCT DEAD       : 3
+      x2  /womens-title-taking-the-iyom-otu-odu-title-in-igbo-culture/
+      x1  /how-a-hunter-obtained-money-from-his-friends-the-leopard-goat-bush-cat-…/
+      x1  /uli-samples-from-awka-district-n-w-thomas-1910-11/
+
+**Three, not four.** Round 84 listed an `/nri-nshi-kingdom-…/` path as a stray; against the full
+accounting it resolves or is not present. My tally has now been wrong twice in this defect — once by
+counting links as targets, once by listing a stray that was not one — which is the argument for the tool
+existing rather than for me being more careful.
+
+### The families are stored as SHAPES, not as examples
+
+    /<topic-slug>/                1 segment, topic      -> 308 to /topics/<slug>/     (round 78)
+    /author/<contributor-slug>/   2 segments            -> served directly            (round 77)
+    /<parent>/<media-slug>/       2 segments            -> 308 to /documents/<slug>/  (rounds 83-84)
+
+Round 85's measurement missed the author family because it tested contributors as a **single-segment**
+path, and `author/nze` is two. Writing the allowance as shapes rather than as a list of examples is what
+should stop that recurring; editing an example list is how it happened.
+
+### The guard round 73 earned
+
+If no anchors match at all, the tool exits **2** with *"NO ANCHORS MATCHED ANYWHERE — the extractor is
+wrong, not the archive"*, rather than reporting a clean zero. Round 73 reported exactly that zero from a
+pattern matching the wrong spelling, and an empty result reads precisely like success.
+
+### And I piped it to `tail` again
+
+    node scripts/check-body-links.mjs | tail -12 ; echo $?   ->  0
+
+The script was exiting **1**, correctly. `$?` after a pipeline is `tail`'s status. **This is the third time
+this project has discarded a checker's verdict this way** — round 31 (`|| echo` after a pipe), round 70
+(the full sitemap run), and now. Re-read directly:
+
+    node scripts/check-body-links.mjs > /tmp/bl.txt ; echo $?   ->  1
+
+**The rule has been written down twice and broken three times.** It is worth a habit rather than a note:
+never read a checker's status after a pipe.
+
+### Not yet in verify-all.sh, deliberately
+
+It currently exits 1 on the three known targets, and adding a check that is red for a known, deferred
+issue is how a suite teaches people to ignore it. **It joins the standard run when those three are
+resolved or explicitly waived** — and the reason is recorded here so that decision is visible rather than
+forgotten.
