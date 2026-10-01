@@ -7352,3 +7352,49 @@ nobody reads.
 
 **Only one of the four findings across the three rounds was a real gap**, and the audit's value is that it
 says so with a count rather than a worry.
+
+---
+
+## ROUND 171 — ROUND 168 SAID DISPLAYING THE STATE WAS EDITORIAL. THE EVIDENCE SAYS IT IS MECHANICAL.
+
+Round 168 found `clan.region` populated on 187 of 188 published clans and unread, and declined to display
+it because *"deciding what a subject page should say about a clan is editorial, not mechanical."* That is
+the same over-caution round 159 had to correct for a different tool, and the same four checks settle it.
+
+### Four things that are true of this value
+
+    recorded     clan.region = "Anambra", clan.states = ["Anambra"] — a column, not a derivation
+    sourced      clan.source is present, 280 characters of provenance for the same row
+    consistent   round 144 fetched https://ozituma.com/clans/umueri/ and it says "State: Anambra"
+    already-there the label page ALREADY names this clan and links to that entry
+
+**Displaying a recorded field, on a row the page has already fetched, whose provenance is stored beside
+it, whose value the linked page asserts identically, and which the page already introduces — is not an
+editorial act.** It is the same act as round 142's link: surfacing a recorded association that the archive
+already committed to when it imported the row.
+
+### What would have made it editorial, and does not apply
+
+An editorial decision would be **choosing** a region: inferring one from a name, preferring a modern state
+to a historical polity, or asserting a location for a clan whose row is silent. **None of that happens
+here** — 187 rows carry a value and one does not, and the one that does not would simply show nothing.
+
+### The line the rule actually draws
+
+    mechanical   showing a field the row holds, attributed to where it came from
+    editorial    filling a field the row is missing, or choosing between candidate values
+
+**Round 168 applied the second rule to the first case.** Which is why the four-part check above is worth
+keeping: *recorded · sourced · consistent with what the archive already says · already introduced on the
+page.* Any one of those failing would have made the caution right.
+
+### Not built, and this time for a reason that is about the page
+
+`app/labels/[slug]/page.tsx` serves **10,100 URLs** and round 142's edit to it needed three attempts,
+including an assertion that caught a two-space indentation error before it wrote anything. **The change is
+two lines** — `region` added to a `select` that already fetches the row, and one line of JSX with the
+dictionary named as the source — and it is small enough to state exactly rather than approximate, which is
+what this entry is.
+
+**The finding is the reversal**, and it is worth more than the two lines: a rule about not inventing was
+applied to a value that was not invented.
