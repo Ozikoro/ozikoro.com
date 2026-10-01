@@ -57,6 +57,20 @@
 > |---|---|---|
 > | records linked to an entity | **0** of 1,051 | editorial retagging |
 > | articles with a source attached | **0** of 1,051 | editorial sourcing |
+>
+> **Two corrections to the rows above, measured in round 139, because a zero in one place is not a
+> zero everywhere and not even the same zero:**
+>
+> * **`ozikoro_entity` is itself empty** — 0 rows, with `ozikoro_entity_label` and
+>   `ozikoro_entity_relation` also 0. So it is not that 1,051 records are *unlinked* to a knowledge
+>   graph; **there is no knowledge graph yet.** The earlier phrasing implied entities existed and
+>   awaited linking, which is the more encouraging reading and the wrong one.
+> * **`ozikoro_article` also carries `period_start`, `period_end`, `period_label` and `source_type`,
+>   and all four are 0 of 1,057** — checked because round 138 showed a zero in a link table says
+>   nothing about the columns beside it. Here it did, and the zero holds.
+> * **Two tables are called some version of "source":** `ozikoro_source` (0 rows, the Ozikoro
+>   bibliography this row refers to) and `source` (**10 rows**, the dictionary's). A future reader
+>   must not read one as the other.
 > | publications | **0** | researchers to submit |
 > | archaeology records | **0** | fieldwork and deposits |
 > | media with a licence | **0** of 3,488 | rights decisions |
