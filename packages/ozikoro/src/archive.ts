@@ -178,8 +178,49 @@ function rowToSummary(row: Record<string, unknown>, origin = 'https://ozikoro.co
 // ---------------------------------------------------------------------------
 
 /** One article, with everything the article screen renders. */
+/**
+ * Every spelling of a slug that the same address can arrive as.
+ *
+ * THE PROBLEM THIS SOLVES, AND THE ONE IT DOES NOT
+ *
+ * WordPress stored one article's slug in PERCENT-ENCODED form — `…compound-%c7%b9gwulu…` — while a
+ * browser requesting that address sends the encoding and the router hands the handler the **decoded**
+ * character. The lookup compared the decoded text against the encoded column and found nothing, so a
+ * published article 404'd and the sitemap published the broken address.
+ *
+ * The obvious fix was to rewrite the slug — and it was WRONG. Round 58 tried it: normalising stripped
+ * every non-alphanumeric character **including the `ǹ`**, destroying an Igbo character in a published
+ * address, breaking the guarantee that archived paths survive the move, and weakening the diacritic
+ * search. The archive suite caught it.
+ *
+ * So the slug is left exactly as WordPress published it, and the LOOKUP becomes tolerant instead. The
+ * database keeps the original; the route finds it however the address was written.
+ *
+ * Casing is included because `encodeURIComponent` emits uppercase hex and the import stored lowercase,
+ * which is a difference no reader would ever see and no comparison would forgive.
+ */
+function slugVariants(slug: string): string[] {
+  const variants = new Set<string>([slug]);
+  try {
+    const encoded = encodeURIComponent(slug);
+    variants.add(encoded);
+    variants.add(encoded.toLowerCase());
+  } catch {
+    // A lone surrogate cannot be encoded; the raw form is still tried.
+  }
+  try {
+    variants.add(decodeURIComponent(slug));
+  } catch {
+    // A malformed escape sequence is not a reason to fail the lookup.
+  }
+  return [...variants];
+}
+
 export async function getArticleBySlug(db: Db, slug: string): Promise<ArticleDetail | null> {
-  const row = await db.one<Record<string, unknown>>(`${ARTICLE_SELECT} where a.slug = $1 limit 1`, [slug]);
+  const row = await db.one<Record<string, unknown>>(
+    `${ARTICLE_SELECT} where a.slug = any($1::text[]) limit 1`,
+    [slugVariants(slug)]
+  );
   if (!row) return null;
 
   const id = Number(row.id);

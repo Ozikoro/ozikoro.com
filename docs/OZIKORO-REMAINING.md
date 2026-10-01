@@ -2405,3 +2405,44 @@ their pages return 200. Only the article was affected.
 The failure was caught by a check that already existed and that I ran **after** making the change.
 Four rounds have now been salvaged by running the whole suite rather than the relevant part:
 `just the thing I changed` is exactly the scope in which a change looks correct.
+
+---
+
+## ROUND 59 — THE LOOKUP IS FIXED; THE REQUEST STILL DOES NOT REACH IT
+
+### The fix, which is right
+
+`getArticleBySlug` now tries every spelling the same address can arrive as — the raw form,
+`encodeURIComponent`d, that lowercased (the import stored lowercase hex, `encodeURIComponent` emits
+uppercase, and no comparison would forgive that difference), and the decoded form. The stored slug is
+**left exactly as WordPress published it**, which is what round 58 got wrong.
+
+Verified at the domain level, directly:
+
+    lookup('entrance-…-%c7%b9gwulu-…')   ->  FOUND
+    lookup('entrance-…-ǹgwulu-…')        ->  FOUND
+    stored slug unchanged                ->  entrance-…-%c7%b9gwulu-…
+
+### But the HTTP request still 404s, and I am not going to claim otherwise
+
+    /entrance-…-%c7%b9gwulu-…/     404
+    /entrance-…-%C7%B9gwulu-…/     404
+    a genuinely missing article    404
+
+The route passes `params.slug` straight to `getArticleBySlug` with no decoding of its own, and the
+lookup succeeds for both forms — so **the request is not reaching the lookup**, and the cause is in the
+routing layer rather than in the query. That is as far as I got.
+
+### What is known, and what is not
+
+Known: the query is correct and tolerant; the stored data is intact; the archive suite passes, so the
+address invariant holds; labels and media repaired in round 58 still return 200.
+
+Not known: **why Next does not match or does not dispatch this path.** Candidates worth testing next —
+whether the router rejects a segment containing a `%` escape, whether the decoded segment arrives as
+something other than either spelling, whether `generateMetadata` fails first and takes the page with it,
+and whether the middleware's `x-pathname` rewrite interferes. Each is a small, separate experiment.
+
+**Recorded rather than guessed at**, and no further change made: the last time I "fixed" this by
+rewriting data, round 58, I destroyed an Igbo character in a published address and the suite caught it.
+A second guess on the same record is not worth the risk of the same mistake twice.
