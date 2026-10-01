@@ -7310,3 +7310,45 @@ were loud and I read them.
 **A negative result that confirms a positive one is worth having.** The rule this file keeps arriving at —
 *check the pattern can match before trusting its silence* — is now matched by its corollary: **when a check
 prints errors, the errors are the result**, and the table under them is not.
+
+---
+
+## ROUND 170 — THE AUDIT CLOSES: EXACTLY ONE POPULATED COLUMN IN TWO LARGE TABLES IS UNREAD
+
+Rounds 168, 169 and 170 are one audit in three parts — is `clan.region`, populated on 187 rows and read by
+nothing, a symptom or an outlier?
+
+    ozikoro_article   every populated column referenced somewhere                  (round 169)
+    ozikoro_media     every populated column referenced somewhere                  (round 170)
+    clan.region       187 rows, 99.5% of published clans, read by nothing          (round 168)
+
+**It is an outlier — one column, in a schema whose columns are otherwise all used.** That is a better
+finding than three unused columns would have been, because it means the archive's data is not quietly
+rotting; **one field was populated by an importer and never wired to a reader.**
+
+### And the media audit produced two fields of the opposite kind
+
+    duration_seconds   0 rows, 0 references     empty AND unused
+    captured_at        0 rows, 0 references     empty AND unused
+
+**Consistent rather than broken** — a column with no data and no display is a column nobody has needed yet,
+not a column neglected. But it is worth naming one of them:
+
+**The archive self-hosts 3,437 media files and the schema has a `duration_seconds` field that is empty.**
+Thirteen videos sit in the archive with no recorded length. **Their durations are measurable from the files
+themselves** — this is the one field in the audit that could be filled without asking anybody, because the
+artefact is here and a duration is a property of it rather than a claim about it.
+
+**Not filled**, because thirteen videos is small enough that the tooling would cost more than the gap — and
+because a `duration_seconds` populated on 13 rows and empty on 3,475 is a worse state than an empty field
+nobody reads.
+
+### What the whole audit says, three rounds on
+
+    asked      is a populated-but-unread column general or specific?
+    answered   specific — one, clan.region, in two large tables otherwise fully wired
+    learned    empty-and-unused is not the same as populated-and-unread, and neither is a defect
+    learned    the same check needed fixing once (round 169) before its result could be believed
+
+**Only one of the four findings across the three rounds was a real gap**, and the audit's value is that it
+says so with a count rather than a worry.
