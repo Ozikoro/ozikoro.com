@@ -2363,3 +2363,45 @@ what I had printed rather than what was there.**
 `normaliseTopicSlug` is applied to **categories only**. Articles, labels and media still take their slug
 verbatim on import, so the next import will reintroduce this. The helper should be renamed and applied
 at every slug source — that is the durable fix, and the data is now clean so it can be done calmly.
+
+---
+
+## ROUND 58 (CONTINUED) — MY REPAIR WAS WRONG FOR THE ARTICLE, AND THE SUITE SAID SO
+
+After the data repair, `verify-all.sh` reported **1 suite FAILED**. I had been about to write the round up
+as a success. The failure was the archive suite, and it was right:
+
+    ✗ every record keeps its exact original path, so no redirect is needed
+      — 1 differ, e.g. /entrance-to-an-igbo-compound-%c7%b9gwulu-onitsha-1903-1918-herbert-wimberley/
+
+The objective requires archived addresses to serve 200 **exactly as WordPress published them**, and the
+suite enforces it. My normaliser had rewritten the article's slug by stripping every non-alphanumeric
+character — **including the `ǹ`**. So the fix had:
+
+* destroyed an Igbo character in a published article's address,
+* broken the guarantee that migrated addresses survive, and
+* quietly weakened the diacritic search this project spent a round on.
+
+**A repair that loses the character is not a repair.** The article's slug has been restored to the
+original and the suite is green again. Its page still 404s — that is the pre-existing bug, not a new one.
+
+### What the real fix is, and why it is not this
+
+The article is unreachable because `getArticleBySlug` looks up the **decoded** request segment, while the
+database holds the **encoded** text. So the route should try both forms — the raw segment and its
+decoded form — and leave the stored slug exactly as WordPress published it.
+
+I did not attempt that here. It needs the lookup, the route, and the suite's comparison changed together,
+and doing it with the context left would have risked a second half-fix on a published record. **Recorded
+rather than rushed**, which is the same call made in round 52.
+
+### The labels and media repairs stand
+
+They do not breach the address invariant — the archive suite passes with all 11 of them in place — and
+their pages return 200. Only the article was affected.
+
+### The lesson, which is the one this project keeps teaching
+
+The failure was caught by a check that already existed and that I ran **after** making the change.
+Four rounds have now been salvaged by running the whole suite rather than the relevant part:
+`just the thing I changed` is exactly the scope in which a change looks correct.
