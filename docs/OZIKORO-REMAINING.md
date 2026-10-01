@@ -4443,3 +4443,50 @@ never asked *original of what?* — a measurement correct about the wrong object
     check-body-links    refuses to pass having matched no anchors
 
 **Seven checks, and every one now distinguishes "found nothing wrong" from "did not look."**
+
+---
+
+## ROUND 105 — ALL SEVEN GUARDS, EACH SHOWN TO FIRE
+
+Rounds 102 to 104 gave the checks that report success on finding nothing a guard against *not having
+looked*. Round 104 claimed the set was complete. This round **tested the claim instead of restating it**,
+and two of the seven had never been shown to fire.
+
+    check-links        against a port with nothing listening
+                       -> exit 2   NOTHING WAS CHECKED — the walker did not reach a single page. Not a pass.
+
+    check-assets       against the same port
+                       -> exit 2   NO ASSETS MATCHED across 5 pages — the extractor is wrong, not the site.
+                                   Not a pass.
+
+    check-body-links   with the extractor made to match nothing
+                       -> exit 2   NO ANCHORS MATCHED ANYWHERE — the extractor is wrong, not the archive.
+                       restored
+                       -> exit 0   DISTINCT DEAD : 0
+
+### The full set, every one verified rather than assumed
+
+    check:secrets        exit 2 when its pattern cannot match a known-positive sample   (round 102)
+    check:residue        exit 2 when it scans no tables                                 (round 103)
+    check:capabilities   exit 2 when it extracts no capability names                    (round 104)
+    check:links          exit 2 when it reaches no pages                                (round 105)
+    check:assets         exit 2 when it matches no assets                               (round 105)
+    check:sitemap        exit 2 when the sitemap lists nothing / is unreachable         (round 68)
+    check-body-links     exit 2 when it matches no anchors                              (round 105)
+
+**Seven checks, seven tested guards.** Each distinguishes *"found nothing wrong"* from *"did not look"*, and
+for each one that distinction has been demonstrated by making it look at nothing and watching it refuse.
+
+### Why testing the guards was worth a round of its own
+
+Rounds 102 to 104 established the guards by writing them and reasoning about them. **A guard that does not
+fire is indistinguishable from a guard that is not needed** — and this file has recorded thirteen
+occasions where a check was confidently wrong precisely because nobody made it fail on purpose.
+
+Two of the seven had never been exercised. Both fired correctly, which is a good outcome and was not a
+foregone one: round 104's own guard failed to fire twice before it was fixed, for two different reasons.
+
+**The distinction the whole set exists to preserve:**
+
+    "nothing matched"  is evidence, when the pattern is known to work
+    "nothing matched"  is noise,    when it is not
