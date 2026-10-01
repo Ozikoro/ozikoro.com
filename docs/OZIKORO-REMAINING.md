@@ -1330,3 +1330,29 @@ dictionary application, is outside this objective's scope, and is left to whoeve
 
 `apps/ozikoro` — 0 tracked files out of 103, now 101 tracked and committed as `ccd316f`. That finding
 stands and was worth acting on.
+
+---
+
+## ROUND 36 — DEMONSTRATION CONTENT CANNOT BE MISTAKEN FOR THE SITE
+
+The objective's constraint is explicit: *"never label demonstration content as real."* The delivered
+design includes 37 screens of it — fabricated dashboards, researcher profiles, donation and investor
+pages, all with invented names and figures. It is served from `/design/screens/` because the approved
+design has to remain readable as the reference implementation. Three checks, all passing:
+
+    no app page links to /design/screens/       the only /design/ references in the app are the two
+                                                stylesheet <link>s that apply the design
+    robots.txt                                  Disallow: /design/   (line 17, with the reason
+                                                recorded beside it)
+    all 37 screens carry their own noindex      37 of 37
+
+So the demonstration content is isolated three ways over: nothing on the real site leads to it,
+crawlers are told not to index it, and each page declares `noindex` for itself should the first two
+ever be missed. **A reader cannot arrive at invented content from a real page, and a search engine
+cannot surface it.**
+
+Worth noting for the next round: the stylesheet links are the one legitimate `/design/` reference, and
+`Disallow: /design/` therefore blocks crawling of the CSS as well. That is harmless — stylesheets are
+not indexed — but it is the reason the rule is `/design/` and not `/design/screens/`.
+
+### Nothing further was changed this round
