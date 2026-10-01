@@ -85,7 +85,8 @@
     "check:body-links": "node scripts/check-body-links.mjs",
     "check:assets": "bash scripts/check-assets.sh",
     "verify:live": "bash scripts/verify-live.sh",
-    "check:secrets": "bash scripts/check-secrets.sh"
+    "check:secrets": "bash scripts/check-secrets.sh",
+    "account:create": "node scripts/create-account.ts"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",

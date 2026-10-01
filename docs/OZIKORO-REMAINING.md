@@ -5660,3 +5660,52 @@ before it became a habit (31, 70, 86), and every measurement above was taken the
 
 **Two runners, because the suites take the PGlite lock and the server-dependent checks need it up** — a
 split that round 90 established and every round since has kept.
+
+---
+
+## ROUND 132 — THE BLOCKER FROM ROUND 128 IS NOW ONE COMMAND
+
+Round 128 found the `account` table empty and stopped, correctly: creating accounts means deciding who they
+are, and an invented account would let a real byline be claimed by nobody. **The addresses are still the
+owner's to provide.** What was missing was the ability to act once they arrive.
+
+Everything needed already existed in `@ozituma/db` — `createAccountAsAdmin` validates the address,
+validates the password, defaults the role and refuses a duplicate. **The only caller was an Ozituma admin
+route**, so creating an Ozikoro account meant going through another site's UI. There was no script, and no
+`npm` entry.
+
+### `npm run account:create`
+
+    node scripts/create-account.ts <email> [role] [--name "Display Name"] [--password …] [--dry-run]
+
+Generates a password and prints it once unless one is given. Roles: `contributor`, `editor`, `admin`,
+`owner`.
+
+**It cannot invent anybody.** An address must be supplied, must look like an address, and must not already
+exist — so it cannot be used to populate the table with fixtures, which is the constraint round 128 was
+right to stop at.
+
+### Two bugs found by testing it rather than by reading it
+
+**A sentinel that became a real index.** The positional arguments were filtered with
+`i !== passAt + 1`, and when `--password` was absent `passAt` was `-1`, so `passAt + 1` was **`0`** — a
+perfectly valid index. The first argument was discarded whenever the flag was absent, which is the common
+case: the email vanished and the next word became the email, so a dry run printed *"would create editor as
+contributor"*. The guard is `passAt >= 0 && …`, and it is tested with **and without** each optional flag.
+
+**A dry run that accepted what the real call refuses.** It claimed in a comment to *"validate exactly what
+the real call validates"* and only checked for an existing account — so `not-an-email` passed the dry run
+and would have thrown on the real one. The email check is now mirrored from `admin.ts:95`, with the
+duplication named so it can be found when the original changes. **A dry run that accepts what the real
+call refuses is worse than no dry run, because it is believed.**
+
+### Verified, and nothing written
+
+    no args 2    bad role 2    malformed email 2
+    valid, no flags 0    with --name 0    with --password 0
+    ACCOUNT_ROWS = 0
+
+The role check matters more than it looks: `createAccountAsAdmin` **silently falls back to `contributor`**
+for a role it does not recognise, so a typo would have created a contributor and said nothing.
+
+**When the eleven addresses arrive, it is eleven commands — and the first can be a `--dry-run`.**
