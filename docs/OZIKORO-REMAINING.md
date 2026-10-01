@@ -6685,3 +6685,56 @@ The gateway, the compose and the mail were integrations this session could have 
 decisions with legal weight** — what the privacy notice says, what the terms bind a contributor to, whether
 registration is open or invitation-only. Round 155's job was to find them; writing a privacy notice for
 somebody else's archive is not a thing this session can do without inventing.
+
+---
+
+## ROUND 156 — NO FAVICON, AND ONE GAP I CHECKED AND FOUND WAS NOT THERE
+
+Round 155 found five absences by comparing the two apps. This round compared the **structural files** — and
+the first thing it found is that Ozikoro has *more* of them than the dictionary does.
+
+    file                apps/web   apps/ozikoro
+    robots.ts              no          yes
+    sitemap.ts             no          yes
+    not-found.tsx          no          yes
+    error.tsx              no          no
+    loading.tsx            no          no
+
+Three files the archive has and the dictionary does not, which is worth stating because the comparison runs
+both ways and this round was looking for deficits.
+
+### The gap I nearly reported and did not
+
+The survey searched for `opengraph-image.tsx` — Next's file-convention route for generated social images —
+and found none in either app. **That is the wrong probe for this codebase**, and checking before claiming it:
+
+    apps/ozikoro/app/layout.tsx:37     openGraph: { … }
+    apps/ozikoro/app/[slug]/page.tsx   images: [{ url: article.imageUrl, alt: article.imageAlt ?? article.title }]
+
+**Social images are set in metadata, per article, with alt text.** There is no gap. A file-convention search
+cannot see a metadata implementation, and **round 101's lesson was exactly this** — a pattern that looks for
+one spelling and reports absence for everything else.
+
+### The gap that is real
+
+    apps/ozikoro/public/           a11y.css · design/     — and nothing else
+    apps/ozikoro/public/design/    no icon, no logo, no .ico, no .svg mark
+    apps/ozikoro/app/layout.tsx    declares no `icons`
+
+And next door:
+
+    learn/public/favicon.ico · favicon.svg · favicon-16x16.png · favicon-32x32.png · favicon-48x48.png
+
+**Ozikoro serves no favicon at all**, so every browser tab shows a blank default, and the estate has a full
+brand set one application away. The delivered design did not include one either — the design folder has
+styles and nothing else, which is why this was never noticed as a missing asset.
+
+### Why it is recorded rather than fixed
+
+**Ozikoro and Ozituma are different products.** Copying the dictionary's mark into the archive would brand
+the archive as the dictionary — and while both carry *"© 2026 Ozikoro"*, whether one organisation needs two
+marks or one is a **branding decision, not a copy step**.
+
+> **This is the fifth instance of the same pattern in nine rounds** — rounds 148, 149, 153, 154 and now this
+> one: a capability, an asset or a machine that exists in the estate and Ozikoro is not connected to. Four
+> were engineering. **This one is a decision**, which is the distinction the pattern keeps producing.
