@@ -2012,3 +2012,47 @@ still the outstanding piece**, and the reason is unchanged: the integration suit
 live access to the WordPress site being replaced, or a seeded fixture.
 
 This script is what CI would call once one of those exists.
+
+---
+
+## ROUND 52 — A FIXTURE COULD RUN HALF THE ARCHIVE SUITE, AND ROUNDS 50–51 SAID OTHERWISE
+
+Rounds 50 and 51 both recorded that the integration suites cannot run in CI because they assert real
+numbers and "a seeded fixture does not exist". **That was too broad, and measuring the suite shows why.**
+
+`test-archive.ts` makes two different kinds of assertion, and only one kind needs the real archive:
+
+    NEEDS THE REAL ARCHIVE            articles >= 1000      contributors == 11
+                                      media >= 3400         topics == 14
+                                      labels >= 11000       withImages > 1000
+
+    HOLDS ON ANY DATASET              no record lost its slug
+                                      no record lost the address it was published at
+                                      no record lost its author
+                                      no record lost its body
+                                      every record is searchable
+                                      no two records share an address
+                                      no archive record is shadowed by a site route
+
+The first group answers **"did the migration actually happen?"** — a question only the real archive can
+answer, and one that is already answered every time it runs here.
+
+The second group answers **"is the data structurally sound?"** — and those are invariants that hold for
+*any* dataset, fixture or archive. They are the assertions that would catch a regression in the
+migration or the sanitiser, and they are exactly the ones worth having in CI.
+
+**So the split is the work, not a fixture.** Putting the first group behind a condition — run them when
+the archive is present, skip with a clear message when it is not — would let CI run the structural half
+today, with no 72 MB commitment and no dependency on the WordPress site being replaced.
+
+### Why this was worth re-examining
+
+Rounds 50 and 51 accepted "a fixture does not exist" as a reason and moved on. The reason was true and
+the conclusion did not follow from it: the suites needed *splitting*, not *seeding*. **Checking what a
+test actually asserts — rather than what its file is called — is the same discipline that turned up the
+false positives in rounds 17, 18, 22 and 42.**
+
+### Not done
+
+The split itself. It touches `test-archive.ts`, `test-members.ts` and the other archive-dependent
+suites, and it should be done deliberately rather than at the end of a session.
