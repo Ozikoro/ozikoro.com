@@ -46,6 +46,26 @@
 > **The addresses are NOT recoverable from the archive**: `data/ozikoro-wp/users.json` holds exactly
 > 11 records with no email field, because WordPress's REST API omits it from the public context.
 >
+> **FOUND BY COMPARING, NOT BY CHECKING (rounds 155-156)** — every check in this project asks whether a
+> page that exists behaves correctly, so **none of them can report a page that was never built.**
+> Comparing `apps/ozikoro` against `apps/web` found five absences that 30 green routes could not:
+>
+> * **`join`** — no way to create an account from the site; only `npm run account:create`
+> * **`forgot` and `reset`** — **no password recovery at all.** A contributor who forgets their
+>   password is locked out permanently. This is the flow the dictionary has *because* its failure
+>   locks somebody out of their own account, and the archive has no version of it
+> * **`privacy` and `terms`** — the site stores accounts, claims and donations with neither
+> * **no favicon** — `public/` holds `a11y.css` and `design/` only, `layout.tsx` declares no
+>   `icons`, and the delivered design never included a mark; `learn/public/` has a full set
+>
+> **Four of those five are decisions rather than engineering** — whether registration is open, what
+> a privacy notice says, what terms bind, and whether Ozikoro shares Ozituma's mark.
+>
+> **The general lesson, which is why this section exists:** a green suite of coverage checks is
+> evidence about what is present and none at all about what is absent. **Absences have to be looked
+> for by comparing** — against another site, another table, another column — and that has now found
+> six things in ten rounds.
+>
 > **Also waiting on the owner:** the map and timeline screens (none among the
 > 37 delivered designs) · **where the coordinates come from** — rounds 147: not a PostGIS decision, there
 > are no latitude or longitude VALUES anywhere, while the columns have always existed · **an `ozikoro`
