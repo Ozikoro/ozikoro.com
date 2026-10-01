@@ -4273,7 +4273,7 @@ Mutation-tested by breaking the pattern the way a typo would —
 
 ### And writing it triggered the very bug it documents
 
-The first version planted the sample whole — `SAMPLE='AKIAIOSFODNN7EXAMPLE'` — and the check **immediately
+The first version planted the sample whole — `SAMPLE='AKIA…'` written whole (the literal is not reproduced here — see below) — and the check **immediately
 failed on itself**: the detector's own source is a tracked file, so a credential-shaped string inside it
 made the scan fire on the script.
 
@@ -4338,3 +4338,47 @@ suddenly reached 40 would now be visible instead of reassuring.
 **`check:capabilities` has the same shape.** It reads capability names from the source and reports "every
 capability is granted"; if the extraction returned no names, it would pass on every input. That is the same
 guard, and it is the next one to write.
+
+---
+
+## ROUND 103 (CONTINUED) — THE CHECK I HARDENED BROKE ON MY OWN WRITE-UP, AND THE ORDER HID IT
+
+The residue guard was committed as `9d5fd03`, and the verification printed **`1 suite(s) FAILED`** — which I
+nearly read past, because I was looking at the residue line.
+
+The failing check was **`no committed credentials`**, and the cause was round 102's own entry in this file:
+
+    docs/OZIKORO-REMAINING.md:4276
+    The first version planted the sample whole — `SAMPLE='AKIA…'` — …
+
+**In round 102 I fixed the check's self-match by making its sample non-literal, and then wrote the literal
+sample into the handover — which is a tracked file.** The check fired on its own documentation, exactly as
+it had fired on its own source one round earlier.
+
+### Why the previous round did not catch it
+
+In round 102 the order was:
+
+    1. run verify-all.sh      -> green
+    2. append the write-up to this file, quoting the sample
+    3. git add + commit
+
+**The verification ran before the change.** So it could not have caught it, and the green result was
+evidence about a tree that no longer existed by the time the commit was made. The failure surfaced only
+when round 103 ran the suite against the committed state.
+
+**A check run before the edit is a check of a different repository.** That is the same shape as round 70's
+piped exit code — a result that was true of something other than the thing being judged — and it is the
+twelfth time this file has recorded a measurement that was correct about the wrong object.
+
+### Fixed, and the fix is documented in the entry that caused it
+
+The literal is redacted from this file, and the redaction is deliberate rather than cosmetic: **writing the
+sample out in full is what makes the check fire on its own documentation.** The script keeps its
+concatenated sample; this file now refers to it without reproducing it. Verified: zero occurrences
+anywhere, `check:secrets` exit 0, and all 20 steps green.
+
+### The rule, which is cheap and would have prevented it
+
+**Run the verification last, after every artefact is in place and staged** — or re-run it after writing,
+because prose is an artefact. Twice now a green suite has described a tree that was about to change.
