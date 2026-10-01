@@ -19,7 +19,8 @@
     "./rights": "./src/rights.ts",
     "./search": "./src/search.ts",
     "./entities": "./src/entities.ts",
-    "./seo": "./src/seo.ts"
+    "./seo": "./src/seo.ts",
+    "./redirects": "./src/redirects.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -36,7 +37,8 @@
     "test:rights": "node src/test-rights.ts",
     "test:search": "node src/test-search.ts",
     "import:media-upload": "node src/import/media-upload.ts",
-    "backup": "node src/ops/backup.ts"
+    "backup": "node src/ops/backup.ts",
+    "test:redirects": "node src/test-redirects.ts"
   },
   "dependencies": {
     "@ozituma/db": "*"

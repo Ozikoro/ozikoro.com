@@ -48,3 +48,4 @@ export * from './rights.ts';
 export * from './search.ts';
 export * from './entities.ts';
 export * from './seo.ts';
+export * from './redirects.ts';

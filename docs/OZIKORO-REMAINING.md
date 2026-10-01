@@ -1780,3 +1780,45 @@ queries by id.
 Both were caught by running the suite and reading the failure, not by reviewing the diff. **A test that
 passes for the wrong reason is more dangerous than no test**, because it converts an untested claim
 into an apparently verified one.
+
+---
+
+## ROUND 47 — THE OPEN-REDIRECT FIX IS NOW TESTED, BY MOVING IT SOMEWHERE TESTABLE
+
+Round 46 established that a security fix without a regression test reverts quietly. Rounds 41–43 each
+made a fix; only round 44's had a test. This round closed the most important of the rest.
+
+### Why it could not simply have a test added
+
+`safeRedirectPath` was a private function inside `apps/ozikoro/lib/access.ts`. That file imports the
+database client, and `apps/ozikoro` has **no test harness at all** — no test files, no test script. A
+security decision that cannot be tested is one that reverts the next time somebody tidies the file.
+
+So the function moved into `@ozikoro/platform`, where every other piece of logic in this project is
+tested, and `access.ts` imports it. There is still exactly one implementation and the call site is
+unchanged.
+
+### The tests, and the cases an obvious implementation gets wrong
+
+    19 checks, all passing
+
+    https://evil.example      refused          the obvious case
+    //evil.example            refused          protocol-relative — ABSOLUTE despite starting with /
+    /\evil.example            refused          some browsers normalise \ to /
+    javascript: / data:       refused
+    bare host                 refused
+    /  /admin/  /search/?q=…  kept             legitimate paths untouched
+    empty / whitespace        becomes /        awkward input is not a hole
+    '  https://evil…  '       refused          padding does not smuggle it through
+
+The protocol-relative case is the one worth having a test for. It is why the check is not simply "does
+it begin with a slash" — the check that looks correct and is not.
+
+### Still untested, and now recorded as such
+
+* **Round 42's origin guard** on four routes — no test. It is exercised only by hand.
+* **Round 43's sign-in rate limit** — no test. `rate-limit.ts` has no test file, and the limiter's
+  two-key behaviour (the account key surviving `x-forwarded-for` rotation) is exactly the kind of thing
+  a refactor would break silently.
+* Both live in `apps/ozikoro`, which has no test harness. **Giving that application a test script is
+  the prerequisite for both**, and is the next thing to do here.

@@ -2,7 +2,7 @@
   "name": "ozituma",
   "version": "0.1.0",
   "private": true,
-  "description": "Ozituma — the Ozikoro language platform. A multi-language African dictionary, pronunciation and translation platform with its own public developer API.",
+  "description": "Ozituma \u2014 the Ozikoro language platform. A multi-language African dictionary, pronunciation and translation platform with its own public developer API.",
   "license": "SEE LICENSE IN LICENSE.md",
   "workspaces": [
     "packages/*",
@@ -70,7 +70,7 @@
     "test:ozikoro": "npm -w @ozikoro/platform run test && npm run test:ozikoro-data",
     "import:ozikoro-wp": "npm -w @ozikoro/platform run import:wordpress",
     "import:ozikoro-archive": "npm -w @ozikoro/platform run import:archive -- --apply",
-    "test:ozikoro-data": "npm -w @ozikoro/platform run test:archive && npm -w @ozikoro/platform run test:members && npm -w @ozikoro/platform run test:editorial && npm -w @ozikoro/platform run test:publications && npm -w @ozikoro/platform run test:rights && npm -w @ozikoro/platform run test:search && npm run test:spotify",
+    "test:ozikoro-data": "npm -w @ozikoro/platform run test:archive && npm -w @ozikoro/platform run test:members && npm -w @ozikoro/platform run test:editorial && npm -w @ozikoro/platform run test:publications && npm -w @ozikoro/platform run test:rights && npm -w @ozikoro/platform run test:search && npm -w @ozikoro/platform run test:redirects && npm run test:spotify",
     "import:media-store": "npm -w @ozikoro/platform run import:media-store -- --apply",
     "import:media-upload": "npm -w @ozikoro/platform run import:media-upload",
     "backup": "npm -w @ozikoro/platform run backup",

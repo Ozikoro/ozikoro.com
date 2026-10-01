@@ -9,7 +9,8 @@
  * row or calls Spotify before it has passed.
  */
 import { getDb } from '@ozituma/db/client';
-import { can, capabilitiesFor } from '@ozikoro/platform';
+import { can, capabilitiesFor, safeRedirectPath,
+} from '@ozikoro/platform';
 import { redirect } from 'next/navigation';
 import { getCurrentAccount, type CurrentAccount } from './session';
 import { isAdmin } from '@ozituma/db/accounts';
@@ -27,32 +28,6 @@ export type GuardResult =
  * record was not selected and the notice never appeared. It looked like the save had failed when it
  * had worked.
  */
-/**
- * A path on this site, or `/`.
- *
- * An OPEN REDIRECT was possible here. `redirectTo` put its `path` argument straight into a `Location`
- * header with no validation, and several form endpoints pass a user-controlled `returnTo` field to it
- * — so an authenticated POST carrying `returnTo=https://evil.example/phish` answered `303` with that
- * absolute URL, letting a trusted domain forward a reader to an attacker's page. That is the standard
- * shape of a phishing link that looks like it came from the archive.
- *
- * The auth route already guarded its own `?next=` through `safeNext`; the other endpoints did not, and
- * patching each of them would leave the next one to be written unprotected. The check belongs at the
- * single point every redirect goes through.
- *
- * `//evil.example` is refused as well as `https://evil.example`: a protocol-relative URL is absolute
- * even though it begins with a slash, and it is the version a naive `startsWith('/')` check misses.
- * A backslash is refused because some browsers normalise `\` to `/` and would then treat
- * `/\evil.example` as protocol-relative.
- */
-function safeRedirectPath(path: string): string {
-  const candidate = (path ?? '').trim();
-  if (candidate.startsWith('/') && !candidate.startsWith('//') && !candidate.includes('\\')) {
-    return candidate;
-  }
-  return '/';
-}
-
 export function redirectTo(path: string, params: Record<string, string> = {}): Response {
   const target = safeRedirectPath(path);
   const search = new URLSearchParams(params).toString();
