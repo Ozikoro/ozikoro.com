@@ -201,6 +201,24 @@ function rowToSummary(row: Record<string, unknown>, origin = 'https://ozikoro.co
  */
 function slugVariants(slug: string): string[] {
   const variants = new Set<string>([slug]);
+  /*
+   * The raw slug LOWERCASED, and this is the line that mattered.
+   *
+   * Measured by logging what the route actually receives: Next hands over the segment still
+   * percent-encoded, with **uppercase** hex —
+   *
+   *     "entrance-…-compound-%C7%B9gwulu-…"      codepoints … 25 43 37 25 42 39 …
+   *
+   * — while the import stored the same thing in **lowercase**, `%c7%b9`. Neither the slug as given,
+   * nor its encodeURIComponent form (which escapes the literal `%` to `%25`), nor the decoded form
+   * matched. The lookup returned NULL and the page 404'd, for a difference of letter case inside a
+   * percent-escape that no reader could ever see.
+   *
+   * Every earlier theory — routing, the middleware, non-ASCII dispatch, the encoding itself — was
+   * eliminated by experiment before this one line was found. It is `toLowerCase()` on the slug rather
+   * than on a re-encoded copy, and that distinction is the whole bug.
+   */
+  variants.add(slug.toLowerCase());
   try {
     const encoded = encodeURIComponent(slug);
     variants.add(encoded);

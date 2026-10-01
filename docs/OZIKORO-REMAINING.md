@@ -2587,3 +2587,58 @@ That is now the specific thing to chase, with one record to chase it in.
 The probe row was deleted immediately and `check:residue` confirms the table is clean. The probe used
 the `zztest` prefix deliberately, so that forgetting to remove it would fail verification rather than
 sit in the database.
+
+---
+
+## ROUND 63 — FOUND IT: A DIFFERENCE OF LETTER CASE INSIDE A PERCENT-ESCAPE
+
+Rounds 57 to 62 chased this. Every theory was tested and eliminated — until a temporary log in the route
+showed what it actually receives:
+
+    [probe] received slug = "entrance-to-an-igbo-compound-%C7%B9gwulu-onitsha-1903-1918-herbert-wimberley"
+            codepoints = … 25 43 37 25 42 39 …        (% C 7 % B 9)
+    [probe] lookup returned NULL
+
+**Next hands the segment over still percent-encoded, with UPPERCASE hex**, and the import stored the
+same thing in **lowercase** — `%c7%b9`.
+
+`slugVariants` already contained:
+
+    slug as given                        …%C7%B9…      no match
+    encodeURIComponent(slug)             …%25C7%25B9…  the literal % escaped to %25 — no match
+    that lowercased                      …              no match
+    decodeURIComponent(slug)             …ǹ…           the database holds encoded text — no match
+
+**None of them was the lowercased slug itself.** One line was missing.
+
+### The fix
+
+    variants.add(slug.toLowerCase());
+
+`toLowerCase()` on the slug rather than on a re-encoded copy — and that distinction is the whole bug.
+
+### Verified
+
+    /entrance-…-%c7%b9gwulu-…/   lowercase, the address WordPress published  ->  200
+    /entrance-…-%C7%B9gwulu-…/   uppercase                                   ->  200
+    /entrance-…-ǹgwulu-…/        raw UTF-8                                   ->  200
+    /no-such-article-anywhere/   a genuinely missing article                 ->  404
+
+And the stored slug is **byte-for-byte what WordPress published** —
+`…compound-%c7%b9gwulu-…` — which is what rounds 58 and 59 were about. The fix is in the lookup, not in
+the data. All 18 verification steps pass; the archive suite's address invariant holds.
+
+### What this cost, and what it was worth
+
+    round 57  found it via the link checker; fixed the wrong half
+    round 58  "fixed" it by rewriting the slug — stripped an Igbo character; the suite caught it
+    round 59  made the lookup tolerant — correct, but insufficient
+    round 60  eliminated routing, encoding and the middleware by experiment
+    round 61  eliminated the middleware definitively; hypothesis about non-ASCII left untested
+    round 62  refuted that hypothesis with a purpose-built probe
+    round 63  logged what the route receives — one line, one answer
+
+Six rounds for one character's case. **The rounds were not wasted**: each elimination is now a fact in
+this file rather than a suspicion, and the probe technique that settled it is reusable. But the honest
+lesson is that I spent four rounds on theories before doing the cheapest thing available — **printing the
+value the code actually receives.** That should have been the first experiment, not the seventh.
