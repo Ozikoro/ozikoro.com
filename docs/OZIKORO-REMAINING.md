@@ -7218,3 +7218,55 @@ round whose whole subject was that a capability existed elsewhere in the estate.
     round 167   an integration    -> a data source and some prompts
 
 **Each was smaller than the last, and none of the three was measured before it was written down.**
+
+---
+
+## ROUND 168 — 187 CLANS CARRY A STATE AND OZIKORO REFERENCES NONE OF IT
+
+Round 167's lesson was that I read one file and concluded a directory. Taking the directory listings turned
+up `packages/core/src/regions.ts` — and following it produced the sixth instance of the same pattern.
+
+### What is there
+
+    packages/core/src/regions.ts    IGBO_REGIONS · isIgboRegion · regionDisplay · unknownRegions
+                                    IGBO_VARIETIES · isIgboVariety
+                                    coordinate mentions: 0 — a static list of names in code
+
+    clan.region, on PUBLISHED clans:
+      188 published · 187 with a region          (99.5%)
+      Anambra 38 · Imo 33 · Delta 32 · Enugu 31 · Abia 23 · Ebonyi 18 · Rivers 11 · "Imo and Abia" 1
+
+    grep for IGBO_REGIONS, regionDisplay or .region in apps/ozikoro   ->  nothing
+
+**Every published clan is placed in a Nigerian state, and the archive never mentions it.** The same
+90 label pages that round 142 linked to the dictionary know which state each of those clans is in, and the
+page does not say.
+
+### What that means for item 7, which is where I went looking
+
+    item 7 is "maps and timeline"
+    coordinate values anywhere              STILL NONE — round 147 confirmed again, from another direction
+    clan.region                             187 rows of real geography, by state NAME
+
+**A map still needs geometry, and there is none.** But the *timeline* half of item 7 needs periods, and round
+139 found all four period columns are 0 — so neither half is closer than it was.
+
+**What regions do offer is a grouping that needs no coordinates at all**: 188 clans by state, which is a
+navigable index and an honest one. It is not a map and should not be called one.
+
+### The pattern, sixth instance
+
+    round 148   an AI gateway                     round 153   a mail library
+    round 149   a deployment stack                round 164   the mail library is importable
+    round 167   a grounded retrieval pipeline     round 168   187 clans with states
+
+**Six times, the thing that would move an item forward was already in the database or the packages**, and
+this one is the first that is neither a tool nor a machine but **data** — a column, 99.5% filled, that no
+code in this application reads.
+
+### And why the round-142 link makes it cheap
+
+The lookup already runs. `app/labels/[slug]/page.tsx` queries `clan` for a published row by slug and renders
+a link; **the same row carries `region`, `parent_id`, `states` and `lgas`.** One more field in a select that
+already happens is not a feature, and it is not built here because deciding *what a subject page should say
+about a clan* is editorial, not mechanical — the same line rounds 155 and 156 drew.
