@@ -2714,3 +2714,40 @@ fails the suite rather than silently returning a published article to 404 for ei
 already contains an escape. That test asserts the two are different — which is the reason the raw
 lowercased form had to be added separately instead of being assumed to fall out of the encoding step.
 It documents *why the bug existed*, not merely that it was fixed.
+
+---
+
+## ROUND 66 — THE MAIN NAVIGATION LINKED TO A 404 ON EVERY PAGE
+
+Round 57 built a link checker and capped it at 25 pages. Round 66 ran it at **120** — and it immediately
+found something the small walk could not:
+
+    404    /watch
+    pages checked: 120
+    BROKEN LINKS: 1
+
+`/watch` was in `layout.tsx`, which means **every page on the site carried a link to a 404 in its main
+navigation.** No suite notices that: they assert data and logic, not whether the site's own menu leads
+anywhere.
+
+### The fix was not to remove the link
+
+The design delivers a `watch.html` screen and the archive holds **13 videos**, so the section is real —
+the navigation was pointing somewhere that had never been built. And it did not need building: the media
+listing already supports a `kind` filter, and `/documents/` already reads it.
+
+    <Link href="/watch">Watch</Link>   ->   <Link href="/documents?kind=video">Watch</Link>
+
+Verified: `/documents?kind=video` returns 200 and lists video records.
+
+### The lesson, which is about sample size rather than about links
+
+Round 57 found a real 404 with a 25-page walk and I treated the tool as having done its job. A walk
+capped at 25 pages cannot see a link that appears on *every* page unless it happens to visit one early —
+and it did not, because `/watch` sits in the header of pages the walk reached later.
+
+**A checker's cap is a coverage claim.** The first walk said "25 pages, every internal link resolved",
+which was true and told me almost nothing. This one said "120 pages, every internal link resolved",
+which is four times the evidence.
+
+    after the fix:  120 pages checked, every internal link resolved

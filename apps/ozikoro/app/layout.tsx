@@ -131,7 +131,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Link href="/folklore">Folklores</Link>
                 </li>
                 <li>
-                  <Link href="/watch">Watch</Link>
+                  {/*
+                      "Watch" pointed at /watch, which has never existed — so EVERY page on the
+                      site carried a link to a 404 in its main navigation. The link checker found
+                      it once it was allowed to walk more than 25 pages.
+
+                      The archive already lists its 13 videos at /documents/?kind=video: the media
+                      listing supports a kind filter and the documents page already reads it. So the
+                      section exists and the navigation was simply pointing somewhere else.
+                    */}
+                    <Link href="/documents?kind=video">Watch</Link>
                 </li>
                 <li>
                   <Link href="/documents">Archive</Link>
