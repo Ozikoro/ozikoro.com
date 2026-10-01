@@ -5095,3 +5095,59 @@ the old ones; **there is no way to add a second root layout.** The experiment is
 
 **A defect that was "somewhere in the framework" for four rounds is now one line in a file this project
 owns**, with three ordinary alternatives named.
+
+---
+
+## ROUND 118 — ROUND 117'S MECHANISM IS WRONG, AND TESTING IT SAVED A LARGE CHANGE THAT WOULD HAVE FIXED NOTHING
+
+Round 117 identified `await headers()` in the root layout as the reason the 404's shell is never filled,
+called it "one line in a file this project owns", and named three restructurings as the fix. It also said
+the hypothesis had no additive test.
+
+**Round 116's lesson was that "no test exists" deserves a second look, and it did exist.**
+
+### The two requests that settle it
+
+`/signin` takes the **bare** layout branch and **awaits `headers()`** — the same suspension round 117 blamed
+— but it does not throw. `/about/` takes the **full-chrome** branch and also awaits it.
+
+    /signin    <form> 1   <label> 2   <input> 3   <!--$?--> 0        NOT deferred
+    /about/    <main> 1   <h1> 1                 <!--$?--> 0        NOT deferred
+
+**Neither defers.** Both render completely in the server HTML, inside the very layout that supposedly
+suspends the document.
+
+**`await headers()` is not the cause.** Round 117 was wrong.
+
+### What that means, and why it mattered to find out
+
+Round 117's proposed fix — restructure the root layout so the chrome decision does not read `headers()`,
+via a route group, a client component, or passing the decision down — is a change to **every route in the
+application**, the class that took the site down twice in round 82.
+
+**It would have been a large, risky change that fixed nothing.** The measurement cost two HTTP requests.
+
+### The corrected state
+
+    eliminated   force-dynamic as the rendering mode          (round 116, additive control)
+    eliminated   the async root layout as such                (round 107, normal pages render inside it)
+    eliminated   `await headers()` in the root layout         (round 118 — this round)
+    correlates   ONLY the throw. Every path that throws notFound() defers; every path that returns
+                 does not, in either layout branch.
+
+So it is framework handling of a thrown not-found after all — which round 117 talked itself out of by
+finding a plausible line of code and stopping there.
+
+### The sixteenth confident wrong answer, and the most expensive one avoided
+
+    round 101   a quote on the wrong side of a name
+    round 109   a quoted attribute name
+    round 112   "is it in the file" instead of "is it in what the browser draws"
+    round 117   a plausible cause found by reading code and not tested
+
+Fifteen previous corrections each cost a round. **This one would have cost a restructure of every route,
+and it was caught by two requests made specifically to try to falsify it.**
+
+> **The value of a diagnosis is not how well it explains the evidence — round 117 explained everything —
+> but whether anyone tried to knock it down.** I wrote "one line in a file this project owns" and felt
+> finished. The test took two minutes.
