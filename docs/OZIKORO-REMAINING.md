@@ -6223,3 +6223,43 @@ in this file, and it is worth knowing that the pattern exists in the estate.
     closed      the three sites are live and mutually linked
     NOT closed  Learn -> Ozikoro is absent; the academy's nav reaches the dictionary and not the archive.
                 Whether it should is a design question for the owner, not a defect.
+
+---
+
+## ROUND 146 — ITEM 6 SEARCHES WHAT EXISTS, AND ONE OF ITS SOURCES IS THE EMPTY TABLE
+
+Rounds 137 to 140 recorded that `ozikoro_entity` holds 0 rows, and item 6 is *"universal search across
+entities with Knowledge and Research modes."* That reads like a broken feature. It is not.
+
+### What `searchEverything` actually queries
+
+    from ozikoro_article          the 1,051 records
+    from ozikoro_label            the 11,056 subjects
+    from ozikoro_article_label    the 18,382 links between them
+    from ozikoro_contributor      the 11 authors
+    from ozikoro_entity           0 rows — the one source that returns nothing
+
+**Four populated sources out of five.** Searching a subject finds it, because labels are searched; searching
+an author finds them; searching a title or a phrase finds the record. Only the knowledge-graph arm is
+empty, and it is empty because there are no entities, not because search ignores it.
+
+And the two modes the plan asked for exist and are wired to the URL:
+
+    mode=knowledge   the default
+    mode=research    the other arm
+    kind=…           narrows WHICH kinds within a mode, never how anything matches
+
+### So item 6 is done, with a caveat that is already in this file
+
+    working   article, label, article-label and contributor search, in two modes
+    empty     the entity arm, because ozikoro_entity is empty — item 6's gap is item 3's gap
+
+**The same zero appears in both items**, which is worth noting: "search finds no entities" and "no records
+are linked to an entity" are one absence seen from two directions, not two problems.
+
+### The reversal, one more time, and its limit
+
+Rounds 140 to 145 found three things by asking what **exists** rather than what is missing. This round asked
+the same question of search and found it already complete — **a negative result, and the third time in six
+rounds that checking beat assuming.** The lesson is not that everything is fine; it is that *"this depends on
+an empty table"* and *"this is broken"* are different sentences, and only one of them was true here.
