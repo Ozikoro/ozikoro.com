@@ -3284,3 +3284,46 @@ entirely, such as the `ozikoro_redirect` table that round 75 left blocked on a q
 * **A route that fails to compile does not fail politely.** It removed the entire dev server, so the
   blast radius of a routing mistake is the whole site rather than one page. Worth remembering before
   adding routes that compete with existing ones.
+
+---
+
+## ROUND 82 — THE ROUTER CANNOT EXPRESS THIS FIX, AND THAT IS NOW PROVEN BOTH WAYS
+
+Round 81 tried `app/[parent]/[child]/` and Next refused:
+
+    You cannot use different slug names for the same dynamic path ('parent' !== 'slug').
+
+That left one candidate inside the router: the same name twice. This round tested it.
+
+    [Error: You cannot have the same slug name "slug" repeat within a single dynamic path]
+    / (server alive?) -> 000
+
+**Both spellings are rejected, so `/<parent>/<child>/` cannot be a route in this application at all.**
+Not "is awkward" — impossible. It has an all-dynamic pair, and the route tree already claims depth one:
+
+    app/[slug]                  dynamic at depth 1
+    app/topics/[slug]           static parent, dynamic child
+    app/labels/[slug]           static parent, dynamic child
+    app/documents/[slug]        static parent, dynamic child
+    app/author/[slug]           static parent, dynamic child
+    app/researchers/[slug]      app/publications/[slug]      app/entities/[slug]
+
+A nested dynamic under a dynamic needs **the same name** (forbidden) or **a different name** (forbidden).
+So the 26 attachment permalinks **must be handled outside the router.**
+
+### The two remaining options, both already in this file
+
+* **Middleware.** It runs before routing, which is exactly why the trailing-slash rewrite was put there
+  in the first place. It would need database access, which is not the default runtime.
+* **`ozikoro_redirect`.** The table built in migration 0035 for precisely this — and **still blocked on
+  round 75's question** about what the `/` → `/home/` row is for, because a handler acting on that row
+  would redirect the homepage away from itself.
+
+### The cost of these two attempts, stated plainly
+
+**Each failed route took the entire dev server down** — every URL returning `000`, including pages that
+worked seconds earlier. Both were reverted and the server verified back on six key routes each time.
+
+A routing mistake here is not a broken page; it is a broken site. That is worth knowing before the third
+attempt, and it is the reason the next attempt should be made against the middleware or the table —
+places where a mistake is contained — rather than against the route tree.
