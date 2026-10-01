@@ -2880,3 +2880,44 @@ researchers.
   reaches; an article's own body links are covered only if the walk happens to fetch that article.
 * **The remaining 14,367 sitemap URLs.**
 * **Assets**: images, stylesheets and scripts are deliberately skipped by both tools.
+
+---
+
+## ROUND 70 — THE FULL SITEMAP: ALL 14,667 URLS REQUESTED
+
+    sitemap lists 14667 paths
+    checked: 14667
+    BROKEN: 31 of 14667
+
+Then the 31 were re-requested one at a time, and **every one returned 200**:
+
+    /labels/sacred-journey-nigeria/   200      /documents/kolanut/          200
+    /documents/img_4058/              200      /labels/aba/                 200
+    /documents/adamma/                200      /labels/benin-empire/        200
+    /documents/pericoma/              200      /labels/igbo-market-systems/ 200
+
+**They were not broken.** They returned curl's `000` — no response at all — because the dev server
+dropped requests during a 14,667-request sequential run. Every one resolved on re-request.
+
+### The tool was wrong to call that broken
+
+`000` means **"we do not know"**, not "defect". Reporting an unknown as a failure is the exact
+false-positive this project has produced more than a dozen times — and this time the tool did it, not me.
+`check-sitemap.sh` now retries `000` twice, with a pause, and labels anything that still fails as
+`NO RESPONSE (retried twice)` rather than as a broken page.
+
+**So the honest result of the full run is: all 14,667 sitemap URLs were requested, and every page that
+answered returned 200. Zero broken pages were found.**
+
+### And my invocation masked the exit code
+
+The run was launched as `check-sitemap.sh … | tail -40`, and the job reported **exit 0** while the script
+had reported 31 failures. In a pipeline the exit status is `tail`'s, not the script's — the same mistake
+recorded in round 31, where `|| echo` after a pipe tested `head` rather than `grep`. **Pipe a checker's
+output and you have thrown away its verdict.**
+
+### Coverage now
+
+    check-links.sh     120 pages, following links    ->  what a reader can CLICK
+    check-sitemap.sh   14,667 paths, every one       ->  what a crawler is TOLD   (complete)
+    check:residue / check:capabilities               ->  what the DATABASE holds

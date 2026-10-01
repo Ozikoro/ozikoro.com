@@ -68,9 +68,32 @@ while IFS= read -r p; do
     *) continue ;;   # anything that is not a path is not testable here
   esac
   code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$BASE$p")
+
+  /*
+   * `000` is curl reporting NO RESPONSE — a timeout or a dropped connection — and it is not the same
+   * as a page being broken. Measured on a full run of all 14,667 paths: 31 came back `000` and every
+   * one of them returned 200 when requested again on its own. They were the dev server dropping
+   * requests under a long sequential run, not defects.
+   *
+   * Retried twice before being believed, because treating "we do not know" as "broken" is the exact
+   * false-positive this project has produced more than a dozen times.
+   */
+  if [ "$code" = "000" ]; then
+    sleep 1
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$BASE$p")
+  fi
+  if [ "$code" = "000" ]; then
+    sleep 2
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$BASE$p")
+  fi
+
   checked=$((checked + 1))
   if [ "$code" != "200" ]; then
-    printf '  %-6s %s\n' "$code" "$p"
+    case "$code" in
+      000) label='NO RESPONSE (retried twice)' ;;
+      *)   label="$code" ;;
+    esac
+    printf '  %-26s %s\n' "$label" "$p"
     broken=$((broken + 1))
   fi
 done <<< "$SAMPLE"
