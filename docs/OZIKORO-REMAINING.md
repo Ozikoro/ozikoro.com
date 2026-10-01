@@ -3587,3 +3587,47 @@ shortly after its first run.** The body-link check found 40 dead targets across 
 check found test accounts published as researchers; the capability check found a permission granted to
 nobody; the sitemap check found a topic page unreachable since the import; the link walk found the site's
 own navigation pointing at a 404 on every page.
+
+---
+
+## ROUND 88 — ONE DEAD ASSET, AND THE MECHANISM THAT MAKES IT THE ONLY ONE
+
+Round 71 listed **assets** as covered by nothing, with the reasoning that a broken stylesheet renders the
+site unstyled while every suite still passes. Checked across eight pages:
+
+    distinct asset references : 96
+    non-200                   : 1
+      404  /wp-content/uploads/2020/01/image-1-copyright.jpg
+
+Everything else resolves, including every stylesheet and script.
+
+### The single failure is a residual WordPress path, and it explains itself
+
+**1,027 of 1,057 articles carry raw `wp-content/uploads` paths in `body_html`** — the archive stores the
+original markup verbatim, which is correct and deliberate. Those paths resolve at render time because the
+renderer rewrites them onto this platform's own media origin. That is round 1's "zero hotlinks" holding,
+and it holds for **1,026 of the 1,027**.
+
+This one does not, for a precise reason:
+
+    media rows matching image-1-copyright : 0
+    media rows from uploads/2020/01/       : 0
+
+**The file was never in the archive.** There is no record to rewrite the path onto, so the original
+markup survives into the page and 404s. The reference lives in the migrated WordPress page whose slug is
+`about`.
+
+So this is **not** a migration failure and **not** a rewriting bug. It is a source article linking to an
+image that was not there to migrate — the same class as the three waived body links from round 87, and the
+same answer applies: **the only honest repair is one a person makes after deciding what the page should
+show.** Inventing an image is not available.
+
+### Why the asset check is worth having anyway
+
+Ninety-six references, one dead — and the check took seconds. The failure mode it guards against is the
+quiet one: a moved stylesheet leaves every page unstyled, the HTML still returns 200, and **not one of the
+other five checks would notice**, because they all ask whether pages and links are reachable, never
+whether the page can render.
+
+Not yet folded into `verify-all.sh`: it needs a running server, like the link walk and the sitemap
+sample, so it belongs with those rather than with the offline steps.
