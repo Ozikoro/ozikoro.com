@@ -11,7 +11,8 @@
 > **Verified by exhaustive request, not sampling.** All **14,667** sitemap URLs were requested and every
 > page that answered returned 200 (round 70). The 120-page link walk is clean; 62 referenced assets load.
 >
-> **Done:** media into storage (1) · auth, ten roles and the byline claim path (2) · the editorial queue's
+> **Done:** media into storage (1) · auth, ten roles and the byline claim path (2) — **the machinery is
+> proven end to end, and there are ZERO ACCOUNTS, so nobody can sign in; see the owner list below** · the editorial queue's
 > machinery (3) · the research slice's public and review loop (4) · rights, consent and archaeology schema
 > (5) · search with Knowledge/Research modes (6) · Ozituma entity linking (8) · sitemap, headings, alt text,
 > contrast, JSON-LD, security headers, health endpoint, backup and a restore drill (10) · four real
@@ -31,7 +32,15 @@
 > `force-dynamic` (116), the async layout (107), `await headers()` (118). Only the throw correlates (119).
 > No one-line fix: the good path needs *no route to match*, and a page cannot rewrite.
 >
-> **Blocked on the owner — nothing here will be invented:** the map and timeline screens (none among the
+> **Blocked on the owner — nothing here will be invented:**
+> **THE ELEVEN ACCOUNT ADDRESSES — the most consequential gap in this file.** The `account` table is
+> empty: 11 contributors exist with their WordPress user ids preserved and `account_id` NULL on all of
+> them, 0 claims pending, 0 decided. Round 133 proved address -> account -> password -> session; round
+> 135 proved claimable byline -> pending -> approved -> account linked, using throwaways on both sides
+> and rolling back clean. So the whole of item 2 works and **no one can enter it.**
+> `npm run account:create <email> [role]` does it one address at a time; `--dry-run` first if you like.
+> **The addresses are NOT recoverable from the archive**: `data/ozikoro-wp/users.json` holds exactly
+> 11 records with no email field, because WordPress's REST API omits it from the public context. the map and timeline screens (none among the
 > 37 delivered designs) and the PostGIS decision · `S3_BUCKET` and a server Postgres · nonce-based CSP
 > (**measured: 47 inline scripts per page**) · backup scheduling and off-machine storage · media rights —
 > **0 of 3,488 items has an actual licence** · **what the `/` → `/home/` row in `ozikoro_redirect` is for**
@@ -5891,3 +5900,46 @@ row on the first try.
 failed was my *report of the rollback*, and the residue check caught it exactly as it was built to. **The
 check written in round 54 after test accounts were published as researchers is now the thing that caught
 this round's error, which is the first time one of these has caught me rather than a real defect.**
+
+---
+
+## ROUND 136 — THE RESUME BLOCK SAID ITEM 2 WAS DONE
+
+Round 128 found the `account` table empty. Rounds 132, 133, 134 and 135 built the provisioning command
+and proved the whole chain end to end. **None of that reached the resume block**, which still read:
+
+    > **Done:** … auth, ten roles and the byline claim path (2) …
+
+**A reader would conclude that authentication was finished and that nothing was outstanding.** It is the
+fourth time a claim in this file has been found stale, and the most consequential: the previous three were
+a route count, a check count and a stray count, and **this one would have hidden the single gap that
+matters most.**
+
+### Corrected in two places
+
+**In the summary of what is done**, so the claim cannot be read alone:
+
+    > … and the byline claim path (2) — **the machinery is proven end to end, and there are ZERO
+    > ACCOUNTS, so nobody can sign in; see the owner list below** …
+
+**And in the owner list**, with the precise state and the command:
+
+    THE ELEVEN ACCOUNT ADDRESSES — the most consequential gap in this file.
+    11 contributors exist with their WordPress user ids preserved and account_id NULL on all of them.
+    Round 133 proved address -> account -> password -> session; round 135 proved claimable byline ->
+    pending -> approved -> account linked. So the whole of item 2 works and no one can enter it.
+    `npm run account:create <email> [role]` does it one address at a time.
+    The addresses are NOT recoverable from the archive: users.json holds 11 records with no email field,
+    because WordPress's REST API omits it from the public context.
+
+### Why this one was worth a round of its own
+
+The four earlier staleness rounds were caught by **re-deriving a number**. This one could not be: **"Done"
+is not a number, and nothing about the word invites a second look.** It was found by asking a different
+question — *does this block mention accounts at all?* — rather than by checking a value.
+
+> **The claims that drift furthest are the ones with no number in them**, because a number can be counted
+> and a word cannot. Every "Done", "verified" and "complete" in this file is now worth the same suspicion
+> the counts received, and the counts took seven rounds to settle.
+    
+    All 20 offline steps pass.
