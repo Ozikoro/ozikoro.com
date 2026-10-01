@@ -237,6 +237,51 @@ honest record.
 answer-checking and its own keyboard path. `LessonFlow` already has a working match stage to lift
 from, and `exercise-data.ts` already has a sentence builder for `order`.
 
+## 4c. Security posture — what the GitHub alerts actually are
+
+Two separate things get reported as "the security alerts", and they need different answers.
+
+### The learn app: 18 advisories, none exploitable here
+
+```
+critical: 0    high: 0    moderate: 4    low: 14
+```
+
+Every moderate is `esbuild`, reached transitively through
+`@esbuild-kit/esm-loader` ← `drizzle-kit` (a devDependency). Both advisories are
+**development-server** issues:
+
+- `GHSA-67mh-4wv8-2f99` — any website can read responses from the esbuild dev server
+- `GHSA-g7r4-m6w7-qqqr` — arbitrary file read from the dev server on Windows
+
+Both require RUNNING `esbuild --serve`. **npm reports "No fix available"**, so there is nothing to
+upgrade to.
+
+**Not exploitable in production, and verified rather than assumed:** none of the four deployed
+client bundles contains `esbuild` at all, and the shipped artifact is a Cloudflare Worker — the
+esbuild dev server never runs there.
+
+### `master`: 30 Dependabot alerts on a different application
+
+The org's `master` branch is `ozituma-dictionary` — Next.js 16, React 19, a July dependency set.
+Those 30 advisories (4 critical, 14 high, 12 moderate) are version-bump alerts against THAT app.
+
+**They are not the learning platform's**, they are not on the branch this work went to, and clearing
+them means a dependency upgrade of a separate Next.js application. Recorded here rather than fixed
+blindly: an upgrade across a framework boundary on a branch nobody is currently working in is a
+change that deserves its own session and its own testing.
+
+### The one that WAS real, and was fixed
+
+A Stripe **test** key was committed in `docs/reference/igbo-api-analysis-raw.md`. GitHub push
+protection refused the push. It was reviewed and allowed by the owner, and is now on a documented
+allowlist in `scripts/check-no-secrets.mjs` — printed on every run, so it stays visible.
+
+**The guard itself was the bigger problem.** It scanned five directories relative to `staging/learn`
+and reported "no secrets in tracked files" while that key sat one level above the scan root. It now
+uses `git ls-files` from the repository root, so the range it checks is exactly what gets pushed.
+Verified: a staged live key fails it (exit 1), a clean tree passes.
+
 ## 5. What M0 does not claim
 
 - The MVP is **built and verified at the data layer and in deployed bundles**, but **not by signing in
