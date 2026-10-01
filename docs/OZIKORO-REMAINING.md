@@ -3536,3 +3536,54 @@ It currently exits 1 on the three known targets, and adding a check that is red 
 issue is how a suite teaches people to ignore it. **It joins the standard run when those three are
 resolved or explicitly waived** — and the reason is recorded here so that decision is visible rather than
 forgotten.
+
+---
+
+## ROUND 87 — THE WAIVER IS EXPLICIT, AND THE CHECK JOINS THE STANDARD RUN
+
+Round 86 left the tool out of `verify-all.sh` because it was red on three known targets. Round 87 makes
+those three an **explicit, visible waiver** and adds the check as step three of nineteen.
+
+    PASS  no test residue
+    PASS  every capability is granted
+    PASS  links inside article bodies        <- new
+    PASS  typecheck
+    …                                       All suites passed.
+
+### Why waive rather than repair
+
+The three dead targets share no shape with each other or with the three families that were fixed, so no
+rule applies. And **repairing them would mean inventing a destination** — redirecting a reader to a page
+the archive does not hold. That is precisely what this project is not allowed to do:
+
+> *Never invent a record, a source, a rights statement, a citation or a statistic.*
+
+**A redirect here would be a fabrication dressed as a fix.** So they are waived, and the waiver is a
+statement that a person who knows what the article meant to link to has not yet looked.
+
+### Why the waiver must print on every run
+
+    DISTINCT DEAD : 0
+
+    WAIVED (3) — known, deliberately not repaired, still reported every run:
+      /how-a-hunter-obtained-money-from-his-friends-the-leopard-goat-bush-cat-…
+      /womens-title-taking-the-iyom-otu-odu-title-in-igbo-culture/
+      /uli-samples-from-awka-district-n-w-thomas-1910-11/
+
+A waiver that silences is indistinguishable from a check that passes. These print under their own heading
+every time, so the count is never mistaken for zero, and the reason each is waived lives in the tool
+beside the list rather than in someone's memory.
+
+### The check itself
+
+    check-links.sh       follows links on pages       -> what a reader can CLICK
+    check-sitemap.sh     samples <loc> values         -> what a crawler is TOLD
+    check-body-links     links written in PROSE       -> what the RECORDS reference
+    check:residue        every table with text        -> what the DATABASE holds
+    check:capabilities   names read from the source   -> what the CODE requires
+
+**Five checks, four of which did not exist thirty rounds ago, and every one found a real defect on or
+shortly after its first run.** The body-link check found 40 dead targets across 91 articles; the residue
+check found test accounts published as researchers; the capability check found a permission granted to
+nobody; the sitemap check found a topic page unreachable since the import; the link walk found the site's
+own navigation pointing at a 404 on every page.

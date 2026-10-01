@@ -55,6 +55,11 @@ echo ""
 echo "  Database hygiene"
 run "no test residue" npm run check:residue
 run "every capability is granted" npm run check:capabilities
+# Links written inside article prose. Different in kind from the other two link checks: these were typed
+# by the original authors against a site that no longer exists, and no walk reaches them unless it opens
+# the article containing them. Round 74 found 40 dead targets this way. Three are waived in the tool, and
+# the waiver prints on every run rather than being silent.
+run "links inside article bodies" npm run check:body-links
 
 echo ""
 echo "  Typecheck"
