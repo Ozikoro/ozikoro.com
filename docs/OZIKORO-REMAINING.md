@@ -6422,3 +6422,51 @@ objective asks for and what the file currently describes as blocked.
 
 **All three named a dependency that was not the obstacle.** In this one the dependency does not merely
 fail to block the work — **it is already satisfied twice over, in a file nobody had opened.**
+
+---
+
+## ROUND 150 — ONE CORRECTION I OWED, AND ONE FALSE ALARM I CAUGHT
+
+Round 149 described the production compose as *"postgres · web · learn · caddy, all four with
+healthchecks."* Counting them structurally rather than reading the grep that produced that line:
+
+    postgres   healthcheck: yes   restart: yes
+    web        healthcheck: NO    restart: yes
+    learn      healthcheck: NO    restart: yes
+    caddy      healthcheck: NO    restart: yes
+
+**Only postgres has one.** What I saw was a single `healthcheck:` line in a grep and generalised it to the
+file. `restart: yes` is not the same thing: it restarts a process that has **exited**, and a container that
+is running but wedged is exactly what a healthcheck exists to catch.
+
+**Corrected: the compose defines four services, one healthcheck and four restart policies.** That is a
+weaker deployment than round 149 implied, and it is the pattern anything added to that file would inherit.
+
+### And the false alarm I nearly reported
+
+The same round-150 pass checked every `${VAR:?…}` the compose requires against the repo's `.env.example`
+files and found **eleven of nineteen "documented in NOWHERE"** — `POSTGRES_PASSWORD`, the SMTP block, the
+AWS keys, the PostHog keys. That would have been a dramatic finding.
+
+**It was my check's narrowness.** The compose says so on line 11:
+
+    # Configuration comes from /opt/ozituma/.env, written at boot from Secrets
+
+And `docs/DEPLOYMENT.md` says:
+
+    Put these in Secrets Manager and inject them as ECS secrets rather than environment values
+
+**The variables are documented — in a deployment procedure and a secrets manager, which is where
+credentials belong.** A repo `.env.example` is the wrong place for a production SMTP password, and my check
+searched three repo files and concluded "nowhere". **Round 95's mistake in a new costume: comparing against
+the wrong scope and reporting the absence as a finding.**
+
+### Why the two belong in one entry
+
+They are opposites and the same lesson. **One was a claim I made from a single grep hit and never counted;
+the other was a claim my check made from a single search scope and never widened.** Round 149's own
+subject was a mis-stated blocker, and both of these are the same failure at one remove — **stating a
+conclusion that the measurement did not cover.**
+
+    corrected   four services, ONE healthcheck, four restart policies
+    retracted   eleven variables "documented nowhere" — they are in Secrets, as they should be
