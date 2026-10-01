@@ -6086,3 +6086,47 @@ implied by the green run above.
     built and verified   the lookup, the conditional link, and its absence on non-clan labels
     measured             the other site's route file exists, and 188 clans are published
     NOT measured         whether https://ozituma.com/clans/<slug>/ actually returns 200
+
+---
+
+## ROUND 143 — THE CHANGE VERIFIED AT SCALE, AND THE SAMPLE THAT LOOKED LIKE A FAILURE
+
+Round 142 changed a page that serves 10,100 URLs and tested it on three. This round ran it against the
+whole live suite and a random sample of the pages it touched.
+
+    verify:live   exit 0 — links · sitemap pages · assets · the 404 · the auth boundary
+
+    40 label pages sampled at random
+      non-200                       0
+      showing a dictionary link     0
+
+**Zero links in forty pages**, which reads like the change did nothing. It is the expected result:
+
+    label URLs in the sitemap              10,100
+    labels matching a published clan           93
+    of those, actually in the sitemap          90
+    share of label pages                    0.89%
+    expected in a sample of 40               0.36
+
+**A sample of forty should find none roughly seven times in ten.** The measurement is not evidence of a
+fault; it is evidence that the change is correctly narrow, and the arithmetic is what says so rather than
+the count.
+
+### And it corrects round 142's own number
+
+Round 142 said the link is live on **93 label pages**. It is live on **90** — three of the ninety-three
+matching labels are not in the sitemap at all, because they have no articles linked to them and therefore
+no page a reader can reach. **A label that matches a clan but is never published as a URL is not a page**,
+and counting it inflated the claim by three.
+
+    said   93 label pages carry the link
+    true   90 reachable label pages carry the link, out of 10,100 in the sitemap
+
+**The same arithmetic that explained the empty sample also shrank the headline**, which is the useful kind
+of coincidence: one query answered "is this broken?" and "is this overstated?" together.
+
+### What item 8 is now, measured
+
+    built and verified    the lookup, the link, and its absence on non-clan labels
+    coverage              90 of 10,100 label pages, 0.89%
+    NOT measured          whether https://ozituma.com/clans/<slug>/ returns 200
