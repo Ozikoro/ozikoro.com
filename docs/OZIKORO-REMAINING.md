@@ -1745,3 +1745,38 @@ asks of it and exactly what the oral-history schema was built for. `moderator` h
 Four of five rounds found something; the fifth did not, and saying so is part of the work. The two
 rounds that looked like findings but were not — 42 and the first probe in 43 — were both caught by
 checking the mechanism (the cookie attribute, the response header) **before** writing the conclusion.
+
+---
+
+## ROUND 46 — THE FIX FROM ROUND 44 NOW HAS REGRESSION TESTS, AND THE FIRST TWO WERE WRONG
+
+Round 44 closed a broken object-level authorization hole and wrote no test for it. **A security fix
+without a regression test is a fix that quietly reverts**, so five assertions were added to
+`test-publications.ts`. The publication suite went from 82 checks to 87.
+
+    ✓ a stranger cannot revise somebody else's publication          — not_your_work
+    ✓ a stranger cannot revise a private draft they were never meant to see — not_your_work
+    ✓ a stranger holding submit_work still cannot submit somebody else's draft — not_your_work
+    ✓ the author can still revise their own work                    — 2
+    ✓ and submit it themselves
+
+### Two bugs in my own tests, both of which would have made them worthless
+
+**1. The test would have passed for the wrong reason.** The accounts in this suite hold no roles, so
+resolving the stranger's real capabilities returned a set *without* `submit_work` — and the transition
+was refused on the **capability**, before the ownership check was ever reached. The assertion would
+have gone green while proving nothing about the fix.
+
+Handing the stranger a capability set that does include `submit_work` makes the refusal attributable to
+**ownership alone**, which is the thing actually under test. The test now reads
+*"a stranger holding submit_work still cannot submit somebody else's draft"*, and that wording is the
+point.
+
+**2. A lookup by slug that could never have matched.** Revising a work does **not** change its slug —
+correctly, because a citation that already points at it must keep resolving. Looking the work up by its
+new title's slug found nothing, so the assertion failed for a reason unrelated to submission. It now
+queries by id.
+
+Both were caught by running the suite and reading the failure, not by reviewing the diff. **A test that
+passes for the wrong reason is more dangerous than no test**, because it converts an untested claim
+into an apparently verified one.

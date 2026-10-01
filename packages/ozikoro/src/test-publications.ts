@@ -316,6 +316,84 @@ await db.query(`update ozikoro_member set institution = null, research_interests
 const independent = await listResearchers(db, { search: 'Idenze' });
 assert('an independent researcher with no institution is still listed', independent.some((r) => r.accountId === author.id));
 
+console.log('\n--- authorization for a specific record ---');
+
+/*
+ * Regression tests for a real vulnerability, found and fixed in round 44.
+ *
+ * `revisePublication` took a publication id and an actor id and never checked they were related, and
+ * the route above it authorized only on `submit_work` — which every contributor role holds. Account B
+ * rewrote account A's private draft and the new version was attributed to B.
+ *
+ * A role check and a record check are different questions. These assertions exist so the second
+ * question keeps being asked, because the first one will always pass.
+ */
+const draftId = await createPublication(db, {
+  author: { accountId: author.id, name: 'Idenze Ezeme' },
+  publication: {
+    title: 'zztest-A Draft Nobody Else May Touch',
+    abstract: 'Private until its author says otherwise.',
+    kind: 'working_paper',
+    authors: [{ name: 'Idenze Ezeme', accountId: author.id, isCorresponding: true }],
+  },
+});
+
+await refuses(
+  "a stranger cannot revise somebody else's publication",
+  () => revisePublication(db, {
+    publicationId, title: 'zztest-Rewritten By A Stranger', abstract: 'not mine',
+    changeNote: 'not mine to make', actorId: stranger.id,
+  }),
+  'not_your_work'
+);
+
+await refuses(
+  "a stranger cannot revise a private draft they were never meant to see",
+  () => revisePublication(db, {
+    publicationId: draftId, title: 'zztest-Hijacked Draft', abstract: 'taken',
+    changeNote: 'taken', actorId: stranger.id,
+  }),
+  'not_your_work'
+);
+
+/*
+ * The stranger is given a capability set that DOES include `submit_work`, deliberately.
+ *
+ * The real accounts here hold no roles, so resolving their capabilities would return a set without
+ * `submit_work` — and the transition would be refused on the CAPABILITY, before the ownership check
+ * was ever reached. The test would have passed for entirely the wrong reason and proved nothing about
+ * the fix. Handing the stranger a capability they could plausibly hold makes the refusal attributable
+ * to ownership alone, which is the thing being tested.
+ */
+await refuses(
+  "a stranger holding submit_work still cannot submit somebody else's draft",
+  () => transitionPublication(db, {
+    publicationId: draftId, to: 'submitted', actorId: stranger.id,
+    capabilities: AUTHOR_CAPS,
+  }),
+  'not_your_work'
+);
+
+const ownVersion = await revisePublication(db, {
+  publicationId: draftId, title: 'zztest-A Draft, Revised By Its Author',
+  abstract: 'Still mine.', changeNote: 'My own revision.', actorId: author.id,
+});
+assert('the author can still revise their own work', ownVersion === 2, String(ownVersion));
+
+await transitionPublication(db, {
+  publicationId: draftId, to: 'submitted', actorId: author.id,
+  capabilities: AUTHOR_CAPS,
+});
+/*
+ * Queried by id rather than by slug, because revising a work does NOT change its slug — the address a
+ * citation already points at must keep resolving. Looking the work up by its new title's slug found
+ * nothing, and the assertion failed for that reason rather than for anything to do with submission.
+ */
+const submitted = await db.one<{ status: string }>(
+  `select status from ozikoro_publication where id = $1`, [draftId]
+);
+assert('and submit it themselves', submitted?.status === 'submitted', submitted?.status);
+
 console.log('\n--- privacy ---');
 
 await db.query(`update ozikoro_publication set is_public = false where id = $1`, [publicationId]);
