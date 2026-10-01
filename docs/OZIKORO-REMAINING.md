@@ -4541,3 +4541,53 @@ mechanism: wrong pattern, wrong set, **wrong exclusion**.
 pages, every one with text that makes sense out of context, and every icon link labelled. The design was
 copied in and linked rather than rewritten, so this is largely the original authors' markup surviving
 intact — which is the outcome that was intended.
+
+---
+
+## ROUND 107 — LANDMARKS AND HEADING STRUCTURE, ACROSS TEN PAGES
+
+The next unaudited accessibility property after link text. Screen-reader users navigate by landmark and by
+heading, so a missing or duplicated `<main>`, or two `<h1>`s on one page, makes that navigation unreliable
+in a way that never shows up visually.
+
+    page                       main  nav  hdr  ftr  h1  h2+  flags
+    /                             1    1    1    1   1    1  ok
+    /archive/                     1    2    2    1   1    1  ok
+    /folklore/                    1    1    2    1   1    1  ok
+    /about/                       1    1    2    1   1    3  ok
+    /documents/                   1    2    2    1   1    1  ok
+    /topics/                      1    2    2    1   1   22  ok
+    /labels/aba/                  1    1    2    1   1    0  ok
+    /author/nze/                  1    1    2    1   1    0  ok
+    /entities/                    1    1    2    1   1    0  ok
+    /search/?q=igbo               1    1    2    1   1    0  ok
+
+    pages with landmark/heading problems: 0 of 10
+
+**Exactly one `<main>` and exactly one `<h1>` on every page**, a `<footer>` on every page, and at least one
+`<nav>` and `<header>`. No duplication, no absence.
+
+### The one thing worth noting, and why it is not a defect
+
+Four pages report **`h2+ = 0`** — `/labels/aba/`, `/author/nze/`, `/entities/` and `/search/`. They have an
+`<h1>` and then headings stop. Each of those pages is a **list**: a subject's records, an author's records,
+the entity index, search results. A list of links does not need subheadings, and adding decorative ones
+would give a screen reader more to skip through rather than less.
+
+`/topics/` at **22** headings is the same principle in the other direction: it is a long index of fourteen
+subjects with grouped content, and the headings are what make it navigable. **Neither number is a target**;
+both are what the content calls for.
+
+### Where the accessibility work stands
+
+    verified   colour contrast (--ink-faint corrected for AA)
+               heading order, and exactly one h1 per page
+               landmark structure, and exactly one main per page
+               alt text on images
+               link text: 0 vague, 0 unlabelled
+    open       focus order
+               form error messaging
+
+Two properties remain untested, and both need a browser rather than a request — focus order is about
+sequential keyboard navigation and form errors are about behaviour after interaction. **Neither can be
+checked by fetching HTML**, which is why they are still open rather than overlooked.
