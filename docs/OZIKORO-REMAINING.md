@@ -3226,3 +3226,61 @@ bulk-redirecting them would be guessing.**
 
 Correcting this matters because "25 of 40" reads as most of the work done, when in fact the two families
 were the five-target kinds a rule can fix, and **the 30 that remain have no rule at all.**
+
+---
+
+## ROUND 81 — THE 30 "INDIVIDUAL JUDGEMENTS" ARE ONE RULE, AND A NEXT.JS CONSTRAINT
+
+Round 78 recorded the remaining 30 broken targets as *"not a family… each needs looking at individually."*
+This round tested that assumption instead of repeating it, and **it was wrong.**
+
+### 26 of the 30 are WordPress attachment permalinks
+
+    /ibini-ukpabi-the-arochukwu-long-juju/aros-spiritual-head-of-kalabari-crosbie-oates-family-journal-1853-1859/
+    /nsude-pyramid-spirituality-in-igbo-architecture/a-nsude-pyramid-taken-by-g-i-jones-1935/
+    /ndi-igbo-meet-the-igbo-people/igbo-sub-tribes/
+    …and 23 more of the same shape
+
+Two segments, the first an **existing article**, and the **last segment a media slug**. Measured, not
+inferred — 8 of 9 tested resolved exactly against `ozikoro_media.slug`:
+
+    MEDIA_TOTAL=3488
+    SEG EXACT  aros-spiritual-head-of-kalabari-crosbie-oates-family
+    SEG EXACT  20241023_034835
+    SEG EXACT  mbari-house-owen…  mbari-house-owerri-1904
+    SEG EXACT  igbo-sub-tribes
+    SEG no     ulusamplesfromawkadistrict          loose: none
+    EXACT_HITS=8 of 9
+
+That is WordPress's attachment permalink shape: the old site rendered an attachment page there, and this
+platform serves the same media record at `/documents/<slug>/`.
+
+**So the 30 are not 30 judgements. They are one rule covering 26, plus four genuine strays** —
+`/how-a-hunter-obtained-money…/`, `/womens-title-taking-the-iyom-otu-odu-title-in-igbo-culture/`,
+`/uli-samples-from-awka-district-n-w-thomas-1910-11/`, and an `/nri-nshi-kingdom…/` path whose parent
+does not exist.
+
+### The route for it was written, and Next.js refused it
+
+    [Error: You cannot use different slug names for the same dynamic path ('parent' !== 'slug').]
+
+**This app already uses `slug` for every dynamic segment at both depths** — `app/[slug]/`,
+`app/topics/[slug]/`, `app/labels/[slug]/`, `app/documents/[slug]/`, `app/author/[slug]/`. Next requires
+one name per dynamic path, so `app/[parent]/[child]/` is rejected outright **and takes the whole dev
+server down with it** — every route returned `000`, including ones that had worked a minute earlier.
+
+The route was removed, and the server was verified back: `/`, `/topics/historical-studies/`,
+`/labels/aba/`, `/documents/kolanut/`, `/author/nze/` and an article all return 200 again.
+
+**The fix therefore cannot be a differently-named pair of segments.** It has to be either
+`app/[slug]/[slug]/` — the same name twice, which is worth testing — or a mechanism outside the router
+entirely, such as the `ozikoro_redirect` table that round 75 left blocked on a question for the owner.
+
+### Two things worth keeping from this
+
+* **"Needs individual judgement" is a claim like any other, and it was false here.** Twenty-six of thirty
+  collapsed into one rule under a single measurement. The same instinct that produced "a stated gap is not
+  a closed gap" applies to a stated difficulty.
+* **A route that fails to compile does not fail politely.** It removed the entire dev server, so the
+  blast radius of a routing mistake is the whole site rather than one page. Worth remembering before
+  adding routes that compete with existing ones.
