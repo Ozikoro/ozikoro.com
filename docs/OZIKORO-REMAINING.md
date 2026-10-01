@@ -3365,3 +3365,63 @@ redirect loop; wrong in the strict direction and attachments keep 404ing.
 **It is a small change to a file every request passes through**, and the two previous attempts at this
 same defect each took the whole site down. Building it needs room to verify every route afterwards, which
 this round did not have. **The destination is in place and proven; the rewrite is one step, specified.**
+
+---
+
+## ROUND 84 — THE ATTACHMENT PERMALINKS ARE FIXED, AND NOTHING ELSE MOVED
+
+Round 83 built the destination; this round built the rewrite. Together they close the largest remaining
+family of broken links found in round 74.
+
+    /ibini-ukpabi-…/aros-spiritual-head-of-kalabari-…/21853-1859/  ->  308  /documents/aros-spiritual-…/
+    /nsude-pyramid-…/a-nsude-pyramid-taken-by-g-i-jones-1935/      ->  308  /documents/a-nsude-pyramid-…/
+    /ndi-igbo-meet-the-igbo-people/igbo-sub-tribes/                ->  308  /documents/igbo-sub-tribes/
+
+### Why the middleware, and why it is shaped this way
+
+The address cannot be a route — rounds 81 and 82 proved both spellings rejected by Next, each attempt
+taking the whole site down. Middleware runs **before** routing, which is why the trailing-slash rewrite
+already lived there. It rewrites `/<unknown-first-segment>/<last-segment>/` to `/attachment/<last-segment>/`,
+where a **static** parent makes the route expressible.
+
+An allowlist of real first segments is the safe construction:
+
+    topics labels documents author researchers publications entities media
+    archive folklore search about claims reviews admin attachment _next design api
+
+Wrong in the permissive direction, a real route is shadowed; wrong in the strict direction, attachments
+keep 404ing. Everything not listed is assumed to be a post slug.
+
+### Verified exhaustively, because the blast radius is every request
+
+    /  /archive/  /folklore/  /about/                     200
+    /topics/historical-studies/  /labels/aba/             200
+    /documents/kolanut/  /author/nze/                     200
+    /ute-okpu-an-ika-igbo-clan-and-its-nri-roots/         200
+    /api/health                                           200     the API is untouched
+    /historical-studies/                                  308     round 78's category redirect still works
+    the three attachment permalinks                       308     fixed
+    /no-such-parent/no-such-child/                        404     still 404s, no loop
+
+    All 18 verification steps pass.
+
+### One 404 that is correct, and worth stating
+
+`/researchers/298/` returns 404. That is **not** a regression: 298 and 299 were the `zztest` accounts
+removed in round 44, and the `/researchers/` listing returned no profile links at all — consistent with
+the largest open gap in this file, that **0 of 1,051 records is linked to an entity**. The route family is
+sound; there is simply nothing published for it to show.
+
+### Where the round-74 defect now stands
+
+    distinct broken targets                  40
+      author family           5 fixed        round 77, served directly
+      category family         5 fixed        round 78, permanent redirects
+      attachment tail        26 fixed        rounds 83 and 84
+      genuine strays          4 open         /how-a-hunter-obtained-money…/,
+                                             /womens-title-taking-the-iyom-otu-odu-title…/,
+                                             /uli-samples-from-awka-district-n-w-thomas-1910-11/,
+                                             and one /nri-nshi-kingdom…/ path whose parent is absent
+
+**Thirty-six of forty targets now resolve.** The four that remain genuinely are individual cases, and
+having eliminated the families rather than assumed they were one, that claim is finally earned.

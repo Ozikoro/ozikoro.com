@@ -43,6 +43,39 @@ export function middleware(request: NextRequest) {
   const isApi = pathname.startsWith('/api/') || pathname === '/api';
 
   /*
+   * WORDPRESS ATTACHMENT PERMALINKS
+   *
+   * The old site published every attachment at `/<parent-post-slug>/<attachment-slug>/`. Round 81
+   * measured that 26 of the 30 remaining broken in-body links have that shape and that the last segment
+   * resolves exactly against `ozikoro_media.slug` — 8 of 9 tested.
+   *
+   * That address cannot be a route. Rounds 81 and 82 proved both spellings rejected by Next, each taking
+   * the dev server down:
+   *
+   *   app/[parent]/[child]/   "different slug names for the same dynamic path"
+   *   app/[slug]/[slug]/      "the same slug name \"slug\" repeat within a single dynamic path"
+   *
+   * Middleware runs BEFORE routing, which is why the trailing-slash rewrite already lives here. So the
+   * old address is rewritten to `/attachment/<slug>` — a static parent, expressible — and that route
+   * resolves the record and redirects to its canonical home.
+   *
+   * The allowlist is the safe construction. A wrong entry here means a real route is shadowed; an
+   * omission means an attachment keeps 404ing. Rewriting is how the trailing-slash case is handled
+   * above, and a rewrite (not a redirect) keeps the URL the reader asked for until the destination decides.
+   */
+  const KNOWN_FIRST_SEGMENTS = new Set([
+    'topics', 'labels', 'documents', 'author', 'researchers', 'publications', 'entities',
+    'media', 'archive', 'folklore', 'search', 'about', 'claims', 'reviews', 'admin',
+    'attachment', '_next', 'design', 'api',
+  ]);
+  const segments = pathname.split('/').filter(Boolean);
+  if (!isApi && segments.length === 2 && !KNOWN_FIRST_SEGMENTS.has(segments[0] ?? '')) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/attachment/${segments[1]}/`;
+    return NextResponse.rewrite(url, { request: { headers } });
+  }
+
+  /*
    * The slash-less form of a page. `trailingSlash: true` makes `/<slug>/` what the router serves, so
    * a reader who types or is linked to `/<slug>` — without the slash WordPress used — is sent there
    * by a rewrite. A rewrite, not a redirect: they keep the address they asked for and get a 200.
