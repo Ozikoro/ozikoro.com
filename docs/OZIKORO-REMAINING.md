@@ -2794,3 +2794,48 @@ server under test.
 finding, it is dramatic, and it would have been written into this file as one. The only reason it was
 not is that *the 404s named labels I had just verified worked*. **A result that contradicts a fact you
 already established is a measurement error until proven otherwise.**
+
+---
+
+## ROUND 68 — THE SITEMAP SAMPLE IS NOW A TOOL, NOT A ONE-OFF
+
+Round 67's check was a throwaway python script and it produced the most convincing evidence in this file
+— 45 deep URLs, 0 failures. A one-off that good should not stay a one-off, and the origin trap that
+fooled me would fool the next person.
+
+`scripts/check-sitemap.sh`, wired as `npm run check:sitemap`.
+
+    Samples N pages the sitemap advertises, requested from BASE
+    (the sitemap names the production origin; the paths are what is tested here)
+    sitemap lists 14667 paths
+    checked: 40
+    Every sampled page resolved.
+
+It reads the sitemap for **paths** and requests them from the server under test, which is the correction
+from round 67 built into the tool so nobody has to rediscover it.
+
+### It complements check-links.sh rather than duplicating it
+
+    check-links.sh     follows links found on pages   ->  what is LINKED, the readable surface
+    check-sitemap.sh   samples <loc> values           ->  what is LISTED, the long tail
+
+A 120-page walk cannot see a label page that only a crawler would reach. A 40-page sample of the sitemap
+reaches four article pages, eight media pages and thirty-three label pages that no menu points at.
+
+### Two guards, both tested rather than assumed
+
+* **No server:** `exit 2` with *"Could not fetch … Is the server running?"* — not a pass.
+* **Nothing checked:** `exit 2` with *"NOTHING WAS CHECKED — not a pass."* The round-57 lesson, applied
+  before it was needed rather than after.
+
+### A macOS trap inside the tool, caught by the tool's own guard
+
+The first version parsed the sitemap with `sed 's|https\?://[^/]*||'`. **BSD sed does not support `\?`**,
+so the origin was never stripped: every "path" was a full `<loc>` element, and all 40 samples were
+reported broken with status `000`.
+
+That is exactly the shape of round 67's error — a dramatic false alarm — and this time it was caught in
+the same minute, because the **"nothing was checked" guard** had already been written and the malformed
+entries tripped it. Parsing moved to `python3`.
+
+**The guard was written for a different failure and caught this one. That is what guards are for.**

@@ -80,7 +80,8 @@
     "verify:all": "bash scripts/verify-all.sh",
     "check:residue": "npm -w @ozikoro/platform run check:residue",
     "check:capabilities": "npm -w @ozikoro/platform run check:capabilities",
-    "check:links": "bash scripts/check-links.sh"
+    "check:links": "bash scripts/check-links.sh",
+    "check:sitemap": "bash scripts/check-sitemap.sh"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
