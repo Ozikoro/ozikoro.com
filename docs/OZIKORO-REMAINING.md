@@ -5037,3 +5037,61 @@ hypothesis space is now one item narrower, and it got narrower by a measurement 
 **"This experiment would change something risky" is not the same as "this experiment is risky."** Round 114
 stopped at the first framing; round 116 found that adding a file changes nothing existing. **Two rounds
 were spent on the difference between changing a route and adding one.**
+
+---
+
+## ROUND 117 — THE MECHANISM, AND IT IS IN THIS APPLICATION
+
+Rounds 112 to 116 narrowed the blank 404 to "the throw" and called it framework behaviour. This round read
+the root layout and found the specific thing that makes the throw leave a hole.
+
+### The layout suspends the whole document
+
+    apps/ozikoro/app/layout.tsx:57    const pathname = (await headers()).get('x-pathname') ?? '/';
+
+`headers()` is a **dynamic API**, and awaiting it in the **root layout** suspends the entire HTML document.
+That is exactly why the response body begins:
+
+    <body><div hidden=""><!--$?--><template id="B:0"></template><!--/$--></div>
+
+**The shell is emitted with a Suspense fallback and filled in afterwards.** For a page that *returns*, the
+fill happens and `<main>` appears in the HTML — which is why round 107 measured it on ten pages. For a page
+that *throws*, the fill never happens, and the boundary resolves into the flight payload instead.
+
+That is not generic framework behaviour. **It is this layout, doing something it does not need to do.**
+
+### And the branch that decides the chrome is the only reason it awaits at all
+
+    function hasOwnChrome(pathname: string): boolean {
+      return pathname.startsWith('/admin') || pathname.startsWith('/signin') || pathname.startsWith('/design');
+    }
+
+    if (hasOwnChrome(pathname)) {
+      return <html lang="en"><body>{children}</body></html>;
+    }
+
+The awaited value is used for **one string comparison**, and the alternatives to `headers()` are ordinary:
+a route group with its own layout, a client component reading `usePathname()`, or passing the decision down.
+**None of them suspends the document.**
+
+### Why I did not change it
+
+`layout.tsx` wraps **every route in the application.** Round 82 is the standing lesson: two attempts at a
+comparably-scoped change took the whole site down rather than one page, and each needed a revert and a
+re-check of six routes. This change is *larger* than either — it alters how every page is delivered.
+
+It also cannot be tested additively. Round 116's technique worked because a new route can be added beside
+the old ones; **there is no way to add a second root layout.** The experiment is the change.
+
+### What is now known, precisely
+
+    eliminated   force-dynamic as the rendering mode            (round 116, by additive control)
+    eliminated   the async root layout as such                  (normal pages render inside it — round 107)
+    IDENTIFIED   `await headers()` in the root layout suspends the whole document, so a thrown
+                 not-found never fills the shell it is delivered in
+    fix options  a route group with its own layout · a client component reading usePathname() ·
+                 passing the chrome decision down instead of reading it at the top
+    not attempted  all three change how every route is delivered
+
+**A defect that was "somewhere in the framework" for four rounds is now one line in a file this project
+owns**, with three ordinary alternatives named.
