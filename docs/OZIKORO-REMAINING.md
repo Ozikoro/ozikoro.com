@@ -1,9 +1,9 @@
 # What remains
 
-> **RESUME HERE — status as of round 96.** This file is a running record, newest at the BOTTOM.
+> **RESUME HERE — status as of round 97.** This file is a running record, newest at the BOTTOM.
 > Read this block and the round-26 status table; the rest is history, and some of it is superseded.
 >
-> **What is live.** 16 public routes; migrated records answer at their original WordPress addresses from
+> **What is live.** **23 reader-facing routes and 7 under `/admin`** — 30 page routes in total (counted in round 97; the previous claim of "16 public routes" was wrong, and had been copied forward for many rounds without being checked); migrated records answer at their original WordPress addresses from
 > this platform's own database and media origin; 3,437 of 3,488 media served from our own storage with
 > **zero hotlinks**; typecheck clean; **20 verification steps green** via `./scripts/verify-all.sh`, plus
 > **3 live checks** via `./scripts/verify-live.sh`.
@@ -4004,3 +4004,39 @@ correction cost one command** — reading which file was actually being compared
 
 It fails in **both** directions — a variable read but undocumented, *and* one documented but never read,
 because an entry nobody reads is how the next person sets a variable that does nothing.
+
+---
+
+## ROUND 97 — MY OWN DOCUMENTATION WAS WRONG BY MORE THAN A THIRD
+
+The resume block claimed **"16 public routes."** Counted for the first time:
+
+    total page routes in apps/ozikoro : 30
+      under /admin                    :  7
+      reader-facing                   : 23
+
+**Twenty-three, not sixteen** — and the figure had been copied forward through the resume block for many
+rounds without ever being checked, which is exactly the failure this file spends its length warning about.
+
+The full set, now written down so it is not re-guessed:
+
+    /  /[slug]  /about  /archive  /folklore  /search  /topics  /topics/[slug]
+    /documents  /documents/[slug]  /labels/[slug]  /entities  /entities/[slug]
+    /publications  /publications/[slug]  /researchers  /researchers/[slug]
+    /attachment/[slug]  /author/[slug]  /claims  /reviews  /signin  /submit
+
+    /admin  /admin/archive  /admin/archive/[id]  /admin/claims
+    /admin/reviews  /admin/rights  /admin/spotify
+
+### Why this one matters more than the number
+
+Every other correction in this file was to **a check or a measurement** — a thing I ran and misread. This
+was to **the summary itself**: the paragraph a new reader trusts most, and the one least likely to be
+re-derived because it reads like background rather than a claim.
+
+**A resume block is documentation, and documentation drifts exactly like code does, with nothing running
+to catch it.** The two routes added in rounds 77 and 83 — `/author/[slug]` and `/attachment/[slug]` — were
+both built during this session and neither was ever added to the count.
+
+The habit that would have caught it is the one already in this file: **when a claim can be counted, count
+it.** It applies to prose as much as to test output.
