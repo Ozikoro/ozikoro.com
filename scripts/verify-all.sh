@@ -55,6 +55,10 @@ echo ""
 echo "  Database hygiene"
 # No credential is committed. Answered by hand once and answered correctly — which is not the same as
 # being guarded. A single `git add -A` after a local experiment puts a .env in the history.
+# The resume block's countable claims, re-derived from the system. verify-all checks twenty things about
+# the code and nothing about the block it exists to keep honest; round 174 counted eight corrections to
+# that block, seven of them made in a LATER round than the change they described.
+run "the handover still matches" npm run check:handover
 run "no committed credentials" npm run check:secrets
 run "no test residue" npm run check:residue
 run "every capability is granted" npm run check:capabilities

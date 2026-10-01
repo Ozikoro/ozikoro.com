@@ -7500,3 +7500,54 @@ covered when the change went in.
 A step that re-derived the block's countable claims — routes, steps, checks, guards, media totals — would
 have caught rounds 97, 125 and 127 automatically. **The unnumbered claims are the ones a script cannot
 check**, and they are where the last five corrections were.
+
+---
+
+## ROUND 175 — THE BLOCK NOW CHECKS ITSELF, AND MY FIX FOR IT FAILED TWICE THE SAME WAY
+
+Round 174 named the fix: *"verify-all checks twenty things about the code and nothing about the block it
+exists to keep honest."* This round built it.
+
+    Resume block against the system
+      ok  page routes 30 · reader-facing 23 · under /admin 7 · live checks 5
+      ok  media total 3488 · self-hosted 3437 · articles 1051
+      ok  records entity-linked 0 · media licenced 0
+      checked: 9   wrong: 0   pattern-found-nothing: 0
+
+**Nine countable claims, re-derived from `find`, the two runners and the database, and compared against the
+prose.** Now step 21 of `verify-all.sh`.
+
+### The guard is the important half
+
+This file parses prose with patterns, and this project has recorded six occasions where a pattern that could
+not match **reported an absence as a finding**. So any claim whose pattern matches nothing **exits 2** with
+*"the patterns are wrong, not the block. Not a pass"* — **a claim that cannot be found is not a claim that
+holds.**
+
+It fired, immediately, on four of nine claims.
+
+### And the fix for it failed the same way twice
+
+**First failure**: four patterns had been written from the *derived values* rather than the block's wording
+— `3488 media` instead of `3,488 media`. Two were fixed that way; two still found nothing.
+
+**Second failure**: the two media claims are **split across a line break**. The block reads:
+
+    > … 3,437 of 3,488
+    > media served from our own storage …
+
+A line-oriented pattern cannot match across that. **That is round 172's lesson in a second costume** — a
+pattern that cannot express how the text is **serialised**. So the block is now flattened before matching.
+
+**Third failure**: flattening alone still did not work, because **every line begins with `> `**, so the text
+became `3,437 of 3,488 > media`. **A fix for a serialisation problem that had a serialisation problem.**
+
+### What the three failures have in common with the six before them
+
+    round 172   React interleaves `<!-- -->` between text nodes
+    round 175   markdown wraps a sentence and prefixes every line with `> `
+
+**Both are checks that read correct content in a form the pattern could not express**, and both were caught
+by the same move: **looking at the artefact rather than at the result.** The difference this time is that the
+guard made the failures *loud* — it refused to pass while reporting fewer claims than intended, which is
+exactly what round 57 built that guard for.

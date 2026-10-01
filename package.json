@@ -87,7 +87,8 @@
     "verify:live": "bash scripts/verify-live.sh",
     "check:secrets": "bash scripts/check-secrets.sh",
     "account:create": "node scripts/create-account.ts",
-    "account:reset": "node scripts/reset-password.ts"
+    "account:reset": "node scripts/reset-password.ts",
+    "check:handover": "bash scripts/check-handover.sh"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
