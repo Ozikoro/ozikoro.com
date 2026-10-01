@@ -1447,3 +1447,41 @@ server rather than only compiled.
 The two static copies are a step in a deploy script that does not exist yet. **Writing that script —
 and running it once against a real environment — is the remaining deployment work**, along with
 `S3_BUCKET`, `HEALTH_TOKEN` and a server Postgres. Nothing about it is unknown now; it is unbuilt.
+
+---
+
+## ROUND 39 — THE DEPLOY STEP IS NOW BUILT AND ASSERTED
+
+Round 38 found three deployment blockers and called the fix "unbuilt, not uncertain". It is built:
+`scripts/build-standalone.sh`, wired as `npm run build:standalone`.
+
+It builds, copies the two directories `output: 'standalone'` omits, and then **asserts on the artefact
+rather than on the commands** — because a `cp` that silently did nothing is precisely the failure this
+exists to prevent. It also checks that `.next/static` is not merely present but **non-empty**, since an
+empty directory passes a naive existence test.
+
+    ==> Building                        ✓ Compiled successfully
+    ==> Copying the static assets       (public/, .next/static/)
+    ==> Verifying the artefact
+        ok    server entrypoint
+        ok    public/ directory
+        ok    the design stylesheets
+        ok    the accessibility CSS
+        ok    static chunks
+        static files copied: 58
+    ==> The artefact is complete.        exit 0
+
+On failure it prints **"Build artefact is INCOMPLETE — do not deploy"** and exits non-zero, so a CI
+step or a deploy script cannot proceed past it.
+
+It also states the four variables a real deployment needs (`DATABASE_URL`, `S3_BUCKET`,
+`HEALTH_TOKEN`, `OZITUMA_SITE_URL`) with the consequence of each being unset — the first two being
+fatal in ways that do not announce themselves.
+
+### What is still not done for deployment
+
+* **No environment has been deployed to.** The artefact has been run locally and serves; it has never
+  been run anywhere else.
+* **No CI runs this.** It passes because it was run by hand.
+* `DATABASE_URL` pointing at server Postgres has never been exercised — every test in this project has
+  run against PGlite.

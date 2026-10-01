@@ -2,7 +2,7 @@
   "name": "ozituma",
   "version": "0.1.0",
   "private": true,
-  "description": "Ozituma \u2014 the Ozikoro language platform. A multi-language African dictionary, pronunciation and translation platform with its own public developer API.",
+  "description": "Ozituma — the Ozikoro language platform. A multi-language African dictionary, pronunciation and translation platform with its own public developer API.",
   "license": "SEE LICENSE IN LICENSE.md",
   "workspaces": [
     "packages/*",
@@ -30,7 +30,7 @@
     "accounts": "npm -w @ozituma/db run accounts",
     "test:donations": "npm -w @ozituma/db run test:donations",
     "test:paystack": "node scripts/test-paystack-flow.ts",
-    "test:all": "npm run test && npm run test:contributions && npm run test:donations && npm run test:paystack && npm run test:learn && npm run test:accounts && npm run test:passwords && npm run test:mail && npm run test:clan-search && npm run test:admin",
+    "test:all": "npm run test && npm run test:contributions && npm run test:donations && npm run test:paystack && npm run test:learn && npm run test:accounts && npm run test:passwords && npm run test:mail && npm run test:clan-search && npm run test:admin && npm run test:ozikoro",
     "import:ibodict": "npm -w @ozituma/db run import:ibodict",
     "fetch:audio": "node scripts/fetch-audio.ts",
     "import:examples": "npm -w @ozituma/db run import:examples",
@@ -64,7 +64,17 @@
     "test:passwords": "npm -w @ozituma/db run test:passwords",
     "test:mail": "node tools/test-mail.mjs",
     "test:clan-search": "npm -w @ozituma/db run test:clan-search",
-    "test:admin": "npm -w @ozituma/db run test:admin"
+    "test:admin": "npm -w @ozituma/db run test:admin",
+    "test:spotify": "npm -w @ozikoro/platform run test:connection",
+    "dev:ozikoro": "npm -w @ozikoro/site run dev",
+    "test:ozikoro": "npm -w @ozikoro/platform run test && npm run test:ozikoro-data",
+    "import:ozikoro-wp": "npm -w @ozikoro/platform run import:wordpress",
+    "import:ozikoro-archive": "npm -w @ozikoro/platform run import:archive -- --apply",
+    "test:ozikoro-data": "npm -w @ozikoro/platform run test:archive && npm -w @ozikoro/platform run test:members && npm -w @ozikoro/platform run test:editorial && npm -w @ozikoro/platform run test:publications && npm -w @ozikoro/platform run test:rights && npm -w @ozikoro/platform run test:search && npm run test:spotify",
+    "import:media-store": "npm -w @ozikoro/platform run import:media-store -- --apply",
+    "import:media-upload": "npm -w @ozikoro/platform run import:media-upload",
+    "backup": "npm -w @ozikoro/platform run backup",
+    "build:standalone": "bash scripts/build-standalone.sh"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
