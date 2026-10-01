@@ -3785,3 +3785,56 @@ right next step is to establish whether it builds and what it is, then commit it
 what round 33 did for the Ozikoro app, after the same discovery, in the same shape.
 
 **Flagging it is the useful act available now. A silent `git add -A` would not be.**
+
+---
+
+## ROUND 92 — THE OZITUMA APPLICATION IS IN VERSION CONTROL, AND THE CHECK THAT FOUND IT HAD A HOLE
+
+Round 91 flagged 61 uncommitted entries in `apps/web` and deliberately did not commit them, because they
+were not this session's work and had not been read. This round established what they were and committed
+them properly.
+
+### Verified before committing, not assumed
+
+    @ozituma/web typecheck          ->  0 errors
+    untracked files                  ->  214 (git grep cannot see any of them)
+    .env-shaped files among them     ->  none
+    credential shapes among them     ->  none
+    secrets assigned literals        ->  none
+
+    files committed: 61      (55 in apps/web)
+      apps/web/app/admin/    ads analytics appearance clans learn names proverbs record
+                             recordings settings submissions users words + layout, ui, admin.css
+      apps/web/app/api/      admin routes, learn-bridge
+      apps/web/app/          page.tsx, layout.tsx and seventeen more modified
+      AGENTS.md  .env.example  docker/  data/clans/clans.json  package.json
+
+Committed as `9240743`. **This is round 33's finding in the other application** — `apps/ozikoro` once had
+zero tracked files and one `git clean` would have destroyed the platform; that was fixed and nobody
+checked `apps/web`.
+
+`data/ozikoro-wp/` remains untracked **deliberately**: 190MB of exported WordPress JSON, regenerable, and
+committing it would be wrong rather than safe.
+
+### And committing it exposed a hole in the check that found it
+
+`check:secrets` used `git grep`, which reads the **index**. So it could not see a single one of those 214
+new files — **and an untracked `.env` is precisely the thing a later `git add -A` turns into a committed
+secret.** The check that surfaced this risk was blind to the riskiest case.
+
+Two checks added, taking it from four to six:
+
+    PASS  no untracked environment file
+    PASS  no credential-shaped text in untracked files
+
+Mutation-tested both ways:
+
+    untracked .env.zztest present  ->  exit 1, "one 'git add -A' away from being committed"
+    removed                        ->  exit 0
+
+### The lesson, which is about where a tool is looking
+
+**A check reads what it is pointed at, and `git grep` is pointed at the index.** Round 73's false negative
+came from a pattern matching the wrong spelling; this one came from a tool scanning the wrong *set*. Both
+produced a clean result and both were wrong for the same underlying reason: **the answer was never
+available to the method being used.**

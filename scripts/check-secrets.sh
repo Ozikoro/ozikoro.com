@@ -53,7 +53,33 @@ else
   echo "  PASS  no secret is assigned a literal value"
 fi
 
-# 4. The example file must exist, or a new contributor has no list to work from.
+# 4. UNTRACKED files. This is the gap round 92 found: `git grep` reads the INDEX, so a stray `.env` sitting
+#    in the working tree — the exact thing a later `git add -A` would commit — is invisible to checks 1-3.
+#    It was discovered while committing apps/web, whose 214 new files had never been scanned by anything.
+UNTRACKED_ENV=$(git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)
+if [ -n "$UNTRACKED_ENV" ]; then
+  echo "  UNTRACKED ENVIRONMENT FILE(S) — one 'git add -A' away from being committed:" >&2
+  printf '    %s\n' $UNTRACKED_ENV >&2
+  failed=$((failed + 1))
+else
+  echo "  PASS  no untracked environment file"
+fi
+
+UNTRACKED_HITS=$(git ls-files --others --exclude-standard | while IFS= read -r f; do
+  # Skip anything large or binary: these are source trees, and the archive export is 190MB of JSON.
+  [ -f "$f" ] || continue
+  [ "$(wc -c < "$f" 2>/dev/null || echo 0)" -gt 2000000 ] && continue
+  grep -lIE 'AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|sk-[A-Za-z0-9]{24,}|ghp_[A-Za-z0-9]{30,}' "$f" 2>/dev/null || true
+done || true)
+if [ -n "$UNTRACKED_HITS" ]; then
+  echo "  CREDENTIAL-SHAPED TEXT IN UNTRACKED FILES:" >&2
+  printf '    %s\n' "$UNTRACKED_HITS" >&2
+  failed=$((failed + 1))
+else
+  echo "  PASS  no credential-shaped text in untracked files"
+fi
+
+# 5. The example file must exist, or a new contributor has no list to work from.
 if [ -f .env.example ]; then
   echo "  PASS  .env.example exists ($(grep -cE '^[A-Z_]+=' .env.example) variables listed)"
 else
