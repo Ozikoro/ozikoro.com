@@ -3631,3 +3631,48 @@ whether the page can render.
 
 Not yet folded into `verify-all.sh`: it needs a running server, like the link walk and the sitemap
 sample, so it belongs with those rather than with the offline steps.
+
+---
+
+## ROUND 89 — THE ASSET CHECK IS A TOOL, AND IT CONFIRMS THE FINDING INDEPENDENTLY
+
+Round 88's asset check was a throwaway. It is now `scripts/check-assets.sh`, wired as
+`npm run check:assets`.
+
+    distinct asset references: 62
+    404    /wp-content/uploads/2020/01/image-1-copyright.jpg
+    checked: 62
+    BROKEN ASSETS: 1 of 62.
+    exit code read DIRECTLY: 1
+
+**62 references over 8 pages, one broken** — the same single dead reference round 88 found over 96
+references and 10 pages. Two runs, different page counts, same answer: the finding is stable and not an
+artefact of one seed list.
+
+### Four link checks now, each answering a different question
+
+    check-links.sh       <a href> followed from pages   ->  what a reader can CLICK
+    check-sitemap.sh     <loc> sampled from the sitemap ->  what a crawler is TOLD
+    check-body-links     links written in article prose ->  what the RECORDS reference
+    check-assets.sh      css, js and images referenced  ->  whether a page can RENDER
+
+The fourth exists because of the other three's blind spot, and it is worth stating plainly: **they all ask
+whether a page is reachable, and never whether it can render.** A stylesheet that moved would leave every
+page unstyled with every check still green.
+
+### The guard, carried over deliberately
+
+If the extraction matches nothing, the tool exits **2** with *"NO ASSETS MATCHED … the extractor is wrong,
+not the site. Not a pass."* That is the round-57 lesson, and round 68's sed failure is why it matters: a
+pattern that matches nothing and a page with nothing to match produce the same empty output.
+
+### Exit codes, read the way round 86 established
+
+`… > /tmp/ca.txt ; echo $?` — **output to a file, status read from the command.** Not through a pipe.
+Three rounds have now discarded a checker's verdict that way, and the habit is the fix, not the note.
+
+### Not in verify-all.sh, for the same reason as the other two
+
+It needs a running server, and `verify-all.sh` runs against a stopped one because the suites hold the
+PGlite lock. **The three server-dependent checks — links, sitemap, assets — belong in their own run**, and
+that grouping is now obvious enough to be worth making explicit next time the runner is touched.
