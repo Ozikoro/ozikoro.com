@@ -38,6 +38,29 @@ import { getDb, closeDb, type Db } from '@ozituma/db/client';
 /** The prefix every test fixture in this repository uses. */
 const PREFIX = 'zztest';
 
+/*
+ * How much of the database the last scan actually reached.
+ *
+ * WHY THIS EXISTS (round 103)
+ *
+ * Everywhere else in this project, "nothing matched" means the extractor is broken and the check refuses
+ * to pass. HERE IT IS THE DESIRED RESULT — so a scan that reached nothing reports "Every table checked is
+ * clean" on every input, a permanent silent pass on a data-integrity check.
+ *
+ * Two ways that could happen, both real:
+ *
+ *   1. `information_schema` returns no text columns, so the loop runs zero times and `found` is empty.
+ *   2. Every query throws — a permissions problem, a renamed role, a broken connection — and the `catch`
+ *      below swallows all of them. **Total failure would look exactly like a clean database.**
+ *
+ * Measured at 102 tables with text columns on this database. The runner now refuses to report clean
+ * unless it actually scanned something, and reports anything it skipped instead of burying it.
+ */
+let lastScan = { scanned: 0, skipped: 0 };
+export function lastScanStats(): { scanned: number; skipped: number } {
+  return lastScan;
+}
+
 export async function findResidue(db: Db): Promise<{ table: string; count: number }[]> {
   const columns = await db.rows<{ table_name: string; column_name: string }>(
     `select table_name, column_name from information_schema.columns
@@ -52,6 +75,8 @@ export async function findResidue(db: Db): Promise<{ table: string; count: numbe
   }
 
   const found: { table: string; count: number }[] = [];
+  let scanned = 0;
+  let skipped = 0;
   for (const [table, cols] of byTable) {
     // Identifiers come from information_schema, not from input, and are quoted anyway.
     const where = cols.map((c) => `"${c}"::text like $1`).join(' or ');
@@ -61,11 +86,15 @@ export async function findResidue(db: Db): Promise<{ table: string; count: numbe
         [`${PREFIX}%`]
       );
       const n = Number(row?.n ?? 0);
+      scanned++;
       if (n > 0) found.push({ table, count: n });
     } catch {
-      // A view or table this role cannot read. Not residue, and not a reason to stop.
+      // A view or table this role cannot read. Not residue, and not a reason to stop — but it IS counted,
+      // because a scan where every table was skipped is not a scan that found nothing.
+      skipped++;
     }
   }
+  lastScan = { scanned, skipped };
   return found;
 }
 
@@ -74,8 +103,23 @@ if (process.argv[1] && process.argv[1].endsWith('residue-check.ts')) {
   const found = await findResidue(db);
   await closeDb();
 
+  const stats = lastScanStats();
+  if (stats.scanned === 0) {
+    // The round-57 rule, applied where it matters most: a check that examined nothing is not a pass.
+    console.error(
+      `\n  SCANNED NO TABLES — ${stats.skipped} skipped, 0 read. Not a pass: a scan that reached` +
+        ` nothing reports a clean database on every input.\n`
+    );
+    process.exit(2);
+  }
+
+  if (stats.skipped > 0) {
+    // Visible rather than swallowed. A partial scan is still useful, but silently skipping is not.
+    console.log(`\n  NOTE: ${stats.skipped} table(s) could not be read and were skipped.`);
+  }
+
   if (found.length === 0) {
-    console.log('\n  No test residue. Every table checked is clean.\n');
+    console.log(`\n  No test residue. ${stats.scanned} table(s) checked, every one clean.\n`);
     process.exit(0);
   }
 

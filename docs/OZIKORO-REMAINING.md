@@ -4290,3 +4290,51 @@ The output said `SyntaxError` and I looked at the exit code. **A mutation that d
 indistinguishable from a fix that does not work, unless you read the error.**
 
     check:secrets is now 8 sub-checks, all passing.
+
+---
+
+## ROUND 103 — THE DATA-INTEGRITY CHECK COULD HAVE REPORTED A CLEAN DATABASE ON EVERY INPUT
+
+Round 102 gave `check:secrets` a self-test, because it belongs to a class of check where **"nothing found"
+is the desired result** — so a broken pattern produces a permanent silent pass. This round asked which
+other checks share that property, and `check:residue` does. It is the check that guards against test data
+being published as real, and it had two ways to pass while examining nothing:
+
+    for (const [table, cols] of byTable) { … } catch {
+      // A view or table this role cannot read. Not residue, and not a reason to stop.
+    }
+
+1. **`information_schema` returns no text columns** — the loop runs zero times, `found` is empty, and it
+   prints *"Every table checked is clean."*
+2. **Every query throws** — a permissions problem, a renamed role, a broken connection — and the `catch`
+   swallows all of them. **Total failure looked exactly like a clean database.**
+
+### Fixed
+
+The scan now counts what it read and what it skipped, and the runner says so:
+
+    No test residue. 102 table(s) checked, every one clean.
+
+    SCANNED NO TABLES — 0 skipped, 0 read. Not a pass: a scan that reached nothing reports
+    a clean database on every input.                       exit 2
+
+Partial scans still run, but a skipped table is **printed rather than buried**.
+
+### Mutation-tested
+
+Discovery made to return nothing (`table_schema = 'public'` -> `'no_such_schema'`):
+
+    exit with nothing discovered :  2      SCANNED NO TABLES — 0 skipped, 0 read. Not a pass.
+    exit after restore           :  0      No test residue. 102 table(s) checked, every one clean.
+
+### And the number is now evidence
+
+**"Every table checked is clean"** said nothing about how many tables were checked. **"102 table(s)
+checked, every one clean"** is a claim that can be wrong — and earlier rounds measured 102, so a scan that
+suddenly reached 40 would now be visible instead of reassuring.
+
+### Still exposed, and named rather than left implicit
+
+**`check:capabilities` has the same shape.** It reads capability names from the source and reports "every
+capability is granted"; if the extraction returned no names, it would pass on every input. That is the same
+guard, and it is the next one to write.
