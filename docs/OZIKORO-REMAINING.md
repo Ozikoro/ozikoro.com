@@ -6174,3 +6174,52 @@ each other by name from both sides.
 
 Each of the three was a correction of the previous round's framing rather than new information. **The data
 sat in two tables the whole time.**
+
+---
+
+## ROUND 145 — THE TRIANGLE, WHICH WAS ALREADY CLOSED, AND ONE SITE KEEPING A PROMISE
+
+Round 144 found the Ozikoro→Ozituma link runs both ways. This round asked the obvious follow-up: **does
+Ozikoro link to the other two sites, and is the third one live?** Both answers were already yes.
+
+### Ozikoro's own navigation and prose
+
+    apps/ozikoro/app/layout.tsx:109   <a href="https://ozituma.com">ozituma.com — dictionary</a>
+    apps/ozikoro/app/layout.tsx:112   <a href="https://learn.ozituma.com">learn.ozituma.com — academy</a>
+    apps/ozikoro/app/layout.tsx:152   <a href="https://learn.ozituma.com">Academy</a>
+    apps/ozikoro/app/layout.tsx:168   the dictionary is <a href="https://ozituma.com">Ozituma</a>
+    apps/ozikoro/app/layout.tsx:169   the courses are <a href="https://learn.ozituma.com">Ozituma Learn</a>
+
+**Both sites are linked from the nav and named in the site's own prose.** Nothing needed building.
+
+### And all three answer
+
+    https://ozituma.com/clans/umueri/   ->  200   a sourced clan entry            (round 144)
+    https://learn.ozituma.com/          ->  200   the academy, with its nav pointing at the dictionary
+    https://ozikoro.com/...             ->  200   all 14,667 advertised URLs      (round 70)
+
+    Ozikoro -> Ozituma and Learn        nav and prose          verified this round
+    Ozituma -> Ozikoro                  its own nav            verified round 144
+    Learn   -> Ozituma                  its own nav            verified this round
+
+**"Keep the three sites connected" is satisfied, and it was satisfied before this round** — the check is
+what turns it from an assumption into a statement.
+
+### The one thing worth keeping from the Learn site
+
+Its own interface carries, unprompted:
+
+    activity details are demonstration content until approved curriculum is published
+    Demonstration text is never presented as verified teaching material
+    Example label: Placeholder content
+
+**That is the objective's constraint — "never label demonstration content as real" — implemented on a
+different site, by different code, and visible from the outside in one request.** It is the only place
+across the three sites where demonstration content is explicitly marked as such in the product rather than
+in this file, and it is worth knowing that the pattern exists in the estate.
+
+### What this closes, and what it does not
+
+    closed      the three sites are live and mutually linked
+    NOT closed  Learn -> Ozikoro is absent; the academy's nav reaches the dictionary and not the archive.
+                Whether it should is a design question for the owner, not a defect.
