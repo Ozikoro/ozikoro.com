@@ -68,7 +68,12 @@
 >   claim path already has the trigger (`requestContributorClaim`), the recipient
 >   (`manage_contributors`), the destination (`/admin/claims`) and the transport. Template and
 >   wiring are absent.
-> * **The dictionary link (8)** — **BUILT.** 90 label pages link to `ozituma.com/clans/<slug>/`,
+> * **The dictionary link (8)** — **BUILT**, and in round 172 it gained the clan's state.
+>   90 label pages link to `ozituma.com/clans/<slug>/` **and show `clan.region`** — 187 of 188 published
+>   clans carry one, sourced (280 characters of provenance on the same row), and the dictionary's own
+>   page asserts the same value. Round 168 declined this as "editorial"; round 171 showed it was
+>   *recorded · sourced · consistent · already introduced on the page*, which makes it mechanical.
+>   The original line follows:
 >   verified 200 and bidirectional with Ozituma's own nav.
 >
 > **FOUND BY COMPARING, NOT BY CHECKING (rounds 155-156)** — every check in this project asks whether a
@@ -7455,3 +7460,43 @@ the output *reads* and applied to how it is *serialised*.
 It went in on the first attempt, with the indentations read from the file rather than typed, and round 142's
 three-attempt history did not repeat. **The patch was easy; believing it had failed was the hard part** —
 which is the reverse of the usual shape in this file and the same lesson from the other side.
+
+---
+
+## ROUND 174 — THE SIXTH CORRECTION TO THE SAME PARAGRAPH, AND THE RULE IT PROVES
+
+The block said item 8 was built — 90 label pages linking to the dictionary — and said nothing about
+round 172, which put the clan's state on those same pages. **Not wrong, and incomplete**, which is the
+milder half of the same failure.
+
+### The rule, stated as a rule rather than another instance
+
+    round 136   the Done list            round 163   a permanent lockout
+    round 137   the zeros                round 166   the remaining work
+    round 151   the blocker list         round 173   the wrong-measurement list
+    round 157   the gap list             round 174   item 8's shape
+
+**Eight corrections to the resume block, and every one was needed because the block was accurate when
+written.** It is not that the block drifts — it is that **every round changes the system, and the block
+describes the system.**
+
+> **A round is not finished when the change is committed. It is finished when the block describes the
+> change.** Seven of the eight corrections were made in a later round than the change they described, which
+> means seven rounds ended with a handover that was already stale.
+
+### Why this is worth a rule and not a note
+
+The habit that caught all eight is the same one and it is cheap: **ask the document a question it should be
+able to answer.** *Does the Done list mention the accounts? Does the blocker list mention PostGIS? Does item
+8 mention the region?* Each took one command and found something in the five rounds since it was last asked.
+
+**The failure mode is not forgetting to update — it is believing an update happened.** Every one of the
+eight entries was written by the same hand in the same session, and the hand assumed the block had been
+covered when the change went in.
+
+### And the one-line fix that would make this mechanical
+
+`verify-all.sh` checks twenty things about the code and **nothing about the block it exists to keep honest.**
+A step that re-derived the block's countable claims — routes, steps, checks, guards, media totals — would
+have caught rounds 97, 125 and 127 automatically. **The unnumbered claims are the ones a script cannot
+check**, and they are where the last five corrections were.
