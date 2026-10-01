@@ -3948,3 +3948,53 @@ substring matching on paths — having matched a substring in a comment and call
 
 This is the fourteenth correction in this file, and the second in two rounds where **the search result was
 treated as the finding.** A grep hit is a place to look, not an answer.
+
+---
+
+## ROUND 95 — I RAISED A FALSE ALARM, AND THE CORRECT ANSWER IS BETTER THAN THE ALARM
+
+Round 91's reasoning promised a guard it did not build: *"an example file that has drifted is how a
+deployment fails at two in the morning."* This round built it, and measured it wrongly first.
+
+### The wrong measurement
+
+    variables the code reads          : 60
+    variables .env.example documents  :  2
+    MISSING: DATABASE_URL, S3_BUCKET, SPOTIFY_CLIENT_SECRET, HEALTH_TOKEN, … 58 in total
+
+**Fifty-eight undocumented variables, including every credential the platform needs.** A number that would
+have justified a round of emergency documentation work.
+
+**It was a scope error.** The comparison used the **root** `.env.example` — which belongs to a *different
+application*, and holds `OZITUMA_SITE_URL` and `OZITUMA_VERSION`. The Ozikoro app documents its own
+variables in `apps/ozikoro/.env.example`, and always has.
+
+### The right measurement
+
+    app reads (excluding framework and vendor) : 36
+    app example documents                      : 36
+
+    READ but NOT documented : (none)
+    documented but NEVER read : (none)
+
+**A perfect match, both directions, zero drift.** Not a near miss — an exact one. The `NEXT_*` and
+`VERCEL_*` variables in my first count are the framework's, not the application's, and are correctly absent.
+
+### The rule this is the third instance of
+
+    round 92   git grep reads the INDEX, not the working tree   -> missed 214 files
+    round 93   .gitignore covered every data dir but one        -> 190MB one command from history
+    round 95   the example file checked belonged to another APP -> 58 phantom missing variables
+
+**All three were the method being wrong about WHERE the answer lived**, and all three produced a
+confident, specific, wrong number. The first two hid a real problem; this one invented one. **The
+correction cost one command** — reading which file was actually being compared.
+
+### Now standing
+
+`check:secrets` is seven checks, and `.env.example` drift is one of them:
+
+    PASS  .env.example is in sync with the code (36 variables)
+
+It fails in **both** directions — a variable read but undocumented, *and* one documented but never read,
+because an entry nobody reads is how the next person sets a variable that does nothing.

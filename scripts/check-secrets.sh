@@ -53,7 +53,30 @@ else
   echo "  PASS  no secret is assigned a literal value"
 fi
 
-# 4. UNTRACKED files. This is the gap round 92 found: `git grep` reads the INDEX, so a stray `.env` sitting
+# 4. THE EXAMPLE FILE MUST NOT HAVE DRIFTED.
+#
+# Round 95 measured this the WRONG WAY first and got an alarming answer — 60 variables read, 2 documented —
+# because it compared the app's reads against the ROOT .env.example, which belongs to a different
+# application (OZITUMA_SITE_URL, OZITUMA_VERSION). Compared against its OWN example the answer is 36 and 36
+# with zero drift in either direction.
+#
+# A drifted example is how a deployment fails at two in the morning; an entry nobody reads is how the next
+# person sets a variable that does nothing.
+READ=$(grep -rhoE 'process\.env\.[A-Z][A-Z0-9_]+' apps/ozikoro packages/ozikoro packages/db \
+  --include='*.ts' --include='*.tsx' --include='*.mjs' 2>/dev/null | sed 's/process\.env\.//' | sort -u \
+  | grep -vE '^(NEXT_|VERCEL|NODE_ENV$|PORT$)' || true)
+DOC=$(grep -oE '^[A-Z][A-Z0-9_]*=' apps/ozikoro/.env.example 2>/dev/null | sed 's/=$//' | sort -u || true)
+UNDOC=$(comm -23 <(printf '%s\n' "$READ") <(printf '%s\n' "$DOC") || true)
+UNUSED=$(comm -13 <(printf '%s\n' "$READ") <(printf '%s\n' "$DOC") || true)
+if [ -n "$UNDOC" ] || [ -n "$UNUSED" ]; then
+  [ -n "$UNDOC" ] && { echo "  READ BY THE APP, ABSENT FROM .env.example:" >&2; printf '    %s\n' $UNDOC >&2; }
+  [ -n "$UNUSED" ] && { echo "  DOCUMENTED BUT NEVER READ:" >&2; printf '    %s\n' $UNUSED >&2; }
+  failed=$((failed + 1))
+else
+  echo "  PASS  .env.example is in sync with the code ($(printf '%s\n' "$DOC" | grep -c .) variables)"
+fi
+
+# 5. UNTRACKED files. This is the gap round 92 found: `git grep` reads the INDEX, so a stray `.env` sitting
 #    in the working tree — the exact thing a later `git add -A` would commit — is invisible to checks 1-3.
 #    It was discovered while committing apps/web, whose 214 new files had never been scanned by anything.
 UNTRACKED_ENV=$(git ls-files --others --exclude-standard | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)
@@ -79,7 +102,7 @@ else
   echo "  PASS  no credential-shaped text in untracked files"
 fi
 
-# 5. The example file must exist, or a new contributor has no list to work from.
+# 6. The example file must exist, or a new contributor has no list to work from.
 if [ -f .env.example ]; then
   echo "  PASS  .env.example exists ($(grep -cE '^[A-Z_]+=' .env.example) variables listed)"
 else
