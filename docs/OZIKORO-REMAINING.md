@@ -6577,3 +6577,49 @@ opening the file nobody had opened.
 * three genuinely need a decision only the owner can make (the eleven addresses, the redirect row, the
   media rights)
 * and the data gaps need people, not code, whichever way they are framed
+
+---
+
+## ROUND 154 — "NOTIFICATIONS: OPEN" HAS A FIRST USE CASE, AND IT IS THE CLAIM PATH
+
+Round 153 found mail exists in `apps/web` and `packages/core` and that Ozikoro has none of it. This round
+asked where it would be needed **first**, and there is one obvious answer that is already half-built.
+
+### The flow, as it stands
+
+    an author requests a claim      packages/ozikoro/src/members.ts  requestContributorClaim()
+    a claim sits pending            ozikoro_contributor_claim, status 'pending'
+    an editor must notice           apps/ozikoro/app/admin/claims — a page somebody has to open
+    an editor decides               decideContributorClaim()  — which needs manage_contributors
+
+    grep for mail, notif, send or email in requestContributorClaim   ->  nothing
+
+**Nobody is told.** The claim is recorded, the admin page exists, and the connection between them is an
+editor happening to look. The author's own page says *"a byline nobody has claimed is one the archive
+cannot keep accurate"* — which is exactly the problem the missing notification creates.
+
+### Which makes it the best first notification in the estate
+
+    trigger      exists   requestContributorClaim already runs at the right moment
+    recipient    known    whoever holds manage_contributors — the capability the decision needs
+    destination  exists   /admin/claims, built and gated
+    transport    exists   apps/web/lib/mail.ts, and the SMTP variables are already documented
+    template     absent
+    wiring       absent
+
+**Five of six parts already exist.** This is not "build a notification system"; it is one template and one
+call at a point the code already passes through. **And it is the fourth instance of the same pattern in
+seven rounds** — the capability is in the estate and Ozikoro is not connected to it.
+
+### And it cannot be tested until there are accounts
+
+Round 128 established the `account` table is empty, so there are no editors to notify and no claimants to
+notify them about. **`ozikoro_contributor_claim` has 0 rows and always has.** So this is the one item in the
+file whose *purpose* depends on another item being finished first:
+
+    the eleven addresses  ->  accounts  ->  claimants  ->  claims  ->  a notification worth sending
+
+**That ordering is the reason it is recorded rather than built.** Writing the template now would produce
+code that cannot be exercised end to end, against a flow that has never run with real people — and rounds
+132 and 133 showed how much is learned by exercising a flow with throwaways rather than reading it. Here
+there is nothing to exercise it against that would not be invented.
