@@ -1,763 +1,275 @@
 import Link from 'next/link';
-import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { listLanguages } from '@ozituma/db/repository';
-import { listSuggestions } from '@ozituma/db/contributions';
-import { listTribes } from '@ozituma/db/clans';
-import { requireLanguage } from '@ozituma/core';
+import { accountDashboard } from '@ozituma/db/dashboard';
 import { getCurrentAccount } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
-export const metadata: Metadata = {
-  title: 'Contribute',
-  description:
-    'Add a word, a clan, a name or a proverb to Ozituma, or suggest a correction to an entry.',
+/*
+ * The contributor's overview, to the design.
+ *
+ * The design reframes this screen around accumulation: not "submitted" but what was accepted, what
+ * is waiting, and what came back with a reason you can act on. It also gives this page and
+ * /contribute/submissions separate jobs — this is your standing and recent decisions; that is the
+ * complete, filterable record.
+ *
+ * Every figure is counted live. Zero renders as zero — there is no decorative placeholder here, and
+ * the empty states are the design's.
+ */
+
+const KIND_LABEL: Record<string, string> = {
+  new_word: 'Word', edit_word: 'Word', word_edit: 'Word', new_definition: 'Word',
+  new_example: 'Word', audio: 'Recording', correction: 'Correction', dialect: 'Dialect',
+  new_dialect: 'Dialect', proverb_edit: 'Proverb', new_proverb: 'Proverb',
+  name_edit: 'Name', new_name: 'Name', clan_edit: 'Clan', new_clan: 'Clan',
 };
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  pending: { label: 'Awaiting review', className: 'chip' },
-  approved: { label: 'Published', className: 'chip chip-common' },
-  merged: { label: 'Merged into an existing entry', className: 'chip chip-common' },
-  rejected: { label: 'Not accepted', className: 'chip' },
-};
+/**
+ * What to call a submission on this screen.
+ *
+ * The record stores a payload whose shape depends on the kind, so the title is read from whichever
+ * key the kind uses and falls back to the kind's own name. Nothing is invented: if the payload
+ * carries no title, the entry shows its kind rather than a made-up word.
+ */
+function titleOf(s: { kind: string; payload: Record<string, unknown> }): string {
+  const p = s.payload ?? {};
+  for (const key of ['headword', 'name', 'text', 'proverb', 'spelling', 'clanName', 'title']) {
+    const v = p[key];
+    if (typeof v === 'string' && v.trim()) return v.trim();
+  }
+  return KIND_LABEL[s.kind] ?? 'Entry';
+}
 
-export default async function ContributePage({
+/** One line under the title, when the payload carries one. */
+function glossOf(s: { payload: Record<string, unknown> }): string | null {
+  const p = s.payload ?? {};
+  for (const key of ['meaning', 'definition', 'english', 'translation', 'gloss', 'note']) {
+    const v = p[key];
+    if (typeof v === 'string' && v.trim()) return v.trim().slice(0, 160);
+  }
+  const meanings = p['meanings'];
+  if (Array.isArray(meanings) && typeof meanings[0] === 'string') return String(meanings[0]).slice(0, 160);
+  return null;
+}
+
+function stateOf(status: string): { label: string; badge: string } {
+  if (status === 'approved' || status === 'merged' || status === 'published') {
+    return { label: status === 'merged' ? 'Merged' : 'Accepted', badge: 'badge--accepted' };
+  }
+  if (status === 'rejected') return { label: 'Refused', badge: 'badge--refused' };
+  return { label: 'Pending', badge: 'badge--pending' };
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ submitted?: string; error?: string; welcome?: string }>;
+  searchParams: Promise<{ submitted?: string }>;
 }) {
-  const current = await getCurrentAccount();
-  if (!current) redirect('/signin?error=Sign+in+to+contribute.');
-
   const params = await searchParams;
+  const current = await getCurrentAccount();
   const db = await getDb();
+  const data = await accountDashboard(db, current!.account.id);
 
-  const [languages, mine, divisions] = await Promise.all([
-    listLanguages(db),
-    listSuggestions(db, { submittedBy: current.account.id, limit: 20 }),
-    // The divisions of Igboland, so the clan form offers the real six rather than a free-text box
-    // somebody has to guess the spelling of.
-    listTribes(db),
-  ]);
+  const name = current!.account.displayName ?? current!.account.email;
+  const first = name.split(/[\s@]/)[0]!;
+  const accepted = data.contributions.approved + data.contributions.merged;
+  const pending = data.contributions.pending;
+  const refused = data.contributions.rejected;
+  const total = data.contributions.total;
 
-  // Only languages with content are offered, so a contribution cannot land in a
-  // language where nobody will ever review it.
-  const available = languages.filter((l) => l.wordCount > 0);
-  const defaultLanguage = available[0]?.code ?? 'ibo';
-  const defaultName = available[0] ? requireLanguage(available[0].code).name : 'Igbo';
-  // The varieties already recorded for it, so a recording can say which one it is in. Read after
-  // the default language is known, because it is read FOR that language.
-  const dialects = await db.rows<{ code: string; name: string }>(
-    `select code, name from dialect where language_code = $1 and is_active order by name`,
-    [defaultLanguage]
-  );
+  // The meter is drawn from real counts, and only when there is something to draw.
+  const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
+  const recent = data.contributions.recent.slice(0, 4);
 
   return (
-    <div className="wrap wrap-narrow">
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem', flexWrap: 'wrap' }}>
-        <h1 style={{ marginBottom: 0 }}>Contribute</h1>
-        <span style={{ marginLeft: 'auto', fontSize: '0.9rem' }}>
-          {current.canReview ? <Link href="/review">Review queue →</Link> : null}
-        </span>
-      </div>
-
-      <p className="hero-lede">
-        Signed in as <strong>{current.account.displayName ?? current.account.email}</strong>. Every
-        submission is reviewed by an editor before it appears in the dictionary.
-      </p>
-
-      {params.welcome ? (
-        <div className="notice" style={{ marginBottom: '1.25rem' }}>
-          Welcome. Your account is ready — add your first word below.
-        </div>
-      ) : null}
-
-      {params.submitted ? (
-        <div className="notice notice-warn" style={{ marginBottom: '1.25rem' }}>
-          <strong>Thank you — submission #{params.submitted} received.</strong>
-          <p style={{ margin: '0.4rem 0 0' }}>
-            An editor will review it. You will see the decision in your submissions below.
+    <>
+      <header className="page-header">
+        <div className="page-header__text">
+          <p className="page-header__kicker">Ndeewo</p>
+          <h1 className="page-header__title">{greeting()}, {first}</h1>
+          <p className="page-header__lede">
+            {total === 0
+              ? 'Nothing sent yet. Every entry in this dictionary came from somebody who knew the word.'
+              : `${total} ${total === 1 ? 'entry' : 'entries'} of yours are in the record. Here is where each stands, and what is waiting for you.`}
           </p>
         </div>
-      ) : null}
+        <div className="page-header__actions">
+          <Link className="btn btn--primary" href="/contribute/word">Add a word</Link>
+          <Link className="btn" href="/contribute/submissions">Your submissions</Link>
+        </div>
+      </header>
 
-      {params.error ? (
-        <div className="notice notice-warn" role="alert" style={{ marginBottom: '1.25rem' }}>
-          {params.error}
+      {params.submitted ? (
+        <div className="notice notice--success" role="status">
+          <div>
+            <p className="notice__title">Sent for review</p>
+            <p className="notice__body">
+              Your entry is with the editors. <Link href="/contribute/submissions">See it in your submissions</Link>.
+            </p>
+          </div>
         </div>
       ) : null}
 
-      {available.length === 0 ? (
-        <div className="notice notice-warn">
-          No language has any entries yet, so there is nothing to contribute against safely.
+      <div className="grid grid--4">
+        <div className="stat">
+          <span className="stat__label">Accepted</span>
+          <span className="stat__value">{accepted.toLocaleString()}</span>
+          <span className="stat__meta">published in the record</span>
         </div>
-      ) : (
-        <>
-          <section className="section">
-            <h2>Add a word</h2>
-            <form method="post" action="/api/contributions" style={{ display: 'grid', gap: '0.85rem' }}>
-              <input type="hidden" name="kind" value="new_word" />
+        <div className={`stat${pending > 0 ? ' stat--attention' : ''}`}>
+          <span className="stat__label">Awaiting review</span>
+          <span className="stat__value">{pending.toLocaleString()}</span>
+          <span className="stat__meta">{pending > 0 ? 'with the editors' : 'nothing waiting'}</span>
+        </div>
+        <div className="stat">
+          <span className="stat__label">Needs your edit</span>
+          <span className="stat__value">{refused.toLocaleString()}</span>
+          <span className="stat__meta">{refused > 0 ? 'refused with a reason' : 'none refused'}</span>
+        </div>
+        <div className={`stat${data.recordings.total === 0 ? ' stat--zero' : ''}`}>
+          <span className="stat__label">Recordings</span>
+          <span className="stat__value">{data.recordings.total.toLocaleString()}</span>
+          <span className="stat__meta">
+            {data.recordings.total === 0
+              ? 'none sent yet'
+              : `${data.recordings.published.toLocaleString()} published`}
+          </span>
+        </div>
+      </div>
 
-              <div>
-                <label htmlFor="language">Language</label>
-                <select id="language" name="language" className="search-input" style={{ width: '100%' }}>
-                  {available.map((language) => (
-                    <option key={language.code} value={language.code}>
-                      {language.name} ({language.nativeName})
-                    </option>
-                  ))}
-                </select>
-                <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-                  Currently only {defaultName} accepts contributions, because reviewed entries need
-                  someone who can check them.
+      <div className="grid grid--aside u-mt">
+        <div>
+          {current!.canReview ? (
+            <section className="panel" aria-labelledby="queue-h">
+              <div className="panel__head">
+                <h2 className="panel__title" id="queue-h">Waiting on you as editor</h2>
+                <div className="panel__actions">
+                  <Link className="btn btn--sm" href="/review">Open the queue</Link>
+                </div>
+              </div>
+              <div className="panel__body">
+                <p className="u-sm u-muted" style={{ marginTop: 0 }}>
+                  You have reviewed {data.reviewed.toLocaleString()} {data.reviewed === 1 ? 'entry' : 'entries'}.
+                  Anything sent by others is waiting in the queue.
                 </p>
               </div>
+            </section>
+          ) : null}
 
-              <div>
-                <label htmlFor="headword">Word or phrase</label>
-                <input
-                  id="headword"
-                  name="headword"
-                  required
-                  maxLength={120}
-                  spellCheck={false}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. ọ̀dị́nàlà"
-                />
-                <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-                  Include diacritics if you can. If you cannot type them, plain letters are still
-                  searchable — someone will add the correct spellings.
+          <section className="panel" aria-labelledby="recent-h">
+            <div className="panel__head">
+              <h2 className="panel__title" id="recent-h">What became of your last entries</h2>
+              <div className="panel__actions">
+                <Link className="btn btn--sm" href="/contribute/submissions">Full list</Link>
+              </div>
+            </div>
+            {recent.length === 0 ? (
+              <div className="panel__body">
+                <div className="empty">
+                  <p className="empty__title">Nothing sent yet</p>
+                  <p className="empty__body">
+                    Your contributions and every decision on them will appear here.
+                  </p>
+                  <Link className="btn btn--primary" href="/contribute/word">Add your first word</Link>
+                </div>
+              </div>
+            ) : (
+              <ul className="panel__body panel__body--flush" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                {recent.map((s) => {
+                  const state = stateOf(String(s.status));
+                  const gloss = glossOf(s);
+                  return (
+                    <li className="entry" key={s.id}>
+                      <div className="entry__main">
+                        <h3 className="entry__title"><span className="igbo">{titleOf(s)}</span></h3>                        {s.status === 'rejected' && s.reviewNote ? (
+                          <p className="entry__gloss">refused — &ldquo;{s.reviewNote}&rdquo;</p>
+                        ) : gloss ? (
+                          <p className="entry__gloss">{gloss}</p>
+                        ) : null}
+                        <p className="entry__meta">
+                          <span>{KIND_LABEL[String(s.kind)] ?? 'Entry'}</span>
+                          {s.reviewedByName ? <span>{s.reviewedByName}</span> : null}
+                          <span>{String(s.submittedAt).slice(0, 10)}</span>
+                        </p>
+                      </div>
+                      <div className="entry__side">
+                        <span className={`badge ${state.badge}`}>{state.label}</span>
+                        {String(s.status) === 'rejected' ? (
+                          <Link className="btn btn--sm" href="/contribute/submissions">Edit and resend</Link>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </div>
+
+        <aside>
+          <section className="panel" aria-labelledby="standing-h">
+            <div className="panel__head">
+              <h2 className="panel__title" id="standing-h">Your standing</h2>
+            </div>
+            <div className="panel__body">
+              {total === 0 ? (
+                <p className="u-sm u-muted" style={{ marginTop: 0 }}>
+                  Nothing sent yet, so there is nothing to stand on. That changes with one word.
                 </p>
-              </div>
-
-              <div>
-                <label htmlFor="definitions">Meanings in English</label>
-                <textarea
-                  id="definitions"
-                  name="definitions"
-                  required
-                  rows={4}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                  placeholder={'One meaning per line\nhouse\nhome'}
-                />
-                <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-                  One meaning per line. Put the most common meaning first.
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="partOfSpeech">Grammar category (optional)</label>
-                <input
-                  id="partOfSpeech"
-                  name="partOfSpeech"
-                  maxLength={20}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. NNC"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="example">Example sentence (optional)</label>
-                <input id="example" name="example" maxLength={500} className="search-input" style={{ width: '100%' }} />
-              </div>
-
-              <div>
-                <label htmlFor="exampleTranslation">Example translation (optional)</label>
-                <input
-                  id="exampleTranslation"
-                  name="exampleTranslation"
-                  maxLength={500}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="note">Note for the reviewer (optional)</label>
-                <textarea
-                  id="note"
-                  name="note"
-                  rows={2}
-                  maxLength={1000}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                  placeholder="Where did this come from? Which dialect or town uses it?"
-                />
-                <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-                  Saying where a word is used helps an editor verify it, and is the difference
-                  between an entry being accepted and left pending.
-                </p>
-              </div>
-
-              <div>
-                <button className="button" type="submit">
-                  Submit for review
-                </button>
-              </div>
-            </form>
+              ) : (
+                <>
+                  <p className="u-sm u-muted" style={{ marginTop: 0 }}>
+                    {total} sent in total.
+                  </p>
+                  <div
+                    className="meter"
+                    role="img"
+                    aria-label={`${accepted} accepted, ${pending} pending, ${refused} refused of ${total} submissions`}
+                  >
+                    <div style={{ display: 'flex', height: '100%' }}>
+                      <div className="meter__fill meter__fill--accepted" style={{ width: `${pct(accepted)}%` }} />
+                      <div className="meter__fill meter__fill--pending" style={{ width: `${pct(pending)}%` }} />
+                      <div className="meter__fill meter__fill--refused" style={{ width: `${pct(refused)}%` }} />
+                    </div>
+                  </div>
+                  <p className="meter-legend">
+                    <span><span className="meter-legend__dot" style={{ background: 'var(--green)' }} />{accepted} accepted</span>
+                    <span><span className="meter-legend__dot" style={{ background: 'var(--ochre)' }} />{pending} pending</span>
+                    <span><span className="meter-legend__dot" style={{ background: 'var(--red)' }} />{refused} refused</span>
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="panel__foot"><Link href="/contribute/profile">Your public profile</Link></div>
           </section>
 
-          <section className="section">
-            <h2>Add a name</h2>
-            <p className="muted" style={{ fontSize: '0.9rem' }}>
-              An Igbo personal name, with the meaning the family gives it. A name is unisex unless
-              the name itself is stated to be male or female.
-            </p>
-            <form method="post" action="/api/contributions" style={{ display: 'grid', gap: '0.85rem' }}>
-              <input type="hidden" name="kind" value="new_name" />
-              <input type="hidden" name="language" value={defaultLanguage} />
-
-              <div>
-                <label htmlFor="nameName">Name</label>
-                <input
-                  id="nameName"
-                  name="name"
-                  required
-                  maxLength={120}
-                  spellCheck={false}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. Chidiebube"
-                />
+          <section className="panel" aria-labelledby="start-h">
+            <div className="panel__head">
+              <h2 className="panel__title" id="start-h">Start something</h2>
+            </div>
+            <div className="panel__body">
+              <p className="u-sm u-muted" style={{ marginTop: 0 }}>
+                Each of these is a short, guided task.
+              </p>
+              <div className="u-flex">
+                <Link className="btn btn--sm" href="/contribute/word">Word</Link>
+                <Link className="btn btn--sm" href="/contribute/name">Name</Link>
+                <Link className="btn btn--sm" href="/contribute/proverb">Proverb</Link>
+                <Link className="btn btn--sm" href="/contribute/clan">Clan</Link>
+                <Link className="btn btn--sm" href="/contribute/dialect">Dialect</Link>
+                <Link className="btn btn--sm" href="/contribute/recording">Recording</Link>
               </div>
-
-              <div>
-                <label htmlFor="nameMeaning">What it means</label>
-                <input
-                  id="nameMeaning"
-                  name="meaning"
-                  maxLength={600}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. God is wonderful"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="nameGender">Gender</label>
-                <select id="nameGender" name="gender" className="search-input" style={{ width: '100%' }}>
-                  <option value="unisex">Unisex</option>
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-                <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-                  Choose male or female only if a source says so — father and mother in a name are
-                  not gender signals.
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="nameVariants">Other spellings (optional)</label>
-                <input
-                  id="nameVariants"
-                  name="variants"
-                  maxLength={600}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="short forms or other spellings, separated by commas"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="nameOrigins">Where the name is borne (optional)</label>
-                <input
-                  id="nameOrigins"
-                  name="origins"
-                  maxLength={600}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="towns or clans, separated by commas"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="nameNote">Note for the reviewer (optional)</label>
-                <textarea
-                  id="nameNote"
-                  name="note"
-                  rows={2}
-                  maxLength={1000}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                  placeholder="Where does this name come from? Who bears it?"
-                />
-              </div>
-
-              <div>
-                <button className="button" type="submit">
-                  Submit the name
-                </button>
-              </div>
-            </form>
+            </div>
           </section>
-
-          <section className="section">
-            <h2>Add a dialect or variety</h2>
-            <p className="muted" style={{ fontSize: '0.9rem' }}>
-              A variety of Igbo the dictionary does not record yet. Once it is here, a spelling or a
-              recording can be filed under it.
-            </p>
-            <form method="post" action="/api/contributions" style={{ display: 'grid', gap: '0.85rem' }}>
-              <input type="hidden" name="kind" value="new_dialect" />
-              <input type="hidden" name="language" value={defaultLanguage} />
-
-              <div>
-                <label htmlFor="dialectName">Name of the variety</label>
-                <input
-                  id="dialectName"
-                  name="name"
-                  required
-                  maxLength={120}
-                  spellCheck={false}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. Ọnịcha"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="dialectCode">Short code</label>
-                <input
-                  id="dialectCode"
-                  name="code"
-                  required
-                  maxLength={24}
-                  spellCheck={false}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. Onicha"
-                />
-                <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-                  Letters, digits, spaces, hyphens or underscores. This is the handle the record
-                  files spellings and recordings under.
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="dialectNative">Name in the variety itself (optional)</label>
-                <input
-                  id="dialectNative"
-                  name="nativeName"
-                  maxLength={120}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="dialectRegion">Where it is spoken (optional)</label>
-                <input
-                  id="dialectRegion"
-                  name="region"
-                  maxLength={120}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="a town, a local government area, a state"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="dialectNote">Note for the reviewer (optional)</label>
-                <textarea
-                  id="dialectNote"
-                  name="note"
-                  rows={2}
-                  maxLength={1000}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                />
-              </div>
-
-              <div>
-                <button className="button" type="submit">
-                  Submit the variety
-                </button>
-              </div>
-            </form>
-          </section>
-
-          <section className="section">
-            <h2>Add a voice recording</h2>
-            <p className="muted" style={{ fontSize: '0.9rem' }}>
-              Say the word and upload the recording. Name the entry it belongs to — the word must
-              already be in the dictionary, so add it first if it is not.
-            </p>
-            <form
-              method="post"
-              action="/api/audio"
-              encType="multipart/form-data"
-              style={{ display: 'grid', gap: '0.85rem' }}
-            >
-              <input type="hidden" name="language" value={defaultLanguage} />
-
-              <div>
-                <label htmlFor="audioHeadword">The word being said</label>
-                <input
-                  id="audioHeadword"
-                  name="headword"
-                  required
-                  maxLength={120}
-                  spellCheck={false}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. ụlọ"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="audioFile">The recording</label>
-                <input
-                  id="audioFile"
-                  name="file"
-                  type="file"
-                  accept="audio/*"
-                  required
-                  className="search-input"
-                  style={{ width: '100%' }}
-                />
-                <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-                  A sound file under two minutes. If you have a microphone, your browser can record
-                  one for you and put it in this box.
-                </p>
-              </div>
-
-              <div>
-                <label htmlFor="audioDialect">Which variety is it said in? (optional)</label>
-                <select
-                  id="audioDialect"
-                  name="dialectCode"
-                  className="search-input"
-                  style={{ width: '100%' }}
-                >
-                  <option value="">Not stated</option>
-                  {dialects.map((dialect) => (
-                    <option key={dialect.code} value={dialect.code}>
-                      {dialect.name} ({dialect.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="audioNote">Note for the reviewer (optional)</label>
-                <textarea
-                  id="audioNote"
-                  name="provenanceNote"
-                  rows={2}
-                  maxLength={1000}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                  placeholder="Who is speaking? Where is this said?"
-                />
-              </div>
-
-              <div>
-                <button className="button" type="submit">
-                  Submit the recording
-                </button>
-              </div>
-            </form>
-          </section>
-
-          <section className="section">
-            <h2>Add a proverb</h2>
-            <p className="muted" style={{ fontSize: '0.9rem' }}>
-              An ilu, with its English if you have one. A proverb submitted without an English is
-              still useful — it will be paired up later.
-            </p>
-            <form method="post" action="/api/contributions" style={{ display: 'grid', gap: '0.85rem' }}>
-              <input type="hidden" name="kind" value="new_proverb" />
-              <input type="hidden" name="language" value={defaultLanguage} />
-
-              <div>
-                <label htmlFor="proverbText">The proverb</label>
-                <textarea
-                  id="proverbText"
-                  name="text"
-                  required
-                  rows={2}
-                  maxLength={600}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                  placeholder="e.g. Ọ bụ nwayọọ ka e ji aracha ọfe dị ọkụ"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="proverbTranslation">What it means in English (optional)</label>
-                <textarea
-                  id="proverbTranslation"
-                  name="translation"
-                  rows={2}
-                  maxLength={600}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="proverbNote">Note for the reviewer (optional)</label>
-                <textarea
-                  id="proverbNote"
-                  name="note"
-                  rows={2}
-                  maxLength={1000}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                  placeholder="Where did you hear it? Which town says it this way?"
-                />
-              </div>
-
-              <div>
-                <button className="button" type="submit">
-                  Submit the proverb
-                </button>
-              </div>
-            </form>
-          </section>
-
-          <section className="section">
-            <h2>Suggest a correction</h2>
-            <p className="muted" style={{ fontSize: '0.9rem' }}>
-              Spotted something wrong in an existing entry? Open the entry and use the link at the
-              bottom, or describe it here.
-            </p>
-            <form method="post" action="/api/contributions" style={{ display: 'grid', gap: '0.85rem' }}>
-              <input type="hidden" name="kind" value="correction" />
-              <input type="hidden" name="language" value={defaultLanguage} />
-              <div>
-                <label htmlFor="correctionHeadword">Entry</label>
-                <input
-                  id="correctionHeadword"
-                  name="headword"
-                  maxLength={120}
-                  className="search-input"
-                  style={{ width: '100%' }}
-                  placeholder="the headword you are correcting"
-                />
-              </div>
-              <div>
-                <label htmlFor="correctionNote">What is wrong, and what should it say?</label>
-                <textarea
-                  id="correctionNote"
-                  name="note"
-                  required
-                  rows={3}
-                  maxLength={1000}
-                  className="search-input"
-                  style={{ width: '100%', fontFamily: 'inherit' }}
-                />
-              </div>
-              <div>
-                <button className="button button-secondary" type="submit">
-                  Submit correction
-                </button>
-              </div>
-            </form>
-          </section>
-        </>
-      )}
-
-      {/*
-        A clan is not a thing inside a language, so this form sits outside the language check: it is
-        the one contribution that can be made on a site with no dictionary in it at all.
-      */}
-      <section className="section">
-        <h2>Add a clan or a town</h2>
-        <p className="muted" style={{ fontSize: '0.9rem' }}>
-          A clan, town or grouping that is not in the registry yet. Say where it is today — its
-          state, its local government area, its towns — and what is known of it.
-        </p>
-        <form method="post" action="/api/contributions" style={{ display: 'grid', gap: '0.85rem' }}>
-          <input type="hidden" name="kind" value="new_clan" />
-
-          <div>
-            <label htmlFor="clanName">Name</label>
-            <input
-              id="clanName"
-              name="name"
-              required
-              maxLength={120}
-              spellCheck={false}
-              className="search-input"
-              style={{ width: '100%' }}
-              placeholder="e.g. Ozubulu"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="clanKind">What it is</label>
-            <select id="clanKind" name="entryKind" className="search-input" style={{ width: '100%' }}>
-              <option value="clan">Clan</option>
-              <option value="town">Town</option>
-              <option value="section">Section</option>
-              <option value="confederation">Confederation of clans</option>
-              <option value="kingdom">Kingdom</option>
-              <option value="other">Something else</option>
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="clanDivision">Division of Igboland (optional)</label>
-            <select id="clanDivision" name="division" className="search-input" style={{ width: '100%' }}>
-              <option value="">Not sure</option>
-              {divisions.map((division) => (
-                <option key={division.slug} value={division.name}>
-                  {division.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label htmlFor="clanStates">State or states today</label>
-            <input
-              id="clanStates"
-              name="states"
-              maxLength={300}
-              className="search-input"
-              style={{ width: '100%' }}
-              placeholder="e.g. Anambra"
-            />
-            <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-              Separated by commas. The present-day state, not a colonial division.
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="clanLgas">Local government areas (optional)</label>
-            <input
-              id="clanLgas"
-              name="lgas"
-              maxLength={400}
-              className="search-input"
-              style={{ width: '100%' }}
-              placeholder="e.g. Ekwusigo, Nnewi North"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="clanTowns">Towns and villages in it (optional)</label>
-            <textarea
-              id="clanTowns"
-              name="towns"
-              rows={3}
-              maxLength={6000}
-              className="search-input"
-              style={{ width: '100%', fontFamily: 'inherit' }}
-              placeholder={'One per line, or separated by commas'}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="clanOrigin">Summary (optional)</label>
-            <input
-              id="clanOrigin"
-              name="origin"
-              maxLength={600}
-              className="search-input"
-              style={{ width: '100%' }}
-              placeholder="one or two sentences for the index card"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="clanDescription">Description (optional)</label>
-            <textarea
-              id="clanDescription"
-              name="description"
-              rows={5}
-              maxLength={6000}
-              className="search-input"
-              style={{ width: '100%', fontFamily: 'inherit' }}
-              placeholder={'Leave a blank line between paragraphs'}
-            />
-            <p className="muted" style={{ fontSize: '0.85rem', margin: '0.3rem 0 0' }}>
-              A summary or a description is needed — a reviewer must have something to check.
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="clanNote">Note for the reviewer (optional)</label>
-            <textarea
-              id="clanNote"
-              name="note"
-              rows={2}
-              maxLength={1000}
-              className="search-input"
-              style={{ width: '100%', fontFamily: 'inherit' }}
-              placeholder="Where does this account come from?"
-            />
-          </div>
-
-          <div>
-            <button className="button" type="submit">
-              Submit the entry
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="section">
-        <h2>Your submissions</h2>
-        {mine.data.length === 0 ? (
-          <p className="muted">Nothing yet.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Submission</th>
-                <th>Status</th>
-                <th>Submitted</th>
-                <th>Reviewer note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {mine.data.map((suggestion) => {
-                const status = STATUS_LABELS[suggestion.status] ?? {
-                  label: suggestion.status,
-                  className: 'chip',
-                };
-                const headword =
-                  typeof suggestion.payload.headword === 'string'
-                    ? suggestion.payload.headword
-                    : `#${suggestion.id}`;
-                return (
-                  <tr key={suggestion.id}>
-                    <td>
-                      <strong>{headword}</strong>
-                      <br />
-                      <span className="muted" style={{ fontSize: '0.83rem' }}>
-                        {suggestion.kind.replace(/_/g, ' ')}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={status.className}>{status.label}</span>
-                    </td>
-                    <td className="muted" style={{ fontSize: '0.85rem' }}>
-                      {new Date(suggestion.submittedAt).toLocaleDateString()}
-                    </td>
-                    <td className="muted" style={{ fontSize: '0.85rem' }}>
-                      {suggestion.reviewNote ?? '—'}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      <form method="post" action="/api/auth/signout" style={{ marginTop: '2rem' }}>
-        <button className="button button-secondary" type="submit">
-          Sign out
-        </button>
-      </form>
-    </div>
+        </aside>
+      </div>
+    </>
   );
 }

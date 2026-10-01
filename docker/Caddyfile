@@ -1,29 +1,13 @@
-# Ozituma — TLS termination and reverse proxy for two applications.
+# Ozituma — TLS termination and reverse proxy.
 #
 # TLS uses a Cloudflare Origin CA certificate rather than Let's Encrypt. The
-# domain is proxied by Cloudflare, so the certificate only ever has to be trusted
-# by Cloudflare, and an Origin CA cert is issued for up to 15 years with no
-# renewal job to run. That removes the whole class of failure where an unrenewed
-# certificate takes the site down.
+# domain is proxied by Cloudflare, so the certificate only ever has to be
+# trusted by Cloudflare, and an Origin CA cert is issued for up to 15 years with
+# no renewal job to run. That removes the whole class of failure where an
+# unrenewed certificate takes the site down.
 #
 # Cloudflare's SSL mode must be "full (strict)" to match. Anything less and the
 # Cloudflare-to-origin hop is unverified.
-#
-# TWO SITES, TWO SERVICES
-#
-# ozituma.com is the dictionary. learn.ozituma.com is Ozituma Learn, the courses.
-# They run as separate containers from the same image, which is §6.1's decision:
-# independent release cycles and a clean boundary, so a change to the lesson
-# player cannot take the dictionary down.
-#
-# WHAT THIS FILE DELIBERATELY DOES NOT DO
-#
-# It does not send both hostnames to one upstream, and it does not rewrite paths.
-# An earlier version did both, because the courses were once served by the
-# dictionary's own process and the app worked out which site it was from the Host
-# header. That machinery is gone: each site now names the container that serves
-# it, and a routing rule with no remaining reason to exist is a rule that
-# eventually becomes wrong without anybody noticing.
 
 {
 	admin off
@@ -34,13 +18,14 @@
 	}
 }
 
-# The policy both sites share. Headers, compression and the health-check
-# exemption are identical either side, and two hand-maintained copies would
-# drift — with the copy that drifted being the one nobody looked at.
-#
-# The UPSTREAM is deliberately not in here. A snippet that hard-codes one
-# container is precisely how the dictionary ended up serving the courses.
-(ozituma_common) {
+# Canonical host. www redirects to the apex so there is one address for the
+# dictionary and no duplicate content for search engines.
+www.{$OZITUMA_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	redir https://{$OZITUMA_DOMAIN}{uri} permanent
+}
+
+{$OZITUMA_DOMAIN} {
 	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
 
 	encode zstd gzip
@@ -58,76 +43,31 @@
 	@health path /api/health
 	header @health Cache-Control "no-store"
 
+	# Nothing that is a page may be cached at the edge.
+	#
+	# The dictionary sends `no-store` itself, so it was never the problem. The courses send no
+	# Cache-Control at all — and when an origin says nothing, Cloudflare applies its own default
+	# and caches the HTML. The result was a visitor being served an old version of the site: they
+	# clicked, the page did not move, and only a hard reload showed the truth. Setting it here
+	# means it cannot depend on each app remembering, and a new app cannot reintroduce it.
+	header Cache-Control "private, no-cache, no-store, max-age=0, must-revalidate"
+
+	# Build assets are the exception, and the only one. Their names carry a content hash, so the
+	# bytes behind a name never change and they may be cached as hard as anything can be. This is
+	# what keeps the site fast while every page stays uncacheable.
+	@immutable path /_next/static/* /assets/* /fonts/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	reverse_proxy web:3000 {
+		header_up X-Real-IP {remote_host}
+		# The app generates canonical URLs from OZITUMA_SITE_URL, so the
+		# forwarded host is for logs and any host-conditional logic.
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
 	log {
 		output stdout
 		format json
-	}
-}
-
-# What every proxied request carries, so the app sees the real client and the
-# real scheme rather than the container network's view of them.
-(ozituma_proxy_headers) {
-	header_up X-Real-IP {remote_host}
-	# The app generates canonical URLs from OZITUMA_SITE_URL, so the host must
-	# survive the hop intact. Caddy preserves Host by default; this makes it
-	# explicit because the shared session cookie depends on the host being right.
-	header_up Host {host}
-	header_up X-Forwarded-Host {host}
-	header_up X-Forwarded-Proto {scheme}
-}
-
-# Canonical host for the dictionary. www redirects to the apex so there is one
-# address for the dictionary and no duplicate content for search engines.
-www.{$OZITUMA_DOMAIN} {
-	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
-	redir https://{$OZITUMA_DOMAIN}{uri} permanent
-}
-
-# The dictionary.
-{$OZITUMA_DOMAIN} {
-	import ozituma_common
-
-	# ozituma.com/learn/* -> learn.ozituma.com/*
-	#
-	# The dictionary's own navigation has a "Learn" item pointing at /learn, and the courses now
-	# live on their own host. Redirecting HERE rather than in the app is deliberate: doing it in the
-	# app would mean rebuilding and redeploying the dictionary to fix a link, which is exactly the
-	# coupling the split removed.
-	#
-	# `path_regexp` captures everything after /learn so the prefix is stripped: /learn/igbo must
-	# become learn.ozituma.com/igbo, not learn.ozituma.com/learn/igbo. The capture group is empty for
-	# the bare /learn, which is what makes one rule cover both.
-	@learn path_regexp learn ^/learn(?:/(.*))?$
-	redir @learn https://learn.{$OZITUMA_DOMAIN}/{re.learn.1} permanent
-
-	# Practice moved off the dictionary entirely. It belongs with the rest of the learning:
-	# it is the same reviewed words, but with a schedule that remembers them, XP, and a
-	# streak -- none of which the dictionary has any business holding.
-	#
-	# The path was public and may be bookmarked or linked from elsewhere, so it redirects
-	# rather than 404s. No query is carried over: the old page took ?mode= and ?language=,
-	# and neither means anything to the learning site's practice.
-	@practice path /practice
-	redir @practice https://learn.{$OZITUMA_DOMAIN}/practice permanent
-
-	reverse_proxy web:3000 {
-		import ozituma_proxy_headers
-	}
-}
-
-# Ozituma Learn — the courses.
-#
-# Its own container, so it can be redeployed or restarted without touching the
-# dictionary. `www.learn` is not defined: a course URL is something a learner is
-# given, and a second spelling of it that redirects would only ever be a way for
-# a shared link to look wrong.
-learn.{$OZITUMA_DOMAIN} {
-	import ozituma_common
-
-	# The one line that has to be right. Both containers listen on 3000 inside
-	# their own network namespace, so this name is the only thing distinguishing
-	# the dictionary from the courses.
-	reverse_proxy learn:3000 {
-		import ozituma_proxy_headers
 	}
 }

@@ -1,0 +1,1027 @@
+/* ==========================================================================
+   Ozituma dashboards — token proposal
+   Lift this file directly into apps/web/app/globals.css.
+
+   Rules honoured here:
+   - Colours in oklch().
+   - The six admin-overridable properties (--ink, --paper, --accent,
+     --header-bg, --footer-bg, --link) and --wrap are DECLARED but never
+     relied upon literally anywhere else: every dashboard colour is derived
+     from them with color-mix(), so a re-themed palette carries through.
+   - No fixed page width is assumed; --wrap governs measure.
+   ========================================================================== */
+
+:root {
+  /* ---- admin-overridable (existing contract, unchanged names) ---------- */
+  /*
+   * The website's own colours, kept.
+   *
+   * The design proposed a warmer palette; the owner asked for the site's own colour to stay and
+   * everything else to be designed. So these are Ozituma's existing base colours, and the whole
+   * design is derived from them — which is what the designer's color-mix() layer was built to do.
+   */
+  --ink: oklch(0.29 0.058 247);
+  --paper: oklch(0.945 0.022 88);
+  --accent: oklch(0.49 0.15 35);          /* the site's clay */
+  --header-bg: oklch(0.29 0.058 247);
+  --footer-bg: oklch(0.29 0.058 247);
+  --link: oklch(0.44 0.1 256);            /* the site's indigo-bright */
+  --wrap: 68rem;
+
+  /* ---- existing tokens, kept ------------------------------------------ */
+  --ink-soft: color-mix(in oklab, var(--ink) 72%, var(--paper));
+  --ink-faint: color-mix(in oklab, var(--ink) 48%, var(--paper));
+  --paper-raised: color-mix(in oklab, var(--paper) 94%, var(--ink));
+  --line: color-mix(in oklab, var(--ink) 14%, var(--paper));
+
+  --indigo: oklch(0.45 0.11 250);
+  --ochre: oklch(0.68 0.12 75);
+  --clay: oklch(0.55 0.13 40);
+  --green: oklch(0.52 0.1 155);
+  --red: oklch(0.52 0.16 25);
+
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-lg: 12px;
+
+  --shadow-sm: 0 1px 2px color-mix(in oklab, var(--ink) 10%, transparent);
+  --shadow: 0 2px 10px color-mix(in oklab, var(--ink) 12%, transparent);
+
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Libre Baskerville", Georgia, "Times New Roman", serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* ---- NEW: dashboard surfaces ---------------------------------------- */
+  /* Dark chrome for both dashboards, derived from --header-bg so a
+     re-theme moves the sidebar with everything else. */
+  --chrome: var(--header-bg);
+  --chrome-raised: color-mix(in oklab, var(--chrome) 88%, white);
+  --chrome-ink: color-mix(in oklab, white 88%, var(--chrome));
+  --chrome-ink-soft: color-mix(in oklab, white 60%, var(--chrome));
+  --chrome-line: color-mix(in oklab, white 16%, var(--chrome));
+
+  /* Dashboard A is warmer (paper), Dashboard B is cooler and flatter. */
+  --canvas-a: color-mix(in oklab, var(--paper) 97%, var(--ochre));
+  --canvas-b: color-mix(in oklab, var(--paper) 96%, var(--ink));
+
+  /* ---- NEW: state semantics, shared by A and B ------------------------ */
+  --state-draft: var(--ink-faint);
+  --state-pending: var(--ochre);
+  --state-accepted: var(--green);
+  --state-refused: var(--red);
+  --state-published: var(--indigo);
+
+  --tint-pending: color-mix(in oklab, var(--ochre) 16%, var(--paper));
+  --tint-accepted: color-mix(in oklab, var(--green) 14%, var(--paper));
+  --tint-refused: color-mix(in oklab, var(--red) 13%, var(--paper));
+  --tint-info: color-mix(in oklab, var(--indigo) 12%, var(--paper));
+
+  /* ---- NEW: spacing rhythm (4px base, shared by both dashboards) ------ */
+  --s-1: 0.25rem;
+  --s-2: 0.5rem;
+  --s-3: 0.75rem;
+  --s-4: 1rem;
+  --s-5: 1.5rem;
+  --s-6: 2rem;
+  --s-7: 3rem;
+
+  /* ---- NEW: type scale (shared; B simply uses the lower steps) -------- */
+  --t-xs: 0.75rem;
+  --t-sm: 0.8125rem;
+  --t-base: 0.9375rem;
+  --t-md: 1.0625rem;
+  --t-lg: 1.375rem;
+  --t-xl: 1.875rem;
+  --t-2xl: 2.5rem;
+
+  /* ---- NEW: focus ----------------------------------------------------- */
+  --focus: 0 0 0 2px var(--paper), 0 0 0 4px var(--accent);
+
+  /* ---- NEW: density knob. A = comfortable, B = instrument panel ------- */
+  --row-pad: var(--s-3);
+}
+
+
+/* ==========================================================================
+   The component layer, from the designer verbatim.
+   Loaded only by the two dashboard layouts, so the public site is untouched.
+   ========================================================================== */
+
+/* ==========================================================================
+   Ozituma dashboards — shared component layer
+   Plain CSS. No preprocessor, no framework, no build step.
+
+   Naming: block, block__element, block--modifier.
+   Everything in this file is a COMPONENT (reused on 2+ screens).
+   One-offs live at the bottom of each screen file, clearly marked.
+   ========================================================================== */
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: var(--t-base);
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--canvas-a);
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-serif);
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+a { color: var(--link); }
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  border-radius: var(--radius-sm);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; border: 0;
+}
+
+/* --------------------------------------------------------------------------
+   shell — the two-column dashboard frame. COMPONENT (every screen).
+   The dashboards never render the public header or footer.
+   -------------------------------------------------------------------------- */
+
+.shell {
+  display: grid;
+  grid-template-columns: 16.5rem minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.shell--admin { grid-template-columns: 15rem minmax(0, 1fr); }
+.shell--admin .shell__main { background: var(--canvas-b); }
+
+.shell__main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.shell__content {
+  width: 100%;
+  max-width: var(--wrap);
+  margin: 0 auto;
+  padding: var(--s-6) var(--s-5) var(--s-7);
+}
+
+.shell--admin .shell__content {
+  max-width: none;          /* instrument panel uses the full width */
+  padding: var(--s-5) var(--s-5) var(--s-7);
+}
+
+/* --------------------------------------------------------------------------
+   sidenav — dark chrome. COMPONENT (both dashboards, different contents).
+   Groups use <details>/<summary>: keyboard-accessible, zero JavaScript.
+   -------------------------------------------------------------------------- */
+
+.sidenav {
+  background: var(--chrome);
+  color: var(--chrome-ink);
+  padding: var(--s-5) var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  border-right: 1px solid var(--chrome-line);
+}
+
+.sidenav__brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+  text-decoration: none;
+  color: inherit;
+}
+.sidenav__mark {
+  font-family: var(--font-serif);
+  font-size: var(--t-md);
+  color: var(--chrome-ink);
+}
+.sidenav__context {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--chrome-ink-soft);
+}
+
+.sidenav__group { border: 0; }
+.sidenav__group > summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--chrome-ink-soft);
+  padding: var(--s-2) var(--s-2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.sidenav__group > summary::-webkit-details-marker { display: none; }
+.sidenav__group > summary::after {
+  content: "+";
+  font-size: var(--t-base);
+  line-height: 1;
+}
+.sidenav__group[open] > summary::after { content: "–"; }
+
+.sidenav__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sidenav__link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--radius);
+  color: var(--chrome-ink);
+  text-decoration: none;
+  font-size: var(--t-sm);
+  border-left: 2px solid transparent;
+}
+.sidenav__link:hover { background: var(--chrome-raised); }
+.sidenav__link[aria-current="page"] {
+  background: var(--chrome-raised);
+  border-left-color: var(--accent);
+  font-weight: 600;
+}
+.sidenav__count {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--chrome-ink-soft);
+}
+
+/* editor-only entry: additive, marked, never a separate product */
+.sidenav__link--review .sidenav__count {
+  background: var(--accent);
+  color: var(--paper);
+  border-radius: 999px;
+  padding: 0 var(--s-2);
+}
+
+.sidenav__foot {
+  margin-top: auto;
+  border-top: 1px solid var(--chrome-line);
+  padding-top: var(--s-3);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+}
+.sidenav__who { min-width: 0; }
+.sidenav__name {
+  font-size: var(--t-sm);
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidenav__role {
+  font-size: var(--t-xs);
+  color: var(--chrome-ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* --------------------------------------------------------------------------
+   topbar — admin only, sits above the content. COMPONENT (Dashboard B).
+   -------------------------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-5);
+  background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.topbar__title {
+  font-family: var(--font-serif);
+  font-size: var(--t-md);
+}
+.topbar__spacer { margin-left: auto; }
+.topbar__search {
+  display: flex;
+  gap: var(--s-2);
+}
+
+/* --------------------------------------------------------------------------
+   avatar — COMPONENT
+   -------------------------------------------------------------------------- */
+
+.avatar {
+  width: 2rem; height: 2rem;
+  flex: none;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 30%, var(--paper));
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  font-family: var(--font-body);
+}
+.avatar--sm { width: 1.5rem; height: 1.5rem; font-size: 0.625rem; }
+.avatar--lg { width: 3.5rem; height: 3.5rem; font-size: var(--t-base); }
+
+/* --------------------------------------------------------------------------
+   page-header — COMPONENT (every screen)
+   -------------------------------------------------------------------------- */
+
+.page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s-4);
+  margin-bottom: var(--s-5);
+}
+.page-header__text { min-width: 0; flex: 1 1 22rem; }
+.page-header__kicker {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink-faint);
+  margin: 0 0 var(--s-1);
+}
+.page-header__title { font-size: var(--t-xl); }
+.shell--admin .page-header__title { font-size: var(--t-lg); }
+.page-header__lede {
+  margin: var(--s-2) 0 0;
+  color: var(--ink-soft);
+  max-width: 54ch;
+}
+.page-header__actions { display: flex; gap: var(--s-2); flex-wrap: wrap; }
+
+/* --------------------------------------------------------------------------
+   panel — COMPONENT (every screen). The single container of the system.
+   -------------------------------------------------------------------------- */
+
+.panel {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.panel + .panel { margin-top: var(--s-5); }
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.panel__title {
+  font-family: var(--font-serif);
+  font-size: var(--t-md);
+  margin: 0;
+}
+.panel__note {
+  font-size: var(--t-sm);
+  color: var(--ink-faint);
+}
+.panel__actions { margin-left: auto; display: flex; gap: var(--s-2); }
+.panel__body { padding: var(--s-5); }
+.panel__body--flush { padding: 0; }
+.panel__foot {
+  padding: var(--s-3) var(--s-5);
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--t-sm);
+  color: var(--ink-soft);
+}
+
+/* --------------------------------------------------------------------------
+   grid — COMPONENT layout helper
+   -------------------------------------------------------------------------- */
+
+.grid { display: grid; gap: var(--s-4); }
+.grid--2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.grid--aside { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+
+/* --------------------------------------------------------------------------
+   stat — COMPONENT. Numbers are counted live; zero is a legitimate value
+   and is rendered plainly, never hidden behind a decorative figure.
+   -------------------------------------------------------------------------- */
+
+.stat {
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--s-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+}
+.stat__label {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+}
+.stat__value {
+  font-family: var(--font-serif);
+  font-size: var(--t-xl);
+  line-height: 1;
+}
+.shell--admin .stat { padding: var(--s-3); }
+.shell--admin .stat__value { font-size: var(--t-lg); }
+.stat__meta { font-size: var(--t-xs); color: var(--ink-soft); }
+.stat--zero .stat__value { color: var(--ink-faint); }
+.stat--attention { border-color: color-mix(in oklab, var(--ochre) 55%, var(--line)); }
+.stat--attention .stat__value { color: color-mix(in oklab, var(--ochre) 75%, var(--ink)); }
+
+/* --------------------------------------------------------------------------
+   badge — COMPONENT. One colour semantic across both dashboards.
+   -------------------------------------------------------------------------- */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.1rem var(--s-2);
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: var(--paper);
+}
+.badge--pending { color: color-mix(in oklab, var(--ochre) 80%, var(--ink)); background: var(--tint-pending); }
+.badge--accepted { color: color-mix(in oklab, var(--green) 80%, var(--ink)); background: var(--tint-accepted); }
+.badge--refused { color: color-mix(in oklab, var(--red) 80%, var(--ink)); background: var(--tint-refused); }
+.badge--published { color: color-mix(in oklab, var(--indigo) 80%, var(--ink)); background: var(--tint-info); }
+.badge--draft { color: var(--ink-faint); }
+.badge--hidden { color: var(--ink-faint); border-style: dashed; }
+.badge--role { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--ink-soft); }
+
+/* --------------------------------------------------------------------------
+   btn — COMPONENT. States: default, hover, focus, disabled.
+   -------------------------------------------------------------------------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  padding: 0.4rem var(--s-4);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.btn:hover { background: var(--paper-raised); }
+.btn--primary {
+  background: var(--accent);
+  border-color: color-mix(in oklab, var(--accent) 70%, var(--ink));
+  color: oklch(from var(--accent) clamp(0, calc((0.62 - l) * 1000), 1) 0 0);
+}
+.btn--primary:hover { background: color-mix(in oklab, var(--accent) 88%, var(--ink)); }
+.btn--quiet { border-color: transparent; background: transparent; color: var(--ink-soft); }
+.btn--quiet:hover { background: var(--paper-raised); color: var(--ink); }
+.btn--danger { color: color-mix(in oklab, var(--red) 80%, var(--ink)); border-color: color-mix(in oklab, var(--red) 40%, var(--line)); }
+.btn--danger:hover { background: var(--tint-refused); }
+.btn--sm { padding: 0.15rem var(--s-2); font-size: var(--t-xs); }
+.btn--block { width: 100%; }
+.btn[disabled],
+.btn[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   field — COMPONENT. The form atom. States: default, focus, error, disabled.
+   Every input has a bound <label>. Field NAMES are never changed.
+   -------------------------------------------------------------------------- */
+
+.field { display: flex; flex-direction: column; gap: var(--s-1); margin-bottom: var(--s-4); }
+.field__label {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.field__req {
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: color-mix(in oklab, var(--red) 70%, var(--ink));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.field__opt {
+  font-size: var(--t-xs);
+  font-weight: 500;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.field__hint { font-size: var(--t-xs); color: var(--ink-soft); }
+.field__control,
+.field select,
+.field textarea,
+.field input[type="text"],
+.field input[type="email"],
+.field input[type="url"],
+.field input[type="password"],
+.field input[type="number"],
+.field input[type="file"],
+.field input[type="color"] {
+  font: inherit;
+  font-size: var(--t-base);
+  width: 100%;
+  padding: 0.45rem var(--s-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+}
+.field textarea { min-height: 6rem; resize: vertical; }
+.field--error .field__control,
+.field--error input,
+.field--error textarea,
+.field--error select {
+  border-color: var(--red);
+  background: var(--tint-refused);
+}
+.field__error {
+  font-size: var(--t-xs);
+  color: color-mix(in oklab, var(--red) 80%, var(--ink));
+  font-weight: 600;
+}
+.field--disabled { opacity: 0.55; }
+.field--inline { flex-direction: row; align-items: center; gap: var(--s-2); }
+.field--inline .field__label { font-weight: 500; }
+.field-row { display: grid; gap: var(--s-4); grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* fieldset group — the form "step". Gives a long form a middle and an end. */
+.fieldgroup {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--s-4) var(--s-5) var(--s-2);
+  margin: 0 0 var(--s-5);
+  background: var(--paper);
+}
+.fieldgroup__legend {
+  font-family: var(--font-serif);
+  font-size: var(--t-base);
+  padding: 0 var(--s-2);
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+.fieldgroup__step {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+}
+.fieldgroup__intro { margin: 0 0 var(--s-4); color: var(--ink-soft); font-size: var(--t-sm); }
+.fieldgroup--optional { background: transparent; border-style: dashed; }
+
+/* progressive disclosure without JavaScript */
+.disclosure { border: 1px dashed var(--line); border-radius: var(--radius); margin-bottom: var(--s-5); }
+.disclosure > summary {
+  cursor: pointer;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.disclosure[open] > summary { border-bottom: 1px dashed var(--line); }
+.disclosure__body { padding: var(--s-4) var(--s-4) var(--s-1); }
+
+/* form footer: the clear end of the task */
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--line);
+}
+.form-actions__note { font-size: var(--t-sm); color: var(--ink-soft); margin-right: auto; }
+
+/* --------------------------------------------------------------------------
+   steps — COMPONENT. A static, honest progress rail for the six forms.
+   It is anchors to the fieldsets on the same page: no JS, no fake state.
+   -------------------------------------------------------------------------- */
+
+.steps { list-style: none; margin: 0 0 var(--s-5); padding: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.steps__item { display: flex; gap: var(--s-3); align-items: baseline; font-size: var(--t-sm); }
+.steps__num {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  width: 1.4rem; height: 1.4rem;
+  flex: none;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-faint);
+}
+.steps__item--current .steps__num { border-color: var(--accent); color: var(--ink); font-weight: 700; }
+.steps__link { color: var(--ink-soft); text-decoration: none; }
+.steps__link:hover { color: var(--ink); text-decoration: underline; }
+
+/* --------------------------------------------------------------------------
+   notice — COMPONENT. Error, success, warning, info. Never decorative.
+   -------------------------------------------------------------------------- */
+
+.notice {
+  display: flex;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: var(--paper);
+  margin-bottom: var(--s-5);
+}
+.notice__title { font-weight: 700; font-size: var(--t-sm); margin: 0 0 var(--s-1); }
+.notice__body { margin: 0; font-size: var(--t-sm); color: var(--ink-soft); }
+.notice--error { border-left-color: var(--red); background: var(--tint-refused); }
+.notice--success { border-left-color: var(--green); background: var(--tint-accepted); }
+.notice--warning { border-left-color: var(--ochre); background: var(--tint-pending); }
+.notice--info { border-left-color: var(--indigo); background: var(--tint-info); }
+
+/* --------------------------------------------------------------------------
+   table — COMPONENT. Real <table> semantics for tabular data.
+   Sorting is server-side: column headers are links carrying ?sort=.
+   Bulk actions are a plain form with checkboxes and submit buttons.
+   -------------------------------------------------------------------------- */
+
+.table-wrap { overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.table caption { text-align: left; padding: var(--s-3) var(--s-5); color: var(--ink-soft); font-size: var(--t-sm); }
+.table th, .table td {
+  text-align: left;
+  padding: var(--row-pad) var(--s-4);
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.table thead th {
+  font-size: var(--t-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-faint);
+  background: var(--paper-raised);
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+}
+.table tbody tr:hover { background: color-mix(in oklab, var(--accent) 5%, var(--paper)); }
+.table tbody tr:last-child td { border-bottom: 0; }
+.table__sort { color: inherit; text-decoration: none; display: inline-flex; gap: var(--s-1); }
+.table__sort:hover { color: var(--ink); text-decoration: underline; }
+.table__sort[aria-sort="ascending"]::after { content: "▲"; font-size: 0.6em; }
+.table__sort[aria-sort="descending"]::after { content: "▼"; font-size: 0.6em; }
+.table__num { font-family: var(--font-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.table__actions { display: flex; gap: var(--s-1); justify-content: flex-end; }
+.table tr.is-attention { background: var(--tint-pending); }
+.table tr.is-hidden td:not(:first-child) { opacity: 0.55; }
+.table__select { width: 2.5rem; }
+
+.bulkbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  padding: var(--s-3) var(--s-5);
+  background: var(--paper-raised);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--t-sm);
+}
+.bulkbar__label { color: var(--ink-soft); margin-right: var(--s-2); }
+
+/* filter bar — COMPONENT (GET form, works without JS) */
+.filters {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+}
+.filters .field { margin: 0; }
+.filters .field__label { font-size: var(--t-xs); color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.08em; }
+
+/* --------------------------------------------------------------------------
+   pagination — COMPONENT. Plain links; server owns the page param.
+   -------------------------------------------------------------------------- */
+
+.pagination { display: flex; align-items: center; gap: var(--s-1); margin-left: auto; }
+.pagination__link {
+  display: inline-grid; place-items: center;
+  min-width: 2rem; padding: 0.15rem var(--s-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  color: var(--ink-soft);
+  font-size: var(--t-sm);
+}
+.pagination__link:hover { background: var(--paper-raised); color: var(--ink); }
+.pagination__link[aria-current="page"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.pagination__link[aria-disabled="true"] { opacity: 0.4; pointer-events: none; }
+
+/* --------------------------------------------------------------------------
+   empty — COMPONENT. An honest empty state: says what is missing and
+   offers the one action that fills it. No invented figures, no illustration.
+   -------------------------------------------------------------------------- */
+
+.empty {
+  padding: var(--s-7) var(--s-5);
+  text-align: center;
+  color: var(--ink-soft);
+}
+.empty__title { font-family: var(--font-serif); font-size: var(--t-md); color: var(--ink); margin-bottom: var(--s-2); }
+.empty__body { margin: 0 auto var(--s-4); max-width: 42ch; font-size: var(--t-sm); }
+.empty--inline { padding: var(--s-5) var(--s-4); text-align: left; }
+
+/* --------------------------------------------------------------------------
+   list-card / entry — COMPONENT (submissions, review queue)
+   -------------------------------------------------------------------------- */
+
+.entry {
+  display: flex;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border-bottom: 1px solid var(--line);
+  align-items: flex-start;
+}
+.entry:last-child { border-bottom: 0; }
+.entry:hover { background: color-mix(in oklab, var(--accent) 4%, var(--paper)); }
+.entry__main { min-width: 0; flex: 1; }
+.entry__title { font-family: var(--font-serif); font-size: var(--t-md); margin: 0 0 var(--s-1); }
+.entry__title a { color: inherit; text-decoration: none; }
+.entry__title a:hover { text-decoration: underline; }
+.entry__gloss { margin: 0; color: var(--ink-soft); font-size: var(--t-sm); }
+.entry__meta {
+  display: flex; flex-wrap: wrap; gap: var(--s-3);
+  margin-top: var(--s-2);
+  font-size: var(--t-xs);
+  color: var(--ink-faint);
+}
+.entry__side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--s-2); flex: none; }
+
+.igbo { font-family: var(--font-serif); }
+
+/* definition list used on review and account screens — COMPONENT */
+.pairs { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--s-2) var(--s-4); font-size: var(--t-sm); }
+.pairs dt { color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; font-size: var(--t-xs); padding-top: 0.15rem; }
+.pairs dd { margin: 0; }
+
+/* meter — COMPONENT (progress of contributions, analytics bars).
+   Widths are inline styles because they are live server values. */
+.meter { height: 0.45rem; background: var(--paper-raised); border-radius: 999px; overflow: hidden; }
+.meter__fill { height: 100%; background: var(--accent); }
+.meter__fill--accepted { background: var(--green); }
+.meter__fill--pending { background: var(--ochre); }
+.meter__fill--refused { background: var(--red); }
+.meter-legend { display: flex; gap: var(--s-4); flex-wrap: wrap; font-size: var(--t-xs); color: var(--ink-soft); margin-top: var(--s-2); }
+.meter-legend__dot { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 999px; margin-right: var(--s-1); }
+
+/* skip link — COMPONENT (every screen) */
+.skip {
+  position: absolute;
+  left: var(--s-3); top: var(--s-3);
+  transform: translateY(-200%);
+  background: var(--paper);
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--radius);
+  z-index: 10;
+}
+.skip:focus { transform: none; }
+
+/* utility (kept deliberately tiny) */
+.u-flex { display: flex; gap: var(--s-3); align-items: center; flex-wrap: wrap; }
+.u-muted { color: var(--ink-soft); }
+.u-faint { color: var(--ink-faint); }
+.u-mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.u-sm { font-size: var(--t-sm); }
+.u-xs { font-size: var(--t-xs); }
+.u-mt { margin-top: var(--s-4); }
+.u-mb0 { margin-bottom: 0; }
+.u-right { text-align: right; }
+
+/* --------------------------------------------------------------------------
+   375px — both dashboards collapse to a single column.
+   The sidenav becomes a <details> disclosure at the top: still no JS.
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 52rem) {
+  .shell,
+  .shell--admin { grid-template-columns: minmax(0, 1fr); }
+  .sidenav { flex-direction: column; gap: var(--s-3); padding: var(--s-3) var(--s-4); }
+  .sidenav__foot { margin-top: var(--s-2); }
+  .shell__content { padding: var(--s-4) var(--s-4) var(--s-6); }
+  .grid--2, .grid--3, .grid--4, .grid--aside { grid-template-columns: minmax(0, 1fr); }
+  .field-row { grid-template-columns: minmax(0, 1fr); }
+  .page-header { align-items: flex-start; }
+  .panel__head { flex-wrap: wrap; }
+  .entry { flex-direction: column; }
+  .entry__side { align-items: flex-start; flex-direction: row; }
+  .table thead th { position: static; }
+  .topbar { flex-wrap: wrap; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ==========================================================================
+   Compatibility: the admin's older class names, mapped onto the design.
+   The pages that still use them are being converted one at a time; until they
+   are, they must not look like a different application.
+   ========================================================================== */
+.wptable { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.wptable > caption { text-align: left; }
+.wptable th {
+  text-align: left; font-weight: 600; color: var(--ink-soft);
+  padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line);
+  font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.wptable td { padding: var(--row-pad) var(--s-3); border-bottom: 1px solid var(--line); vertical-align: top; }
+.wptable tbody tr:hover td { background: color-mix(in oklab, var(--ink) 3%, transparent); }
+.wptable tr:last-child td { border-bottom: 0; }
+.wpbtn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--s-2);
+  font: inherit; font-size: var(--t-sm); line-height: 1.2; text-decoration: none; cursor: pointer;
+  padding: var(--s-2) var(--s-3); border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink);
+}
+.wpbtn:hover { border-color: var(--ink-faint); }
+.wpbtn:focus-visible { outline: none; box-shadow: var(--focus); }
+.wpbtn-quiet { background: transparent; }
+.wpbtn-danger { border-color: var(--red); color: var(--red); background: transparent; }
+.wpbtn-danger:hover { background: color-mix(in oklab, var(--red) 10%, transparent); }
+.wpbtn-mini { padding: var(--s-1) var(--s-2); font-size: var(--t-xs); }
+.wphelp { color: var(--ink-faint); font-size: var(--t-xs); margin: var(--s-1) 0 0; }
+.wpbadge {
+  display: inline-block; font-size: var(--t-xs); padding: 0.05rem var(--s-2);
+  border-radius: 999px; background: color-mix(in oklab, var(--ink) 8%, transparent); color: var(--ink-soft);
+}
+.wpbadge-on { background: var(--tint-accepted); color: color-mix(in oklab, var(--green) 70%, var(--ink)); }
+.wpbadge-off { background: var(--tint-refused); color: color-mix(in oklab, var(--red) 70%, var(--ink)); }
+.wpgrid { display: grid; gap: var(--s-4); grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); align-items: start; }
+.wpgrid-wide { grid-template-columns: repeat(auto-fit, minmax(26rem, 1fr)); }
+.wpfield { margin-bottom: var(--s-4); }
+.wpfield > label { display: block; font-weight: 600; margin-bottom: var(--s-1); font-size: var(--t-sm); }
+.wpfield input[type='text'], .wpfield input[type='url'], .wpfield input[type='number'],
+.wpfield input[type='email'], .wpfield input[type='password'], .wpfield select, .wpfield textarea {
+  width: 100%; max-width: 40rem; padding: var(--s-2) var(--s-3); font: inherit; font-size: var(--t-base);
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink);
+}
+.wpfield-inline { display: flex; gap: var(--s-4); flex-wrap: wrap; }
+.wpfield-inline > .wpfield { flex: 1 1 14rem; }
+.wpswatch input[type='color'] { width: 3rem; height: 2.1rem; padding: 2px; border: 1px solid var(--line); border-radius: var(--radius); }
+.wpcard-foot { display: flex; gap: var(--s-2); align-items: center; padding: var(--s-3) var(--s-4); background: var(--paper-raised); }
+.wpfigures { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: var(--s-3); }
+.wpfigure { background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-3) var(--s-4); }
+.wpfigure b { display: block; font-size: var(--t-lg); line-height: 1.15; font-variant-numeric: tabular-nums; }
+.wpfigure span { display: block; font-size: var(--t-xs); color: var(--ink-faint); }
+.wpfigure em { display: block; font-size: var(--t-xs); font-style: normal; color: var(--ink-faint); }
+.wpsections { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--s-3); }
+.wpsection {
+  display: block; text-decoration: none; color: inherit; background: var(--paper-raised);
+  border: 1px solid var(--line); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); padding: var(--s-3) var(--s-4);
+}
+.wpsection:hover { border-color: var(--ink-faint); }
+.wpsection-count { font-size: var(--t-lg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wpsection-live { font-size: var(--t-xs); color: var(--green); margin-left: var(--s-2); }
+.wpsection strong { display: block; font-size: var(--t-sm); margin-top: 0.1rem; }
+.wprow-actions a { color: var(--link); }
+.topbar__search input {
+  font: inherit; font-size: var(--t-sm); padding: var(--s-1) var(--s-3);
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink);
+}
+
+/* The remaining older class names, until their pages are converted. */
+.wpcard {
+  background: var(--paper-raised); border: 1px solid var(--line);
+  border-radius: var(--radius); margin-bottom: var(--s-4);
+}
+.wpcard > h2 {
+  margin: 0; padding: var(--s-3) var(--s-4); font-size: var(--t-md); font-weight: 600;
+  border-bottom: 1px solid var(--line); font-family: var(--font-serif);
+}
+.section { margin-bottom: var(--s-6); }
+.section > h2 { font-family: var(--font-serif); font-size: var(--t-lg); margin: 0 0 var(--s-3); }
+.card {
+  background: var(--paper-raised); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: var(--s-4); margin-bottom: var(--s-3);
+}
+.grid { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.hero-stats { list-style: none; display: flex; flex-wrap: wrap; gap: var(--s-5); margin: var(--s-4) 0; padding: 0; }
+.hero-stats li { display: flex; flex-direction: column; }
+.hero-stats b, .hero-stats strong { font-size: var(--t-lg); font-variant-numeric: tabular-nums; }
+.hero-stats span { font-size: var(--t-xs); color: var(--ink-faint); }
+.table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.table th { text-align: left; padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line); font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); }
+.table td { padding: var(--row-pad) var(--s-3); border-bottom: 1px solid var(--line); vertical-align: top; }
+.button, .button-secondary {
+  display: inline-flex; align-items: center; gap: var(--s-2); font: inherit; font-size: var(--t-sm);
+  padding: var(--s-2) var(--s-3); border-radius: var(--radius); text-decoration: none; cursor: pointer;
+  border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink);
+}
+.button-secondary { background: transparent; }
+.button:hover, .button-secondary:hover { border-color: var(--ink-faint); }
+.muted, .card-meta { color: var(--ink-faint); font-size: var(--t-xs); }
+.notice { border: 1px solid var(--line); border-left: 4px solid var(--link); background: var(--paper-raised); border-radius: var(--radius); padding: var(--s-3) var(--s-4); margin-bottom: var(--s-4); }
+.notice-warn { border-left-color: var(--ochre); }
+.notice p { margin: var(--s-1) 0 0; }
+.chip { display: inline-block; font-size: var(--t-xs); padding: 0.05rem var(--s-2); border-radius: 999px; background: color-mix(in oklab, var(--ink) 8%, transparent); }
+.chip-pos { background: var(--tint-accepted); }
+.name-page-head { margin-bottom: var(--s-5); }
+.name-eyebrow { font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); margin: 0; }
+.name-title { font-family: var(--font-serif); font-size: var(--t-xl); margin: var(--s-1) 0 var(--s-2); }
+.name-lede { color: var(--ink-soft); max-width: 46rem; margin: 0; }
+.wrap-narrow { max-width: 46rem; }
+.wpcard .wptable, .panel .wptable { margin: 0; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0);
+  white-space: nowrap; clip-path: inset(50%);
+}
+
+/* ==========================================================================
+   Compatibility: the contributor pages' older class names, onto the design.
+   Same purpose as the .wp* layer — a page not yet rebuilt must still look
+   like the same application rather than a different one.
+   ========================================================================== */
+.cd-inner { max-width: none; }
+.cd-panel {
+  background: var(--paper-raised); border: 1px solid var(--line);
+  border-radius: var(--radius); margin-bottom: var(--s-4); overflow: hidden;
+}
+.cd-panel-head {
+  padding: var(--s-3) var(--s-4); border-bottom: 1px solid var(--line);
+  display: flex; align-items: baseline; gap: var(--s-3); flex-wrap: wrap;
+}
+.cd-panel-head h2, .cd-panel-head h3 { margin: 0; font-size: var(--t-md); font-family: var(--font-serif); }
+.cd-panel-body { padding: var(--s-4); }
+.cd-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); }
+.cd-table th {
+  text-align: left; padding: var(--s-2) var(--s-3); border-bottom: 1px solid var(--line);
+  font-size: var(--t-xs); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft);
+}
+.cd-table td { padding: var(--row-pad) var(--s-3); border-bottom: 1px solid var(--line); vertical-align: top; }
+.cd-btn {
+  display: inline-flex; align-items: center; gap: var(--s-2); font: inherit; font-size: var(--t-sm);
+  padding: var(--s-2) var(--s-3); border-radius: var(--radius); text-decoration: none; cursor: pointer;
+  border: 1px solid transparent; background: var(--accent); color: var(--paper);
+}
+.cd-btn:hover { background: color-mix(in oklab, var(--accent) 85%, var(--ink)); }
+.cd-btn-quiet { background: transparent; border-color: var(--line); color: var(--ink); }
+.cd-btn-quiet:hover { background: color-mix(in oklab, var(--ink) 5%, transparent); }
+.cd-btn:focus-visible { outline: none; box-shadow: var(--focus); }
+.cd-hint { color: var(--ink-faint); font-size: var(--t-xs); margin: var(--s-1) 0 0; }
+.cd-actions { display: flex; gap: var(--s-2); flex-wrap: wrap; align-items: center; }
+.cd-empty {
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  padding: var(--s-5); text-align: center; color: var(--ink-faint);
+}
+.cd-cards { display: grid; gap: var(--s-3); grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.cd-stat { background: var(--paper-raised); border: 1px solid var(--line); border-radius: var(--radius); padding: var(--s-3) var(--s-4); }
+.cd-stat b { display: block; font-size: var(--t-lg); font-variant-numeric: tabular-nums; }
+.cd-stat span { font-size: var(--t-xs); color: var(--ink-faint); }
+.cd-head { margin-bottom: var(--s-5); }
+.cd-head h1 { font-family: var(--font-serif); font-size: var(--t-xl); margin: 0 0 var(--s-1); }
+.cd-head p { color: var(--ink-soft); margin: 0; }

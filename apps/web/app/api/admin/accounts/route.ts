@@ -18,6 +18,7 @@ import {
   deleteAccountAsAdmin,
   removeContent,
   searchContent,
+  setAccountAvatar,
   updateAccountAsAdmin,
   type AccountRole,
   type ContentKind,
@@ -82,6 +83,16 @@ export async function POST(request: Request): Promise<NextResponse> {
         return redirectTo(backTo, {
           done: `${updated.email} is now ${updated.role}, ${updated.status}.`,
         });
+      }
+
+      case 'account.avatar': {
+        const updated = await setAccountAvatar(db, {
+          accountId: Number(form.get('accountId')),
+          avatarUrl: String(form.get('avatarUrl') ?? ''),
+          actorId: current.account.id,
+          actorRole,
+        });
+        return redirectTo(backTo, { done: `Saved the picture for ${updated.email}.` });
       }
 
       case 'account.delete': {

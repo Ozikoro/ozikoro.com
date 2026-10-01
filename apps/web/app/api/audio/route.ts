@@ -65,19 +65,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
     wordId = found ? Number(found.id) : NaN;
     if (!found) {
-      return redirectTo('/contribute', {
+      return redirectTo('/contribute/recording', {
         error: `No published entry "${headword}" in that language. Add the word first, then record it.`,
       });
     }
   }
 
   if (!Number.isInteger(wordId) || wordId <= 0) {
-    return redirectTo('/contribute', { error: 'A recording must be attached to a word.' });
+    return redirectTo('/contribute/recording', { error: 'A recording must be attached to a word.' });
   }
 
   const file = form.get('file');
   if (!(file instanceof Blob)) {
-    return redirectTo(`/contribute`, { error: 'No recording was uploaded.' });
+    return redirectTo('/contribute/recording', { error: 'No recording was uploaded.' });
   }
 
   const db = await getDb();
@@ -89,7 +89,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     [wordId, language]
   );
   if (!word) {
-    return redirectTo('/contribute', { error: `No entry ${wordId} exists in ${language}.` });
+    return redirectTo('/contribute/recording', { error: `No entry ${wordId} exists in ${language}.` });
   }
   const wordPath = `/word/${languageUrlSlug(word.language_code)}/${encodeURIComponent(word.slug)}`;
 

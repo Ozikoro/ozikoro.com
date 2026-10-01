@@ -1,0 +1,181 @@
+/*
+ * The contributor dashboard.
+ *
+ * Deliberately not the dictionary's clothes. The public site is a reading
+ * surface: centred, generous, one column. This is a working surface — a fixed
+ * sidebar, a wide content pane, dense cards — so that a person who contributes
+ * often can tell at a glance which of the two they are in.
+ */
+.cd {
+  --cd-side: 15.5rem;
+  --cd-ink: #1E1B16;
+  --cd-muted: #6b6459;
+  --cd-line: #e6e0d6;
+  --cd-bg: #f7f5f0;
+  --cd-panel: #ffffff;
+  --cd-accent: #7a3b12;
+  display: grid;
+  grid-template-columns: var(--cd-side) minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--cd-bg);
+  color: var(--cd-ink);
+}
+
+.cd-side {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  overflow-y: auto;
+  background: #14120f;
+  color: #efeae1;
+  padding: 1.4rem 0.9rem 2rem;
+}
+
+.cd-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0 0.6rem 1.2rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1rem;
+}
+.cd-brand img { width: 26px; height: 26px; }
+.cd-brand-text { display: flex; flex-direction: column; line-height: 1.15; }
+.cd-brand-text strong { font-size: 0.95rem; letter-spacing: 0.01em; }
+.cd-brand-text span { font-size: 0.72rem; color: #a49c90; letter-spacing: 0.08em; text-transform: uppercase; }
+
+.cd-who {
+  padding: 0.7rem 0.6rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 1rem;
+}
+.cd-who-name { font-size: 0.9rem; font-weight: 600; }
+.cd-who-mail { font-size: 0.75rem; color: #a49c90; word-break: break-all; }
+.cd-who-role {
+  display: inline-block; margin-top: 0.45rem; font-size: 0.68rem; letter-spacing: 0.06em;
+  text-transform: uppercase; color: #efeae1; background: rgba(255,255,255,0.12);
+  border-radius: 999px; padding: 0.15rem 0.5rem;
+}
+
+.cd-group { margin-bottom: 1.2rem; }
+.cd-group h2 {
+  font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+  color: #8c8478; margin: 0 0 0.4rem; padding: 0 0.6rem; font-weight: 600;
+}
+.cd-nav { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.cd-nav a {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.5rem 0.6rem; border-radius: 7px;
+  color: #d8d2c7; text-decoration: none; font-size: 0.9rem;
+}
+.cd-nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.cd-nav a[aria-current='page'] { background: #efeae1; color: #14120f; font-weight: 600; }
+.cd-nav .cd-ico { width: 1.05rem; text-align: center; opacity: 0.9; }
+.cd-nav .cd-count {
+  margin-left: auto; font-size: 0.72rem; background: rgba(255,255,255,0.14);
+  border-radius: 999px; padding: 0.05rem 0.42rem;
+}
+.cd-nav a[aria-current='page'] .cd-count { background: rgba(20,18,15,0.14); }
+
+.cd-main { padding: 2rem 2.4rem 4rem; min-width: 0; }
+.cd-head { display: flex; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.6rem; }
+.cd-head h1 { font-size: 1.65rem; margin: 0; letter-spacing: -0.01em; }
+.cd-head p { margin: 0.25rem 0 0; color: var(--cd-muted); font-size: 0.92rem; max-width: 46rem; }
+.cd-head .cd-head-act { margin-left: auto; }
+
+.cd-cards { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); }
+.cd-stat {
+  background: var(--cd-panel); border: 1px solid var(--cd-line); border-radius: 12px;
+  padding: 1.1rem 1.2rem;
+}
+.cd-stat b { display: block; font-size: 1.9rem; line-height: 1.1; letter-spacing: -0.02em; }
+.cd-stat span { font-size: 0.82rem; color: var(--cd-muted); }
+
+.cd-panel {
+  background: var(--cd-panel); border: 1px solid var(--cd-line); border-radius: 12px;
+  padding: 1.4rem 1.5rem; margin-top: 1.4rem;
+}
+.cd-panel > h2 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+.cd-panel > p.cd-hint { margin: 0 0 1.1rem; color: var(--cd-muted); font-size: 0.88rem; }
+
+.cd-form { display: grid; gap: 1rem; max-width: 44rem; }
+.cd-field { display: grid; gap: 0.35rem; }
+.cd-field > label { font-size: 0.86rem; font-weight: 600; }
+.cd-field .cd-help { font-size: 0.8rem; color: var(--cd-muted); margin: 0; }
+.cd-field input[type='text'], .cd-field input[type='email'], .cd-field input[type='password'],
+.cd-field select, .cd-field textarea, .cd-field input:not([type]) {
+  width: 100%; padding: 0.55rem 0.7rem; border: 1px solid var(--cd-line);
+  border-radius: 8px; background: #fff; font: inherit; color: inherit;
+}
+.cd-field textarea { font-family: inherit; resize: vertical; }
+.cd-row { display: grid; gap: 1rem; grid-template-columns: 1fr 1fr; }
+.cd-actions { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; padding-top: 0.3rem; }
+.cd-btn {
+  display: inline-block; border: 1px solid #14120f; background: #14120f; color: #fff;
+  padding: 0.55rem 1.1rem; border-radius: 8px; font: inherit; font-weight: 600;
+  cursor: pointer; text-decoration: none; font-size: 0.9rem;
+}
+.cd-btn:hover { opacity: 0.88; }
+.cd-btn-quiet { background: #fff; color: var(--cd-ink); border-color: var(--cd-line); }
+
+.cd-note {
+  border: 1px solid var(--cd-line); border-left: 3px solid var(--cd-accent);
+  background: #fffdf8; border-radius: 8px; padding: 0.8rem 1rem; margin-bottom: 1.2rem;
+  font-size: 0.9rem;
+}
+.cd-note-bad { border-left-color: #a3271f; background: #fff7f6; }
+.cd-note-ok { border-left-color: #2f6b3a; background: #f6fbf6; }
+
+.cd-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.cd-table th {
+  text-align: left; font-size: 0.72rem; letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--cd-muted); padding: 0 0.7rem 0.5rem 0; border-bottom: 1px solid var(--cd-line);
+}
+.cd-table td { padding: 0.6rem 0.7rem 0.6rem 0; border-bottom: 1px solid #f2eee7; vertical-align: top; }
+
+.cd-empty {
+  border: 1px dashed var(--cd-line); border-radius: 12px; padding: 1.6rem;
+  text-align: center; color: var(--cd-muted); background: #fff;
+}
+
+.cd-out { margin-top: 2rem; }
+.cd-out button {
+  background: none; border: 0; color: var(--cd-muted); font: inherit;
+  cursor: pointer; text-decoration: underline; padding: 0;
+}
+
+@media (max-width: 900px) {
+  .cd { grid-template-columns: 1fr; }
+  .cd-side { position: static; height: auto; }
+  .cd-main { padding: 1.4rem 1.1rem 3rem; }
+  .cd-row { grid-template-columns: 1fr; }
+}
+
+/* The account screen, inside the dashboard rather than beside it. */
+.cd-inner { max-width: 60rem; }
+.cd-inner .hero-stats { margin-bottom: 0.6rem; }
+
+/*
+ * Menu groups that open and close.
+ *
+ * The owner: "even the words and names should have drop downs so everything wont be in one page"
+ * and "the dashboards should have dashboard things, and few things from the main menu."
+ *
+ * Native <details>, so a group opens with no JavaScript and the keyboard already works. A closed
+ * group is a heading; an open one is its items. Each group opens itself when it holds the current
+ * page, which is what keeps a collapsed menu from hiding where you are.
+ */
+.cd-drop { margin: 0 0 0.15rem; }
+.cd-drop > summary {
+  display: flex; align-items: center; gap: 0.55rem; cursor: pointer;
+  padding: 0.5rem 0.6rem; border-radius: 7px; color: #d8d2c7; font-size: 0.9rem;
+  list-style: none;
+}
+.cd-drop > summary::-webkit-details-marker { display: none; }
+.cd-drop > summary:hover { background: rgba(255,255,255,0.08); color: #fff; }
+.cd-drop > summary .cd-caret { margin-left: auto; font-size: 0.7rem; color: #8c8478; transition: transform 0.12s; }
+.cd-drop[open] > summary .cd-caret { transform: rotate(90deg); }
+.cd-drop[open] > summary { color: #fff; }
+.cd-drop ul { list-style: none; margin: 0.1rem 0 0.35rem; padding: 0 0 0 0.9rem; display: grid; gap: 1px; }
+.cd-drop ul a { padding: 0.4rem 0.6rem; font-size: 0.86rem; }

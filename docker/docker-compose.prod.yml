@@ -73,6 +73,14 @@ services:
       # key the donate page says donations are not open yet, rather than failing at
       # the moment someone tries to give.
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
+      # Accounts are shared with learn.ozituma.com. The courses service calls
+      # /api/learn-bridge/account when somebody registers there, so the same credentials
+      # work here. A shared secret, not a session — the caller is a server with no user.
+      #
+      # Allowed to be EMPTY: with no secret the endpoint returns 503 and refuses every
+      # request. An unauthenticated account-creation endpoint on a public dictionary would
+      # let anyone create accounts with any password, so failing closed is the only default.
+      LEARN_BRIDGE_SECRET: ${LEARN_BRIDGE_SECRET:-}
       # Mail. The only thing Ozituma sends is a password-recovery link, and it is
       # the one message whose failure locks somebody out of their own account.
       #

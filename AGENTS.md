@@ -119,19 +119,93 @@ at all and resolved nowhere. That is no longer true: the apex, `www`, `media` an
 `learn` records all exist and the site answers. Check the zone before repeating
 the older claim.
 
-## Two hostnames, one application
+## Two hostnames, two applications
 
-- **ozituma.com** — the dictionary.
-- **learn.ozituma.com** — Ozituma Learn, the courses. Same container, same
-  database, same Next.js process. The app picks its chrome and rewrites paths
-  from the `Host` header (`apps/web/middleware.ts`, `apps/web/lib/learn-host.ts`).
-  The course routes also serve under `ozituma.com/learn/*`, which is what the
-  dictionary's own navigation links to.
+**This changed.** The single-application design previously described here was replaced by the owner.
+It is summarised at the end of this section, because the Next.js course routes still exist.
 
-DNS for the subdomain is done and needs no certificate work — Universal SSL
-already covers `*.ozituma.com`. Serving it needs the Caddy config on the host
-updated and Caddy reloaded, then a redeploy. See *The learn subdomain* in
-`docs/DEPLOYMENT.md`.
+- **ozituma.com** — the dictionary. Next.js on the EC2 host, PostgreSQL, its own scrypt auth and
+  `ozituma_session` cookies. Unchanged.
+- **learn.ozituma.com** — Ozituma Learn. **No longer the same container.** A TanStack Start app
+  deployed to **Cloudflare Workers** (worker `tanstack-start-ts-learn`, source in `staging/learn/`),
+  with its own **Supabase** project for accounts, content and progress.
+
+### What that means in practice
+
+| | Where it lives now |
+|---|---|
+| `learn.ozituma.com` | Cloudflare Worker via a **Worker custom domain** — not a CNAME to the EC2 host |
+| The old `learn` CNAME | **Deleted.** `dig learn.ozituma.com` answers with Cloudflare Worker IPs |
+| Courses database | Supabase `kouczrxrsdjykxoyxzgi` (`eu-west-2`) |
+| `ozituma.com/learn/*` | **301 redirects** — the Next.js course routes are not what the subdomain serves |
+| `ozituma-learn-1` container | Legacy; serving nothing once the DNS moved |
+
+### Accounts are shared, in both directions
+
+One account works on either site with the same password.
+
+- **ozituma.com → Supabase** — `packages/db/src/supabase-mirror.ts`, called from `registerAccount`.
+  `backfillAccounts` is idempotent and repairs accounts that were never mirrored.
+- **learn → ozituma.com** — `POST /api/learn-bridge/account` in `apps/web`, called from the learn
+  app on signup. Gated by a shared secret (`LEARN_BRIDGE_SECRET`) and **fails closed with 503 when
+  unset** — an unauthenticated account-creation endpoint on a public dictionary would let anyone mint
+  accounts.
+
+Both are fire-and-forget: if the other system is unreachable the registration still succeeds and the
+gap is repaired later. Registration must never depend on the other host being up.
+
+**The compose file matters here.** Compose passes a service only the variables it names, so adding a
+variable to `/opt/ozituma/.env` is not enough — it must also be listed under the service in
+`docker/docker-compose.prod.yml`, or the container never sees it and the endpoint returns 503.
+
+**Existing accounts cannot share a password.** The dictionary stores a scrypt hash, which is
+irreversible, so those accounts need one password reset on the side they were not created on. A real
+cost of two systems that predate the requirement.
+
+### Content is Central Igbo only
+
+The owner's rule: **Central Igbo (Igbo Izugbe) is the only language used in generating anything.**
+
+The discriminator is `word_dialect` in the dictionary — a word is tagged when it is **not** Standard
+Igbo (Ngwa, Mkpọọ, Ọnịcha, Ẹkpẹyẹ, Ajalị, Owere, Achala, Nkanụ, Ezaa, Nsa). An **untagged word is
+Central Igbo**: 8,415 of 12,229 published words, with 3,814 dialect-tagged entries excluded.
+
+Verified in Supabase at every level: 0 lexemes with a dialect tag, 0 sentences on a dialect word, and
+0 dialect-tagged audio among the 30,849 matched example recordings. **The audio check is the one that
+matters** — the dictionary also stores dialect *pronunciations*, so excluding dialectal **words** is
+not by itself sufficient.
+
+**The dictionary is the source of truth.** Supabase holds a copy so the courses can read it with RLS;
+the importers are idempotent and re-runnable. **The import never publishes** — imported rows land as
+`draft` and a linguist publishes them, which is why 2,382 of 8,415 are live and 6,033 are the review
+queue.
+
+### Publishing requires a linguist identity
+
+`lexemes` has a trigger refusing status changes from anyone without the `linguist` or `admin` role,
+and RLS filters UPDATE by the same test. **A service-role key bypasses RLS but not the trigger**, and
+`auth.uid()` is null for server-to-server calls, so bulk publish scripts must sign in as a linguist
+and send that JWT. Note that deleting the linguist account does **not** invalidate an already-issued
+JWT — it stays valid and the PATCH then silently updates zero rows, returning HTTP 200 with an empty
+body. Read the response, not the status code.
+
+### Supabase limits
+
+The free plan is 500 MB database, 1 GB storage, 5 GB egress. Content fits easily — the database is
+35 MB — because **the 4.45 GB of audio never enters Supabase**; only URLs do, and the recordings
+stream from Cloudflare R2 (`media.ozituma.com`) where egress is free. The real limit is that **free
+projects pause after 7 days of inactivity.**
+
+DDL needs the SQL Editor or a Management API access token. The service key cannot run it: `pg_meta` is
+gone and the Management API rejects the service key. `POST /v1/projects/{ref}/database/query` with a
+personal access token (`sbp_…`) does work, and is how the migrations were applied.
+
+### The older design, for reference
+
+The Next.js course routes remain in `apps/web`, and the app still picks chrome and rewrites paths from
+the `Host` header (`apps/web/middleware.ts`, `apps/web/lib/learn-host.ts`). They serve
+`ozituma.com/learn/*` only if something stops redirecting. Universal SSL still covers
+`*.ozituma.com`, which now matters only if the subdomain is ever pointed back at the EC2 host.
 
 ## Do not run database scripts while the dev server is running
 

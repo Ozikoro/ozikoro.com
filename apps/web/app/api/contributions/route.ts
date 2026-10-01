@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@ozituma/db/client';
 import { ContributionError, submitSuggestion } from '@ozituma/db/contributions';
 import { getCurrentAccount } from '@/lib/session';
-import { languageUrlSlug } from '@ozituma/core';
+import { languageUrlSlug, slugify } from '@ozituma/core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -65,7 +65,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000) || null,
         },
       });
-      return redirectTo('/contribute', { submitted: String(result.id) });
+      return redirectTo('/contribute/word', { submitted: String(result.id) });
     }
 
     if (kind === 'new_definition') {
@@ -83,7 +83,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000) || null,
         },
       });
-      return redirectTo('/contribute', { submitted: String(result.id) });
+      return redirectTo('/contribute/word', { submitted: String(result.id) });
     }
 
     if (kind === 'proverb_edit') {
@@ -174,8 +174,21 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000) || null,
         },
       });
-      // Back to the entry, told that its edit is queued.
-      return redirectTo(`/word/${languageUrlSlug(language)}/${encodeURIComponent(text('previousHeadword', 120))}`, {
+      /*
+       * Back to the entry, told that its edit is queued — and by its SLUG, not its headword.
+       *
+       * The owner, after an edit sent him to a 404: "i edited a name, and it lead me to 404
+       * error, please check and fix the bug in the editing and adding."
+       *
+       * The page's address is `/word/<language>/<slug>`, and the slug is the headword folded —
+       * tone marks and the dotted vowels removed, spaces hyphenated. So a headword carrying
+       * diacritics, a space or a slash produced a URL that no page answers. The database knows
+       * the slug it filed the entry under, so it is read from there rather than reconstructed
+       * from what the form happened to send: the form is a hint, the row is the truth.
+       */
+      const filed = await db.one<{ slug: string }>(`select slug from word where id = $1`, [wordId]);
+      const slug = filed?.slug ?? slugify(text('previousHeadword', 120));
+      return redirectTo(`/word/${languageUrlSlug(language)}/${encodeURIComponent(slug)}`, {
         suggested: String(result.id),
       });
     }
@@ -213,7 +226,16 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000) || null,
         },
       });
-      return redirectTo(`/names/${encodeURIComponent(text('previousName', 120))}`, {
+      /*
+       * Back to the name, by its slug for the same reason as the word above. The owner's 404 was
+       * here: `/names/Olisa?suggested=44`, where the page is `/names/olisa`.
+       */
+      const filedName = await db.one<{ slug: string }>(
+        `select slug from person_name where id = $1`,
+        [nameId]
+      );
+      const nameSlug = filedName?.slug ?? slugify(text('previousName', 120));
+      return redirectTo(`/names/${encodeURIComponent(nameSlug)}`, {
         suggested: String(result.id),
       });
     }
@@ -326,7 +348,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000) || null,
         },
       });
-      return redirectTo('/contribute', { submitted: String(result.id) });
+      return redirectTo('/contribute/clan', { submitted: String(result.id) });
     }
 
     if (kind === 'new_dialect') {
@@ -342,7 +364,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000) || null,
         },
       });
-      return redirectTo('/contribute', { submitted: String(result.id) });
+      return redirectTo('/contribute/dialect', { submitted: String(result.id) });
     }
 
     if (kind === 'new_proverb') {
@@ -356,7 +378,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000) || null,
         },
       });
-      return redirectTo('/contribute', { submitted: String(result.id) });
+      return redirectTo('/contribute/proverb', { submitted: String(result.id) });
     }
 
     if (kind === 'correction') {
@@ -369,7 +391,7 @@ export async function POST(request: Request): Promise<NextResponse> {
           note: text('note', 1000),
         },
       });
-      return redirectTo('/contribute', { submitted: String(result.id) });
+      return redirectTo('/contribute/name', { submitted: String(result.id) });
     }
 
     return redirectTo('/contribute', { error: 'Choose what kind of contribution this is.' });

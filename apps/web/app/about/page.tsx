@@ -193,7 +193,7 @@ export default async function AboutPage() {
           There is more here than reading. The <a href="https://learn.ozituma.com/practice">practice section</a> turns
           entries into questions — a meaning to choose, a recording to identify a word by, a variety
           to place a spelling in — and the <Link href="/docs">public API</Link> gives anyone a free
-          key from their own <Link href="/account">account page</Link>, so a keyboard, a learning
+          key from their own <Link href="/contribute/account">account page</Link>, so a keyboard, a learning
           app or a translation tool does not have to begin by collecting a word list.
         </p>
       </section>

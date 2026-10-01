@@ -1,7 +1,11 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { NavMenu } from '@/components/nav-menu';
+import { getDb } from '@ozituma/db/client';
+import { readSettings, activeAd } from '@ozituma/db/settings';
 import { getCurrentAccount } from '@/lib/session';
+import { headers } from 'next/headers';
+import { recordView } from '@ozituma/db/analytics';
 import { IBM_Plex_Sans, Libre_Baskerville } from 'next/font/google';
 import './globals.css';
 
@@ -96,10 +100,93 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * "Account" when somebody is, so it is both the door and the way back to your own page.
    */
   const current = await getCurrentAccount();
+  /*
+   * The admin has its own bar and its own menu, so it does not get the site's. Nesting the website
+   * inside the admin shell is what made the admin look wrong; the path arrives as a header because
+   * a layout cannot ask for it. See middleware.ts.
+   */
+  const requestHeaders = await headers();
+  const pathname = requestHeaders.get('x-pathname') ?? '';
+  const bareChrome = pathname.startsWith('/admin');
+  const db = await getDb();
+
+  /*
+   * Count the page, if it is a page.
+   *
+   * Middleware decides that, because only it can see the request headers that tell a reader from a
+   * prefetch. The write is wrapped: an analytics counter that can break a page render is a worse
+   * bug than a missing page view, so a failure here is swallowed and the page still renders.
+   */
+  if (requestHeaders.get('x-count') === '1' && !bareChrome) {
+    try {
+      await recordView(db, requestHeaders.get('x-host') ?? '', pathname || '/');
+    } catch (error) {
+      console.error('[analytics] view not counted', error);
+    }
+  }
+  const settings = await readSettings(db);
+  // The header slot, and only when advertising is switched on and something is live in it.
+  const headerAd = settings['ads.enabled'] ? await activeAd(db, 'header') : null;
 
   return (
     <html lang="en" className={`${plexSans.variable} ${libreBaskerville.variable}`}>
       <body>
+        {/*
+          The colours, as variables rather than as edited CSS.
+          The owner: "change colours of the website". Three tokens is what the admin offers, so
+          three tokens is what is overridden — the rest of the design keeps its own relationships.
+        */}
+        {/*
+          The codes the platforms asked for.
+          *
+          * The owner: "have a place to add google analytics code, google webmaster search code, and
+          * other platforms code to appear on their search. it should all be in the settings."
+          *
+          * React hoists meta tags into the head from wherever they are rendered, so the two
+          * verification tags work from here. The analytics snippet is written by hand rather than
+          * pasted whole: the field takes the measurement id, so a reader who pastes the id gets one
+          * loader and not two.
+          */}
+        {settings['code.googleVerification'] ? (
+          <meta name="google-site-verification" content={settings['code.googleVerification']} />
+        ) : null}
+        {settings['code.bingVerification'] ? (
+          <meta name="msvalidate.01" content={settings['code.bingVerification']} />
+        ) : null}
+        {settings['code.googleAnalytics'] ? (
+          <>
+            <script async src={`https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(settings['code.googleAnalytics'])}`} />
+            <script
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${settings['code.googleAnalytics'].replace(/'/g, '')}');`,
+              }}
+            />
+          </>
+        ) : null}
+        {settings['code.customHead'] ? (
+          <div style={{ display: 'none' }} dangerouslySetInnerHTML={{ __html: settings['code.customHead'] }} />
+        ) : null}
+
+        <style
+          dangerouslySetInnerHTML={{
+            __html:
+              ':root{' +
+              `--ink:${settings['theme.ink']};` +
+              `--paper:${settings['theme.paper']};` +
+              `--accent:${settings['theme.accent']};` +
+              `--header-bg:${settings['theme.header']};` +
+              `--footer-bg:${settings['theme.footer']};` +
+              `--link:${settings['theme.link']};` +
+              `--wrap:${settings['theme.width']};` +
+              '}',
+          }}
+        />
+        {headerAd ? (
+          <div className="wrap" style={{ marginTop: '1rem' }}>
+            <div dangerouslySetInnerHTML={{ __html: headerAd.html ?? '' }} />
+          </div>
+        ) : null}
+        {!bareChrome ? (
         <header className="site-header">
           <div className="wrap">
             {/*
@@ -116,7 +203,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 className="brand-logo"
-                src="/ozituma-logo.svg"
+                src={settings['identity.logoUrl'] || '/ozituma-logo.svg'}
                 alt="Ozituma"
                 width={721}
                 height={250}
@@ -134,25 +221,29 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 each page reaching the other from inside it. The docs page links to
                 getting a key; the key page links back to the docs.
               */}
-              <Link href="/">Dictionary</Link>
-              <Link href="/names">Names</Link>
-              <Link href="/clans">Clans</Link>
-              <Link href="/languages">Languages</Link>
-              <Link href="/learn">Learn</Link>
-              <Link href="/proverbs">Proverbs</Link>
-              <Link href="/contribute">Contribute</Link>
-              <Link href="/ndebe">Ndebe</Link>
-              <Link href="/donate" className="nav-donate">
-                Support us
-              </Link>
-              <Link href="/about">About</Link>
-              <Link href="/docs">API</Link>
+              {/*
+                The menu comes from the admin now, not from this file.
+                The owner: "change the menu... should be possible". The items live in
+                `site_setting` under `nav.items`, edited at /admin/appearance, and the defaults are
+                exactly what this list used to be — so an untouched site renders what it always
+                did, and the day he reorders it the site follows without a deploy.
+              */}
+              {settings['nav.items'].map((item) => (
+                <Link
+                  key={`${item.label}-${item.href}`}
+                  href={item.href}
+                  className={item.emphasis ? 'nav-donate' : undefined}
+                >
+                  {item.label}
+                </Link>
+              ))}
             <Link href={current ? '/account' : '/signin'}>
               {current ? 'Account' : 'Sign in'}
             </Link>
             </NavMenu>
           </div>
         </header>
+        ) : null}
 
         <main>{children}</main>
 
@@ -196,35 +287,37 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           So: one block. The mark, the sentence, the links, the year. It sits on one line on a
           desktop and wraps on a phone, and there is nothing else in it.
         */}
+        {!bareChrome ? (
         <footer className="site-footer">
           <div className="wrap footer-block">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               className="footer-logo"
-              src="/ozituma-logo-reversed.svg"
+              src={settings['identity.logoUrl'] || '/ozituma-logo-reversed.svg'}
               alt="Ozituma"
               width={721}
               height={250}
             />
-            <p className="footer-about">
-              The dictionary of{' '}
-              <a href="https://ozikoro.com" rel="noopener">
-                Ozikoro
-              </a>
-              . Its history and archive sit at ozikoro.com; the words live here.
-            </p>
+            <p className="footer-about">{settings['footer.about']}</p>
             <nav className="footer-links" aria-label="Ozituma">
-              <Link href="/about">About</Link>
-              <Link href="/privacy">Privacy</Link>
-              <Link href="/terms">Terms</Link>
-              <Link href="/docs">API</Link>
-              <Link href="/developers">Free key</Link>
-              <a href="/api/health">Status</a>
-              <a href="mailto:hello@ozikoro.com">Email</a>
+              {settings['footer.links'].map((link) =>
+                link.href.startsWith('http') || link.href.startsWith('mailto:') ? (
+                  <a key={link.label} href={link.href} rel="noopener">
+                    {link.label}
+                  </a>
+                ) : (
+                  <Link key={link.label} href={link.href}>
+                    {link.label}
+                  </Link>
+                )
+              )}
             </nav>
-            <p className="footer-note">© {new Date().getFullYear()} Ozikoro</p>
+            <p className="footer-note">
+              {settings['footer.note'] ? `${settings['footer.note']} ` : ''}© {new Date().getFullYear()} Ozikoro
+            </p>
           </div>
         </footer>
+        ) : null}
       </body>
     </html>
   );

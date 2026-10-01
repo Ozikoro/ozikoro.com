@@ -155,6 +155,21 @@ export default async function ClanPage({ params }: ClanPageProps) {
           </section>
         ) : null}
 
+        {/*
+          What the entry rests on, with the book and the author named.
+
+          The owner: "list the name of the books and authors when you mention about source, if
+          possible" — scoped to the clan, town and tribe definitions he has not corrected himself.
+          Those are the ones that stand on the 1950 survey and on Meek and Afigbo, so a reader can
+          see whose account they are reading rather than being asked to take an unattributed one.
+          Entries that rest on his own articles name those instead, which is the same principle.
+        */}
+        {clan.source ? (
+          <p className="clans-source">
+            <strong>Sources:</strong> {clan.source}
+          </p>
+        ) : null}
+
         <p className="clans-note">
           Something here that is wrong, or a clan that is missing?{' '}
           <Link href="/contribute">Send a correction</Link> — it is read before it is published.

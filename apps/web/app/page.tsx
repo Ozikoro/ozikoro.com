@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { Fragment } from 'react';
 import { getDb } from '@ozituma/db/client';
+import { readSettings } from '@ozituma/db/settings';
 import {
   getDictionaryStats,
   listLanguages,
@@ -51,14 +53,26 @@ export default async function HomePage({ searchParams }: HomeProps) {
 
   // The word of the day is only worth the round trip on the landing page.
   const daily = isSearching ? null : await wordOfTheDay(db, language);
+  const settings = await readSettings(db);
 
   const populated = languages.filter((l) => l.wordCount > 0);
   const upcoming = languages.filter((l) => l.wordCount === 0);
 
-  return (
-    <div className="wrap">
-      {!isSearching ? (
-        <section className="hero">
+  /*
+   * The home page, arranged by the admin.
+   *
+   * The owner: "let the admin be able to edit and change any colour or any design from the
+   * website, even if it means drag and drop to make it easy like wordpress does." Colours were
+   * one half of that; this is the other. Each section of the front page is a block with a name,
+   * the admin drags them into order at /admin/layout, and a block switched off renders nothing.
+   *
+   * The search results are deliberately not a block. They are not part of the page's arrangement —
+   * they are the answer to a question the reader asked, and they appear where the reader is
+   * regardless of how the front page is set out.
+   */
+  const blocks: Record<string, React.ReactNode> = {
+    hero: !isSearching ? (
+      <section className="hero">
           <h1>A dictionary for African languages.</h1>
           <p className="hero-lede">
             Ozituma documents words, meanings, dialect variants and pronunciation — starting with
@@ -93,8 +107,87 @@ export default async function HomePage({ searchParams }: HomeProps) {
             </li>
           </ul>
         </section>
-      ) : null}
+    ) : null,
+    wordOfTheDay: !isSearching && daily ? (
+      <section style={{ marginBottom: '2.5rem' }}>
+          <h2>Word of the day</h2>
+          <div className="card">
+            <div className="result-head">
+              <Link
+                className="result-headword"
+                href={`/word/${languageUrlSlug(daily.language)}/${encodeURIComponent(daily.slug)}`}
+              >
+                {daily.headword}
+              </Link>
+              {daily.partOfSpeech ? <span className="chip chip-pos">{daily.partOfSpeech}</span> : null}
+            </div>
+            <p style={{ margin: '0.5rem 0 0', color: 'var(--ink-soft)' }}>
+              {daily.glosses.join('; ') || 'No definition recorded yet.'}
+            </p>
+            {daily.examples[0] ? (
+              <div className="example" style={{ marginTop: '0.9rem' }}>
+                <div className="example-igbo">{daily.examples[0].text}</div>
+                {daily.examples[0].translation ? (
+                  <div className="example-en">{daily.examples[0].translation}</div>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </section>
+    ) : null,
+    languages: !isSearching ? (
+      <section>
+          <h2>Languages</h2>
+          <p className="muted" style={{ fontSize: '0.92rem' }}>
+            We publish an honest word count for every language, so you can see what is usable today
+            and what is still being prepared.
+          </p>
+          <div className="grid">
+            {populated.map((language) => (
+              <Link key={language.code} className="card" href={`/?language=${language.urlSlug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <h3>{language.name}</h3>
+                <p className="card-meta" style={{ margin: 0 }}>
+                  {language.nativeName}
+                  <br />
+                  {language.wordCount.toLocaleString()} words · {language.dialectCount} dialects
+                </p>
+              </Link>
+            ))}
+            {upcoming.slice(0, 8).map((language) => (
+              <div key={language.code} className="card" style={{ opacity: 0.62 }}>
+                <h3>{language.name}</h3>
+                <p className="card-meta" style={{ margin: 0 }}>
+                  {language.nativeName}
+                  <br />
+                  Being prepared
+                </p>
+              </div>
+            ))}
+          </div>
+          {upcoming.length > 8 ? (
+            <p style={{ marginTop: '1rem' }}>
+              <Link href="/languages">See all {languages.length} languages →</Link>
+            </p>
+          ) : null}
+        </section>
+    ) : null,
+    contribute: !isSearching ? (
+      <section style={{ marginBottom: '2.5rem' }}>
+        <h2>Add to the dictionary</h2>
+        <p className="muted" style={{ fontSize: '0.92rem', maxWidth: '42rem' }}>
+          Every entry here came from somebody who knew the word. If a word of yours is missing, or a
+          meaning is wrong, that is worth more than a report — it is the entry.
+        </p>
+        <p style={{ marginTop: '0.9rem' }}>
+          <Link className="button" href="/contribute">Contribute a word</Link>{' '}
+          <Link className="button button-secondary" href="/developers">Use the API</Link>
+        </p>
+      </section>
+    ) : null,
+  };
 
+  return (
+    <div className="wrap">
       {isSearching && result ? (
         <section>
           <div style={{ marginBottom: '1.5rem', maxWidth: '42rem' }}>
@@ -137,71 +230,10 @@ export default async function HomePage({ searchParams }: HomeProps) {
           ) : null}
         </section>
       ) : null}
-
-      {!isSearching && daily ? (
-        <section style={{ marginBottom: '2.5rem' }}>
-          <h2>Word of the day</h2>
-          <div className="card">
-            <div className="result-head">
-              <Link
-                className="result-headword"
-                href={`/word/${languageUrlSlug(daily.language)}/${encodeURIComponent(daily.slug)}`}
-              >
-                {daily.headword}
-              </Link>
-              {daily.partOfSpeech ? <span className="chip chip-pos">{daily.partOfSpeech}</span> : null}
-            </div>
-            <p style={{ margin: '0.5rem 0 0', color: 'var(--ink-soft)' }}>
-              {daily.glosses.join('; ') || 'No definition recorded yet.'}
-            </p>
-            {daily.examples[0] ? (
-              <div className="example" style={{ marginTop: '0.9rem' }}>
-                <div className="example-igbo">{daily.examples[0].text}</div>
-                {daily.examples[0].translation ? (
-                  <div className="example-en">{daily.examples[0].translation}</div>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {!isSearching ? (
-        <section>
-          <h2>Languages</h2>
-          <p className="muted" style={{ fontSize: '0.92rem' }}>
-            We publish an honest word count for every language, so you can see what is usable today
-            and what is still being prepared.
-          </p>
-          <div className="grid">
-            {populated.map((language) => (
-              <Link key={language.code} className="card" href={`/?language=${language.urlSlug}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                <h3>{language.name}</h3>
-                <p className="card-meta" style={{ margin: 0 }}>
-                  {language.nativeName}
-                  <br />
-                  {language.wordCount.toLocaleString()} words · {language.dialectCount} dialects
-                </p>
-              </Link>
-            ))}
-            {upcoming.slice(0, 8).map((language) => (
-              <div key={language.code} className="card" style={{ opacity: 0.62 }}>
-                <h3>{language.name}</h3>
-                <p className="card-meta" style={{ margin: 0 }}>
-                  {language.nativeName}
-                  <br />
-                  Being prepared
-                </p>
-              </div>
-            ))}
-          </div>
-          {upcoming.length > 8 ? (
-            <p style={{ marginTop: '1rem' }}>
-              <Link href="/languages">See all {languages.length} languages →</Link>
-            </p>
-          ) : null}
-        </section>
-      ) : null}
+      {settings['home.blocks'].map((id) => (
+        <Fragment key={id}>{blocks[id] ?? null}</Fragment>
+      ))}
     </div>
   );
 }
+
