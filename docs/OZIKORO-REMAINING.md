@@ -6527,3 +6527,53 @@ service. Round 82's lesson applies after all, and it was mine to notice before r
 **Not attempted**, and the estimate is corrected rather than the change made. The four-part shape is now
 written down precisely enough that it can be done deliberately with a real build to verify against, which is
 the only way to check it and is not available here.
+
+---
+
+## ROUND 153 — A PATTERN ACROSS THREE ROUNDS: THE SHARED THING EXISTS AND OZIKORO IS NOT WIRED INTO IT
+
+Item 10 lists *"notifications"* as open, the way it lists deployment. Checking what exists turns up the
+same shape for the third time in six rounds.
+
+### What exists
+
+    apps/web/lib/mail.ts                          a mail library
+    apps/web/app/api/auth/[action]/route.ts       auth flows that send
+    apps/web/app/api/admin/password-link/route.ts  admin-issued password links
+    packages/core/src/analytics.ts                 shared, mentions notification
+    learn_notification_preference  table           0 rows — preferences ARE modelled
+    password_reset                 table           0 rows
+
+### What does not
+
+    grep for sendMail|nodemailer|smtp|sendEmail in apps/ozikoro   ->  nothing. No mail code at all.
+
+**The mail machinery exists in the shared package and the Ozituma app, and the Ozikoro app has none of
+it.** So "notifications" is not a thing to build from scratch; it is a thing to wire up, and the difference
+matters because one is an engineering task with a known shape and the other sounds like a project.
+
+### And it is the same sentence three times
+
+    round 148   the AI gateway exists and @ozituma/core is ALREADY a dependency of apps/ozikoro
+                -> item 9 is not "not started", it is unwired
+    round 149   the deployment stack exists and is proven, for Ozituma and Learn
+                -> item 10's deployment is not blocked, Ozikoro is absent from it
+    round 153   mail exists in apps/web and packages/core
+                -> item 10's notifications are not unbuilt, Ozikoro is unwired
+
+**Three of the objective's remaining items are the same absence**: a working capability in the estate that
+Ozikoro has not been connected to. Each was recorded as a missing thing — *not started*, *blocked*, *open* —
+and each is actually an integration.
+
+### What that changes about the shape of the remaining work
+
+If the pattern holds, the honest question for each remaining item is not *"what must be built?"* but
+**"does this already exist somewhere in the estate, and what would connecting it take?"** That question has
+found something three times, and it is cheaper than the first one every time: a grep, a schema read, and
+opening the file nobody had opened.
+
+**It also reframes the blocker list.** Of the items this file calls waiting:
+* three are integrations this session could scope without the owner (the gateway, the compose, the mail)
+* three genuinely need a decision only the owner can make (the eleven addresses, the redirect row, the
+  media rights)
+* and the data gaps need people, not code, whichever way they are framed
