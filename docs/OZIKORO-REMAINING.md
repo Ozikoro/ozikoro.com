@@ -3003,3 +3003,54 @@ the one that failed.
 
 Also observed, and not a defect: **1 article has an empty body**, which rounds 9 and 43 established is
 deliberate — the record is kept, the gap is visible, and the page still renders a heading.
+
+---
+
+## ROUND 74 — FORTY BROKEN LINKS INSIDE ARTICLE BODIES, AND TWO SYSTEMATIC FAMILIES
+
+Round 73 scoped this exactly and wrote the guard against repeating its own mistake; this round ran it.
+The pattern was checked to match **before** its result was trusted:
+
+    ARTICLES_WITH_HREF=91
+    ANCHORS_SEEN=300        <- non-zero, so the pattern works
+    INTERNAL_LINKS=195
+    DISTINCT_UNKNOWN=40     <- targets the verified 14,667 do not contain
+
+**Forty distinct broken targets, reached from 195 links inside 91 published articles.** They fall into
+two systematic families and a tail:
+
+    WORDPRESS AUTHOR ARCHIVES         /author/nze/                  x16
+                                      /author/chizobem-chinedu-opiah/ x3
+                                      /author/chuka/  /author/ossai/  /author/aka/   x2 each
+
+    WORDPRESS CATEGORY ARCHIVES       /historical-studies/          x13
+                                      /biography/  /cultural-heritage/  x4 each
+                                      /ethnohistory/  /discography/  x3 each
+
+    ARTICLE-LIKE PATHS                /womens-title-taking-the-iyom-otu-odu-title…  x2
+                                      /nsude-pyramid-spirituality…/a-nsude-pyramid…/  x2
+                                      and a tail of single occurrences
+
+The two families are the same defect: **the old site served `/author/<name>/` and `/<category>/` as
+archive pages, and this platform serves those records at `/researchers/` and `/topics/<slug>/`.** Every
+in-body link to one of them now lands on a 404.
+
+### This is the gap round 71 named and round 73 failed to test
+
+Round 71 wrote: *"deep links inside article bodies — the walk follows href values, but only from pages it
+reaches."* Round 73 tried to close it and reported zero because of a pattern error. So the gap was known
+for three rounds and open the whole time — and it held **40 broken targets**, not zero.
+
+**A stated gap is not a closed gap, and a failed check of a gap looks exactly like a clean one.**
+
+### The mechanism to fix it already exists, unused
+
+`ozikoro_redirect` was created in migration 0035 for precisely this. What it needs is entries mapping the
+old archive paths to the new ones — `/author/<name>/` to that author's filter, and `<category>/` to
+`/topics/<category>/` — plus a handler that consults it. **Not done**, and now precisely specified.
+
+### Also worth noting about the tail
+
+Some of the article-like paths may be genuinely dangling references from the original site, and some may
+be articles whose slug differs from the link. Each needs looking at individually; they are not a family
+and should not be bulk-redirected on a guess.
