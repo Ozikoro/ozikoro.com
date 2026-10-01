@@ -3880,3 +3880,46 @@ unnoticed for so long.
 All three produced a clean-looking state, and all three were the *method* being wrong about where the
 answer lived rather than the answer being absent. **Asking "what would this command actually touch?" is
 the cheapest question available, and it has now found something three times.**
+
+---
+
+## ROUND 94 — THE INVERSE QUESTION, AND A NEGATIVE RESULT WORTH KEEPING
+
+Rounds 92 and 93 both asked *what is one command away from being lost*. This round asked the inverse:
+**what has already been committed that should not have been?**
+
+The repository carries **30.4 MB across 958 tracked files**, and the largest are not application source:
+
+    10.6 MB   work/            112 files
+     4.3 MB   proverbs-work/    22 files
+     1.1 MB   ekpeye-work/      52 files
+     2.6 MB   work/examples.jsonl          2.5 MB  work/audio-restore/plan.json
+     1.7 MB   work/verdicts.jsonl          1.5 MB  proverbs-work/thomas-v6/part5-corrected.jsonl
+
+Sixteen megabytes of what looks like scratch — three directories of `.jsonl` verdicts, renderings and
+plans, none of them ignored, all of them tracked.
+
+### The honest answer is that they are not scratch
+
+    referenced by: packages/db/src/import/unsettled-renderings.ts
+
+**An importer reads from `work/`.** So this is deliberate input data for a data pipeline — the material an
+editorial or derivation step consumes — and not a `git add -A` accident. They are correctly committed and
+correctly not ignored.
+
+**Nothing was deleted**, and nothing should be: round 58's lesson was a repair that destroyed a character
+in a published address because it looked like noise. Sixteen megabytes of files whose purpose I have not
+read in full is exactly the same temptation, and it is not worth the same mistake twice.
+
+### The false positive, recorded because it nearly counted
+
+The reference search also matched `learn/node_modules/@types/node/process.d.ts` — because the path
+contains `/work/`. A substring match on a path is not evidence of a reference, and it is the same family
+as the thirteen false positives this file already documents. **The real hit is one file, and reading it is
+what turned a suspected mess into a documented input.**
+
+### Why a negative result is worth a round
+
+The question "is 16MB of oddly-placed data a mistake?" now has a written answer with a citation in the
+codebase. The next person to notice those directories will find the answer instead of repeating the
+investigation — or, worse, deleting them and discovering the importer depended on them.
