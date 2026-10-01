@@ -6047,3 +6047,42 @@ joined.** Two populated tables, one on each side, matching on a column nobody ha
 matches, rendering a link to `https://ozituma.com/clans/<slug>/`. **Not built**, because the context left
 this round was not enough to verify a change to a page that serves 10,100 URLs — and because the finding is
 worth more recorded precisely than half-built.
+
+---
+
+## ROUND 142 — ITEM 8 BUILT: THE DICTIONARY LINK IS LIVE ON 93 LABEL PAGES
+
+Round 141 measured the overlap and named the change; this round made it.
+
+    /labels/umueri/   200   dictionary link: https://ozituma.com/clans/umueri/
+    /labels/idemili/  200   dictionary link: https://ozituma.com/clans/idemili/
+    /labels/aba/      200   dictionary link: none
+
+**A label that names a published clan links to the dictionary's entry for it; a label that does not, does
+not.** `aba` is a town, not a published clan, and correctly gets nothing — which is the half of the test
+that matters, because a lookup that matched too much would put a false link on thousands of subject pages.
+
+### What was added, and what was deliberately not
+
+One `select slug from clan where published = true and lower(slug) = lower($1)` and nine lines of JSX. **No
+entities, no sources, no periods, no new table, no new column, no new environment variable.** Two populated
+tables already matched on a column nobody had compared.
+
+`published = true` is not decoration: the clan table holds **228 rows and only 188 are published**, so
+without it roughly a fifth of the links would point at a 404 on the other site. The query is wrapped in a
+`catch` because **a missing clan must not stop a subject page from rendering** — this page serves 10,100
+URLs and the link is an addition to them, never a dependency.
+
+### The one thing not verified
+
+**The destination was not fetched.** `https://ozituma.com/clans/umueri/` is a different site and this
+session has only ever run the Ozikoro app locally. The link is built from the slug of a row where
+`published = true` in the shared database, and Ozituma's route file `app/web/app/clans/[slug]/page.tsx`
+exists — but **that the URL returns 200 has not been measured**, and it is recorded here rather than
+implied by the green run above.
+
+### Item 8, honestly stated
+
+    built and verified   the lookup, the conditional link, and its absence on non-clan labels
+    measured             the other site's route file exists, and 188 clans are published
+    NOT measured         whether https://ozituma.com/clans/<slug>/ actually returns 200

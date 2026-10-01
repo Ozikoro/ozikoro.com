@@ -33,6 +33,27 @@ export default async function LabelPage({ params }: { params: Promise<{ slug: st
   const label = await getLabelBySlug(db, slug);
   if (!label) notFound();
 
+  /*
+   * IS THIS SUBJECT A CLAN THE DICTIONARY ALREADY PUBLISHES?
+   *
+   * Item 8 is "Ozituma integration linking to the dictionary rather than duplicating it." Round 141
+   * measured both sides and found they already overlap: 93 labels match a published clan by slug, 99 by
+   * name, and 268 articles carry such a label — umueri, nimo, abagana, idemili and the rest.
+   *
+   * So this needs no entity, no source, no period and no rights decision. It is a lookup. Building an
+   * Ozikoro clan page would be exactly the duplication item 8 exists to prevent.
+   *
+   * `published = true` matters: the clan table holds 228 rows and only 188 are published, and a link to an
+   * unpublished entry would be a 404 on the other site. A failure is caught rather than thrown, because a
+   * missing clan must not stop a subject page rendering.
+   */
+  const clan = await db
+    .one<{ slug: string }>(
+      `select slug from clan where published = true and lower(slug) = lower($1) limit 1`,
+      [label.slug]
+    )
+    .catch(() => null);
+
   const articles = await listArticles(db, { labelSlug: label.slug, limit: 30 });
 
   /*
@@ -61,6 +82,14 @@ export default async function LabelPage({ params }: { params: Promise<{ slug: st
       <header>
         <p className="eyebrow">Subject</p>
         <h1>{label.name}</h1>
+        {clan ? (
+          <p className="small muted">
+            {/* A fixed external destination: one dictionary, one address. Not a per-request value. */}
+            <Link href={`https://ozituma.com/clans/${clan.slug}/`}>
+              Read the dictionary’s entry for {label.name}
+            </Link>
+          </p>
+        ) : null}
         <p className="small muted">
           {articles.length} {articles.length === 1 ? 'record' : 'records'} filed under this subject
         </p>
