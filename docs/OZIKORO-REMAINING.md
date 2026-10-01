@@ -1627,3 +1627,65 @@ does not reveal whether an account exists.
 * The limiter is in-process memory, as its own comment says. Behind more than one instance each gets
   its own allowance. A shared store is the fix and is not built.
 * `signup` is not rate limited; account creation is a spam surface, though a less direct one.
+
+---
+
+## ROUND 44 — BROKEN OBJECT-LEVEL AUTHORIZATION: ONE AUTHOR COULD REWRITE ANOTHER'S DRAFT
+
+### The finding, demonstrated rather than reasoned
+
+`revisePublication` accepted a `publicationId` and an `actorId` and **never checked that the two were
+related.** The route above it authorized only on `submit_work` — a capability held by every
+contributor role, so it restricts nobody.
+
+Demonstrated with two ordinary researcher accounts:
+
+    account A creates a PRIVATE draft (id 37)
+    account B holds submit_work                 -> true
+    B calls revisePublication on A's draft      -> ALLOWED, version 2 created
+    the new version is attributed to            B (299), while the work belongs to A (298)
+
+So any signed-in contributor could rewrite any other contributor's manuscript — **including a private
+draft its author had never submitted** — and the rewrite was recorded under the attacker's name.
+
+The same hole existed on the transition path: B could push A's private draft into the editorial queue.
+
+### Why the capability check could not catch it
+
+Authorization for **a role** and authorization for **a record** are different questions. `submit_work`
+is universal among contributors, so it answers "may this person write research?" and not "may this
+person write *this* research?". That second question has to be asked of the record, and it was not
+being asked anywhere.
+
+### The fix
+
+`assertOwnsPublication` — the actor must be a listed author of the work or whoever submitted it.
+Applied to `revisePublication` and to transitions whose destination is `submitted` (the author's act).
+
+Editors are deliberately **not** granted content rights by this. An editor moving a work through review
+acts on the archive's business; rewriting someone's manuscript would put the editor's words under the
+author's name, and the transition path remains the editorial route.
+
+Verified both ways:
+
+    B revises A's draft          -> REFUSED (not_your_work)
+    A revises their own draft    -> ALLOWED, version 2
+    B submits A's draft          -> REFUSED (not_your_work)
+    A submits their own draft    -> ALLOWED
+
+Test accounts and publications removed in each run.
+
+### Checked and found sound
+
+`requestContributorClaim` is properly guarded — it refuses an already-claimed byline, a duplicate
+pending claim by the same account, and a re-claim by an account already approved. **Byline takeover is
+not possible.** Reported because a negative result is a result, and because "I did not look" and "I
+looked and it was fine" are different things.
+
+### A note on my own verification habit
+
+Two edits this round ended with an assertion on how many times a symbol appears in the file. Both
+counts were wrong — I miscounted twice — while the edits themselves were correct and proven by the
+empirical test that followed. **Counting occurrences is a poor proxy for "the change landed"**; the
+behavioural test is the real one. Worth remembering that the passing test, not the failed count, was
+what established the fix.

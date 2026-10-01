@@ -753,6 +753,19 @@ export async function transitionPublication(
     );
   }
 
+  /*
+   * `submitted` is the AUTHOR's act, and `submit_work` is held by every contributor role, so the
+   * capability alone does not say whose work may be submitted. Without this, any signed-in contributor
+   * could push another person's private draft into the editorial queue — the same broken
+   * object-level authorization that `revisePublication` had, on the transition path.
+   *
+   * Editorial transitions are governed by their own capabilities and are not affected: an editor
+   * moving a work through review is acting on the archive's business, not on somebody's authorship.
+   */
+  if (input.to === 'submitted') {
+    await assertOwnsPublication(db, input.publicationId, input.actorId);
+  }
+
   const needed = capabilityForTransition(input.to);
   if (!input.capabilities.has(needed)) {
     throw new MemberError('forbidden', `Moving a work to ${STATE_LABEL[input.to].toLowerCase()} needs the “${needed.replace(/_/g, ' ')}” permission.`);
@@ -804,6 +817,41 @@ export async function transitionPublication(
 }
 
 /** A new version, snapshotted before the work is revised further. */
+
+/**
+ * Is this account allowed to change this work's CONTENT?
+ *
+ * MEASURED BEFORE THIS EXISTED: account A created a private draft; account B, holding only
+ * `submit_work` — which every contributor role holds, so it is not a restriction — called
+ * `revisePublication` on it and succeeded. The title and abstract were rewritten and a new version
+ * was recorded **attributed to B**. A draft its author had not submitted was readable and editable by
+ * any other signed-in contributor.
+ *
+ * The capability check in the route could not catch this because the capability is universal among
+ * contributors. Authorization for a specific record is a different question from a role, and it has to
+ * be asked of the record.
+ *
+ * Allowed: a listed author of the work, or whoever submitted it. An editor does not need to edit
+ * another person's manuscript — editing it would attribute their words to the author — which is why
+ * editorial roles are not granted this and the transition path remains the editorial route.
+ */
+async function assertOwnsPublication(db: Db, publicationId: number, actorId: number): Promise<void> {
+  const owns = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_publication p
+      where p.id = $1
+        and (p.submitted_by = $2
+             or exists (select 1 from ozikoro_publication_author a
+                         where a.publication_id = p.id and a.account_id = $2))`,
+    [publicationId, actorId]
+  );
+  if (Number(owns?.n ?? 0) === 0) {
+    throw new MemberError(
+      'not_your_work',
+      'Only an author of this work can change it. If you believe it is yours, claim the byline or ask an editor.'
+    );
+  }
+}
+
 export async function revisePublication(
   db: Db,
   input: { publicationId: number; title: string; abstract: string | null; changeNote: string; actorId: number }
@@ -814,6 +862,7 @@ export async function revisePublication(
   );
   if (!current) throw new MemberError('no_publication', 'That work does not exist.');
   if (String(current.status) === 'archived') throw new MemberError('archived', 'An archived work is not revised. Submit a new one.');
+  await assertOwnsPublication(db, input.publicationId, input.actorId);
 
   const next = Number(current.current_version) + 1;
   await db.query(`update ozikoro_publication set title = $2, abstract = $3, updated_at = now() where id = $1`, [
