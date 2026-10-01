@@ -5623,3 +5623,40 @@ or more later.
     fixed rounds later         the route count (97), the check count (125), the strays (126)
 
 **A count written in the same breath as the thing it counts is the only kind that cannot drift.**
+
+---
+
+## ROUND 131 — THE TWO RUNNERS, CONFIRMED AFTER THE COUNT CHANGED
+
+Round 130 added a fifth live check and corrected the resume block in the same commit. This round confirmed
+the whole thing runs, because a count corrected is not a suite passing.
+
+    verify-all.sh    20 PASS lines, exit 0
+    verify-live.sh    5 PASS lines, exit 0
+      PASS  links a reader can click
+      PASS  pages a crawler is told of
+      PASS  assets a page must load
+      PASS  the 404 a reader lands on
+      PASS  the auth boundary
+
+And the runner's own guard, which is the one that decides whether any of the above means anything:
+
+    verify-live.sh with nothing listening   ->  exit 2
+      http://127.0.0.1:3100 is not responding. Start a server first — this runner deliberately does not.
+
+**Exit codes read from the commands directly, never through a pipe.** Three rounds lost a verdict that way
+before it became a habit (31, 70, 86), and every measurement above was taken the way it should be.
+
+### The verified state, in one place
+
+    offline   20 steps    typecheck · 64 unit tests · 7 app tests · archive · members · editorial
+                          publications · rights · search · spotify · admin · accounts ·
+                          contributions · donations · no committed credentials · no test residue ·
+                          every capability granted · links inside article bodies
+    live      5 checks   120 pages of followed links · 300 sampled sitemap paths · 62 assets ·
+                          the 404 a reader lands on · the auth boundary across 13 routes
+    guards    9 checks, 9 tested    each shown to refuse by being made to look at nothing
+    waivers   3, each printing with its reason and its removal criterion
+
+**Two runners, because the suites take the PGlite lock and the server-dependent checks need it up** — a
+split that round 90 established and every round since has kept.
