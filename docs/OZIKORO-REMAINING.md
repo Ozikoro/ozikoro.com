@@ -7033,3 +7033,54 @@ genuinely missing piece**, and this round is what confirms it rather than assumi
 **Three capabilities, one of which was missing, and one duplication that is a safety improvement rather
 than a mistake.** The lesson is not that building it was wrong — it is that *"does this exist?"* is a
 question to ask of the whole repository and not of the directory the work happens to be in.
+
+---
+
+## ROUND 164 — THE MAIL MODULE IS APP-LOCAL AND COMPLETELY SELF-CONTAINED, WHICH MAKES SHARING A FILE MOVE
+
+Round 153 found mail exists in `apps/web` and Ozikoro has none, and round 154 proposed wiring the claim
+notification to it. The question that decides how much work that is: **is the module shareable?**
+
+    mail code anywhere in packages/          NONE — it exists only at apps/web/lib/mail.ts
+    its imports                              node:crypto · node:net · node:tls — and nothing else
+    app-local imports                        none
+    external packages                        none: it does not even use nodemailer
+    size                                     ~650 lines, an SMTP client written against TCP and TLS sockets
+
+**Every dependency is a Node builtin.** There is no npm package to add, no app-local helper to untangle, no
+framework coupling — it opens sockets, speaks EHLO and STARTTLS and AUTH and DATA, and returns a result.
+
+### So the notification work is smaller than round 154 implied, and in the opposite direction from round 152
+
+    round 152   the deployment estimate GREW: a compose service needs three Dockerfile stages first,
+                one of them in a layer shared with two live sites
+    round 164   the notification estimate SHRINKS: the mail module is a file that can move
+
+**Sharing it is a move, not a refactor.** Three options, in increasing scope: copy the file into
+`apps/ozikoro/lib/`, move it to `packages/core` and import from both apps, or leave it and have Ozikoro
+reach for it across the workspace. The first is a duplicate and the second is the right answer; the point is
+that **none of them involves rewriting an SMTP client.**
+
+### What actually remains for the claim notification, restated
+
+    transport    apps/web/lib/mail.ts — self-contained, movable          EXISTS
+    variables    OZITUMA_SMTP_* — already documented and in the prod compose
+    trigger      requestContributorClaim already runs at the right moment
+    recipient    whoever holds manage_contributors
+    destination  /admin/claims, built and gated
+    template     absent
+    wiring       absent
+    ordering     no claims exist, because there are no accounts
+
+**Six parts exist, two are missing, and one thing has to happen first.** Compared with round 154's account
+of the same job, the only thing that changed is knowing that the largest-sounding piece — *"build a mail
+layer for the archive"* — is a 650-line file that already works and has no strings attached.
+
+### The habit that keeps producing this
+
+Round 162's lesson was to ask *"does this exist?"* of the whole repository. This round asked it **one level
+down — not "is there mail?" but "what would it cost to share what there is?"** — and found that the answer
+was much smaller than the presence of an app-local path suggests.
+
+> **An app-local module is not the same as a coupled one.** Where the imports are all builtins, "it lives in
+> the other app" is a location and not a dependency, and the two are worth telling apart before estimating.
