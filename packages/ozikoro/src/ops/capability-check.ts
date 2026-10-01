@@ -102,6 +102,27 @@ if (process.argv[1] && process.argv[1].endsWith('capability-check.ts')) {
   await closeDb();
 
   console.log(`\n  ${required.size} capabilities required by the source.`);
+
+  /*
+   * THE GUARD (round 104).
+   *
+   * Like `check:residue` and `check:secrets`, this check's desired result is "nothing wrong found" — so a
+   * broken extractor produces a permanent silent pass. With no names extracted, everything below is
+   * trivially satisfied and it prints "0 capabilities required … Every one is held by at least one role"
+   * and exits 0, on every input, forever.
+   *
+   * This is the check written because a capability held by nobody shipped once already (round 12), so its
+   * silence is the last silence that should be trusted.
+   */
+  if (required.size === 0) {
+    console.error(
+      '\n  EXTRACTED NO CAPABILITY NAMES — the source scan found nothing, which cannot be right: this\n' +
+        '  codebase requires capabilities in dozens of places. Not a pass: a scan that found no names\n' +
+        '  reports every capability granted on every input.\n'
+    );
+    process.exit(2);
+  }
+
   if (missing.length === 0) {
     console.log('  Every one is held by at least one role.\n');
     process.exit(0);

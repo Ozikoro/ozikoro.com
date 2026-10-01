@@ -4382,3 +4382,64 @@ anywhere, `check:secrets` exit 0, and all 20 steps green.
 
 **Run the verification last, after every artefact is in place and staged** — or re-run it after writing,
 because prose is an artefact. Twice now a green suite has described a tree that was about to change.
+
+---
+
+## ROUND 104 — THE LAST CHECK WHOSE SILENCE WAS TRUSTED, AND A BACKUP THAT ERASED MY OWN FIX
+
+Round 103 guarded `check:residue` and named `check:capabilities` as having the same shape. This round
+guarded it, and the guard was correct — but getting there produced a better lesson than the guard.
+
+### The exposure
+
+`check:capabilities` reads capability names out of `requireCapability`, `hasCapability` and the transition
+table with three regular expressions, then reports *"Every one is held by at least one role."* With no
+names extracted, everything downstream is trivially satisfied:
+
+    0 capabilities required by the source.
+    Every one is held by at least one role.        exit 0, on every input, forever
+
+**And this is the check written because a capability held by nobody shipped once already, in round 12** —
+so its silence is the last silence in this project that should be trusted. Now:
+
+    EXTRACTED NO CAPABILITY NAMES — the source scan found nothing, which cannot be right: this
+    codebase requires capabilities in dozens of places. Not a pass: a scan that found no names
+    reports every capability granted on every input.            exit 2
+
+Mutation-tested by forcing the scan to return nothing — **exit 2** — and restoring — **exit 0**, with the
+guard confirmed still present in the file.
+
+### And my first two attempts to test it proved nothing
+
+**Attempt one** broke a single regex (`requireCapability`). The other two patterns kept matching, so the
+scan returned *fewer* names rather than none, and the guard correctly did not fire. **A mutation too weak
+to reach the condition tests nothing, and passes.**
+
+**Attempt two** forced the function to return an empty map — the real condition — and still exited 0.
+Because at the end of attempt one I had restored from `/tmp/cc.bak`, a backup taken **before** the guard was
+added. **My restore erased the fix I was testing.** The guard was gone from the file, so of course it did
+not fire; and `grep -c 'EXTRACTED NO CAPABILITY'` returning **0** is what revealed it.
+
+    backup taken BEFORE the change   ->  restoring the "original" deletes the change
+    verified by grepping for the fix ->  0 occurrences, which is not what I had just written
+
+### The rule, which is more general than this round
+
+**A backup is a claim about a point in time, and restoring it is a destructive edit.** Take it *after* the
+change you intend to keep, and prove the restored state contains what you meant to keep rather than
+assuming the copy was the right one.
+
+That is the same error as the rest of this file, wearing different clothes: I restored "the original" and
+never asked *original of what?* — a measurement correct about the wrong object, for the thirteenth time.
+
+### Where the checks now stand
+
+    check:secrets       8 sub-checks, self-test proving its detector matches
+    check:residue       reports 102 tables checked; refuses to pass having scanned none
+    check:capabilities  refuses to pass having extracted no names
+    check-links         refuses to pass having fetched no pages
+    check-sitemap       refuses to pass having listed no URLs
+    check-assets        refuses to pass having matched no assets
+    check-body-links    refuses to pass having matched no anchors
+
+**Seven checks, and every one now distinguishes "found nothing wrong" from "did not look."**
