@@ -2839,3 +2839,44 @@ the same minute, because the **"nothing was checked" guard** had already been wr
 entries tripped it. Parsing moved to `python3`.
 
 **The guard was written for a different failure and caught this one. That is what guards are for.**
+
+---
+
+## ROUND 69 — THE SITEMAP VERIFIED AT 300 PAGES
+
+Round 68 built the sampler; this round used it at scale rather than at its default.
+
+    sitemap lists 14667 paths
+    checked: 300
+    Every sampled page resolved.
+
+**Three hundred pages drawn at random from the 14,667 the sitemap advertises, every one returning 200.**
+The sample is spread across labels, media and articles because the sitemap is overwhelmingly labels —
+10,100 of the 14,667 — which is also where the two real URL bugs were found, in rounds 57 and 58.
+
+### What this is, and what it is not
+
+It is **2% of the sitemap, sampled deterministically**, so the run is reproducible and a failure can be
+reproduced exactly. It is not every URL. At roughly 0.1 seconds per request, checking all 14,667 would
+take about twenty-five minutes, which is affordable and simply has not been done.
+
+So the honest statement is: **no broken page was found in 300 sampled, and 14,367 have not been
+requested.** That is a real improvement on the round-57 position, where the walk had covered 25 pages
+and nothing had been sampled at all.
+
+### The three checks now, and what each covers
+
+    check-links.sh     120 pages, following links        ->  what a reader can CLICK
+    check-sitemap.sh   300 sampled <loc> paths           ->  what a crawler is TOLD
+    check:residue / check:capabilities                   ->  what the DATABASE holds
+
+Each found a real defect the others could not: the walk found the navigation's 404, the sample found
+the two percent-encoded slug families, and neither would ever have found test residue published as
+researchers.
+
+### Still not covered by anything
+
+* **Deep links inside article bodies.** The walk follows `href` values it finds, but only from pages it
+  reaches; an article's own body links are covered only if the walk happens to fetch that article.
+* **The remaining 14,367 sitemap URLs.**
+* **Assets**: images, stylesheets and scripts are deliberately skipped by both tools.
