@@ -24,9 +24,9 @@
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect, redirect } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { getArticleBySlug, getRelatedArticles } from '@ozikoro/platform';
+import { getArticleBySlug, getRelatedArticles, getTopicBySlug } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +68,30 @@ export default async function ArticlePage({ params }: PageProps) {
   const { slug } = await params;
   const db = await getDb();
   const article = await getArticleBySlug(db, slug);
-  if (!article) notFound();
+  if (!article) {
+    /*
+     * A WordPress CATEGORY archive, reached at `/<category>/`.
+     *
+     * The old site served `/historical-studies/`, `/biography/` and their siblings as archive pages. This
+     * platform serves those records at `/topics/<slug>/`, and `/<category>/` is a single segment — the
+     * same shape as an article — so the router cannot tell them apart and 404s.
+     *
+     * Round 74 found 27 in-body links doing exactly this, inside 91 published articles.
+     *
+     * A redirect rather than serving here: the topic page already exists and rendering a second copy at
+     * an alias would split the two addresses. This is deliberately checked AFTER the article lookup, so
+     * a real article always wins and no article address can be shadowed by a topic of the same name.
+     */
+    const topic = await getTopicBySlug(db, slug);
+    /*
+     * `permanentRedirect`, not `redirect`. The default is a **307**, which tells a crawler the move is
+     * temporary and to keep the old address indexed — the opposite of what a migrated archive wants. The
+     * concern recorded at the top of this file is "the loss of whatever those addresses have accumulated
+     * in search", and a 307 preserves exactly that loss. 308 is the permanent, method-preserving form.
+     */
+    if (topic) permanentRedirect(`/topics/${topic.slug}/`);
+    notFound();
+  }
 
   const related = await getRelatedArticles(db, article.id, 4);
   const published = formatDate(article.publishedAt);

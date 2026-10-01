@@ -3177,3 +3177,52 @@ The **category family** — `/historical-studies/`, `/biography/`, `/cultural-he
 with `app/[slug]/`, so they need the lookup-then-redirect mechanism, and that is still behind round 75's
 question. **The two halves of this defect turned out to need entirely different fixes**, which is why
 separating them a round at a time was worth doing.
+
+---
+
+## ROUND 78 — THE CATEGORY FAMILY, AND A CORRECTION TO MY OWN COUNTING
+
+The second half of the round-74 defect is fixed.
+
+    /historical-studies/   308 -> /topics/historical-studies/    (target 200)
+    /biography/            308 -> /topics/biography/
+    /cultural-heritage/    308    /ethnohistory/    308    /discography/    308
+    a real article         200    (the article lookup runs FIRST, so no article is shadowed)
+    nothing at all         404
+
+The fallback sits in `app/[slug]/page.tsx`, reached only when no article matches, so a topic can never
+shadow a record. It resolves the collision described in round 76: `/<category>/` and `/<article>/` are
+both one segment and the router cannot tell them apart by shape.
+
+### 307 would have preserved the very loss the file complains about
+
+`redirect()` issues a **307** — *temporary*, which tells a crawler to keep the old address indexed and
+expect the move to be undone. The comment at the top of this file already worried about *"the loss of
+whatever those addresses have accumulated in search"*, and a 307 is precisely how that loss is
+preserved. Changed to `permanentRedirect()`, which is a **308**.
+
+### Correction: I have been sloppy about "40"
+
+Round 74 reported **40 distinct broken targets across 195 links**, and rounds 77 and 78 have each
+described their fix as covering "25 of the 40" and "27 of the 40". **Those numbers are links, not
+targets, and they are not the same denominator.** The accurate account:
+
+    distinct broken targets   40      (round 74)
+      author family            5      /author/nze/, /author/chuka/, /author/ossai/,
+                                     /author/aka/, /author/chizobem-chinedu-opiah/
+      category family          5      /historical-studies/, /biography/, /cultural-heritage/,
+                                     /ethnohistory/, /discography/
+      article-like tail       30      single and double occurrences, individually different
+
+    links involved           195
+      at the 5 author targets         ~25
+      at the 5 category targets       ~27
+
+**Ten of the forty targets are fixed, covering about 52 of the 195 links.** The remaining **30 targets
+are the article-like tail** — `/womens-title-taking-the-iyom-otu-odu-title-in-igbo-culture/` and paths
+like it — and they are **not a family**: some may be genuinely dangling references from the original
+site, some may be articles whose slug differs from the link. **Each needs looking at individually, and
+bulk-redirecting them would be guessing.**
+
+Correcting this matters because "25 of 40" reads as most of the work done, when in fact the two families
+were the five-target kinds a rule can fix, and **the 30 that remain have no rule at all.**
