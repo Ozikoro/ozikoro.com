@@ -176,13 +176,23 @@
 > 5. **Never read a checker's exit code after a pipe** — it is the pipe's last command's status.
 > 6. **A route that fails to compile takes the WHOLE server down**, not one page (rounds 81, 82).
 >
-> **Sixteen confidently wrong measurements, and the three shapes they come in** — all of them the method
+> **Eighteen confidently wrong measurements, and the shapes they come in** — all of them the method
 > being wrong about **where the answer lives**:
 > * the wrong **spelling** in a pattern (73, 101, 109) or an **exclusion** that hides the failing case (106)
 > * the wrong **set**: `git grep` reads the index, not the tree (92); a comparison against another app's
 >   file (95); source lines instead of runtime output (98)
 > * the wrong **object**: "is it in the file" instead of what the browser draws (112); a plausible cause
->   read from code and never tested (117)
+>   read from code and never tested (117); `grep -c` on a named file printing `file:count` instead of a
+>   number (169); a sentence spanning React's interleaved `<!-- -->` text nodes (172); a grep for one
+>   checker's **wording** rather than its behaviour (124)
+>
+> **And the sharpest form of it, named in round 172 after the sixth instance:** four of the six were
+> written against **source** and applied to **output**, and two against how output **reads** rather than
+> how it is **serialised**. In every case the answer was in the artefact and the pattern could not express
+> it.
+>
+> **So when a check disagrees with reality, suspect the pattern before the code** — and when it prints
+> errors, the errors are the result and the table under them is not.
 >
 > **And the two habits that would have prevented most of it:**
 > * **Print the input before theorising about it** — four rounds on an unreachable article were answered by
