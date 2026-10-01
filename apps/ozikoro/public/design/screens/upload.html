@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publish your work — upload and deposit — Ozikoro</title>
+<meta name="description" content="Upload a publication or deposit archive material: describe it, set its terms, and publish.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../styles/main.css">
+<link rel="stylesheet" href="../styles/showcase.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<p class="example-flag">Design mock — the form is <b>example material</b>; nothing is submitted. Each step is a separate page, so the flow works without JavaScript.</p>
+
+<div class="platform-bar">
+  <div class="wrap">
+    <ul>
+      <li><a href="home.html" class="here">ozikoro.com — archive &amp; research</a></li>
+      <li><a href="#">ozituma.com — dictionary</a></li>
+      <li><a href="academy.html">learn.ozituma.com — academy</a></li>
+    </ul>
+    <span class="owner">Ozi Ikoro Limited</span>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <a class="wordmark" href="home.html"><b>Ozikoro</b> <span>History &amp; Archive</span></a>
+    <nav class="nav" aria-label="Primary">
+      <ul>
+        <li><a href="archive-index.html">Histories</a></li>
+        <li><a href="watch.html">Watch</a></li><li><a href="collections.html">Explore</a></li><li><a href="documents.html">Archive</a></li>
+        <li><a href="researcher-profile.html" aria-current="page">Researchers</a></li>
+        <li><a href="academy.html">Academy</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+  <div class="wrap-narrow section">
+    <p class="eyebrow">Researchers Network</p>
+    <h1 style="margin-top:var(--s-3);font-size:var(--t-2xl)">Publish your work</h1>
+    <p class="lede" style="margin-top:var(--s-4)">A paper is findable here by topic, by author and by institution. Describing it well is the whole of the work — the fields below are what make it discoverable.</p>
+
+    <ol class="steps" style="margin-top:var(--s-6)" aria-label="Progress">
+      <li data-done="true">The file</li>
+      <li aria-current="step">Describe it</li>
+      <li>Terms &amp; access</li>
+      <li>Review &amp; publish</li>
+    </ol>
+
+    <form action="publication.html" method="get" style="margin-top:var(--s-7)">
+
+      <section>
+        <h2>1 · The file</h2>
+        <div class="dropzone" style="margin-top:var(--s-4)">
+          <p class="small muted">PDF, DOCX or ODT · up to 40 MB</p>
+          <p style="margin-top:var(--s-3)">
+            <label class="btn btn-quiet" for="file">Choose a file</label>
+            <input class="skip" type="file" id="file" name="file" accept=".pdf,.doc,.docx,.odt">
+          </p>
+          <p class="small muted" style="margin-top:var(--s-3)">A plain upload form. No drag-and-drop requirement, no client-side processing — it works on a slow phone connection, and it resumes if it fails.</p>
+        </div>
+        <div class="card" style="margin-top:var(--s-4);display:flex;gap:var(--s-4);align-items:center;justify-content:space-between;flex-wrap:wrap">
+          <span><b>market-week-ritual-office.pdf</b><br><span class="small muted">1.4 MB · 28 pages · uploaded</span></span>
+          <a class="btn btn-quiet btn-sm" href="#">Replace</a>
+        </div>
+      </section>
+
+      <section style="margin-top:var(--s-8)">
+        <h2>2 · Describe it</h2>
+        <p class="small muted" style="margin-top:var(--s-2)">Fields marked <span class="req">*</span> are required. These are the fields search runs on.</p>
+
+        <div style="margin-top:var(--s-5)">
+          <label class="field">
+            <span class="label">Title <span class="req">*</span></span>
+            <input type="text" name="title" value="Market week and ritual office: reading testimony against the administrative return" required>
+          </label>
+
+          <label class="field">
+            <span class="label">Abstract <span class="req">*</span></span>
+            <textarea name="abstract" required>Administrative returns from the early colonial period in southeastern Nigeria counted what they could measure and interpreted what they could not. This paper sets those returns beside testimony recorded with town councils between 2024 and 2026.</textarea>
+            <span class="hint">Write it for a reader outside your field. The abstract is what a search result shows.</span>
+          </label>
+
+          <label class="field">
+            <span class="label">Authors <span class="req">*</span></span>
+            <input type="text" name="authors" value="Chinwe Ị̀kẹ̀jìànị̀; Emeka Ǹwàchukwu">
+            <span class="hint">Separate with a semicolon. Diacritics are supported throughout — ị ọ ụ ñ and tone marks à á è é ì í ò ó ù ú are stored and displayed as typed.</span>
+          </label>
+
+          <label class="field">
+            <span class="label">Institution <span class="req">*</span></span>
+            <input type="text" name="institution" value="University of Nigeria, Nsukka">
+            <span class="hint">Institution is one of the three ways readers search. An unaffiliated or independent researcher may say so.</span>
+          </label>
+
+          <div class="field">
+            <span class="label">Topic tags <span class="req">*</span></span>
+            <div class="chips" style="margin-bottom:var(--s-3)">
+              <span class="chip">Precolonial market systems ✕</span>
+              <span class="chip">Oral historiography ✕</span>
+              <span class="chip">Igbo ritual office ✕</span>
+            </div>
+            <label class="skip" for="tags">Add a topic tag</label>
+            <input type="text" id="tags" name="tags" placeholder="Add a tag and press enter">
+          </div>
+
+          <div class="grid-2" style="margin-top:var(--s-5)">
+            <label class="field" style="margin-top:0">
+              <span class="label">Publication type <span class="req">*</span></span>
+              <select name="type">
+                <option>Journal article</option>
+                <option>Working paper</option>
+                <option>Conference paper</option>
+                <option>Thesis or dissertation</option>
+                <option>Report</option>
+              </select>
+            </label>
+            <label class="field" style="margin-top:0">
+              <span class="label">Year <span class="req">*</span></span>
+              <input type="text" name="year" value="2026" inputmode="numeric">
+            </label>
+          </div>
+
+          <label class="field">
+            <span class="label">Archive material cited</span>
+            <input type="text" name="refs" placeholder="Reference numbers, e.g. OZ-OH-2025-014, OZ-D-0441">
+            <span class="hint">If you used objects from the Ozikoro archive, naming them links your paper to the record both ways.</span>
+          </label>
+        </div>
+      </section>
+
+      <section style="margin-top:var(--s-8)">
+        <h2>3 · Terms and access</h2>
+
+        <fieldset class="field" style="border:1px solid var(--rule);border-radius:var(--r-lg);padding:var(--s-5)">
+          <legend class="eyebrow" style="padding-inline:var(--s-2)">Who may read it</legend>
+          <label class="row" style="align-items:flex-start;gap:var(--s-3)"><input type="radio" name="access" checked> <span><b>Open</b><br><span class="small muted">Full text readable and downloadable by anyone.</span></span></label>
+          <label class="row" style="align-items:flex-start;gap:var(--s-3);margin-top:var(--s-3)"><input type="radio" name="access"> <span><b>Abstract open, full text by request</b><br><span class="small muted">Findable and citable; requests come to you.</span></span></label>
+          <label class="row" style="align-items:flex-start;gap:var(--s-3);margin-top:var(--s-3)"><input type="radio" name="access"> <span><b>Institutional tier</b><br><span class="small muted">For material that is culturally sensitive or restricted by a depositor's terms.</span></span></label>
+        </fieldset>
+
+        <label class="field">
+          <span class="label">Licence <span class="req">*</span></span>
+          <select name="licence">
+            <option>CC BY 4.0 — reuse with attribution</option>
+            <option>CC BY-NC 4.0 — non-commercial reuse with attribution</option>
+            <option>All rights reserved</option>
+            <option>Publisher's licence (state below)</option>
+          </select>
+          <span class="hint">You keep copyright. Ozikoro publishes under the licence you choose and shows it on the publication page.</span>
+        </label>
+
+        <div class="provenance" style="margin-top:var(--s-5)">
+          <p class="eyebrow">If your work draws on testimony</p>
+          <p class="small" style="margin-top:var(--s-3);line-height:1.65">Recorded testimony belongs to the people who gave it. Confirm that you hold consent for the use you are publishing, and name the terms they set. Where consent covers the transcript but not the audio, say so — the record will show it.</p>
+          <label class="row" style="margin-top:var(--s-4);align-items:flex-start;gap:var(--s-3)"><input type="checkbox"> <span class="small">I hold consent for the material I have used, on the terms stated.</span></label>
+        </div>
+      </section>
+
+      <section style="margin-top:var(--s-8)">
+        <h2>4 · Review and publish</h2>
+        <div class="card" style="margin-top:var(--s-4)">
+          <p class="eyebrow">What the record will say</p>
+          <table class="record" style="margin-top:var(--s-3)">
+            <tbody>
+              <tr><th scope="row">Title</th><td>Market week and ritual office…</td></tr>
+              <tr><th scope="row">Authors</th><td>Ị̀kẹ̀jìànị̀, C.; Ǹwàchukwu, E.</td></tr>
+              <tr><th scope="row">Institution</th><td>University of Nigeria, Nsukka</td></tr>
+              <tr><th scope="row">Access</th><td>Open · CC BY 4.0</td></tr>
+              <tr><th scope="row">Address</th><td class="mono">ozikoro.com/publications/oz-p-2026-0041</td></tr>
+            </tbody>
+          </table>
+          <p class="small muted" style="margin-top:var(--s-4);line-height:1.6">The address is permanent from the moment you publish. Later versions are added to the record; the address does not change, so a citation made today keeps working.</p>
+        </div>
+
+        <div class="row" style="margin-top:var(--s-5)">
+          <button class="btn" type="submit">Publish</button>
+          <a class="btn btn-quiet" href="#">Save as draft</a>
+          <span class="small muted">You can revise everything except the address.</span>
+        </div>
+      </section>
+    </form>
+
+    <section class="sx-correction" id="community-knowledge" style="margin-top:var(--s-8)">
+      <div><p class="eyebrow">Correct or add community knowledge</p><h2>Help complete an existing record</h2><p>Point to the page, explain what should be added or corrected, and state how you know. Your note joins the review trail; it does not silently overwrite the published record.</p></div>
+      <div class="row"><a class="btn" href="mailto:archive@ozikoro.com?subject=Community%20knowledge%20for%20an%20Ozikoro%20record">Start a correction</a><a class="btn btn-quiet" href="archive-index.html">Find the record</a></div>
+    </section>
+
+    <section class="empty" style="margin-top:var(--s-8)">
+      <h3>Depositing archive material instead?</h3>
+      <p>Documents, photographs, maps and recordings go through a different route, because the question of who holds them and who may read them has to be settled first — with the family, the town union or the institution, not with us.</p>
+      <div class="row">
+        <a class="btn" href="about.html#entrust">How material is held</a>
+        <a class="btn btn-quiet" href="about.html#contact">Talk to the archive</a>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="grid-4">
+      <div><h4>Archive</h4><ul><li><a href="archive-index.html">All histories</a></li><li><a href="documents.html">Documents &amp; photographs</a></li></ul></div>
+      <div><h4>Research</h4><ul><li><a href="researcher-profile.html">Researcher profiles</a></li><li><a href="publication.html">Publications</a></li><li><a href="upload.html">Publish your work</a></li></ul></div>
+      <div><h4>Platform</h4><ul><li><a href="#">Ozituma dictionary</a></li><li><a href="academy.html">The Academy</a></li></ul></div>
+      <div><h4>Terms</h4><ul><li><a href="about.html#terms">Terms of use</a></li><li><a href="about.html#privacy">Privacy</a></li></ul></div>
+    </div>
+    <div class="legal">
+      <span>© 2026 Ozi Ikoro Limited.</span>
+      <span>ozikoro.com · ozituma.com · learn.ozituma.com</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

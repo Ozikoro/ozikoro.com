@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Histories — search and filter the archive — Ozikoro</title>
+<meta name="description" content="Search town, clan and kingdom histories by ethnic group, clan, place, period and source type.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../styles/main.css">
+<link rel="stylesheet" href="../styles/showcase.css">
+</head>
+<body>
+<a class="skip" href="#results">Skip to results</a>
+
+<p class="example-flag">Design mock — entries, counts and filter figures are <b>example material</b>.</p>
+
+<div class="platform-bar">
+  <div class="wrap">
+    <ul>
+      <li><a href="home.html" class="here">ozikoro.com — archive &amp; research</a></li>
+      <li><a href="#">ozituma.com — dictionary</a></li>
+      <li><a href="academy.html">learn.ozituma.com — academy</a></li>
+    </ul>
+    <span class="owner">Ozi Ikoro Limited</span>
+  </div>
+</div>
+
+<header class="masthead">
+  <div class="wrap">
+    <a class="wordmark" href="home.html"><b>Ozikoro</b> <span>History &amp; Archive</span></a>
+    <nav class="nav" aria-label="Primary">
+      <ul>
+        <li><a href="archive-index.html" aria-current="page">Histories</a></li>
+        <li><a href="watch.html">Watch</a></li><li><a href="collections.html">Explore</a></li><li><a href="documents.html">Archive</a></li>
+        <li><a href="researcher-profile.html">Researchers</a></li>
+        <li><a href="academy.html">Academy</a></li>
+        <li><a href="about.html">About</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap" style="padding-block:var(--s-6) var(--s-5);border-bottom:1px solid var(--rule)">
+    <p class="eyebrow">The history archive</p>
+    <h1 style="margin-top:var(--s-3)">Histories</h1>
+    <p class="lede" style="margin-top:var(--s-4);max-width:50ch">Every entry is filed by ethnic group, clan, place, period and source type. Filtering is a plain form — it submits, the page reloads, and the resulting address can be bookmarked or cited.</p>
+    <form class="search" role="search" action="archive-index.html" method="get" style="margin-top:var(--s-5);max-width:36rem">
+      <label class="skip" for="aq">Search histories</label>
+      <input type="search" id="aq" name="q" value="Ǹrì" placeholder="Search histories">
+      <button class="btn" type="submit">Search</button>
+    </form>
+  </div>
+
+  <div class="wrap sidebar-layout section">
+    <form class="rail" method="get" action="archive-index.html" aria-label="Filter histories">
+      <div class="spread" style="margin-bottom:var(--s-4)">
+        <p class="eyebrow" style="margin:0">Filters</p>
+        <a class="small" href="archive-index.html">Clear all</a>
+      </div>
+
+      <fieldset>
+        <legend>Ethnic group</legend>
+        <label><input type="checkbox" name="group" value="igbo" checked> Igbo <span class="count">184</span></label>
+        <label><input type="checkbox" name="group" value="ijaw"> Ijaw <span class="count">11</span></label>
+        <label><input type="checkbox" name="group" value="efik"> Efik <span class="count">7</span></label>
+        <label><input type="checkbox" name="group" value="idoma"> Idoma <span class="count">4</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Sub-group or clan</legend>
+        <label><input type="checkbox" name="clan" value="umunri" checked> Ụ̀mụ̀nrì <span class="count">23</span></label>
+        <label><input type="checkbox" name="clan" value="ohuhu"> Ọ̀hụ̀hụ̀ <span class="count">16</span></label>
+        <label><input type="checkbox" name="clan" value="ngwa"> Ngwa <span class="count">14</span></label>
+        <label><input type="checkbox" name="clan" value="nkwere"> Ǹkwèrè <span class="count">9</span></label>
+        <label><input type="checkbox" name="clan" value="arochukwu"> Árọ̀ <span class="count">8</span></label>
+        <p style="margin-top:var(--s-3)"><a class="small" href="#">All 62 clans →</a></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Town or place</legend>
+        <label class="skip" for="place">Town or place</label>
+        <input type="text" id="place" name="place" placeholder="e.g. Ǹrì, Ọ̀nị̀cha, Umuahia">
+        <p class="small muted" style="margin-top:var(--s-2)">Matches towns, villages and named sites.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Time period</legend>
+        <label><input type="checkbox" name="period" value="pre1500"> Before 1500 <span class="count">19</span></label>
+        <label><input type="checkbox" name="period" value="1500-1800"> 1500 – 1800 <span class="count">38</span></label>
+        <label><input type="checkbox" name="period" value="1800-1900" checked> 1800 – 1900 <span class="count">61</span></label>
+        <label><input type="checkbox" name="period" value="1900-1960"> 1900 – 1960 <span class="count">72</span></label>
+        <label><input type="checkbox" name="period" value="post1960"> After 1960 <span class="count">27</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Source type</legend>
+        <label><input type="checkbox" name="src" value="oral" checked> Oral history <span class="count">58</span></label>
+        <label><input type="checkbox" name="src" value="colonial"> Colonial record <span class="count">44</span></label>
+        <label><input type="checkbox" name="src" value="academic"> Academic source <span class="count">66</span></label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Completeness</legend>
+        <label><input type="radio" name="state" value="all" checked> All entries</label>
+        <label><input type="radio" name="state" value="sourced"> Fully sourced only</label>
+        <label><input type="radio" name="state" value="partial"> Partial — help needed</label>
+      </fieldset>
+
+      <p style="margin-top:var(--s-5)"><button class="btn" type="submit">Apply filters</button></p>
+      <noscript></noscript>
+    </form>
+
+    <section id="results" aria-label="Results">
+      <div class="spread">
+        <p class="small muted"><b>24 entries</b> · Igbo · Ụ̀mụ̀nrì · 1800–1900 · oral history</p>
+        <form method="get" action="archive-index.html" class="row">
+          <label class="small muted" for="sort">Sort</label>
+          <select id="sort" name="sort" style="width:auto">
+            <option>Most recently revised</option>
+            <option>Earliest period first</option>
+            <option>Town A–Z</option>
+            <option>Most sources attached</option>
+          </select>
+          <button class="btn btn-quiet btn-sm" type="submit">Go</button>
+        </form>
+      </div>
+
+      <div class="chips" style="margin-top:var(--s-4)">
+        <span class="chip">Igbo ✕</span>
+        <span class="chip">Ụ̀mụ̀nrì ✕</span>
+        <span class="chip chip-period">1800 – 1900 ✕</span>
+        <span class="chip chip-oral">Oral history ✕</span>
+      </div>
+
+      <div style="margin-top:var(--s-6)">
+        <article class="entry">
+          <h3><a href="article.html">The founding and the four markets of Ǹrì</a></h3>
+          <p>How the ritual authority of Ǹrì travelled, and what the market week records about the towns that received it.</p>
+          <div class="chips">
+            <span class="chip chip-place"><span class="k">Place</span> Ǹrì, Anambra</span>
+            <span class="chip chip-period"><span class="k">Period</span> pre-1500 – 1911</span>
+            <span class="chip chip-oral"><span class="k">Source</span> Oral history</span>
+            <span class="chip"><span class="k">Sources</span> 3 attached</span>
+          </div>
+        </article>
+
+        <article class="entry">
+          <h3><a href="article.html">Agụ̀lụ̀ and the lake: settlement, fishing right and dispute</a></h3>
+          <p>Lineage accounts of fishing rights at the lake, and the two village disputes recorded in the testimony.</p>
+          <div class="chips">
+            <span class="chip chip-place"><span class="k">Place</span> Agụ̀lụ̀</span>
+            <span class="chip chip-period"><span class="k">Period</span> 1820 – 1905</span>
+            <span class="chip chip-oral"><span class="k">Source</span> Oral history</span>
+            <span class="chip"><span class="k">Sources</span> 2 attached</span>
+          </div>
+        </article>
+
+        <article class="entry">
+          <h3><a href="article.html">The smiths of Àwka and the towns they served</a></h3>
+          <p>Itinerant smithing circuits recorded by the elders, with the trade vocabulary preserved in Igbo.</p>
+          <div class="chips">
+            <span class="chip chip-place"><span class="k">Place</span> Àwka</span>
+            <span class="chip chip-period"><span class="k">Period</span> 1800 – 1930</span>
+            <span class="chip chip-oral"><span class="k">Source</span> Oral history</span>
+            <span class="chip chip-source"><span class="k">Source</span> Academic</span>
+          </div>
+        </article>
+
+        <article class="entry">
+          <h3><a href="article.html">Ènugwu-Ukwu: the title system and its holders</a></h3>
+          <p>A partial entry: the title sequence is recorded, the holders before 1890 are not yet.</p>
+          <div class="chips">
+            <span class="chip chip-place"><span class="k">Place</span> Ènugwu-Ukwu</span>
+            <span class="chip chip-period"><span class="k">Period</span> 1850 – 1950</span>
+            <span class="chip chip-oral"><span class="k">Source</span> Oral history</span>
+          </div>
+          <p class="unsourced" style="margin-top:var(--s-3)">Partial entry — one section has no attached source. Marked so it can be completed.</p>
+        </article>
+      </div>
+
+      <section class="empty" style="margin-top:var(--s-6)">
+        <p class="eyebrow">A town with nothing yet</p>
+        <h3 style="margin-top:var(--s-3)">Ǹnọ̀kwá — located, filed, not yet written</h3>
+        <p>This town exists in the record as a place and a clan affiliation, and nothing more. That is the honest state of it. A history, a document, or a recorded testimony from the town would be the first entry filed here.</p>
+        <div class="row">
+          <a class="btn" href="upload.html">Contribute a history</a>
+          <a class="btn btn-quiet" href="about.html#entrust">How material is held</a>
+        </div>
+      </section>
+
+      <nav class="row" style="margin-top:var(--s-6);justify-content:space-between" aria-label="Pagination">
+        <span class="small muted">Showing 1–4 of 24</span>
+        <span class="row">
+          <a class="btn btn-quiet btn-sm" href="#" aria-disabled="true">Previous</a>
+          <a class="btn btn-quiet btn-sm" href="#">Next</a>
+        </span>
+      </nav>
+    </section>
+  </div>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="grid-4">
+      <div><h4>Archive</h4><ul><li><a href="archive-index.html">All histories</a></li><li><a href="documents.html">Documents &amp; photographs</a></li></ul></div>
+      <div><h4>Research</h4><ul><li><a href="researcher-profile.html">Researcher profiles</a></li><li><a href="publication.html">Publications</a></li></ul></div>
+      <div><h4>Platform</h4><ul><li><a href="#">Ozituma dictionary</a></li><li><a href="academy.html">The Academy</a></li></ul></div>
+      <div><h4>Terms</h4><ul><li><a href="about.html#terms">Terms of use</a></li><li><a href="about.html#privacy">Privacy</a></li></ul></div>
+    </div>
+    <div class="legal">
+      <span>© 2026 Ozi Ikoro Limited.</span>
+      <span>ozikoro.com · ozituma.com · learn.ozituma.com</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

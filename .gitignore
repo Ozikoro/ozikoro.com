@@ -97,3 +97,7 @@ Thumbs.db
 
 # Local tooling (AWS CLI venv etc). Never committed.
 .tools/
+
+# The TanStack Start learner app (github.com/idenze/paper-whisperer-forge).
+# A separate stack with its own package manager; kept out of this workspace.
+learn/

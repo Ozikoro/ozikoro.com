@@ -54,6 +54,16 @@ export interface ClanDetail extends ClanSummary {
   states: string[];
   /** The local government area(s) it falls under today. */
   lgas: string[];
+  /**
+   * The books, articles and pages this entry rests on, with the author named.
+   *
+   * This was deliberately never returned: the note at the head of this file records that
+   * `clan.source` is repository metadata and is not published. The owner has since asked for the
+   * opposite for the clan section — "list the name of the books and authors when you mention
+   * about source, if possible" — scoped to the clan, town and tribe definitions he has not
+   * corrected himself. So it is returned, and the entry names what it rests on.
+   */
+  source: string | null;
 }
 
 export async function listTribes(db: Db): Promise<TribeSummary[]> {
@@ -230,7 +240,7 @@ function toClanSummary(row: Record<string, unknown>): ClanSummary {
 export async function getClan(db: Db, slug: string): Promise<ClanDetail | null> {
   const row = await db.one<Record<string, unknown>>(
     `select c.id, c.slug, c.name, c.aliases, c.kind, c.ethnic_group, c.region, c.states, c.lgas,
-            c.origin_summary, c.description,
+            c.origin_summary, c.description, c.source,
             t.name as tribe, p.slug as parent_slug, p.name as parent_name
        from clan c
        left join tribe t on t.id = c.tribe_id
@@ -273,6 +283,7 @@ export async function getClan(db: Db, slug: string): Promise<ClanDetail | null> 
     // source states, not something the name of the group can be made to yield.
     states: (row.states as string[] | null) ?? [],
     lgas: (row.lgas as string[] | null) ?? [],
+    source: (row.source as string | null) ?? null,
     members: members.map((m) => ({
       slug: String(m.slug),
       name: String(m.name),

@@ -47,6 +47,9 @@ const MAX_PASSWORD_LENGTH = 200;
 const SESSION_TTL_DAYS = 30;
 export const SESSION_COOKIE = 'ozituma_session';
 
+// The same person, on the courses side. See supabase-mirror.ts.
+import { mirrorAccount } from './supabase-mirror.ts';
+
 /*
  * `owner` outranks `admin`, and every check that asks for an admin has to admit the
  * owner. That is easy to get wrong by accident, so the comparisons live in the two
@@ -303,6 +306,23 @@ export async function registerAccount(
     [email, input.displayName?.trim() || null, passwordHash]
   );
   if (!row) throw new AccountError('internal', 'Could not create that account.');
+
+  /*
+   * Mirror the new account into Supabase, so the same person can sign in at learn.ozituma.com.
+   *
+   * Deliberately NOT awaited and NOT able to throw: the dictionary account is the product and it
+   * already exists by this line. If the courses are unreachable the learner has still registered,
+   * and `backfillAccounts` repairs the gap later. Making registration depend on a second system
+   * would mean an outage there stops people joining the dictionary.
+   *
+   * The plain password is in hand here and nowhere else — the row above holds a scrypt hash — so
+   * this is the only moment the two systems can be given the same credentials. It is passed
+   * straight through and never logged.
+   */
+  void mirrorAccount({ email, password: input.password, displayName: input.displayName }).catch(
+    () => undefined
+  );
+
   return normalise(row);
 }
 

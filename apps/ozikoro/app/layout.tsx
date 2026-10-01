@@ -1,0 +1,170 @@
+import type { Metadata, Viewport } from 'next';
+import Link from 'next/link';
+import { headers } from 'next/headers';
+import './globals.css';
+
+/**
+ * The Ozikoro shell.
+ *
+ * THE DESIGN IS LINKED, NOT REWRITTEN
+ *
+ * The approved design is plain CSS with no build step, and the plan is explicit that it must be
+ * preserved and connected rather than replaced. So the real routes link the design's own
+ * stylesheets from `/design/styles/` and use its class names verbatim — `.wrap`, `.masthead`,
+ * `.nav`, `.platform-bar`, `.prose`, `.provenance`, `.chip`. Nothing here re-implements a token
+ * or re-invents a colour. If the design changes, the site changes with it, which is the property
+ * that was asked for.
+ *
+ * `globals.css` holds only what the design does not cover: the administrator's shell, which the
+ * design brief treats as a separate design, and a few layout resets needed by the app frame.
+ *
+ * THE PLATFORM BAR IS THE POINT
+ *
+ * The design's persistent dark bar names all three sites and marks which one you are on. It is
+ * the visible expression of "one institution, three roles", and it is why the three share a
+ * database and an account table: a reader arriving from the dictionary should not be able to tell
+ * where one site ends and the next begins, and an academic citing the platform should be able to
+ * cite it as one institution.
+ */
+export const metadata: Metadata = {
+  title: {
+    default: 'Ozikoro — history, archive and research',
+    template: '%s · Ozikoro',
+  },
+  description:
+    'The history and archive of Igbo and African peoples: town and kingdom histories, colonial records, oral histories, migration records, and the sources behind them.',
+  metadataBase: new URL('https://ozikoro.com'),
+  openGraph: {
+    siteName: 'Ozikoro',
+    type: 'website',
+    locale: 'en_NG',
+  },
+  robots: { index: true, follow: true },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#1b1a17',
+};
+
+/** Paths that supply their own frame rather than the public one. */
+function hasOwnChrome(pathname: string): boolean {
+  return pathname.startsWith('/admin') || pathname.startsWith('/signin') || pathname.startsWith('/design');
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = (await headers()).get('x-pathname') ?? '/';
+
+  if (hasOwnChrome(pathname)) {
+    return (
+      <html lang="en">
+        <body>{children}</body>
+      </html>
+    );
+  }
+
+  return (
+    <html lang="en">
+      <head>
+        {/*
+          The approved design's own stylesheets, served exactly as delivered. `tokens.css` is
+          @import-ed by `main.css`; both are listed so the preload order is explicit.
+        */}
+        <link rel="stylesheet" href="/design/styles/main.css" />
+        <link rel="stylesheet" href="/design/styles/showcase.css" />
+        {/*
+          Accessibility corrections, linked LAST so the design's own tokens cannot override them.
+          See the file for what it corrects, the measurement that found it, and why that value.
+        */}
+        <link rel="stylesheet" href="/a11y.css" />
+        {/*
+          The design specifies Noto Serif, Noto Sans and Noto Sans Mono because they carry the
+          Igbo dotted vowels and tone marks in every weight and in italic. Loaded from Google
+          Fonts as the design does; the design notes record the fallbacks (Charis SIL, Gentium
+          Plus, then Georgia/system-ui) for a reader whose network blocks it.
+        */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;600&display=swap"
+        />
+      </head>
+      <body>
+        <a className="skip" href="#main">
+          Skip to content
+        </a>
+
+        {/* The three sites, one institution. Marked `here` on this one. */}
+        <div className="platform-bar">
+          <div className="wrap">
+            <ul>
+              <li>
+                <Link href="/" className="here" aria-current="page">
+                  ozikoro.com — archive &amp; research
+                </Link>
+              </li>
+              <li>
+                <a href="https://ozituma.com">ozituma.com — dictionary</a>
+              </li>
+              <li>
+                <a href="https://learn.ozituma.com">learn.ozituma.com — academy</a>
+              </li>
+            </ul>
+            <span className="owner">Ozi Ikoro Limited</span>
+          </div>
+        </div>
+
+        <header className="masthead">
+          <div className="wrap">
+            <Link className="wordmark" href="/">
+              <b>Ozikoro</b>
+              <span>History &amp; Archive</span>
+            </Link>
+            <nav className="nav" aria-label="Primary">
+              <ul>
+                <li>
+                  <Link href="/archive">Histories</Link>
+                </li>
+                <li>
+                  <Link href="/folklore">Folklores</Link>
+                </li>
+                <li>
+                  <Link href="/watch">Watch</Link>
+                </li>
+                <li>
+                  <Link href="/documents">Archive</Link>
+                </li>
+                <li>
+                  <Link href="/researchers">Researchers</Link>
+                </li>
+                <li>
+                  <a href="https://learn.ozituma.com">Academy</a>
+                </li>
+                <li>
+                  <Link href="/about">About</Link>
+                </li>
+              </ul>
+            </nav>
+          </div>
+        </header>
+
+        <main id="main">{children}</main>
+
+        <footer className="site-foot">
+          <div className="wrap">
+            <p>
+              <strong>Ozikoro</strong> — the history and archive of Igbo and African peoples. The
+              dictionary is <a href="https://ozituma.com">Ozituma</a> and the courses are{' '}
+              <a href="https://learn.ozituma.com">Ozituma Learn</a>.
+            </p>
+            <p className="small muted">
+              Ozi Ikoro Limited. Write to <a href="mailto:hello@ozikoro.com">hello@ozikoro.com</a>.
+            </p>
+          </div>
+        </footer>
+      </body>
+    </html>
+  );
+}

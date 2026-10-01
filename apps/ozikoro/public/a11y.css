@@ -1,0 +1,48 @@
+/*
+ * Accessibility corrections to the approved design.
+ *
+ * WHY THIS FILE EXISTS SEPARATELY, AND WHY IT LOADS LAST
+ *
+ * The design's own tokens are served exactly as delivered and are loaded after the application's
+ * stylesheet, so for every token name the two share, the DESIGN's value is the live one. That is
+ * deliberate and correct — the design is the reference implementation. It also means a correction
+ * cannot be made from the application's stylesheet, because its value is overridden before it is
+ * ever used. This file is therefore linked last, and contains only what accessibility requires.
+ *
+ * WHAT IT CORRECTS, AND HOW IT WAS FOUND
+ *
+ * Every colour pair the design actually uses was measured against WCAG 2.1 AA. Twenty-one pairs were
+ * checked across the paper, raised and sunk grounds, the four chip washes, and the night palette.
+ * **One failed:**
+ *
+ *   --ink-faint #8d8577 on --paper #f7f1e3 = 3.24:1   (AA needs 4.5:1 for normal text)
+ *
+ * It is not a marginal call and it is not only for disabled controls, which WCAG exempts. The design
+ * uses it for real text in three places, all of them in main.css:
+ *
+ *   .search input::placeholder   -> placeholder text
+ *   .rail .count                 -> a count beside a filter
+ *   the empty-state line         -> the sentence a reader sees when a filter matches nothing
+ *
+ * An empty state a reader cannot read is the worst of the three, because it is the only thing on the
+ * screen at that moment.
+ *
+ * THE VALUE CHOSEN
+ *
+ * #655d51. Measured on every ground the design puts faint text on:
+ *
+ *   paper #f7f1e3        5.76:1
+ *   paper-raised #fffdf8 6.38:1
+ *   paper-sunk #efe6d2   5.23:1
+ *   accent-wash #e2efe8  5.48:1
+ *
+ * The design's own --ink-muted (#6b6358) would also pass, but using it would make faint and muted
+ * identical and lose a distinction the design draws on purpose. #655d51 keeps that distinction and
+ * still clears 4.5:1 on the darkest ground with room to spare.
+ *
+ * This is the only change made to the delivered design's appearance, it is recorded here, and it
+ * should be folded back into the design rather than carried as an override forever.
+ */
+:root {
+  --ink-faint: #655d51;
+}

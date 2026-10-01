@@ -1,0 +1,138 @@
+/**
+ * What a crawler should be told about.
+ *
+ * WHY THIS IS ONE QUERY SET RATHER THAN CALLS SCATTERED THROUGH THE PAGE
+ *
+ * The sitemap is the archive's statement of what it contains. Assembling it from a handful of list
+ * functions meant that whatever nobody remembered to add was simply absent — and what was absent was
+ * most of the archive. Measured before this module existed: the sitemap listed 1,051 articles and 3
+ * topics, and **omitted 11,056 subject pages and 3,488 media pages**, which is the bulk of what the
+ * archive holds. A crawler was being shown roughly 8% of it.
+ *
+ * Keeping the enumeration in one place means the question "what is indexable?" has one answer.
+ *
+ * WHAT IS DELIBERATELY EXCLUDED
+ *
+ *   * Drafts, unpublished and private records. A sitemap is public: listing something a reader cannot
+ *     reach is an instruction to index a 404.
+ *   * Search results and paginated views. They are `noindex` and are not canonical.
+ *   * The design reference at `/design/`. It documents the reference implementation and is not part of
+ *     the archive.
+ *
+ * TRAILING SLASHES
+ *
+ * The site serves with `trailingSlash: true`, so `/archive/` is the canonical address and `/archive`
+ * is a form that gets normalised. The sitemap emits the slashed form for every entry, because a
+ * sitemap that names a non-canonical form is asking a crawler to index a redirect.
+ */
+import type { Db } from '@ozituma/db/client';
+
+export interface IndexableUrl {
+  url: string;
+  lastModified?: string;
+  changeFrequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  priority: number;
+}
+
+/** The site's own origin. One constant, so no entry can be built from a different one by accident. */
+export const SITE_ORIGIN = 'https://ozikoro.com';
+
+/** `path` without a leading slash is fine; the result always has exactly one trailing slash. */
+export function canonicalUrl(path: string): string {
+  const clean = path.replace(/^\/+/, '').replace(/\/+$/, '');
+  return clean.length === 0 ? `${SITE_ORIGIN}/` : `${SITE_ORIGIN}/${clean}/`;
+}
+
+export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
+  const out: IndexableUrl[] = [];
+
+  // The pages that always exist, whether or not the archive has content yet.
+  out.push({ url: canonicalUrl(''), changeFrequency: 'daily', priority: 1 });
+  out.push({ url: canonicalUrl('archive'), changeFrequency: 'daily', priority: 0.9 });
+  out.push({ url: canonicalUrl('folklore'), changeFrequency: 'weekly', priority: 0.8 });
+  out.push({ url: canonicalUrl('documents'), changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('topics'), changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('entities'), changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('publications'), changeFrequency: 'daily', priority: 0.8 });
+  out.push({ url: canonicalUrl('researchers'), changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('about'), changeFrequency: 'monthly', priority: 0.5 });
+
+  // Records at their original addresses, which the plan requires to survive the move.
+  const articles = await db.rows<{ slug: string; modified_at: string | null }>(
+    `select slug, modified_at from ozikoro_article
+      where status = 'published' and is_page = false order by id`
+  );
+  for (const a of articles) {
+    out.push({
+      url: canonicalUrl(a.slug),
+      ...(a.modified_at ? { lastModified: new Date(String(a.modified_at)).toISOString() } : {}),
+      changeFrequency: 'monthly', priority: 0.8,
+    });
+  }
+
+  // WordPress pages, which are part of the migrated site and were absent from the old sitemap too.
+  const pages = await db.rows<{ slug: string }>(
+    `select slug from ozikoro_article where status = 'published' and is_page = true order by id`
+  );
+  for (const p of pages) out.push({ url: canonicalUrl(p.slug), changeFrequency: 'monthly', priority: 0.6 });
+
+  const topics = await db.rows<{ slug: string }>(`select slug from ozikoro_topic order by id`);
+  for (const t of topics) out.push({ url: canonicalUrl(`topics/${t.slug}`), changeFrequency: 'weekly', priority: 0.7 });
+
+  /*
+   * The 11,056 subjects. Each one is a real page listing the records filed under it, and each is how
+   * the archive is actually found — a reader searching a subject, not a title.
+   */
+  const labels = await db.rows<{ slug: string }>(
+    `select slug from ozikoro_label
+      where exists (select 1 from ozikoro_article_label al where al.label_id = ozikoro_label.id)
+      order by id`
+  );
+  for (const l of labels) out.push({ url: canonicalUrl(`labels/${l.slug}`), changeFrequency: 'weekly', priority: 0.6 });
+
+  // The media pages, which are records in their own right with provenance and rights on them.
+  const media = await db.rows<{ slug: string }>(`select slug from ozikoro_media order by id`);
+  for (const m of media) out.push({ url: canonicalUrl(`documents/${m.slug}`), changeFrequency: 'monthly', priority: 0.5 });
+
+  // Entities, and only those with something behind them — an empty page is a thin page.
+  const entities = await db.rows<{ slug: string }>(
+    `select slug from ozikoro_entity
+      where exists (select 1 from ozikoro_article_entity ae where ae.entity_id = ozikoro_entity.id)
+      order by id`
+  );
+  for (const e of entities) out.push({ url: canonicalUrl(`entities/${e.slug}`), changeFrequency: 'weekly', priority: 0.7 });
+
+  const publications = await db.rows<{ slug: string; published_at: string | null }>(
+    `select slug, published_at from ozikoro_publication where status = 'published' and is_public = true order by id`
+  );
+  for (const p of publications) {
+    out.push({
+      url: canonicalUrl(`publications/${p.slug}`),
+      ...(p.published_at ? { lastModified: new Date(String(p.published_at)).toISOString() } : {}),
+      changeFrequency: 'monthly', priority: 0.7,
+    });
+  }
+
+  const researchers = await db.rows<{ account_id: number }>(
+    `select account_id from ozikoro_member where is_public = true and status = 'active' order by account_id`
+  );
+  for (const r of researchers) out.push({ url: canonicalUrl(`researchers/${r.account_id}`), changeFrequency: 'monthly', priority: 0.6 });
+
+  /*
+   * Deduplicate on the way out.
+   *
+   * Two real collisions were measured on this archive: `/about/` is both a fixed route and one of the
+   * six migrated WordPress pages, and two media records share a slug. A sitemap listing the same
+   * address twice is a crawl instruction sent twice, and Search Console reports it as a duplicate.
+   *
+   * Deduplicating here rather than chasing each collision is deliberate: the collisions come from the
+   * data, and more will appear as the archive grows. The first entry wins, so the fixed high-priority
+   * routes keep their priority over a migrated page of the same name.
+   */
+  const seen = new Set<string>();
+  return out.filter((entry) => {
+    if (seen.has(entry.url)) return false;
+    seen.add(entry.url);
+    return true;
+  });
+}

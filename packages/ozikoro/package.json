@@ -1,0 +1,47 @@
+{
+  "name": "@ozikoro/platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ozikoro \u2014 the platform layer for ozikoro.com: the Spotify connection, and the podcast pipeline that will use it.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./spotify": "./src/spotify.ts",
+    "./connection": "./src/connection.ts",
+    "./archive": "./src/archive.ts",
+    "./content": "./src/content.ts",
+    "./media": "./src/media.ts",
+    "./members": "./src/members.ts",
+    "./editorial": "./src/editorial.ts",
+    "./publications": "./src/publications.ts",
+    "./rights": "./src/rights.ts",
+    "./search": "./src/search.ts",
+    "./entities": "./src/entities.ts",
+    "./seo": "./src/seo.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/*.test.ts",
+    "test:archive": "node src/test-archive.ts",
+    "test:connection": "node src/test-connection.ts",
+    "import:wordpress": "node src/import/wordpress.ts",
+    "import:archive": "node src/import/archive.ts",
+    "verify": "node src/verify.ts",
+    "test:members": "node src/test-members.ts",
+    "test:editorial": "node src/test-editorial.ts",
+    "test:publications": "node src/test-publications.ts",
+    "import:media-store": "node src/import/media-store.ts",
+    "test:rights": "node src/test-rights.ts",
+    "test:search": "node src/test-search.ts",
+    "import:media-upload": "node src/import/media-upload.ts",
+    "backup": "node src/ops/backup.ts"
+  },
+  "dependencies": {
+    "@ozituma/db": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

@@ -434,6 +434,65 @@ under `ị`, `ọ`, `ụ` and `ṅ` are printed on every card and are **not** gr
 
 ---
 
+## Decision 12 — Three sites, one institution, and an enforceable boundary between them
+
+ozikoro.com is the **parent**. Ozituma, the dictionary, is its child, and Ozituma Learn is the
+child's second hostname. They are one platform with one owner, and the design brief is explicit
+that a reader should not be able to tell where one ends and the next begins.
+
+That creates a tension the codebase has to resolve deliberately, because "one platform" and
+"one product surface" are different things:
+
+- **What must be shared** is everything that makes them one institution. A person is one person
+  across all three, which means one account table and one password. The orthography model and
+  the language registry are the same facts whichever site reads them. So:
+
+  | Shared | Why |
+  |---|---|
+  | `@ozituma/db` — one database, one schema, one migration lineage | two schemas would be two platforms |
+  | `@ozituma/db/accounts` — one account table | signing in on one site should not create a stranger on another |
+  | `@ozituma/core` — orthography, languages, contracts | the same Igbo word is the same word everywhere |
+
+- **What must not be shared** is any one site's own product surface. The dictionary's words are
+  not the archive's articles. The archive's Spotify connection has no business in the
+  dictionary's bundle. A shared barrel that exports everything is how three products quietly
+  become one unbounded one, and how an app ends up carrying — and able to reach — code that
+  belongs to a sibling.
+
+So the rule, and it is mechanical rather than aspirational:
+
+```
+apps/ozikoro  ->  @ozikoro/platform  ->  @ozituma/db  ->  Postgres
+(ozikoro.com)                          @ozituma/core
+apps/web      ->  @ozituma/db, @ozituma/core        (ozituma.com)
+apps/learn    ->  @ozituma/db, @ozituma/core        (learn.ozituma.com)
+```
+
+An app may depend on the shared packages. An app may depend on **its own** platform package.
+No app depends on another app, and no shared package depends on a product package. The
+dependency direction is one way, which is what makes the boundary checkable:
+
+```bash
+# Nothing outside apps/ozikoro may reference its platform package.
+grep -rn "@ozikoro/platform" packages apps/web apps/learn --exclude-dir=node_modules
+```
+
+**This was learned by getting it wrong.** The Spotify connection was first written into
+`packages/core` and `packages/db`, and `packages/core/src/index.ts` re-exported it. Twenty-four
+files across the dictionary and the courses import that barrel, including client components, so
+all three sites inherited the archive's Spotify code and any of them could have reached for it.
+It now lives in `@ozikoro/platform`, which only `apps/ozikoro` depends on. The test is not
+"does it work" but "can the wrong app see it", and before the move the answer was yes.
+
+**Tradeoff accepted:** a package per product is more directories, and the shared packages must
+not become a dumping ground for anything two apps happen to both want. The alternative — one
+shared barrel for everything — was tried, and its failure mode is silent: nothing breaks, the
+boundary simply stops existing.
+
+**What is still one application.** `apps/web` and `apps/learn` remain one deployable unit on two
+hostnames (Decision 11). This decision does not split them; it draws the line around the third
+site, which is a different registrable domain with a different job and its own design to come.
+
 ## Testing strategy
 
 | Layer | How it is tested |

@@ -53,12 +53,14 @@ export interface AdminAccountRow {
   createdAt: string;
   lastLoginAt: string | null;
   contributions: number;
+  /** The picture URL, or null. The interface draws initials when it is null. */
+  avatarUrl: string | null;
 }
 
 /** Every account, with how much each has contributed, for the admin table. */
 export async function listAccountsForAdmin(db: Db): Promise<AdminAccountRow[]> {
   const rows = await db.rows<Record<string, unknown>>(
-    `select a.id, a.email, a.display_name, a.role, a.status, a.created_at, a.last_login_at,
+    `select a.id, a.email, a.display_name, a.role, a.status, a.created_at, a.last_login_at, a.avatar_url,
             (select count(*) from suggestion s where s.submitted_by = a.id)::int as contributions
        from account a
       order by case a.role when 'owner' then 0 when 'admin' then 1 when 'editor' then 2 else 3 end,
@@ -73,6 +75,7 @@ export async function listAccountsForAdmin(db: Db): Promise<AdminAccountRow[]> {
     createdAt: String(row.created_at),
     lastLoginAt: (row.last_login_at as string | null) ?? null,
     contributions: Number(row.contributions ?? 0),
+    avatarUrl: (row.avatar_url as string | null) ?? null,
   }));
 }
 
@@ -634,4 +637,32 @@ export async function listSection(
       status: String(row.status), url: '/review',
     })),
   };
+}
+
+
+/**
+ * Set or clear an account's picture.
+ *
+ * Only the account's owner or an administrator may change it, and the check is here rather than in
+ * the route so it cannot be forgotten by a second caller.
+ */
+export async function setAccountAvatar(
+  db: Db,
+  input: { accountId: number; avatarUrl: string; actorId: number; actorRole: AccountRole }
+): Promise<{ email: string }> {
+  const row = await db.one<Record<string, unknown>>(
+    `select id, email from account where id = $1`,
+    [input.accountId]
+  );
+  if (!row) throw new AdminError('not_found', 'That account does not exist.');
+  const isSelf = Number(row.id) === input.actorId;
+  if (!isSelf && input.actorRole !== 'admin' && input.actorRole !== 'owner') {
+    throw new AdminError('forbidden', 'You can only change your own picture.');
+  }
+  const url = input.avatarUrl.trim().slice(0, 500);
+  if (url && !/^https?:\/\//i.test(url)) {
+    throw new AdminError('bad_url', 'A picture URL must start with http:// or https://.');
+  }
+  await db.query(`update account set avatar_url = $2 where id = $1`, [input.accountId, url || null]);
+  return { email: String(row.email) };
 }
