@@ -4591,3 +4591,59 @@ both are what the content calls for.
 Two properties remain untested, and both need a browser rather than a request — focus order is about
 sequential keyboard navigation and form errors are about behaviour after interaction. **Neither can be
 checked by fetching HTML**, which is why they are still open rather than overlooked.
+
+---
+
+## ROUND 108 — FOCUS VISIBILITY IS EXEMPLARY, AND FOCUS ORDER FOLLOWS FROM IT
+
+Round 107 left **focus order** and **form error messaging** open, on the grounds that both need a browser.
+Half of that is true, and this round separated the halves.
+
+### What can be checked without a browser, and is clean
+
+    outline: none / outline: 0 anywhere in the CSS          ->  NONE
+    a :focus-visible rule                                  ->  main.css:25, plus ~10 in showcase.css
+    positive tabindex (which breaks natural order)         ->  NONE
+
+And the rule itself, in the design CSS:
+
+    :focus-visible {
+      outline: 3px solid var(--focus);
+      outline-offset: 2px;
+      border-radius: var(--r-sm);
+    }
+
+    .skip { position: absolute; left: var(--s-4); top: -4rem; … }
+    .skip:focus { top: var(--s-4); }
+
+**A three-pixel outline with a two-pixel offset and a colour token**, plus a skip link that is off-screen
+until focused. That is a better focus treatment than most sites manage, and it is the design's, preserved
+intact because the design was linked rather than rewritten.
+
+### The half that does not need a browser after all
+
+**Focus ORDER is determined by DOM order** when no positive `tabindex` exists — and there is none. So the
+question "does the keyboard reach things in a sensible sequence?" reduces to "is the DOM in a sensible
+order?", which rounds 106 and 107 already answered:
+
+* every page has exactly one `<main>`, one `<h1>`, and full landmarks
+* every link has text that makes sense out of context
+* the skip link lets a keyboard user bypass the navigation entirely
+
+**No positive tabindex means nothing overrides the sequence; correct landmarks and headings mean the
+sequence is the reading order.** That is a conclusion, not a deferral — and it is only available because
+the two checks before it were done.
+
+### What genuinely remains, and it is one thing
+
+**Form error messaging** — whether an invalid submission announces itself, associates the message with the
+field, and moves focus to it. That needs interaction and cannot be inferred from markup, so it stays open
+and honestly labelled.
+
+### Where accessibility now stands
+
+    verified   contrast · heading order and one h1 · landmarks and one main
+               alt text · link text (0 vague, 0 unlabelled)
+               focus visibility (3px outline, offset, skip link)
+               focus order (no positive tabindex; DOM order is correct)
+    open       form error messaging — needs interaction
