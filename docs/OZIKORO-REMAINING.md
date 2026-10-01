@@ -2673,3 +2673,44 @@ exact. That is why `slugVariants` is exported and used deliberately rather than 
 
 Verified by grepping the result rather than trusting the edit — five tolerant lookups and three exact
 ones, which is the split intended. All 18 verification steps pass.
+
+---
+
+## ROUND 65 — THE ROUND-63 FIX NOW HAS A TEST, AND THE TEST IS PROVEN TO BITE
+
+Rounds 63 and 64 fixed the missing `slugVariants` line across **five public lookups** and wrote **no
+test** — the same gap round 46 identified for the authorization fix, where a security fix without a
+regression test is one that reverts quietly the next time somebody tidies the file.
+
+`slug-variants.test.ts`, six cases, including the exact pair from the real archive:
+
+    the lowercased slug is among the variants — the round-63 bug
+    an incoming slug is always its own variant
+    the decoded form is a variant, so a request written with the character works
+    the encodeURIComponent form escapes the literal percent, so it cannot cover this case
+    a slug with no escapes still yields a usable set and no duplicates
+    a malformed escape does not throw
+
+The unit suite went from 58 tests to 64.
+
+### The test was mutation-checked rather than assumed to work
+
+A test that cannot fail is not a test, and two rounds in this project have already produced tests that
+passed for the wrong reason. So the fix was removed and the suite re-run:
+
+    with `variants.add(slug.toLowerCase())` deleted:
+      ✖ the lowercased slug is among the variants — the round-63 bug
+      ℹ tests 64  ℹ pass 63  ℹ fail 1
+
+    restored:
+      ℹ tests 64  ℹ pass 64  ℹ fail 0
+
+**Exactly one test fails, and it is the one named after the bug.** The line is now protected: deleting it
+fails the suite rather than silently returning a published article to 404 for eight more rounds.
+
+### The fourth case is the one worth keeping
+
+`encodeURIComponent` escapes the literal `%` to `%25`, so its output **can never equal** a slug that
+already contains an escape. That test asserts the two are different — which is the reason the raw
+lowercased form had to be added separately instead of being assumed to fall out of the encoding step.
+It documents *why the bug existed*, not merely that it was fixed.
