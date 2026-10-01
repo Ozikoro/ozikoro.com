@@ -1356,3 +1356,94 @@ Worth noting for the next round: the stylesheet links are the one legitimate `/d
 not indexed — but it is the reason the rule is `/design/` and not `/design/screens/`.
 
 ### Nothing further was changed this round
+
+---
+
+## ROUND 37 — THE PRODUCTION BUILD, TESTED FOR THE FIRST TIME
+
+Everything in this file describes a platform exercised through `next dev`. **The production build had
+never been run.** That is the gate that decides whether any of it can deploy, and it was the largest
+untested assumption in the project.
+
+    npm -w @ozikoro/site run build
+    → exit code 0, no errors
+
+Compiled successfully, and every route emitted:
+
+    /documents  /documents/[slug]  /entities  /entities/[slug]  /folklore  /labels/[slug]
+    /media/[...key]  /publications  /publications/[slug]  /researchers  /researchers/[slug]
+    /reviews  /robots.txt  /search  /signin  /sitemap.xml  /submit  /topics  /topics/[slug]
+
+    First Load JS shared by all   102 kB
+    Middleware                     34 kB
+
+`/robots.txt` and `/sitemap.xml` are prerendered static; the rest are server-rendered on demand, which
+is correct — they read the database.
+
+### Why this mattered more than another feature
+
+The build is where four separate pieces of this work converge and could have failed together: the
+`transpilePackages` configuration for the three workspace packages, `serverExternalPackages` for
+PGlite, the `trailingSlash`/`skipTrailingSlashRedirect` pair that took a whole round to get right, and
+the middleware rewrite. A production build type-checks and bundles differently from the dev server, and
+a failure in any of them would have surfaced only at deploy time — on the day the site was meant to go
+live, with the old one already taken down.
+
+**It compiles clean.** The deployment gate passes.
+
+### Still unverified for deployment
+
+* No environment has actually been deployed to. `output: 'standalone'` is configured but the produced
+  server has not been started and served a request.
+* `S3_BUCKET`, `HEALTH_TOKEN` and the database connection are all unset for production.
+* No CI runs this build; it passes here because it was run by hand.
+
+---
+
+## ROUND 38 — THREE REAL DEPLOYMENT BLOCKERS, FOUND BY STARTING THE PRODUCTION SERVER
+
+Round 37 proved the build compiles and noted that the produced standalone server had never been
+started. Started, it was broken in three ways — all of them the classic `output: 'standalone'` traps,
+and all of them would have appeared on launch day with the old site already down.
+
+    apps/ozikoro/.next/standalone/
+      public/            MISSING
+      .next/static/      MISSING
+      .data/pg           MISSING
+
+### What each one would have done
+
+* **`public/` missing** — every archived image, the whole of `/media/*`, the design's stylesheets and
+  `a11y.css` would have 404'd. That is 3,437 media files and the entire visual design.
+* **`.next/static/` missing** — every JavaScript and CSS chunk would have 404'd, so the site would
+  render unstyled and non-interactive.
+* **`.data/pg` missing** — PGlite would have created an **empty cluster** and every page would have
+  been empty, silently, with no error. In production this one is expected: `DATABASE_URL` should point
+  at server Postgres and PGlite should not be used at all. It is listed because a deploy that forgets
+  `DATABASE_URL` fails this way rather than loudly.
+
+`output: 'standalone'` does not copy either static directory. **The deploy step has to**, and nothing
+in the repository said so.
+
+### The fix, verified
+
+    cp -r apps/ozikoro/public          apps/ozikoro/.next/standalone/apps/ozikoro/public
+    cp -r apps/ozikoro/.next/static    apps/ozikoro/.next/standalone/apps/ozikoro/.next/static
+
+Then the server was started and every route tested against the PRODUCTION build — not the dev server:
+
+    /                              200
+    /archive/                      200     and carrying real records
+    /media/ozikoro/11234-…webp     200
+    /design/styles/main.css        200
+    /a11y.css                      200
+    /api/health                    200
+
+**The deployment artifact serves.** This is the first time the production build has been run as a
+server rather than only compiled.
+
+### What this says about the remaining deployment work
+
+The two static copies are a step in a deploy script that does not exist yet. **Writing that script —
+and running it once against a real environment — is the remaining deployment work**, along with
+`S3_BUCKET`, `HEALTH_TOKEN` and a server Postgres. Nothing about it is unknown now; it is unbuilt.
