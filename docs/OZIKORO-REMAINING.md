@@ -5439,3 +5439,44 @@ makes it checkable rather than merely corrected.
 
     verify-all   20 PASS lines
     check:body-links   DISTINCT DEAD: 0   WAIVED (3)   exit 0
+
+---
+
+## ROUND 127 — EVERY NUMBER IN THE RESUME BLOCK, AND WHAT IT WAS CHECKED AGAINST
+
+Rounds 97 to 126 each found one stale or inherited claim. This round closed the set: every countable
+statement in the resume block, re-derived from its source of truth rather than read.
+
+    claim                              value      verified against                       round
+    23 reader-facing + 7 admin = 30    correct    find apps/ozikoro/app -name page.tsx   127
+    20 offline verification steps      correct    PASS lines emitted by verify-all.sh    124
+    4 live checks                      correct    run_check lines in verify-live.sh      124
+    8 checks, 8 tested guards          correct    runner output; each guard forced       125
+    3,437 of 3,488 media self-hosted   correct    count where storage_key is not null     99
+    14,667 sitemap URLs                correct    listIndexableUrls(db)                   70
+    0 of 1,051 records entity-linked   correct    count(distinct article_id)              99
+    0 of 3,488 with a licence          correct    count where licence is not null          99
+    3 waived in-body links             correct    check:body-links output                 126
+    47 inline scripts per page         correct    counted in the served homepage HTML     100
+
+**All ten hold.** And no probe route survives — `find` for `*zztest*` or `*probe*` at the app root returns
+nothing, which is the check that would have caught round 116's temporary route if it had been left behind.
+
+### What the ten corrections along the way were actually about
+
+    round 97   16 routes, actually 23         a claim written when the app was smaller
+    round 98   15 or 16 steps, actually 20    counting source lines instead of runner output
+    round 99   storage column did not exist   querying a remembered column name
+    round 121  a waiver's reason refuted      the claim outlived the finding
+    round 123  a missing retry in one tool    a lesson that never travelled
+    round 125  seven checks, actually eight   a count written before the check existed
+    round 126  3 + 4 strays, actually 3       a number inherited by quotation
+
+**Seven of the ten corrections were to prose, not to code**, and every one of them was in a document whose
+whole purpose is to be believed: the resume block, a waiver, a comment. **That is the argument for this
+audit existing, and for the one habit it produces:**
+
+> **When a claim can be counted, count it — from the tool, not from the last time it was written down.**
+
+The three remaining items in this file that are *not* numbers are the ones that need the owner:
+the map and timeline screens, the PostGIS decision, the redirect row, and the media rights.
