@@ -4946,3 +4946,44 @@ position is that it belongs in a session with room to verify the whole site afte
 **The 404's blankness is not a route-configuration difference, because there is no route-configuration
 difference to find.** It is what Next does with a thrown not-found inside a dynamically rendered,
 streaming response — and the application has opted every route into that mode.
+
+---
+
+## ROUND 115 — THE DEFECT IS NOW DETECTABLE, AND WAIVED IN THE OPEN
+
+Rounds 112 to 114 established the 404's blankness, measured its reach, and found the isolating experiment
+has no control group and would change how a route renders. **Unfixed, and now visible to every future run.**
+
+`scripts/check-not-found.sh`, wired into `verify-live.sh` as a fourth live check:
+
+    PASS  a missing address returns 404
+    server-rendered <main>: no    server-rendered <h1>: no    deferred body: yes
+
+    WAIVED — known, deliberately not repaired, still reported every run:
+      the 404's body streams as a suspended boundary, so it has no server-rendered <main> or <h1>.
+      A reader without JavaScript, or a crawler that does not execute scripts, sees a blank document.
+      Reachable from the three waived in-body links and the four stray ones, and from any typo.
+      NOT reachable from the sitemap: round 70 requested all 14,667 advertised URLs, all 200.
+      Reason it is waived rather than fixed: every route is force-dynamic, so the only experiment
+      that would isolate the cause changes how a route renders (rounds 113, 114).
+
+### What the check does that the file entry could not
+
+* It **verifies the 404 is still a 404**, and that the designed component is still present at all — if
+  either changed, that is a harder failure than the blankness and it exits 1.
+* It **reports the actual state** rather than asserting the known one, so the day the 404 renders
+  server-side it says so and prints *"Remove this waiver"*.
+* It **carries its own exit condition**: the waiver is code with a stated removal criterion, not a note in
+  prose that will be stale in a month.
+
+### The third waiver in this project, and they are all the same shape
+
+    check-assets       one image that was never in the archive         (round 90)
+    check-body-links   three in-body links to things that never existed (round 87)
+    check-not-found    the 404 that never reaches first paint           (round 115)
+
+None can be repaired by inventing something — an image, a destination, or a rendering mode this
+application does not use — and all three **print on every run with their reason.** A fourth would need the
+same treatment, and the pattern is now explicit enough to be the rule:
+
+> **Waive in code, print the waiver, and state what would remove it.**
