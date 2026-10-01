@@ -5348,3 +5348,54 @@ the tools already on disk.
 Round 122 did the first and believed it had done the second. **The audit is what found this**, one grep
 across the three scripts — the same shape as round 92's `git grep` reading the wrong set, in a friendlier
 direction: I looked in the file I was editing rather than in all the files that share its job.
+
+---
+
+## ROUND 124 — THE AUDIT TABLE WAS WRONG, AND IT WAS WRONG THE SAME WAY AS FOUR TIMES BEFORE
+
+Rounds 122 and 123 established the rule: **audit for a discipline across every file that shares a job, rather
+than naming it and assuming it travelled.** This round applied that to all three shared disciplines at
+once — the "did not look" guard, the `000` retry, and whether a waiver tests itself:
+
+    checker                    didnt-look  000-retry  waiver-test
+    check-links.sh             yes         yes        n/a
+    check-sitemap.sh           yes         yes        n/a
+    check-assets.sh            yes         yes        yes
+    check-not-found.sh         NO          NO         yes
+    check-body-links.mjs       yes         n/a        self-cleaning
+    residue-check.ts           yes         n/a        n/a
+    capability-check.ts        yes         n/a        n/a
+    check-secrets.sh           yes         n/a        self-test
+
+**`check-not-found.sh` reports NO for the guard, and that is wrong.** It has three:
+
+    if ! curl -s -o /dev/null --max-time 10 "$BASE/"; then … exit 2      server not responding
+    if [ "$code" != "404" ]; then … exit 1                              a missing address did not 404
+    if ! grep -q 'No record at this address' "$BODY"; then … exit 1     the component is not present
+
+My audit grepped for the *wording* the other checks use — `NOTHING WAS CHECKED`, `NO ASSETS MATCHED`, `Not a
+pass` — and this one says things in its own words. **The table measured my vocabulary, not the behaviour.**
+
+### That is the fourth time, and the shape is now unmistakable
+
+    round 101   a quote on the wrong side of a directive name   -> four CSP directives "missing"
+    round 106   a `continue` that excluded the failing case      -> "clean" link text
+    round 109   a quoted attribute name                          -> reported my own fix missing
+    round 124   a grep for one checker's WORDING                 -> a guard reported absent
+
+**Every one audited for a proxy instead of the thing itself** — a spelling, an exclusion, a quotation, a
+phrase — and every one produced a confident, specific, wrong line in a table or an output.
+
+**The audit's conclusion stands, corrected: all eight checkers have a "did not look" guard.** The method
+was the defect, in the same way it has been fifteen other times in this file, and the fix is to grep for
+the *behaviour* — an `exit 2` on an empty result — rather than for any particular sentence describing it.
+
+### And the two disciplines that did travel
+
+`000`-retry: **all three fetching checkers** (rounds 70, 122, 123). Waiver self-testing: **all three
+waivers** — `check-assets` now reports a waiver that is no longer needed, `check-body-links` computes its
+waived set from what is still dead so a fixed link drops out on its own, and `check-not-found` prints
+*"Remove this waiver"* the day the 404 renders server-side.
+
+    verify-all   20 PASS lines, exit 0
+    verify-live  4 PASS lines,  exit 0
