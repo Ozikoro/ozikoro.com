@@ -3923,3 +3923,28 @@ what turned a suspected mess into a documented input.**
 The question "is 16MB of oddly-placed data a mistake?" now has a written answer with a citation in the
 codebase. The next person to notice those directories will find the answer instead of repeating the
 investigation — or, worse, deleting them and discovering the importer depended on them.
+
+---
+
+## ROUND 94 (CONTINUED) — CORRECTING MY OWN CLAIM, ONE STEP AFTER MAKING IT
+
+The entry above says *"An importer reads from `work/`."* Reading the match rather than trusting the search
+shows it is at **line 53 of a doc comment**:
+
+    * the generator's own output under `proverbs-work/`, unattributed to a proverb only in …
+
+**That is a comment describing where a generator WRITES, not code that reads those files at runtime.** My
+statement was one step too strong, and I made it in the same round where I recorded a false positive about
+substring matching on paths — having matched a substring in a comment and called it a dependency.
+
+### What is actually established
+
+* The trees are **deliberate**: they are named in the pipeline's own documentation.
+* They are **not read at runtime** by that file. Whether anything else consumes them is **not established**
+  and was not checked beyond one reference search.
+* **The conclusion holds** — do not delete them — but for the weaker reason, which is the reason that
+  matters: *documented output of the project's own pipeline* is still not scratch, and it is still not mine
+  to remove on a guess.
+
+This is the fourteenth correction in this file, and the second in two rounds where **the search result was
+treated as the finding.** A grep hit is a place to look, not an answer.
