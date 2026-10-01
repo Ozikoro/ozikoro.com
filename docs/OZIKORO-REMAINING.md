@@ -5265,3 +5265,50 @@ obvious corollary that the script itself just demonstrated:
 > fourth part: **re-read the waiver when the thing it describes changes.** Round 119 changed what is known
 > about this defect and the waiver was not touched — the same drift round 97 found in the resume block's
 > route count, in the one place most likely to be trusted without being read.
+
+---
+
+## ROUND 122 — A LESSON THAT DID NOT TRAVEL BETWEEN TWO CHECKERS
+
+Round 121's rule was to re-read a waiver when the thing it describes changes. Auditing the other two, both
+their reasons are still accurate — and the audit turned up something better than a stale waiver.
+
+### First, the mechanical version of round 121's rule
+
+`check-assets.sh` skipped its waived asset **before requesting it**, so a fixed image would have stayed
+"waived" for ever without ever being tested — **a waiver that can never notice it is no longer needed.**
+It now requests the asset anyway and reports:
+
+    NO LONGER NEEDED — the waived asset now resolves: /design/styles/main.css
+    Remove WAIVED from check-assets.sh.
+
+Verified by mutation: pointing the waiver at an asset that resolves produces exactly that notice, and
+restoring it returns the ordinary run.
+
+### Then the notice's own exit code led somewhere else
+
+The mutation run exited **1**, and the stale-waiver notice does not set an exit code — `bad` did. So
+something *else* had failed, and following it found this:
+
+**`check-assets.sh` had no `000` retry.** Round 70 established that curl's `000` means *no response* — a
+dropped connection, not a defect — when 31 of 14,667 sitemap paths came back `000` under a long sequential
+run and every one returned 200 on re-request. `check-sitemap.sh` got the retry then.
+
+`check-assets.sh` was written **twenty rounds later** and did not carry it across. So a single dropped
+request in an eight-page check is reported as a broken asset, and the check fails for a reason that has
+nothing to do with the site.
+
+    fixed   `000` is retried once with a pause, and anything still failing is labelled
+            NO RESPONSE (retried) rather than shown as a status code
+
+    checked: 61     Every referenced asset loaded.     WAIVED (1) …
+
+### The finding, which is not about assets
+
+**A lesson learned in one tool does not automatically reach the next tool**, even in the same directory,
+written by the same hand, twenty rounds later. The three shapes this file keeps recording are all about
+measuring the wrong thing; **this one is about not measuring at all** — the retry was simply absent, and
+nothing said so.
+
+The mitigation is not memory. It is that the two checkers now have the same shape for the same input, and
+that this entry names the pattern so the third one gets it at the time rather than twenty rounds later.

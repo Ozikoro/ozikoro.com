@@ -71,14 +71,45 @@ checked=0
 skipped=0
 while IFS= read -r a; do
   [ -z "$a" ] && continue
-  if [ "$a" = "$WAIVED" ]; then
+  # The waived asset is STILL REQUESTED, deliberately.
+  #
+  # The first version `continue`d before the request, which meant a fixed image would stay "waived" for
+  # ever without ever being tested — a waiver that can never notice it is no longer needed. Round 121's
+  # rule was to re-read a waiver when the thing it describes changes; this is the mechanical version of
+  # that, and it is better than remembering.
+  is_waived=no
+  [ "$a" = "$WAIVED" ] && is_waived=yes
+
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$BASE$a")
+
+  # `000` is curl reporting NO RESPONSE — a dropped connection or a timeout — not a broken asset.
+  #
+  # Round 70 established this for check-sitemap.sh, where 31 of 14,667 paths came back 000 under a long
+  # sequential run and every one returned 200 when re-requested. check-assets.sh was written twenty rounds
+  # LATER and did not carry the lesson across, so a single dropped request here is reported as a broken
+  # asset. Found in round 122 by a mutation that exited 1 for a reason unrelated to the mutation.
+  if [ "$code" = "000" ]; then
+    sleep 1
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$BASE$a")
+  fi
+
+  if [ "$is_waived" = "yes" ] && [ "$code" = "200" ]; then
+    echo "  NO LONGER NEEDED — the waived asset now resolves: $a"
+    echo "  Remove WAIVED from check-assets.sh."
     skipped=$((skipped + 1))
     continue
   fi
-  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$BASE$a")
+  if [ "$is_waived" = "yes" ]; then
+    skipped=$((skipped + 1))
+    continue
+  fi
   checked=$((checked + 1))
   if [ "$code" != "200" ]; then
-    printf '  %-6s %s\n' "$code" "$a"
+    if [ "$code" = "000" ]; then
+      printf '  %-6s %s\n' "NO RESPONSE (retried)" "$a"
+    else
+      printf '  %-6s %s\n' "$code" "$a"
+    fi
     bad=$((bad + 1))
   fi
 done <<< "$ASSETS"
