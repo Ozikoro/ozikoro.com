@@ -4490,3 +4490,54 @@ foregone one: round 104's own guard failed to fire twice before it was fixed, fo
 
     "nothing matched"  is evidence, when the pattern is known to work
     "nothing matched"  is noise,    when it is not
+
+---
+
+## ROUND 106 — LINK TEXT AND UNLABELLED LINKS, AND A BLIND SPOT IN MY OWN CHECK
+
+Item 10 lists accessibility as partly outstanding, with link text among the unaudited parts. Link text is
+the cheapest a11y property to check and one of the most commonly wrong: a link reading *"read more"* is
+meaningless when a screen reader lists the links on a page out of context.
+
+    anchors with text across 10 pages : 770
+    non-descriptive link texts         :   0
+
+**Nothing vague.** No "read more", no "here", no "click this", across the homepage, archive, folklore,
+about, documents, topics, a label, an author page, search results and the entities index.
+
+### Then: my check had excluded the case it most needed to see
+
+The script skipped anchors whose text was empty:
+
+    if not text:
+        continue
+
+**An anchor with no accessible text is a worse failure than a vague one**, and my check could not see it.
+Re-run counting them, and separating the legitimate case — an icon-only link carrying an accessible name:
+
+    anchors total              : 880
+    empty text BUT labelled    : 110   (aria-label, title, or an img with alt — fine)
+    empty text AND no label    :   0
+
+**Both dimensions are clean.** One hundred and ten icon links, every one with a name a screen reader can
+announce, and not one bare anchor.
+
+### The lesson, which is about what a check leaves out
+
+Round 73's check reported zero because its **pattern** matched the wrong spelling. This one reported zero
+because its **logic excluded** the failing case — `continue` before the comparison. Both produced a clean
+number from a check that could not have produced any other.
+
+> **Read a check's exclusions as carefully as its matches.** A `continue`, a `filter`, an early `return` or
+> a skipped branch removes inputs before the assertion sees them, and the result looks identical to having
+> tested them.
+
+This is the fourteenth measurement in this file that was confidently wrong, and the third distinct
+mechanism: wrong pattern, wrong set, **wrong exclusion**.
+
+### Worth stating plainly for the archive
+
+**These are the properties that could most easily have been wrong and were not.** 880 links across ten
+pages, every one with text that makes sense out of context, and every icon link labelled. The design was
+copied in and linked rather than rewritten, so this is largely the original authors' markup surviving
+intact — which is the outcome that was intended.
