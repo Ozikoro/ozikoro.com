@@ -4240,3 +4240,53 @@ same way on every input, and an "all missing" result looks like a finding rather
 **Item 10's header work is complete and was already good.** The remaining security item is the nonce, at
 the measured cost of **47 inline scripts per page**, and nothing else in the policy needs work. The honest
 state is one known, reasoned trade-off rather than an unfinished list.
+
+---
+
+## ROUND 102 — A SECURITY CHECK THAT CANNOT MATCH NOW SAYS SO
+
+Round 101 found a grep that could never match and therefore reported four CSP directives missing on every
+input. Everywhere else in this project that class is guarded the same way: **if the extractor matches
+nothing, the check refuses to pass.** `check-links.sh`, `check-sitemap.sh`, `check-assets.sh` and
+`check-body-links` all do it, and each guard was written after failing without one.
+
+**`check:secrets` cannot be guarded that way.** Everywhere else, "nothing matched" means the extractor is
+broken; here, "nothing matched" is the **desired result**. So a pattern that can never match produces a
+permanent, silent PASS — on a security check, which is the worst place for it.
+
+### The fix: prove the detector works before trusting its silence
+
+    SELF-TEST — the patterns run against a string that MUST match. If it does not, the check reports itself
+    broken rather than the repository clean.
+
+    PASS  the credential detector matches a known-positive sample
+
+Mutation-tested by breaking the pattern the way a typo would —
+
+    AKIA[0-9A-Z]{16}   ->   AKIA[0-9A-Z]{99}
+
+    exit with a broken detector: 2
+      DETECTOR IS BROKEN — the credential pattern does not match a known-positive sample.
+      A check that cannot match reports every repository clean. Not a pass.
+
+    exit after restore: 0
+
+### And writing it triggered the very bug it documents
+
+The first version planted the sample whole — `SAMPLE='AKIAIOSFODNN7EXAMPLE'` — and the check **immediately
+failed on itself**: the detector's own source is a tracked file, so a credential-shaped string inside it
+made the scan fire on the script.
+
+**This is rounds 55 and 56 recurring**, where a capability check matched its own doc-comment example and
+needed two fixes for the same reason. The sample is now concatenated from parts so no literal match exists
+in the file. **Caught by running it, not by reasoning about it** — which is the only reason it was caught
+at all.
+
+### And the first mutation test proved nothing
+
+My first attempt to break the pattern died on a Python quoting error, so **the mutation never applied** —
+and the check duly exited 0, which I could easily have read as "the self-test is broken when it is not".
+The output said `SyntaxError` and I looked at the exit code. **A mutation that does not apply is
+indistinguishable from a fix that does not work, unless you read the error.**
+
+    check:secrets is now 8 sub-checks, all passing.

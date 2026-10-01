@@ -17,6 +17,33 @@ set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel)" || exit 2
 
+# SELF-TEST — prove the detector works BEFORE trusting its silence.
+#
+# This is the one class of check that cannot be guarded the usual way. Everywhere else, "nothing matched"
+# means the extractor is broken and the check refuses to pass. Here, "nothing matched" is the DESIRED
+# result — so a pattern that can never match produces a permanent, silent PASS, which is the most
+# dangerous version of the mistake this file has recorded six times.
+#
+# Measured in round 101: a grep for CSP directives looked for a quote BEFORE the name while the policy
+# writes it AFTER, so it reported four directives missing and could never have said otherwise. The same
+# shape here would mean a security check that passes on every input.
+#
+# So the patterns are run against strings that MUST match. If any fails, the check reports itself broken
+# rather than the repository clean.
+PATTERNS='AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|sk-[A-Za-z0-9]{24,}|ghp_[A-Za-z0-9]{30,}|xox[baprs]-[A-Za-z0-9-]{10,}'
+# The sample is CONCATENATED so this file does not contain a literal match for its own pattern.
+# The first version wrote it whole, and the check immediately failed on itself: the detector's source is a
+# tracked file, so planting a credential-shaped string in it made check 2 fire on this script. That is the
+# same self-match recorded in rounds 55 and 56, where a capability check matched its own doc-comment
+# example. Caught by running it, not by reasoning about it.
+SAMPLE='AKIA''IOSFODNN7EXAMPLE'
+if ! printf '%s' "$SAMPLE" | grep -qE "$PATTERNS"; then
+  echo "  DETECTOR IS BROKEN — the credential pattern does not match a known-positive sample." >&2
+  echo "  A check that cannot match reports every repository clean. Not a pass." >&2
+  exit 2
+fi
+echo "  PASS  the credential detector matches a known-positive sample"
+
 failed=0
 
 # 1. No real environment file may be tracked. `.env.example` is the opposite of a leak and is required.
