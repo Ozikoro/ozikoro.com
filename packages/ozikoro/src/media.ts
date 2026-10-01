@@ -20,6 +20,7 @@
  * it.
  */
 import type { Db } from '@ozituma/db/client';
+import { slugVariants } from './archive.ts';
 
 export interface MediaRecord {
   id: number;
@@ -162,7 +163,7 @@ export async function countMedia(db: Db, options: MediaListOptions = {}): Promis
 }
 
 export async function getMediaBySlug(db: Db, slug: string): Promise<MediaRecord | null> {
-  const row = await db.one<Record<string, unknown>>(`${MEDIA_SELECT} where m.slug = $1 limit 1`, [slug]);
+  const row = await db.one<Record<string, unknown>>(`${MEDIA_SELECT} where m.slug = any($1::text[]) limit 1`, [slugVariants(slug)]);
   return row ? rowToMedia(row) : null;
 }
 

@@ -25,6 +25,7 @@
  * from the page.
  */
 import type { Db } from '@ozituma/db/client';
+import { slugVariants } from './archive.ts';
 import { MemberError } from './members.ts';
 
 // ---------------------------------------------------------------------------
@@ -427,8 +428,8 @@ function rowToSummary(row: Record<string, unknown>, authors: PublicationAuthor[]
 
 export async function getPublicationBySlug(db: Db, slug: string): Promise<PublicationDetail | null> {
   const row = await db.one<Record<string, unknown>>(
-    `select ${PUBLICATION_COLUMNS} from ozikoro_publication where slug = $1`,
-    [slug]
+    `select ${PUBLICATION_COLUMNS} from ozikoro_publication where slug = any($1::text[]) limit 1`,
+    [slugVariants(slug)]
   );
   if (!row) return null;
 

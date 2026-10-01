@@ -21,6 +21,7 @@
  * and be correct before the work that fills it, or the first editor to link a record creates a 404.
  */
 import type { Db } from '@ozituma/db/client';
+import { slugVariants } from './archive.ts';
 
 export interface EntityDictionaryLink {
   /** The dictionary's own record, when this entity is one. */
@@ -104,8 +105,8 @@ export async function getEntityBySlug(db: Db, slug: string): Promise<EntityDetai
   const row = await db.one<Record<string, unknown>>(
     `select id, kind, slug, name, aliases, summary, clan_id, clan_town_id, language_code,
             latitude, longitude, location_note, date_start, date_end, date_qualifier, date_note
-       from ozikoro_entity where slug = $1`,
-    [slug]
+       from ozikoro_entity where slug = any($1::text[]) limit 1`,
+    [slugVariants(slug)]
   );
   if (!row) return null;
 

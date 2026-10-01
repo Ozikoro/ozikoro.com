@@ -199,7 +199,13 @@ function rowToSummary(row: Record<string, unknown>, origin = 'https://ozikoro.co
  * Casing is included because `encodeURIComponent` emits uppercase hex and the import stored lowercase,
  * which is a difference no reader would ever see and no comparison would forgive.
  */
-function slugVariants(slug: string): string[] {
+/*
+ * Exported because FOUR other public lookups had the same exposure and were fixed in round 64.
+ * The uniqueness checks in `editorial.ts` and `publications.ts` deliberately do NOT use it: "is this
+ * slug taken?" must compare against the exact stored value, and a tolerant comparison there would
+ * report collisions that do not exist.
+ */
+export function slugVariants(slug: string): string[] {
   const variants = new Set<string>([slug]);
   /*
    * The raw slug LOWERCASED, and this is the line that mattered.
@@ -478,7 +484,10 @@ export async function listLabels(
 }
 
 export async function getLabelBySlug(db: Db, slug: string): Promise<{ slug: string; name: string } | null> {
-  const row = await db.one<Record<string, unknown>>(`select slug, name from ozikoro_label where slug = $1`, [slug]);
+  const row = await db.one<Record<string, unknown>>(
+    `select slug, name from ozikoro_label where slug = any($1::text[]) limit 1`,
+    [slugVariants(slug)]
+  );
   return row ? { slug: String(row.slug), name: String(row.name) } : null;
 }
 

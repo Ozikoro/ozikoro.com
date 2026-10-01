@@ -2642,3 +2642,34 @@ Six rounds for one character's case. **The rounds were not wasted**: each elimin
 this file rather than a suspicion, and the probe technique that settled it is reusable. But the honest
 lesson is that I spent four rounds on theories before doing the cheapest thing available — **printing the
 value the code actually receives.** That should have been the first experiment, not the seventh.
+
+---
+
+## ROUND 64 — THE SAME TRAP WAS IN FOUR MORE LOOKUPS
+
+Round 63 fixed one article's lookup and one line of code. The lesson was to generalise, because **the
+defect was never about that article** — it was about how a slug arrives versus how it was stored, and
+that applies to every slug lookup in the platform.
+
+Eight were found; **five are public lookups that can 404 a reader**, and all five now go through
+`slugVariants`:
+
+    getArticleBySlug      archive.ts:246
+    the label lookup      archive.ts:489
+    getEntityBySlug       entities.ts:109
+    getMediaBySlug        media.ts:166
+    getPublicationBySlug  publications.ts:432
+
+### The three that were deliberately left exact
+
+    editorial.ts:426   select count(*) … ozikoro_entity where slug = $1
+    editorial.ts:601   select count(*) … ozikoro_source where slug = $1
+    publications.ts:642 select count(*) … ozikoro_publication where slug = $1
+
+All three are `const taken = …` — **uniqueness checks made while generating a slug.** A tolerant
+comparison there would report collisions that do not exist and hand out `-2` suffixes for no reason.
+The distinction is: *finding a record* must be forgiving, *deciding whether a name is free* must be
+exact. That is why `slugVariants` is exported and used deliberately rather than applied everywhere.
+
+Verified by grepping the result rather than trusting the edit — five tolerant lookups and three exact
+ones, which is the split intended. All 18 verification steps pass.
