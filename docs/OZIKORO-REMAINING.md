@@ -6263,3 +6263,48 @@ Rounds 140 to 145 found three things by asking what **exists** rather than what 
 the same question of search and found it already complete — **a negative result, and the third time in six
 rounds that checking beat assuming.** The lesson is not that everything is fine; it is that *"this depends on
 an empty table"* and *"this is broken"* are different sentences, and only one of them was true here.
+
+---
+
+## ROUND 147 — ITEM 7 IS NOT BLOCKED ON POSTGIS. IT IS BLOCKED ON THERE BEING NO COORDINATES.
+
+This file has carried *"maps and timeline — blocked: PostGIS is not available"* for seventy rounds. That is
+half the story and the less important half.
+
+### What is actually true
+
+    PostGIS          `pg_available_extensions` offers no postgis row — confirmed again, unavailable
+    coordinate COLUMNS exist, and always did:
+      ozikoro_entity.latitude, ozikoro_entity.longitude, ozikoro_entity.location_note
+      dialect.latitude, dialect.longitude
+    coordinate VALUES   none. Anywhere.
+
+    dialect          48 rows,  0 located
+    ozikoro_entity   latitude filled 0
+    clan             has no coordinate column at all
+    clan_town        has no coordinate column at all
+
+**There are no latitude or longitude values in this database.** Not for the 48 dialects, not for the 228
+clans, not for the 995 towns, and not for the entities that do not exist.
+
+### So the blocking condition was mis-stated, and the correction changes what to ask for
+
+    said   item 7 waits on a technology decision, because PostGIS is unavailable
+    true   item 7 waits on geographic DATA, and the technology question is downstream of it
+
+**A map of zero located things is blank in PostGIS and blank in plain lat/long.** The extension was never
+the obstacle; it was the thing that would have been needed *after* the obstacle. And for showing points,
+plain latitude and longitude columns — which already exist on two tables — are sufficient; PostGIS earns
+its place for polygon containment, distance-in-metres and route queries, none of which a first map needs.
+
+**The owner's question is therefore not "PostGIS or plain lat/long" — it is "where do the coordinates come
+from".** That is a data and sourcing question, and it belongs with the other data gaps rather than in a
+section about dependencies.
+
+### The reversal, applied to a blocker instead of a feature
+
+Rounds 140 to 146 asked *what exists* rather than *what is missing*, and found three completed items and one
+negative result. This round asked it of a **blocker**, and the blocker turned out to be two statements
+welded together: one true and unavoidable (no PostGIS) and one never checked (no coordinates). **The
+unchecked one is the one that matters, and it had been repeated in this file since round 7 without being
+measured.**
