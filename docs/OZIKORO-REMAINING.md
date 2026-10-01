@@ -3425,3 +3425,58 @@ sound; there is simply nothing published for it to show.
 
 **Thirty-six of forty targets now resolve.** The four that remain genuinely are individual cases, and
 having eliminated the families rather than assumed they were one, that claim is finally earned.
+
+---
+
+## ROUND 85 — RE-MEASURED, AND MY OWN SCRIPT WAS WRONG AGAIN
+
+Rounds 74 to 84 fixed this defect by accounting — two families by rule, one by middleware, and four
+declared strays. This round **re-measured instead of trusting the tally**, by re-running the body-link
+extraction against what the platform now serves.
+
+    INTERNAL_LINKS=195
+    REMAINING_UNKNOWN_TARGETS=8
+      STILL x16  /author/nze/                      STILL x3  /author/chizobem-chinedu-opiah/
+      STILL x2   /author/chuka/   /author/ossai/   /author/aka/
+      STILL x2   /womens-title-taking-the-iyom-otu-odu-title-in-igbo-culture/
+      STILL x1   /how-a-hunter-obtained-money-from-his-friends-the-leopard-goat-bush-cat-and-cock-…/
+      STILL x1   /uli-samples-from-awka-district-n-w-thomas-1910-11/
+
+**Six of those eight are the author links round 77 fixed and verified at 200.** They appear here because
+of a bug **in the measuring script**: `/author/nze/` has two segments, and my allowance for contributors
+only tested the single-segment case. The links are served; the script could not see it.
+
+Correcting for the script's own bug, **the genuine remainder is four targets** — the two printed above
+plus the two strays recorded in round 84.
+
+### The pattern, which is now beyond coincidence
+
+This is the **fifteenth** time in this project that the verification, rather than the work, was the
+defective part — and the third distinct way it has failed:
+
+    false positive     a check reporting a fault that was not there      (13 times)
+    false negative     a check reporting nothing because it matched
+                       the wrong spelling                                 round 73
+    stale allowance    a check whose list of "now fixed" does not cover
+                       the fix it is re-measuring                          round 85
+
+**A re-measurement is code, and code has bugs.** The reason to re-measure is that the accounting might be
+wrong; the reason not to trust the re-measurement blindly is that it might be too. The only thing that
+settled it here was the round-77 evidence — `/author/nze/` returning 200 — which contradicted the script.
+
+**A result that contradicts a fact you already established is a measurement error until proven otherwise.**
+Round 67 taught that; round 85 needed it again, in a new disguise.
+
+### The verified position
+
+    distinct broken targets found in round 74     40
+    resolved by rounds 77, 78, 83 and 84          36
+    genuinely open                                 4
+      /womens-title-taking-the-iyom-otu-odu-title-in-igbo-culture/
+      /how-a-hunter-obtained-money-from-his-friends-the-leopard-goat-bush-cat-…/
+      /uli-samples-from-awka-district-n-w-thomas-1910-11/
+      an /nri-nshi-kingdom-…/ path whose parent article is absent
+
+These four have no shape in common with each other or with either fixed family. **They need a human
+decision about the original intent — a redirect, a correction, or an acknowledgement that the source
+article linked to something that never existed.**
