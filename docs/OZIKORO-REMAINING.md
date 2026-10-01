@@ -58,6 +58,22 @@
 > | records linked to an entity | **0** of 1,051 | editorial retagging |
 > | articles with a source attached | **0** of 1,051 | editorial sourcing |
 >
+> **And the correction that matters most about this table, measured in round 140: it lists what is
+> MISSING and says nothing about what is present, which makes the archive look bare when it is not.**
+>
+> | what exists | rows |
+> |---|---|
+> | articles linked to labels | **18,382** |
+> | labels | **11,056** |
+> | articles linked to media | **1,050** |
+> | clans | **228** |
+> | clans linked to towns | **995** |
+>
+> So the 1,051 records are **not untagged**: they carry 18,382 subject links between them, an average
+> of seventeen labels each, and 1,050 of them are attached to their media. The objective's word
+> "untagged" refers to sources, periods and places, and it is true of those three and of nothing else.
+> **Missing is not the same as empty**, and a table of zeros is the easiest way to say the wrong one.
+>
 > **Two corrections to the rows above, measured in round 139, because a zero in one place is not a
 > zero everywhere and not even the same zero:**
 >
