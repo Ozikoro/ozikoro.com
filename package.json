@@ -83,7 +83,8 @@
     "check:links": "bash scripts/check-links.sh",
     "check:sitemap": "bash scripts/check-sitemap.sh",
     "check:body-links": "node scripts/check-body-links.mjs",
-    "check:assets": "bash scripts/check-assets.sh"
+    "check:assets": "bash scripts/check-assets.sh",
+    "verify:live": "bash scripts/verify-live.sh"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",

@@ -3676,3 +3676,62 @@ Three rounds have now discarded a checker's verdict that way, and the habit is t
 It needs a running server, and `verify-all.sh` runs against a stopped one because the suites hold the
 PGlite lock. **The three server-dependent checks — links, sitemap, assets — belong in their own run**, and
 that grouping is now obvious enough to be worth making explicit next time the runner is touched.
+
+---
+
+## ROUND 90 — TWO RUNNERS, BECAUSE THE TWO KINDS OF CHECK CANNOT SHARE ONE
+
+Round 89 noticed the grouping; this round made it real. `scripts/verify-live.sh`, wired as
+`npm run verify:live`.
+
+    verify-all.sh    19 steps, STOPPED server
+                     typecheck, suites, residue, capabilities, links inside article bodies
+    verify-live.sh    3 checks, RUNNING server
+                     links a reader can click · pages a crawler is told of · assets a page must load
+
+    PASS  links a reader can click
+    PASS  pages a crawler is told of
+    PASS  assets a page must load
+    All live checks passed.          exit code read DIRECTLY: 0
+
+### Why they cannot be one script
+
+`verify-all.sh` runs against a **stopped** server on purpose: the suites take the PGlite lock, and the
+database is single-process, so a dev server holding it makes every suite fail with a mutex timeout rather
+than a real error. The live checks are the opposite — they are about what the running site actually
+serves.
+
+**It does not start or stop a server, deliberately.** A checker that owns a process and a database lock is
+a checker that can corrupt the cluster when it is killed wrongly, which has already happened here once.
+It points at a server you started and says so when there is none:
+
+    http://127.0.0.1:3100 is not responding. Start a server first — this runner deliberately does not.
+    (and never 'pkill -9 -f node': kill by port, or you take the media download with it)
+    exit 2
+
+### The asset waiver, taking round 87's shape
+
+The one dead asset would have made the live run permanently red, which is how a suite teaches people to
+ignore it. So it is waived explicitly, in the tool, beside the reasoning — **and it still prints on every
+run**:
+
+    checked: 62
+    Every referenced asset loaded.
+
+    WAIVED (1) — known, deliberately not repaired, still reported every run:
+      /wp-content/uploads/2020/01/image-1-copyright.jpg
+
+Waived rather than repaired because repairing it means inventing an image the archive does not hold. **Two
+waivers now exist in this project, both visible, both with their reason in the code.** That is the pattern
+for anything known-and-deferred: *a waiver that silences is indistinguishable from a check that passes.*
+
+### What is now checked, in full
+
+    offline    typecheck · 64 unit tests · 7 app tests · archive · members · editorial · publications
+               rights · search · spotify · admin · accounts · contributions · donations
+               test residue · every capability granted · links inside article bodies
+
+    live       120 pages of followed links · 300 sampled sitemap paths · 62 referenced assets
+               (and, when run at scale, all 14,667 sitemap URLs)
+
+    exit codes are read from the commands themselves, never after a pipe
