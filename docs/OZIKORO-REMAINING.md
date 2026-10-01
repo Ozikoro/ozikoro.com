@@ -4086,3 +4086,55 @@ The general rule, which this file has now earned five times:
 
 `check:secrets` at 7 sub-checks and `verify-live.sh` at 3 were counted the same way and are both correct —
 7 and 3 respectively, taken from their own output in rounds 95 and 90.
+
+---
+
+## ROUND 99 — THE HEADLINE NUMBERS, MEASURED RATHER THAN REPEATED
+
+Rounds 97 and 98 corrected the resume block's *counts of things I built*. This round checked its
+**claims about the archive**, which are the ones a reader is most likely to act on and which had been
+copied forward without re-measurement.
+
+    claim: 3,437 of 3,488 media served from our own storage
+      select count(*) from ozikoro_media where storage_key is not null and storage_key <> ''
+      ->  3437                                              CORRECT
+
+      select count(*) from ozikoro_media where storage_key is null or storage_key = ''
+      ->    51                                              matches the claim that 51 are absent at source
+
+    claim: 0 of 1,051 records linked to an entity
+      ozikoro_article (is_page = false)                 ->  1051
+      count(distinct article_id) from ozikoro_article_entity  ->  0     CORRECT
+
+    claim: 0 of 3,488 items has a licence
+      ozikoro_media total                               ->  3488
+      where licence is not null and licence <> ''       ->  0      CORRECT
+
+**Every headline number is right.** The archive is 3,488 media and 1,051 articles; the media migration
+covered 3,437 of them; and the two largest gaps in this file — no rights recorded, nothing linked to an
+entity — are exactly as stated, not rounded or remembered.
+
+### One correction to the file's own instructions
+
+My first query used a column called `stored_path`, **which does not exist**. The media table's column is
+**`storage_key`**. Anyone re-running these checks should use the real name; the full column list is here so
+the next query does not have to guess:
+
+    id wp_media_id slug kind title alt_text caption description source_url storage_key mime_type
+    width height filesize_bytes duration_seconds creator credit licence rights_note captured_at
+    uploaded_at contributor_id created_at updated_at
+
+That is worth writing down because the failure was **silent in the direction that matters**: a query
+against a wrong column name *errors*, but a query against a *right-sounding* name in a different table
+would have returned zero and looked like a finding. `0 licenced` and `0 entity-linked` are real; `0
+self-hosted` would have been an artefact.
+
+### The habit, for the third round running
+
+    round 97   counted the routes            -> documentation was wrong (23, not 16)
+    round 98   counted the build steps       -> my count was wrong (20 was right)
+    round 99   measured the archive figures  -> both were right
+
+**Counting is not the same as verifying**, and this file has now demonstrated both outcomes from the same
+instruction. The instruction stands: *when a claim can be counted, count it* — and then check that the
+count is of the thing the claim is about.
