@@ -5996,3 +5996,54 @@ question — *does this block mention accounts at all?* — rather than by check
 > the counts received, and the counts took seven rounds to settle.
     
     All 20 offline steps pass.
+
+---
+
+## ROUND 141 — ITEM 8 IS ACTIONABLE NOW, AND THE DATA HAS BEEN SITTING THERE
+
+Rounds 137 to 140 listed what is missing. This round looked at one item the other way round, and found
+that **item 8 needs no new data at all.**
+
+### What exists on both sides
+
+    Ozikoro   228 clans in the shared database, no clan route of its own
+    Ozituma   app/web/app/clans/[slug]/page.tsx, serving 188 PUBLISHED clans
+
+The dictionary already serves `/clans/ayamelum/`, `/clans/umueri/`, `/clans/idemili/` and 185 more. Ozikoro
+has 11,056 labels attached to its
+records 18,382 times. **The question was whether the two overlap**, and they do:
+
+    labels matching a published clan by slug   93
+    labels matching a published clan by name   99
+    ARTICLES CARRYING A CLAN LABEL            268
+
+    label `umueri`   -> clan `umueri`        label `nimo`     -> clan `nimo`
+    label `abagana`  -> clan `abagana`       label `idemili`  -> clan `idemili`
+
+**Two hundred and sixty-eight Ozikoro articles are already tagged with the name of a clan the dictionary
+publishes a page for.** No entity, no source, no period and no rights decision is needed to connect them —
+only a link.
+
+### What that means for item 8
+
+*"Ozituma integration linking to the dictionary rather than duplicating it."* The integration is not a
+project; it is a lookup. Where a label's slug matches a published clan, the label page renders a link to
+the dictionary's entry and says so. **Building an Ozikoro clan page would be the duplication item 8 exists
+to prevent**, and the measurement says it is unnecessary.
+
+### Why this was invisible for four rounds
+
+Rounds 137 to 140 built increasingly precise tables of what is **absent** — entities 0, sources 0, periods
+0, publications 0 — and every one of them was right. None of them asked **what is present that could be
+joined.** Two populated tables, one on each side, matching on a column nobody had compared.
+
+> **A list of what is missing will never show you a connection.** It took looking at an item from the
+> opposite direction — what does this need, and does any of it already exist? — to find 268 articles'
+> worth of it.
+
+### And the implementation is one change, not attempted here
+
+`app/labels/[slug]/page.tsx` would gain a lookup against `clan` where `published = true` and the slug
+matches, rendering a link to `https://ozituma.com/clans/<slug>/`. **Not built**, because the context left
+this round was not enough to verify a change to a page that serves 10,100 URLs — and because the finding is
+worth more recorded precisely than half-built.
