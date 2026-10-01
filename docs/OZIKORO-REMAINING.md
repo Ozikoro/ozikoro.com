@@ -4791,3 +4791,63 @@ does not appear visually but is the first thing a keyboard user reaches — whic
 
 **One item remains, and it is one item because the others were checked rather than assumed.** Nine
 properties, eight verified, and the ninth correctly diagnosed rather than guess-fixed.
+
+---
+
+## ROUND 112 — THE 404 IS WELL WRITTEN AND NEVER REACHES THE READER'S FIRST PAINT
+
+The 404 page is the one page every dead link leads to, and rounds 74 to 87 established there **are** dead
+links. So it was checked, and the checking went wrong twice before it went right.
+
+### What the source says
+
+`app/not-found.tsx` is good work: a 404 eyebrow, `<h1>No record at this address</h1>`, a paragraph
+explaining that an old address may have been renamed, and two links — *Browse the archive* and *Search*.
+The comment at the top says the design draws a 404 deliberately rather than leaving one to the framework.
+
+### What the response actually contains
+
+    status                             404          correct
+    "No record at this address"        present      the component IS involved
+    <main>                             0
+    <h1>                               0
+    <nav>                              0
+    <footer>                           0
+    id="main"                          0
+
+And the beginning of the body, which explains all of it:
+
+    <body><div hidden=""><!--$?--><template id="B:0"></template><!--/$--></div>
+    <template data-next-error-message="NEXT_HTTP_ERROR_FALLBACK;404"
+              data-next-error-digest="NEXT_HTTP_ERROR_FALLBACK;404" …
+
+**The entire body is a suspended boundary.** `<!--$?-->` with a `<template id="B:0">` placeholder means the
+server sent a hole where the page should be; the 404 text exists **only in the serialised RSC payload
+inside a `<script>`** (byte 20,746), and the real markup appears after hydration.
+
+### Why this matters
+
+Normal pages do **not** do this — round 107 measured `<main>` present in the server HTML of ten of them. So
+the 404 specifically defers its whole body. The consequences:
+
+* a reader with JavaScript disabled sees **a blank page** — no message, no heading, no way back
+* **no landmark and no heading exist in the served HTML**, so the accessibility work of rounds 107 and 111
+  does not apply to the page that most needs it
+* a crawler that does not execute scripts indexes an empty document
+
+### Two wrong readings before the right one, and both were mine
+
+**First** I concluded the page was bare and had no custom 404 at all — my text extraction printed only the
+site title, and I believed it.
+
+**Then** I concluded I had been wrong entirely, because searching the raw HTML for `No record at this
+address` found it on five URLs. That reading was also wrong: the string is in the payload, not the markup.
+
+**Both measurements were accurate. Both conclusions overreached**, in opposite directions, from the same
+file. The first mistook the output of a broken extractor for the page; the second mistook a string's
+presence for its being rendered.
+
+> **"Is it in the file?" is not the question. "Is it in the part of the file a browser draws?" is.**
+
+This is the fifteenth measurement in this file that was confident and wrong, and the first one where
+**the right question only appeared after getting the answer twice.**
