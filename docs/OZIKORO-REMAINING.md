@@ -44,8 +44,14 @@
 > and rolling back clean. So the whole of item 2 works and **no one can enter it.**
 > `npm run account:create <email> [role]` does it one address at a time; `--dry-run` first if you like.
 > **The addresses are NOT recoverable from the archive**: `data/ozikoro-wp/users.json` holds exactly
-> 11 records with no email field, because WordPress's REST API omits it from the public context. the map and timeline screens (none among the
-> 37 delivered designs) and the PostGIS decision · `S3_BUCKET` and a server Postgres · nonce-based CSP
+> 11 records with no email field, because WordPress's REST API omits it from the public context.
+>
+> **Also waiting on the owner:** the map and timeline screens (none among the
+> 37 delivered designs) · **where the coordinates come from** — rounds 147: not a PostGIS decision, there
+> are no latitude or longitude VALUES anywhere, while the columns have always existed · **an `ozikoro`
+> service in `docker/docker-compose.prod.yml`** — round 149: the stack is built and proven for Ozituma
+> and Learn, with one shared Postgres, and Ozikoro was simply never added to it; `S3_BUCKET` is a value
+> in `/opt/ozituma/.env`, not a missing dependency · nonce-based CSP
 > (**measured: 47 inline scripts per page**) · backup scheduling and off-machine storage · media rights —
 > **0 of 3,488 items has an actual licence** · **what the `/` → `/home/` row in `ozikoro_redirect` is for**
 > (round 75: the handler as specified would send the homepage to a migrated page of the same name).
