@@ -1,0 +1,48 @@
+# What runs on every push, and why it is not everything.
+#
+# NO CI EXISTED before this file. Every suite in this project passed because it was run by hand, which
+# means nothing would have caught a regression between sessions.
+#
+# WHY ONLY SOME SUITES RUN HERE
+#
+# This repository has two kinds of test. The database-free ones assert logic: the HTML sanitiser, the
+# redirect and same-origin guards, the rate limiter. The integration ones — archive, members,
+# editorial, publications, rights, search, connection — assert against the REAL imported archive, and
+# they check real numbers: 1,051 published records, 3,488 media items, 11,056 labels, 228 clans. On an
+# empty database they would fail for the correct reason, which is that they are testing data, not code.
+#
+# Running them here would need one of:
+#   * the 72 MB of extracted JSON committed to the repository, which is large and regenerable;
+#   * network access to the old WordPress site from CI, which may not be up forever and would make the
+#     build depend on the site this platform is replacing;
+#   * a seeded fixture, which does not exist.
+#
+# So CI runs the database-free suites, and the integration suites are run locally against the real
+# archive and recorded in docs/OZIKORO-REMAINING.md. That is a real limit, stated rather than hidden:
+# **a change that passes CI here has not been checked against the archive.**
+#
+# The import chain to make them runnable in CI is the obvious next step, and it is not built.
+
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    name: Typecheck and database-free suites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Node 26 runs TypeScript directly, which is how these suites are written: no build step.
+          node-version: '26'
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck and run the database-free suites
+        run: npm run test:unit

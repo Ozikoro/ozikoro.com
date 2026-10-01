@@ -1923,3 +1923,51 @@ not contain `@ozikoro/platform` — stopped it, and the file was untouched.
 
 The retry located the function by name and asserted the same thing again. **The assertion was in the
 right place, which is the only reason this round did not end in a broken application.**
+
+---
+
+## ROUND 50 — THERE IS NOW A CI WORKFLOW
+
+Round 48 recorded plainly: *"there is still no CI. The `test:ozikoro-app` script exists but nothing
+runs it automatically."* Every suite in this project has passed because it was run by hand, which means
+**nothing would have caught a regression between sessions** — including the four security fixes of
+rounds 41–44, all of which only stay fixed because a test now guards them.
+
+`.github/workflows/ci.yml` runs on every push and pull request.
+
+### What runs, and what deliberately does not
+
+This repository has two kinds of test, and only one kind can run in CI:
+
+    database-free    the HTML sanitiser, the redirect and same-origin guards, the rate limiter
+    data-dependent   archive, members, editorial, publications, rights, search, connection
+
+The integration suites assert against the **real imported archive** and check real numbers: 1,051
+published records, 3,488 media items, 11,056 labels, 228 clans. On an empty database they would fail
+for the correct reason — they are testing data as much as code.
+
+Running them in CI would need one of: the 72 MB of extracted JSON committed (large, regenerable); live
+network access to the old WordPress site (**making the build depend on the site being replaced**); or a
+seeded fixture, which does not exist.
+
+So CI runs `npm run test:unit` — typecheck, the 58 unit tests, the 27 redirect and same-origin checks,
+and the 7 application checks.
+
+### Verified by removing the database
+
+The claim "this does not need the database" was tested rather than asserted:
+
+    mv .data/pg .data/pg.ci-probe
+    npm run test:unit        -> 58 pass, 27 pass, 7 pass, exit 0
+    mv .data/pg.ci-probe .data/pg
+
+`npm ci` was also checked to be viable: `package-lock.json` exists (66 KB), so the first CI step will
+not fail for want of a lockfile.
+
+### The limit, stated rather than hidden
+
+**A change that passes CI here has not been checked against the archive.** The integration suites still
+run only locally. Making them runnable in CI means building the import chain into the workflow — the
+extraction, the migrations, the seed and the four imports — which is not built.
+
+This is a genuine gap and the next thing to do for deployment confidence.

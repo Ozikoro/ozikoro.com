@@ -75,7 +75,8 @@
     "import:media-upload": "npm -w @ozikoro/platform run import:media-upload",
     "backup": "npm -w @ozikoro/platform run backup",
     "build:standalone": "bash scripts/build-standalone.sh",
-    "test:ozikoro-app": "npm -w @ozikoro/site run test"
+    "test:ozikoro-app": "npm -w @ozikoro/site run test",
+    "test:unit": "npm run typecheck && npm -w @ozikoro/platform run test && npm -w @ozikoro/platform run test:redirects && npm -w @ozikoro/site run test"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
