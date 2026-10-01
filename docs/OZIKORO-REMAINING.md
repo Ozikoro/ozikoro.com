@@ -7084,3 +7084,45 @@ was much smaller than the presence of an app-local path suggests.
 
 > **An app-local module is not the same as a coupled one.** Where the imports are all builtins, "it lives in
 > the other app" is a location and not a dependency, and the two are worth telling apart before estimating.
+
+---
+
+## ROUND 165 — THE MAIL MOVE IS FIVE LINES AND A FILE, AND THE COUNT IS EXACT
+
+Round 164 established the module is self-contained and named three sharing options without sizing them.
+This round sized the right one.
+
+    workspaces in package.json        ['packages/*', 'apps/*'] — so apps/web IS a workspace package
+    apps/ozikoro tsconfig paths       { '@/*': ['./*'] } — its own directory only, no cross-app alias
+    files importing apps/web/lib/mail FOUR:
+                                        apps/web/app/admin/record/page.tsx
+                                        apps/web/app/api/auth/[action]/route.ts
+                                        apps/web/app/api/admin/password-link/route.ts
+                                        apps/web/app/forgot/page.tsx
+
+### The change, as a checklist
+
+    1.  move    apps/web/lib/mail.ts          ->  packages/core/src/mail.ts        (640 lines, no edits)
+    2.  add     the export to packages/core/src/index.ts
+    3.  update  FOUR import lines in apps/web:  '@/lib/mail'  ->  '@ozituma/core'
+    4.  use     apps/ozikoro imports from '@ozituma/core' — the dependency is ALREADY declared
+
+**Five lines and a file move.** Nothing is rewritten, because the module's only imports are Node builtins.
+
+### And a small thing worth knowing
+
+    @ozituma/core is declared as a dependency of apps/ozikoro
+    grep for "from '@ozituma/core'" in apps/ozikoro    ->  NO MATCHES
+
+**The dependency has been declared since round 148 — verified present then — and never once imported.**
+So `apps/ozikoro` carries a package it has never used, which is exactly the shape of a platform that was
+*prepared* for sharing and never asked to share anything. The mail move would be its first use.
+
+### Why the move was not made here
+
+It changes `apps/web`, a live site with 53 routes, and **the only verification that matters is its
+typecheck and build** — which rounds 92 and 148 ran once each, and which this round cannot re-run with the
+context it has left. A five-line change is still a change to a working application, and round 82's lesson
+was that the size of an edit is a poor guide to the size of its blast radius. **Recorded as a checklist so it
+can be executed and verified in one sitting**, which is the only way it should be done: the four imports and
+the move fail *or* succeed together, and half of that is worse than neither.
