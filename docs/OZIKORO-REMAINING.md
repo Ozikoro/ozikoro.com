@@ -49,6 +49,28 @@
 > **The addresses are NOT recoverable from the archive**: `data/ozikoro-wp/users.json` holds exactly
 > 11 records with no email field, because WordPress's REST API omits it from the public context.
 >
+> **FOUR THINGS THAT LOOK LIKE PROJECTS AND ARE INTEGRATIONS (rounds 148-165).** Each was recorded as
+> *not started*, *blocked* or *open*, and each is a capability that already works somewhere in the
+> estate. **The question to ask of every remaining item is "does this already exist?"** — it has
+> found something four times.
+>
+> * **The AI research assistant (9)** — `packages/core/src/ai/gateway.ts` is a full provider-agnostic
+>   gateway with a contract-test harness, `@ozituma/core` is **already a dependency of
+>   `apps/ozikoro`, declared and never once imported**, a working provider exists in
+>   `apps/learn/lib/ai-provider.ts`, and `HF_TOKEN` is documented. **The plumbing is built.** What is
+>   missing is a grounding design, not a credential.
+> * **Deployment (10)** — `docker/docker-compose.prod.yml` defines postgres · web · learn · caddy with
+>   one shared `DATABASE_URL`, and `docs/DEPLOYMENT.md` is a full runbook. **For Ozituma and Learn.**
+>   The work is five parts: three Dockerfile stages, a `COPY` line in a layer shared with two live
+>   sites, a compose service and a Caddy route.
+> * **Notifications (10)** — `apps/web/lib/mail.ts` is 640 lines of SMTP client importing **only
+>   Node builtins**, so sharing it is a **file move plus four import lines**, not a refactor. The
+>   claim path already has the trigger (`requestContributorClaim`), the recipient
+>   (`manage_contributors`), the destination (`/admin/claims`) and the transport. Template and
+>   wiring are absent.
+> * **The dictionary link (8)** — **BUILT.** 90 label pages link to `ozituma.com/clans/<slug>/`,
+>   verified 200 and bidirectional with Ozituma's own nav.
+>
 > **FOUND BY COMPARING, NOT BY CHECKING (rounds 155-156)** — every check in this project asks whether a
 > page that exists behaves correctly, so **none of them can report a page that was never built.**
 > Comparing `apps/ozikoro` against `apps/web` found five absences that 30 green routes could not:
