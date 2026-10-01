@@ -6623,3 +6623,65 @@ file whose *purpose* depends on another item being finished first:
 code that cannot be exercised end to end, against a flow that has never run with real people — and rounds
 132 and 133 showed how much is learned by exercising a flow with throwaways rather than reading it. Here
 there is nothing to exercise it against that would not be invented.
+
+---
+
+## ROUND 155 — OZIKORO HAS SIGN-IN AND NOTHING ELSE AROUND IT
+
+Rounds 148 to 154 found four integrations one at a time by asking what exists elsewhere. This round asked
+the question **once, for everything** — comparing `apps/web` and `apps/ozikoro` — and what it turned up is
+not an integration.
+
+### The comparison
+
+    apps/web/lib        analytics · api · display · donation-confirm · mail · openapi · paystack · session
+    apps/ozikoro/lib    access · rate-limit · session                     (three)
+
+    apps/web routes     53
+    apps/ozikoro routes 30
+
+    top-level routes in web and NOT in ozikoro:
+      account clans contribute developers docs donate forgot join languages learn names
+      ndebe privacy proverbs reset review terms word
+
+Most of those are the dictionary's own business and Ozikoro should not have them. **Five are not**, and they
+are the ones that matter:
+
+    join      ABSENT    no way to create an account from the site
+    forgot    ABSENT    no way to start a password recovery
+    reset     ABSENT    no way to complete one
+    privacy   ABSENT    no privacy notice
+    terms     ABSENT    no terms
+
+**And the sign-in page contains no link to any of them** — grep for forgot, reset, join, register, create an
+account, privacy or terms returns nothing.
+
+### What that means in practice, for the eleven authors this platform exists to serve
+
+* **A contributor who forgets their password is locked out permanently.** There is no recovery path on the
+  site and no self-service of any kind. With eleven authors and no way back in, that is an operational risk
+  rather than a missing nicety — and it is the flow `apps/web` has *because* it is the one whose failure
+  locks somebody out of their own account, as its own comment says.
+* **An account can only be created by an operator at a terminal** (`npm run account:create`, round 132).
+  That was the right tool for the eleven, and it is not a sign-up.
+* **The site stores personal data — accounts, claims, donations — with no privacy notice and no terms.** The
+  dictionary has both.
+
+### Why no check caught it
+
+Every check in this project asks whether a page that exists behaves correctly. `check-links` follows links a
+reader can click; `check-sitemap` samples advertised URLs; `check-assets` loads what pages reference;
+`check-auth-boundary` verifies that gated routes refuse. **None of them can see a page that was never
+built**, and a site with 30 working routes and a green suite looks identical to a site with 30 working
+routes and three missing ones.
+
+> **Coverage checks verify what is there. They are structurally incapable of reporting an absence**, and
+> this file has spent seven rounds learning that a missing thing has to be looked for by comparing — against
+> another site, another table, another column.
+
+### Not built, and why this one is different from the other four
+
+The gateway, the compose and the mail were integrations this session could have scoped. **These are product
+decisions with legal weight** — what the privacy notice says, what the terms bind a contributor to, whether
+registration is open or invitation-only. Round 155's job was to find them; writing a privacy notice for
+somebody else's archive is not a thing this session can do without inventing.
