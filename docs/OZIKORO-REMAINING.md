@@ -40,7 +40,10 @@
 > **The largest gap is human:** **0 of 1,051 records linked to an entity.** The machinery is built and
 > verified; the retagging is editorial work.
 >
-> **Seven checks, seven TESTED guards.** Every one distinguishes *"found nothing wrong"* from *"did not
+> **Eight checks, eight TESTED guards** — four offline (`check:secrets`, `check:residue`,
+> `check:capabilities`, `check:body-links`) and four live (`check-links`, `check-sitemap`,
+> `check-assets`, `check-not-found`). Counted from what the two runners emit, not from filenames
+> (round 125; the block had said seven since before `check-not-found` existed). Every one distinguishes *"found nothing wrong"* from *"did not
 > look"*, and each guard was verified by making it look at nothing: `check:secrets` (self-test on a
 > known-positive), `check:residue` (102 tables or it refuses), `check:capabilities`, `check:links`,
 > `check:sitemap`, `check:assets`, `check-body-links`. Three waivers print on every run, each stating what
