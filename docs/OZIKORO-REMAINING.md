@@ -1281,6 +1281,12 @@ and application work here is not reproducible from any source.
 
 Three of the four things this file lists as "blocked on the owner" can wait. This one cannot.
 
+**RESOLVED round 33** — committed as `ccd316f`, 156 files, 101 of them under `apps/ozikoro`.
+Deliberately excluded: `data/media/` (760 MB of binaries, gitignored — they live in object
+storage), `data/ozikoro-wp` (72 MB of extracted JSON, regenerable by re-running the extractor),
+`.env.local` (credentials, gitignored) and `*.tsbuildinfo` (a build artefact, now gitignored).
+No credential value appears in the commit, verified by searching the staged diff before committing.
+
 ### What is needed
 
     git add apps/ozikoro docs data/ozikoro-wp packages/db packages/ozikoro
@@ -1297,3 +1303,30 @@ Round 30 said `.env.example` "ships", and round 31 appeared to confirm it was tr
 wrong file: there is a **root** `.env.example`, tracked and 11 KB, and the file created in round 30 at
 `apps/ozikoro/.env.example` is a separate untracked one. The root file already existed; the new one is
 redundant as well as untracked, and should probably be removed rather than committed.
+
+---
+
+## ROUND 34 — A CORRECTION TO ROUND 33
+
+Round 33 said: *"`apps/web` is still untracked — 39 entries."* That was imprecise, and the imprecision
+matters because it made a normal state look alarming.
+
+Measured:
+
+    apps/web      89 files tracked   39 untracked   12 modified
+    apps/ozikoro 101 files tracked    (was 0 before round 33's commit)
+
+`apps/web` is a **tracked application with uncommitted work** — an ordinary state that most working
+repositories are in. `apps/ozikoro` had **zero** files in version control; nothing of it existed in
+Git at all. Those are not the same condition and should not be described in the same breath.
+
+The mistake was mine and had the same shape as the four before it: I ran `git status --porcelain |
+grep '^??'` — which by construction only reports untracked entries — and then spoke about the whole of
+`apps/web` from that filtered view. **I asked a narrow question and reported the answer as if it
+covered everything.** The correction is that `apps/web`'s uncommitted work belongs to the Ozituma
+dictionary application, is outside this objective's scope, and is left to whoever owns it.
+
+### The one that was real
+
+`apps/ozikoro` — 0 tracked files out of 103, now 101 tracked and committed as `ccd316f`. That finding
+stands and was worth acting on.
