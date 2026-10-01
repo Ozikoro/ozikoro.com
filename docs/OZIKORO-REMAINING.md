@@ -6976,3 +6976,55 @@ and the reason the other four were safe is now written down rather than assumed.
 
 **A clean audit that produces a rule is worth more than a fix that produces a diff**, and this file has now
 had both from the same mistake in consecutive rounds.
+
+---
+
+## ROUND 162 — THE ACCOUNT-ADMIN SURFACE ALREADY EXISTED, AND I SHOULD HAVE FOUND IT BEFORE BUILDING BESIDE IT
+
+Rounds 158 and 160 built a password-reset CLI and found no equivalent. Checking what else is in
+`packages/db/src/role.ts` — a file this session has read past three times — shows a **complete account
+administration CLI that predates both**:
+
+    node src/role.ts list                                   accounts, roles, last sign-in
+    node src/role.ts promote <email> [editor|admin|owner|contributor]
+    node src/role.ts create  <email> <password> [display name]
+
+And it carries the reasoning for being a CLI rather than a route:
+
+    Granting `editor` means granting write access to the published dictionary. Exposing that over HTTP
+    would create a privilege-escalation surface that has to be authenticated, rate limited, audited and
+    monitored forever. Requiring shell access to the database host instead means gaining the role
+    requires the same access as editing the database directly — so there is nothing extra to defend.
+
+**Role management and account listing already existed and needed nothing.** That is the good half of this
+finding: neither round 132 nor round 160 built a duplicate of those.
+
+### The half that is an overlap, stated plainly
+
+**`scripts/create-account.ts` (round 132) duplicates `role.ts create`** — and does it better:
+
+    role.ts create <email> <password> …     the password is a COMMAND-LINE ARGUMENT
+                                            -> it lands in shell history and in the process list
+    account:create <email> [role] …         the password is GENERATED and printed once
+                                            + email validation, role validation, --dry-run
+
+So the duplication is defensible on safety grounds and **still should have been noticed**, because the
+question round 132 asked was *"can an operator create an account?"* and the answer was **yes, in this
+repository, in a file it had already opened**. The tool it built is better; the search it ran was narrower
+than the one that would have found the original.
+
+### And the reset CLI does not overlap anything
+
+`role.ts` has no reset command, and `setPasswordAsAdmin` had no caller. **Round 160's tool was the one
+genuinely missing piece**, and this round is what confirms it rather than assuming it.
+
+### The surface, so a fourth tool is not built
+
+    list accounts        role.ts list                       exists
+    change a role        role.ts promote                    exists
+    create an account    account:create  (safer)  or  role.ts create  (password in argv)
+    reset a password     account:reset                      round 160 — the only gap there was
+
+**Three capabilities, one of which was missing, and one duplication that is a safety improvement rather
+than a mistake.** The lesson is not that building it was wrong — it is that *"does this exist?"* is a
+question to ask of the whole repository and not of the directory the work happens to be in.
