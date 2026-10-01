@@ -2921,3 +2921,34 @@ output and you have thrown away its verdict.**
     check-links.sh     120 pages, following links    ->  what a reader can CLICK
     check-sitemap.sh   14,667 paths, every one       ->  what a crawler is TOLD   (complete)
     check:residue / check:capabilities               ->  what the DATABASE holds
+
+---
+
+## ROUND 71 — THE EDITED CHECKER, VERIFIED WITH ITS EXIT CODE READ DIRECTLY
+
+Round 70 changed `check-sitemap.sh` in flight, adding the `000` retry. New code needs running, so:
+
+    bash scripts/check-sitemap.sh http://127.0.0.1:3100 25 > /tmp/cs71.txt 2>&1
+    echo $?    ->  0
+    checked: 25
+    Every sampled page resolved.
+
+Note the shape of that invocation: **the output went to a file and the exit code was read from the
+command itself**, not through a pipe. Round 70's failure was launching the same script as
+`… | tail -40`, where the reported status belongs to `tail` and the script's own verdict was discarded.
+The lesson was applied in the very next round, which is the only test of whether a lesson took.
+
+All 18 verification steps pass.
+
+### Where this leaves the coverage work
+
+    check-links.sh     120 pages following links     ->  what a reader can CLICK
+    check-sitemap.sh   14,667 paths, all requested   ->  what a crawler is TOLD   (complete)
+    check:residue      every table with a text column ->  what the DATABASE holds
+    check:capabilities names read from the source     ->  what the CODE requires
+    verify-all.sh      all 18 steps in one command
+
+Four of those five did not exist thirty rounds ago, and **each found a real defect on or shortly after
+its first run**: an unreachable published article, a navigation link to a 404 on every page, test residue
+published as researchers, a capability granted to nobody. The fifth, `verify-all.sh`, is what made
+running all of it routine rather than remembered.
