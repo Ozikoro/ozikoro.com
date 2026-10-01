@@ -3838,3 +3838,45 @@ Mutation-tested both ways:
 came from a pattern matching the wrong spelling; this one came from a tool scanning the wrong *set*. Both
 produced a clean result and both were wrong for the same underlying reason: **the answer was never
 available to the method being used.**
+
+---
+
+## ROUND 93 — THE SAME ONE-COMMAND-AWAY RISK, IN THE SAME DIRECTORY TREE
+
+Round 92 established that `check:secrets` had been reading the index rather than the working tree, so a
+stray `.env` was invisible to it. The natural next question is the one that found this round's defect:
+
+> **What else would that same `git add -A` sweep up?**
+
+`data/ozikoro-wp/` — the WordPress export, **190MB**, and **not gitignored**:
+
+    28.6 MB  data/ozikoro-wp/media.json
+    19.2 MB  data/ozikoro-wp/articles.json
+    16.2 MB  data/ozikoro-wp/articles.jsonl
+     2.1 MB  data/ozikoro-wp/.cache/posts/page-5.json
+     …
+
+`.gitignore` covered `data/sources/*`, `data/derived/*` and `data/media/` — every data directory
+**except the largest one.** Committing it would be wrong rather than safe: it is regenerable output of the
+importer, not source.
+
+### Fixed
+
+    IGNORED BY: .gitignore:72:data/ozikoro-wp/    data/ozikoro-wp
+
+    untracked entries remaining : 0
+    total git status entries    : 1      (this .gitignore edit)
+
+**The working tree is now clean.** Before this, `git status` permanently showed the export as untracked —
+noise that trained the eye to ignore it, which is exactly how the 61 `apps/web` files in round 91 went
+unnoticed for so long.
+
+### The pattern, now three shapes of the same mistake
+
+    round 73   a pattern that matched the wrong SPELLING      -> reported zero dead links
+    round 92   a tool reading the wrong SET (index, not tree)  -> missed 214 files
+    round 93   a directory not covered by the IGNORE RULES     -> 190MB one command from the history
+
+All three produced a clean-looking state, and all three were the *method* being wrong about where the
+answer lived rather than the answer being absent. **Asking "what would this command actually touch?" is
+the cheapest question available, and it has now found something three times.**
