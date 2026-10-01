@@ -1578,3 +1578,52 @@ This is the first security round where the answer was **"not a vulnerability"**,
 easy to report otherwise. The cookie's `SameSite` attribute was checked *before* writing the finding,
 not after. Four rounds ago the opposite happened — an audit script reported failures that did not
 exist — and the cost of that was a correction to a file other people read.
+
+---
+
+## ROUND 43 — SIGN-IN HAD NO RATE LIMIT AT ALL
+
+### Measured before changing anything
+
+`rateLimit` was used by exactly four routes — all of them Spotify. **The sign-in endpoint had none.**
+
+    25 rapid failed sign-ins
+    attempt  1 -> "Those details did not match an account."
+    attempt 25 -> "Those details did not match an account."
+    throttle signals in the 25th response: 0
+
+Byte-identical responses, no throttle header, no limit of any kind. Unlimited password guessing is
+the difference between a password being a secret and a password being a search space.
+
+### A false alarm, caught by reading the code instead of the number
+
+The first probe compared status codes across the Spotify endpoint and saw `303` for all ten attempts,
+which looked like the limiter was not working either. It was: **the throttled path also answers `303`**,
+a redirect carrying `Too many connection attempts`. Status codes alone could not distinguish throttled
+from allowed. Reading the response's `Location` header — and the route's own code — showed the limiter
+was fine. Nothing was changed on the strength of the first reading.
+
+### The fix, and why there are two keys
+
+Sign-in is now limited to **10 attempts per 5 minutes per client AND per account**.
+
+Two keys because they stop different attacks, and one of them is defeatable on its own:
+
+    rotating x-forwarded-for, same target account:
+      xff 10.0.0.1 … 10.0.0.10   attempted     (each address gets a fresh client allowance)
+      xff 10.0.0.11 … 10.0.0.14  THROTTLED     (the ACCOUNT limit holds)
+
+`x-forwarded-for` is a request header and therefore attacker-controlled unless a trusted proxy
+overwrites it, so the per-client limit can be bypassed simply by varying it. The per-account limit
+cannot — and that is the one that matters, because the resource being protected is the account.
+
+The limit is **not a lockout**. It clears itself in five minutes, so an attacker cannot permanently
+lock a real user out of their own account by guessing at it — permanent lockout is itself a denial of
+service on the account holder. The refusal is also the same shape as every other sign-in failure, so it
+does not reveal whether an account exists.
+
+### Still outstanding
+
+* The limiter is in-process memory, as its own comment says. Behind more than one instance each gets
+  its own allowance. A shared store is the fix and is not built.
+* `signup` is not rate limited; account creation is a spam surface, though a less direct one.

@@ -32,6 +32,7 @@ import {
 } from '@ozituma/db/accounts';
 import { sessionCookie, sessionMaxAgeSeconds } from '@/lib/session';
 import { sameOrigin } from '@/lib/access';
+import { clientKey, rateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -79,6 +80,41 @@ export async function POST(
 
   if (!sameOrigin(request)) {
     return redirectTo('/signin', { error: 'That request did not come from this site.' });
+  }
+
+  /*
+   * Sign-in is rate limited, per client and per account.
+   *
+   * MEASURED BEFORE THIS WAS ADDED: twenty-five rapid failed sign-ins were sent, and attempts 1 and
+   * 25 returned byte-identical responses — "Those details did not match an account" every time, with
+   * no throttle header. The only rate limits in the application were on the four Spotify routes, so
+   * the one endpoint an unauthenticated attacker can aim at indefinitely had none. Unlimited password
+   * guessing is the difference between a password being a secret and a password being a search space.
+   *
+   * TWO KEYS, because they stop different attacks. The client key bounds how fast one address can
+   * guess. The account key bounds how fast one ACCOUNT can be guessed at, which matters because an
+   * attacker with many addresses would otherwise get a fresh allowance from each.
+   *
+   * The limit is generous enough for someone who has forgotten which password they used, and it is
+   * not a lockout: it clears itself, so nobody can lock a real account out by guessing at it.
+   * Permanent lockout is itself a denial of service on the account holder, and was rejected.
+   *
+   * The response has the same shape as every other failure here — a redirect carrying a message — so
+   * it does not reveal whether an account exists.
+   */
+  const signinLimit = { limit: 10, windowSeconds: 300 };
+  const submitted = String(form.get('email') ?? '').trim().toLowerCase().slice(0, 200);
+  const byClient = rateLimit(`signin-client:${clientKey(request)}`, signinLimit);
+  const byAccount = rateLimit(`signin-account:${submitted}`, signinLimit);
+  if (!byClient.allowed || !byAccount.allowed) {
+    const retry = Math.max(byClient.retryAfterSeconds, byAccount.retryAfterSeconds);
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: `/signin?error=${encodeURIComponent('Too many attempts. Wait a few minutes and try again.')}`,
+        'Retry-After': String(retry),
+      },
+    });
   }
 
   const email = String(form.get('email') ?? '').trim().slice(0, 200);
