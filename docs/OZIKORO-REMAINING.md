@@ -6,7 +6,7 @@
 > **What is live.** 23 reader-facing routes and 7 under `/admin` — 30 page routes. Migrated records answer
 > at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
 > media served from our own storage with **zero hotlinks**; typecheck clean; **20 offline verification
-> steps** via `./scripts/verify-all.sh` and **4 live checks** via `./scripts/verify-live.sh`.
+> steps** via `./scripts/verify-all.sh` and **5 live checks** via `./scripts/verify-live.sh`.
 >
 > **Verified by exhaustive request, not sampling.** All **14,667** sitemap URLs were requested and every
 > page that answered returned 200 (round 70). The 120-page link walk is clean; 62 referenced assets load.
@@ -40,9 +40,9 @@
 > **The largest gap is human:** **0 of 1,051 records linked to an entity.** The machinery is built and
 > verified; the retagging is editorial work.
 >
-> **Eight checks, eight TESTED guards** — four offline (`check:secrets`, `check:residue`,
-> `check:capabilities`, `check:body-links`) and four live (`check-links`, `check-sitemap`,
-> `check-assets`, `check-not-found`). Counted from what the two runners emit, not from filenames
+> **Nine checks, nine TESTED guards** — four offline (`check:secrets`, `check:residue`,
+> `check:capabilities`, `check:body-links`) and five live (`check-links`, `check-sitemap`,
+> `check-assets`, `check-not-found`, `check-auth-boundary`). Counted from what the two runners emit, not from filenames
 > (round 125; the block had said seven since before `check-not-found` existed). Every one distinguishes *"found nothing wrong"* from *"did not
 > look"*, and each guard was verified by making it look at nothing: `check:secrets` (self-test on a
 > known-positive), `check:residue` (102 tables or it refuses), `check:capabilities`, `check:links`,
@@ -5583,3 +5583,43 @@ reading past because it was not the thing I was testing.
 > **A measurement can be correct about its subject and wrong about everything next to it.** The four
 > redirects agreed with each other and with nothing else, and it was the sameness — not any single value —
 > that gave it away.
+
+---
+
+## ROUND 130 — THE BUG CLASS IS CLOSED, AND THE COUNT WENT STALE THE MOMENT IT WAS WRITTEN
+
+Round 129 found one hardcoded return path. This round audited for the class — every `next=`/`returnTo=`
+literal and every fixed `redirect('/signin…')` in the app — and found **nothing else**: the only hit was
+round 129's own comment. The three non-admin gated routes pass their real path through
+`requireCapabilityOrRedirect(capability, returnTo)` and were already correct.
+
+So the class is closed, and it is now **checked** rather than closed by inspection.
+
+### The check
+
+`scripts/check-auth-boundary.sh`, wired into `verify-live.sh` as a fifth live check:
+
+    checked: 13
+    Every gated route refuses, names itself as the return path, and every public page serves.
+
+**It checks the pair — status *and* destination — per route**, because the defect was invisible to
+anything that checked only the status: the redirect was correct in kind and wrong in target, and **only the
+sameness across four different requests gave it away.** A check of one route would have passed.
+
+Mutation-tested by restoring the hardcoded literal:
+
+    exit with the bug present : 1     /admin/claims/  /admin/rights/  /admin/spotify/  /admin/archive/
+                                      next does not name this page
+    exit after restore        : 0
+
+### And the counts in the resume block went stale in the same round
+
+Round 127 verified "4 live checks" and "8 checks, 8 tested guards" — **both written before this check
+existed, both wrong the moment it did.** Corrected to five and nine in the same commit, which is the only
+reason the pattern did not repeat itself a fourth time. The four earlier instances were each found a round
+or more later.
+
+    fixed in the same commit   the count this round invalidated
+    fixed rounds later         the route count (97), the check count (125), the strays (126)
+
+**A count written in the same breath as the thing it counts is the only kind that cannot drift.**

@@ -57,6 +57,7 @@ run_check "links a reader can click"   bash scripts/check-links.sh   "$BASE" 120
 run_check "pages a crawler is told of" bash scripts/check-sitemap.sh "$BASE" 300
 run_check "assets a page must load"    bash scripts/check-assets.sh  "$BASE" 10
 run_check "the 404 a reader lands on" bash scripts/check-not-found.sh "$BASE"
+run_check "the auth boundary"       bash scripts/check-auth-boundary.sh "$BASE"
 
 echo ""
 if [ "$failed" -eq 0 ]; then
