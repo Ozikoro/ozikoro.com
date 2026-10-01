@@ -6922,3 +6922,57 @@ rather than a note.
 **Self-service remains the better answer and is not this.** What this does is remove the failure mode where
 one of eleven authors cannot get back into their own account without a developer — and it exists now rather
 than the day it is needed, which round 132 established as the right time to build an instrument.
+
+---
+
+## ROUND 161 — AUDITING THE SHAPE INSTEAD OF FIXING THE INSTANCE
+
+Round 160's lesson was that a fix in one file does not prevent the shape in the next, and it had just proved
+it by reproducing round 132's bug. So this round audited the shape.
+
+### Every `indexOf('--flag')` in the repository
+
+    scripts/create-account.ts             nameAt · passAt          guarded  (fixed round 132)
+    scripts/reset-password.ts             actorAt · passAt         guarded  (fixed round 160)
+    scripts/fetch-audio.ts                limitIndex               guarded
+    packages/ozikoro/src/ops/backup.ts    verifyIndex              guarded
+    packages/ozikoro/src/import/media-upload.ts       limitIndex   guarded
+    packages/db/src/import/learn-curriculum.ts        fileArg      guarded
+
+**Six files, six guarded.** The bug was never a repository-wide hazard; it was in the two files that had
+been written most recently, which is worse for a different reason — *the pattern was fresh in the author's
+hands both times.*
+
+### And the audit produced the distinction that makes it teachable
+
+Every one of the four correct usages guards *inside the expression that consumes the index*:
+
+    const limit = limitIndex >= 0 ? Number(args[limitIndex + 1]) : undefined;   // fetch-audio, media-upload
+    if (verifyIndex >= 0) { const dir = process.argv[verifyIndex + 1]; … }       // backup
+    const file = fileArg >= 0 ? process.argv[fileArg + 1] : undefined;           // learn-curriculum
+
+And the two that were wrong incremented the same sentinel **inside a comparison**, with the guard living
+somewhere else entirely:
+
+    argv.filter((a, i) => !a.startsWith('--') && i !== nameAt + 1 && i !== passAt + 1)
+
+**The condition for the bug is not `indexOf` plus `+ 1`.** It is `+ 1` on a value that may be `-1` **where
+the guard is not in the same expression** — because then nothing forces the author to think about the absent
+case, and `-1 + 1` is a valid index that silently addresses the wrong element.
+
+> **A sentinel is dangerous exactly when it is incremented away from the test that would have caught it.**
+> In a ternary the guard is unavoidable; in a predicate it is optional, and optional guards are the ones
+> that get dropped when a pattern is copied.
+
+### Why this closes the thread properly
+
+Round 160 could have fixed its bug and moved on. **Auditing the shape answered a question it raised and could
+not answer**: whether the mistake was an instance or a class. It is an instance, twice over, in two files —
+and the reason the other four were safe is now written down rather than assumed.
+
+    checked    six files, six guarded
+    learned    the hazard is `+ 1` away from its guard, not `indexOf` itself
+    fixed      nothing needed fixing; the audit is the finding
+
+**A clean audit that produces a rule is worth more than a fix that produces a diff**, and this file has now
+had both from the same mistake in consecutive rounds.
