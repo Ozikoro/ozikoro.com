@@ -30,3 +30,40 @@ export function safeRedirectPath(path: string): string {
   }
   return '/';
 }
+
+/**
+ * Did this request come from this site?
+ *
+ * GROUPED WITH THE REDIRECT CHECK FOR THE SAME REASON
+ *
+ * It lived in `apps/ozikoro/lib/access.ts` until round 49 and could not be tested there: that file
+ * imports `next/navigation`, which does not resolve outside a Next runtime, so a plain `node --test`
+ * cannot load it. It closed a real gap — four state-changing routes took cross-site form submissions
+ * while four others refused them — and a guard that cannot be tested is a guard that disappears.
+ *
+ * WHAT IT DOES AND WHAT IT DELIBERATELY DOES NOT
+ *
+ * `Origin` and `Host` are compared as whole authorities, so `https://evil.example` is refused and
+ * `https://ozikoro.com` with any port mismatch is refused.
+ *
+ * A MISSING `Origin` IS ALLOWED, and that is a decision rather than an oversight. Browsers send
+ * `Origin` on cross-site requests, which is the case this guards; they do not send it on same-origin
+ * navigations, and non-browser clients (curl, a scheduler, a health check) send nothing at all.
+ * Refusing those would break legitimate use to defend against a request the browser would not make.
+ *
+ * The session cookie is `SameSite=Lax` as well, so a cross-site POST arrives without credentials
+ * anyway. This is the second lock, not the only one.
+ */
+export function sameOrigin(request: Request): boolean {
+  const origin = request.headers.get('origin');
+  if (!origin) return true;
+
+  const host = request.headers.get('host');
+  if (!host) return false;
+
+  try {
+    return new URL(origin).host === host;
+  } catch {
+    return false;
+  }
+}

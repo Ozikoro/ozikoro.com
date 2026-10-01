@@ -9,8 +9,18 @@
  * row or calls Spotify before it has passed.
  */
 import { getDb } from '@ozituma/db/client';
-import { can, capabilitiesFor, safeRedirectPath,
+import { can, capabilitiesFor, sameOrigin, safeRedirectPath,
 } from '@ozikoro/platform';
+
+/*
+ * Re-exported so the route files keep importing their guards from one place.
+ *
+ * The IMPLEMENTATION lives in `@ozikoro/platform` — moved there in round 49 because this file imports
+ * `next/navigation`, which does not resolve in a plain `node --test`, so a guard defined here could
+ * not be tested. Re-exporting keeps `@/lib/access` as the single import site for route-level guards
+ * while the logic itself sits where the tests are.
+ */
+export { sameOrigin };
 import { redirect } from 'next/navigation';
 import { getCurrentAccount, type CurrentAccount } from './session';
 import { isAdmin } from '@ozituma/db/accounts';
@@ -74,32 +84,6 @@ export async function requireAdministrator(
   return { ok: true, account: current };
 }
 
-/**
- * Whether a state-changing request came from this site.
- *
- * This is defence in depth, not the primary CSRF defence. The primary one is the session
- * cookie's `SameSite=Lax`, which already stops a cross-site POST from carrying the session at
- * all; and on the callback the primary one is the single-use, account-bound OAuth state. This
- * check catches the case those two do not: a browser that does not enforce SameSite, or a
- * future change that relaxes it.
- *
- * A missing `Origin` is allowed rather than refused. Some legitimate clients omit it, and the
- * header being absent is not evidence of a cross-site request — refusing on absence would
- * break real administrators to defend against a case the cookie already covers.
- */
-export function sameOrigin(request: Request): boolean {
-  const origin = request.headers.get('origin');
-  if (!origin) return true;
-
-  const host = request.headers.get('host');
-  if (!host) return false;
-
-  try {
-    return new URL(origin).host === host;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * A capability check, enforced on the server.

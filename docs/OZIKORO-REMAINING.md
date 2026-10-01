@@ -1870,3 +1870,56 @@ would do if the code were *wrong*, rather than by reading it and agreeing with i
   module, so it is the next one for this file.
 * A root script `test:ozikoro-app` exists but is not yet part of whatever runs everything; there is
   still no CI.
+
+---
+
+## ROUND 49 — THE ORIGIN GUARD IS TESTED, AND I NEARLY DELETED THE IMPORTS DOING IT
+
+Round 48 left the origin guard (round 42) as the last untested security fix. It could not be tested
+where it lived: `apps/ozikoro/lib/access.ts` imports `next/navigation`, which does not resolve outside
+a Next runtime, so `node --test` cannot load the file at all. Verified, not assumed:
+
+    $ node --input-type=module -e "await import('./lib/access.ts')"
+    IMPORT_FAILED Cannot find module '…/node_modules/next/navigation'
+
+So `sameOrigin` moved to `@ozikoro/platform/redirects.ts`, beside the redirect check and for the same
+reason, and `access.ts` re-exports it so the six route files that import it from there are unchanged.
+
+### Verified after moving security code
+
+    cross-origin (Origin: https://evil.example)   403   still refused, all four routes
+    same-origin  (Origin: the site)               303   still allowed
+
+    redirect suite: 19 -> 27 checks, all passing
+
+The new checks pin the behaviour that was previously only described in a comment:
+
+    matching origin and host        allowed
+    different host                  refused
+    a subdomain of the attacker     refused      ozikoro.com.evil.example
+    port mismatch                   refused
+    malformed origin                refused
+    origin with no host header      refused
+    MISSING origin                  allowed      deliberate — see below
+    scheme differs, host matches    allowed      documented, not accidental
+
+Two of those are decisions rather than accidents, and are now pinned so nobody "fixes" them:
+
+* **A missing `Origin` is allowed.** Browsers send it on the cross-site requests this guards; they do
+  not send it on same-origin navigations, and non-browser clients (curl, a health check, a scheduler)
+  send nothing at all. Refusing those would break legitimate use to defend against a request a browser
+  would not make.
+* **The scheme is not compared.** `http://ozikoro.com` and `https://ozikoro.com` are the same origin to
+  this function. Acceptable because the site is https-only behind HSTS and an attacker cannot set the
+  header on a victim's request — but recorded, because it is the kind of property somebody later
+  assumes the opposite of.
+
+### My edit was wrong and the assertion caught it before the file was written
+
+The script that removed the old definition used a doc-comment pattern that matched far **above** the
+function — the whole import block sat inside the match. Had it written, `access.ts` would have lost its
+imports. An assertion placed immediately before `write_text` — checking that the text being removed did
+not contain `@ozikoro/platform` — stopped it, and the file was untouched.
+
+The retry located the function by name and asserted the same thing again. **The assertion was in the
+right place, which is the only reason this round did not end in a broken application.**
