@@ -3095,3 +3095,43 @@ The 40 broken in-body links still need the redirect mechanism, and the mechanism
 being safe to build. **The first step is not code — it is establishing what that row is for.** A question
 for the owner, and a good example of why the handler should be built deliberately rather than next to a
 table nobody has read.
+
+---
+
+## ROUND 76 — THE AUTHOR LINKS MAP EXACTLY ONTO DATA THAT ALREADY EXISTS
+
+Round 74 found two systematic families among the 40 broken in-body links and round 75 found the
+redirect table blocked on a question for the owner. This round established that **one of the two
+families needs no redirect and no owner question at all.**
+
+The broken author links, against the contributor slugs already in the database:
+
+    /author/nze/                     ->  contributor slug `nze`                     (Idenze Ezeme)
+    /author/chizobem-chinedu-opiah/  ->  `chizobem-chinedu-opiah`                    (Chizobem Chinedu Opiah)
+    /author/chuka/                   ->  `chuka`                                    (Chuka Odike)
+    /author/ossai/                   ->  `ossai`                                    (Chukwunwike Ossai)
+    /author/aka/                     ->  `aka`                                      (Akachukwu Vitalis)
+
+**Every one matches exactly.** WordPress served `/author/<slug>/` and the import kept each contributor's
+`slug`, so those addresses can be served directly by a route — `/author/[slug]/` rendering that
+contributor's articles — with no redirect table involved and nothing to ask the owner about.
+
+That accounts for roughly **25 of the 40** broken targets, and it is the cleaner of the two fixes: a
+route that serves the address, rather than a redirect that moves it.
+
+### The category family is genuinely different
+
+`/historical-studies/`, `/biography/`, `/cultural-heritage/`, `/ethnohistory/`, `/discography/` are
+**single-segment** paths, which means they collide with `app/[slug]/` — the article route. The router
+cannot tell a category from an article by shape, so this family does need the lookup-then-redirect
+mechanism, and that mechanism is the one blocked on round 75's question about the `/` → `/home/` row.
+
+### Not done, and precisely why
+
+The `/author/[slug]/` route is scoped and unbuilt. It needs a listing by contributor, and I ran out of
+room to confirm whether the existing article listing takes an author filter or whether it needs one
+adding. **That check is the first step, and it is one grep.** Not a guess: recorded as the specific
+unknown.
+
+I would rather leave it specified than half-built. Round 58 is the standing reminder that a rushed fix
+on a published record cost an Igbo character and a broken invariant.
