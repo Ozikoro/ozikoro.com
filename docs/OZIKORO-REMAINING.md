@@ -2494,3 +2494,48 @@ Request the same path with the middleware disabled, and see whether the page ren
 middleware is the cause; if it does not, the refusal is in Next's own matching. **One experiment, one
 answer** — and no change made to data or route until it is run, because the last two attempts to fix
 this by changing things are the two mistakes recorded in this file.
+
+---
+
+## ROUND 61 — THE MIDDLEWARE IS EXONERATED, AND THE BUG IS EXACTLY ONE RECORD
+
+### The experiment round 60 named, run
+
+Disabled the middleware, restarted, requested the same path:
+
+    WITHOUT middleware:  the unreachable article (encoded)  ->  404
+                         the control article                ->  200
+
+**The middleware is not the cause.** It was restored immediately and byte-for-byte (3,171 bytes, same
+timestamp). Its logic also passes slashed paths straight through — but reasoning about it was not the
+same as testing it, and round 59's lesson was that reasoning is where this keeps going wrong.
+
+### Where that leaves the diagnosis
+
+Round 60's candidate list is now exhausted except one. Established, each by experiment:
+
+    the URL matches the route pattern          two escaped letters of a working URL both return 200
+    Next decodes percent-encoding correctly    same two experiments
+    the middleware is not refusing it          disabled, still 404
+    the page is not throwing                   no error in the log; answered in 87ms vs 160ms for a page
+    the slug is in the database                queried directly
+    the query returns it                       getArticleBySlug finds it for BOTH spellings
+
+What remains, and it is now a **hypothesis without a control**: that Next does not dispatch a dynamic
+segment which **decodes to a non-ASCII character**, whereas it dispatches one that decodes to ASCII.
+That fits every observation — `%74`→`t` works, `%c7%b9`→`ǹ` does not — but **I have no second case to
+test it against**, so it stays labelled a hypothesis.
+
+### Why there is no second case
+
+    article slugs containing anything outside [a-z0-9-]:  1  — and it is this one
+    label slugs:                                          1  — `omumu_uche`, an underscore, which works
+
+**The bug affects exactly one published record out of 1,057.** That is worth knowing on its own: it
+bounds the impact, and it means any future investigation has one specimen rather than a population.
+
+### The experiment that would settle it
+
+Insert a throwaway article whose slug is a plain ASCII string, request it, then change only its slug to
+one containing a non-ASCII character and request that. One record, one variable, two requests. **Not run
+here** — it writes to the database and this session has limited context left to undo it safely.
