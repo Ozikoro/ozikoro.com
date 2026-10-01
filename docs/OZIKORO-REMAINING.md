@@ -6869,3 +6869,56 @@ distinction round 132 drew when it built `account:create` twenty-seven rounds be
 **Two rounds have now called a tool blocked because the thing it operates on does not exist yet**, and both
 times the tool could have been built and tested against throwaways. **The rule is narrower than I applied
 it: do not invent content, and do build instruments.**
+
+---
+
+## ROUND 160 — THE RESET CLI IS BUILT AND PROVEN, AND I REPRODUCED ROUND 132'S BUG IN IT
+
+Round 159 removed the false blocker; this round built the thing and proved it with throwaways on both sides.
+
+### The proof
+
+    created 1562  zztest-reset-actor@example.org   admin        the actor
+    created 1563  zztest-reset-target@example.org  contributor  the target
+
+    npm run account:reset -- zztest-reset-target@example.org --actor zztest-reset-actor@example.org
+      Password reset for zztest-reset-target@example.org (id 1563), attributed to zztest-reset-actor@…
+
+    AUTHENTICATED=yes        the CLI-issued password works against the real authenticateAccount
+
+    ACCOUNTS_DELETED=2   ACCOUNTS_REMAINING=0   No test residue. 102 table(s) checked, every one clean.
+
+**A contributor who forgets their password can now be unlocked by an operator in one command, with the
+change attributed to a real actor** — which is what `setPasswordAsAdmin`'s `actorId` parameter exists for and
+what no path in this application previously provided.
+
+It refuses four ways, verified: no arguments, no `--actor`, a malformed actor address, and a target that
+does not exist — the last of which names `npm run account:create` in the message.
+
+### And I wrote round 132's bug again, eight rounds after fixing it
+
+    const positional = argv.filter((a, i) =>
+      !a.startsWith('--') && i !== actorAt + 1 && i !== passAt + 1);
+
+**`passAt` is `-1` when `--password` is absent, so `passAt + 1` is `0`** — a valid index — and the first
+argument was silently discarded on every call that omitted a password, which is the common case. The target
+email vanished and the command printed its usage text instead of doing anything.
+
+**Round 132 fixed exactly this in `create-account.ts`, with a comment naming it.** Round 160 copied the
+pattern and did not copy the guard. The fix is `passAt >= 0 && …`, and the guard now carries the story
+rather than a note.
+
+> **This is round 122's lesson one level up.** Round 122 found the `000` retry missing from a checker written
+> twenty rounds after the lesson; round 123 found it missing from a third. **A fix in one file does not
+> prevent the shape in the next one**, and the only thing that travels is a guard that cannot be written
+> wrong — which is why both files now carry the reason beside the code rather than only the correction.
+
+### What this closes, and what it does not
+
+    built and proven   an operator can reset a password, attributed, in one command
+    NOT built          self-service recovery: no `forgot`, no `reset`, no admin-issued link
+    NOT needed yet     an actor, because the eleven addresses have not arrived
+
+**Self-service remains the better answer and is not this.** What this does is remove the failure mode where
+one of eleven authors cannot get back into their own account without a developer — and it exists now rather
+than the day it is needed, which round 132 established as the right time to build an instrument.
