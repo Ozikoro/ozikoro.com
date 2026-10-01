@@ -45,10 +45,25 @@ while [ "${#queue[@]}" -gt 0 ] && [ "$checked" -lt "$MAX_PAGES" ]; do
 
   body=$(curl -s --max-time 60 "$BASE$path" 2>/dev/null) || continue
   code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$BASE$path" 2>/dev/null)
+
+  # `000` is curl reporting NO RESPONSE — a dropped connection or a timeout — not a broken link.
+  #
+  # Round 70 established this for check-sitemap.sh, where 31 of 14,667 paths came back 000 and every one
+  # returned 200 when re-requested. Round 122 carried the retry into check-assets.sh. This is the THIRD
+  # checker and the OLDEST — written in round 57, thirteen rounds before the lesson existed — so it is the
+  # one where a single dropped request is most likely to have been read as a broken page.
+  if [ "$code" = "000" ]; then
+    sleep 1
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$BASE$path" 2>/dev/null)
+  fi
   checked=$((checked + 1))
 
   if [ "$code" != "200" ]; then
-    printf '  %-6s %s\n' "$code" "$path"
+    if [ "$code" = "000" ]; then
+      printf '  %-22s %s\n' "NO RESPONSE (retried)" "$path"
+    else
+      printf '  %-22s %s\n' "$code" "$path"
+    fi
     broken=$((broken + 1))
     continue
   fi

@@ -5312,3 +5312,39 @@ nothing said so.
 
 The mitigation is not memory. It is that the two checkers now have the same shape for the same input, and
 that this entry names the pattern so the third one gets it at the time rather than twenty rounds later.
+
+---
+
+## ROUND 123 — THE THIRD CHECKER, AND THE OLDEST ONE
+
+Round 122 found that `check-assets.sh` had no `000` retry because the lesson from `check-sitemap.sh` did
+not travel. It closed with *"this entry names the pattern so the third one gets it at the time rather than
+twenty rounds later."*
+
+**The third one already existed.** `check-links.sh` had no `000` handling either — and it is the **oldest
+checker in the project**, written in round 57, thirteen rounds before the retry lesson was learned in
+round 70. So it had the longest exposure of the three, walking 120 pages per run through a code path that
+turns one dropped connection into a reported broken link.
+
+### All three now behave the same for the same input
+
+    check-sitemap.sh   retries 000 once, labels anything still failing NO RESPONSE   (round 70)
+    check-assets.sh    same                                                          (round 122)
+    check-links.sh     same                                                          (round 123)
+
+    pages checked: 120
+    Every internal link resolved (120 pages).        exit 0
+
+### And a correction to round 122's own closing line
+
+It said naming the pattern would mean *"the third one gets it at the time rather than twenty rounds
+later."* **That is the right rule and the wrong tense**: the third one was already written, and naming the
+pattern did nothing for it. A lesson recorded in a handover reaches **future** tools; it does nothing for
+the tools already on disk.
+
+    naming a pattern   prevents the next recurrence
+    auditing for it    finds the ones already there
+
+Round 122 did the first and believed it had done the second. **The audit is what found this**, one grep
+across the three scripts — the same shape as round 92's `git grep` reading the wrong set, in a friendlier
+direction: I looked in the file I was editing rather than in all the files that share its job.
