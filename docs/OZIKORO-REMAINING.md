@@ -4187,3 +4187,56 @@ hydrates.
     open      notifications
     open      backup scheduling and off-machine storage
     blocked   deployment (needs S3_BUCKET and a server Postgres)
+
+---
+
+## ROUND 101 — THE POLICY WAS ALREADY HARDENED; MY CHECK SAID OTHERWISE
+
+Round 100 measured the nonce problem. This round looked for cheaper CSP hardening that needs no nonce — and
+the check said four directives were missing:
+
+    base-uri         ABSENT
+    object-src       ABSENT
+    frame-ancestors  ABSENT
+    form-action      ABSENT
+
+**All four are present.** The read of the actual policy, rather than the grep for it:
+
+    default-src 'self'
+    script-src  'self' 'unsafe-inline'        (+ 'unsafe-eval' in development only)
+    style-src   'self' 'unsafe-inline' https://fonts.googleapis.com
+    font-src    'self' https://fonts.gstatic.com
+    img-src     'self' data:
+    media-src   'self'
+    connect-src 'self'
+    frame-ancestors 'none'
+    base-uri        'self'
+    form-action     'self'
+    object-src      'none'
+
+`default-src`, `frame-ancestors`, `base-uri`, `form-action` and `object-src` are all locked down, `img-src`
+and `connect-src` are narrow, and the only permissive entries are the two `'unsafe-inline'` values that
+round 100 measured the reason for.
+
+### My check was wrong, and in the same way as four rounds before it
+
+The grep looked for `"'$d"` — a quote immediately before the directive name — while the policy writes
+`"frame-ancestors 'none'":` the directive **followed** by a quote, not preceded by one. The pattern could
+never have matched, so "ABSENT" was guaranteed regardless of the file's contents.
+
+    round 73   pattern matched the wrong spelling       -> reported zero dead links
+    round 92   tool read the index, not the tree        -> missed 214 files
+    round 93   ignore rules covered every dir but one   -> 190MB one command from history
+    round 95   compared against another app's file      -> invented 58 missing variables
+    round 98   counted source, not behaviour            -> nearly "fixed" a correct number
+    round 101  pattern could never match                -> four directives falsely reported missing
+
+**Six instances, one error: checking something adjacent to the answer and reporting it as the answer.** In
+this case the pattern was not even capable of success, which is the most dangerous version — it fails the
+same way on every input, and an "all missing" result looks like a finding rather than a bug.
+
+### What this closes
+
+**Item 10's header work is complete and was already good.** The remaining security item is the nonce, at
+the measured cost of **47 inline scripts per page**, and nothing else in the policy needs work. The honest
+state is one known, reasoned trade-off rather than an unfinished list.
