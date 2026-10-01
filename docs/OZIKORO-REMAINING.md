@@ -1689,3 +1689,59 @@ counts were wrong — I miscounted twice — while the edits themselves were cor
 empirical test that followed. **Counting occurrences is a poor proxy for "the change landed"**; the
 behavioural test is the real one. Worth remembering that the passing test, not the failed count, was
 what established the fix.
+
+---
+
+## ROUND 45 — THREE SURFACES CHECKED, NO NEW VULNERABILITIES
+
+Continuing the attack-driven work from rounds 41–44, three more surfaces were examined. **All three
+were sound**, and this is recorded because "looked and it was fine" and "did not look" are different
+things.
+
+### 1. The editorial endpoint fails closed
+
+`/api/admin/archive` resolves its permission from a **single fixed capability**, `edit_entity`, applied
+to every action (`attach-place`, `attach-source`, `detach-entity`, `detach-source`, `save-facets`).
+There is no ternary and therefore **no permissive default** — an action added later without a mapping
+inherits the same check rather than falling through to something weaker. That is the right shape, and
+worth contrasting with `/api/research`, where the capability is derived from the destination state and
+had to be reasoned about.
+
+### 2. `updateMemberProfile` has no ownership check — but is unreachable
+
+The function takes an `accountId` from its caller and does not verify it belongs to the session. **No
+route calls it** — there is no profile-editing UI yet — so there is no vulnerability today. It is a
+latent trap: whoever builds that screen must pass the session's account id and never a form field.
+Recorded rather than fixed, because adding a check to an uncalled function would be guessing at an
+interface that does not exist.
+
+### 3. The capability grants are least-privilege and coherent
+
+    edit_entity          admin, editor
+    manage_media_rights  admin                        (rights are a legal matter, not editorial)
+    manage_contributors  admin, editor
+    review_queue         admin, editor
+    publish              admin, editor
+    expert_review        expert_reviewer              (only)
+    submit_work          independent_researcher, researcher, student, teacher
+
+`community_knowledge_holder` holds `contribute_media`, `contribute_oral_history`, `bookmark`,
+`collection`, `read` — and **not** `submit_work`. On first reading that looked like an under-grant, and
+it is not: the role is scoped to contributing oral history and media, which is exactly what the plan
+asks of it and exactly what the oral-history schema was built for. `moderator` holds `moderate`,
+`review_reports`, `read`.
+
+**The grants are deliberate and defensible.** The check that produced them:
+`select capability from ozikoro_role_capability where role = ?`.
+
+### A pattern worth naming after five security rounds
+
+    round 41  open redirect                    REAL, fixed
+    round 42  CSRF                             mitigated by SameSite; defence in depth added
+    round 43  sign-in brute force              REAL, fixed
+    round 44  object-level authorization       REAL, fixed
+    round 45  three surfaces                   SOUND
+
+Four of five rounds found something; the fifth did not, and saying so is part of the work. The two
+rounds that looked like findings but were not — 42 and the first probe in 43 — were both caught by
+checking the mechanism (the cookie attribute, the response header) **before** writing the conclusion.
