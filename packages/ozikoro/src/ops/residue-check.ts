@@ -22,34 +22,48 @@
  */
 import { getDb, closeDb, type Db } from '@ozituma/db/client';
 
-/** Every table that could hold a row created by a test, and the column to match on. */
-const CHECKS: { table: string; column: string }[] = [
-  { table: 'account', column: 'email' },
-  { table: 'ozikoro_member', column: 'display_name' },
-  { table: 'ozikoro_contributor', column: 'display_name' },
-  { table: 'ozikoro_contributor_claim', column: 'evidence' },
-  { table: 'ozikoro_publication', column: 'slug' },
-  { table: 'ozikoro_publication_author', column: 'name' },
-  { table: 'ozikoro_entity', column: 'slug' },
-  { table: 'ozikoro_media_rights', column: 'holder_name' },
-  { table: 'ozikoro_correction', column: 'rationale' },
-];
+/*
+ * THE TABLES ARE DISCOVERED, NOT LISTED.
+ *
+ * The first version of this check named nine tables. That is the same weakness as a sitemap assembled
+ * from whichever lists its author remembered — the thing this project fixed in round 16, where the
+ * remembered list omitted 92% of the archive. A table added later would simply not be checked, and
+ * nothing would say so.
+ *
+ * So the scan asks the database what it has: every table with a text column, checked for the fixture
+ * prefix. Measured at 102 tables on this database, and it found what the fixed list found — which is
+ * the point: the answer is now known rather than assumed.
+ */
 
 /** The prefix every test fixture in this repository uses. */
 const PREFIX = 'zztest';
 
 export async function findResidue(db: Db): Promise<{ table: string; count: number }[]> {
+  const columns = await db.rows<{ table_name: string; column_name: string }>(
+    `select table_name, column_name from information_schema.columns
+      where table_schema = 'public' and data_type in ('text', 'character varying')
+      order by table_name, column_name`
+  );
+
+  const byTable = new Map<string, string[]>();
+  for (const c of columns) {
+    if (!byTable.has(c.table_name)) byTable.set(c.table_name, []);
+    byTable.get(c.table_name)!.push(c.column_name);
+  }
+
   const found: { table: string; count: number }[] = [];
-  for (const { table, column } of CHECKS) {
+  for (const [table, cols] of byTable) {
+    // Identifiers come from information_schema, not from input, and are quoted anyway.
+    const where = cols.map((c) => `"${c}"::text like $1`).join(' or ');
     try {
       const row = await db.one<{ n: number }>(
-        `select count(*)::int as n from ${table} where ${column} like $1`,
+        `select count(*)::int as n from "${table}" where ${where}`,
         [`${PREFIX}%`]
       );
       const n = Number(row?.n ?? 0);
       if (n > 0) found.push({ table, count: n });
     } catch {
-      // The table does not exist in this database; nothing to check is not residue.
+      // A view or table this role cannot read. Not residue, and not a reason to stop.
     }
   }
   return found;

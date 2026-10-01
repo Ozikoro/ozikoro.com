@@ -2174,3 +2174,36 @@ one place: a string literal in `test-search.ts` **testing that the diacritic fol
 folding example, not a fabricated record, and it appears nowhere in the database.
 
 `listResearchers` now returns **0**, the directory is empty, and the two sitemap entries are gone.
+
+---
+
+## ROUND 55 — THE RESIDUE CHECK NO LONGER HAS A LIST TO REMEMBER
+
+Round 54's check named **nine tables**. That is the same weakness as a sitemap assembled from whichever
+lists its author remembered — the thing fixed in round 16, where the remembered list omitted 92% of the
+archive. **A table added later would simply not be checked, and nothing would say so.**
+
+It now asks the database what it has: every table with a text column, discovered from
+`information_schema.columns`, checked for the fixture prefix. **102 tables** on this database.
+
+### Verified, including in a table the old list never named
+
+    clean database                       -> "No test residue"                         exit 0
+    probe planted in account             -> account 1 row(s)                            exit 1
+    probe planted in ozikoro_audit       -> account 1, ozikoro_audit 1 row(s)           exit 1
+                                            ^ a table the fixed list DID NOT name
+
+That last line is the point. The old check would have reported the database clean while `ozikoro_audit`
+held a fixture row. The dynamic scan found it without being told where to look.
+
+    probe removed                        -> "No test residue"                           exit 0
+
+### Why this shape keeps being the right one
+
+    round 16   sitemap built from remembered lists omitted 11,056 labels and 3,488 media pages
+    round 33   the applications themselves were not in version control at all
+    round 54   a fixed list of nine tables missed ozikoro_audit
+    round 55   the list is gone; the database is asked
+
+Three separate failures, one cause: **a thing that has to be remembered will eventually not be.** The
+remedy each time was to make the system discover its own inputs rather than be told them.
