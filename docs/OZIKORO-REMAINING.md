@@ -5531,3 +5531,55 @@ is a bridge rather than a shared connection.
 **One database and one account table hold for the two applications that use the database.** The third
 connects to them over HTTP, and whether that satisfies *"the three are all connected"* is a question about
 the intended architecture rather than a measurable defect — recorded as the distinction it is.
+
+---
+
+## ROUND 129 — EVERY ADMIN ROUTE SENT YOU TO THE SPOTIFY PAGE
+
+Round 128 established there are no accounts. Rather than invent one, this round checked what that means for
+the **auth boundary** — and the boundary held, while the destination behind it was wrong.
+
+### The boundary is correct
+
+    /admin/  /admin/claims/  /admin/rights/  /admin/spotify/   307 -> /signin
+    /claims/  /reviews/  /submit/                              307 -> /signin
+    /  /archive/  /about/  /documents/                         200
+
+Every gated route refuses a request with no session, and every public page still serves. **With zero
+accounts, the platform correctly lets nobody in.**
+
+### But all four admin routes carried the same return path
+
+    /admin/           307 -> /signin?…&next=%2Fadmin%2Fspotify
+    /admin/claims/    307 -> /signin?…&next=%2Fadmin%2Fspotify
+    /admin/rights/    307 -> /signin?…&next=%2Fadmin%2Fspotify
+    /admin/spotify/   307 -> /signin?…&next=%2Fadmin%2Fspotify
+
+**An editor who asked for `/admin/rights/` and signed in was sent to `/admin/spotify/`.** The cause, at
+`app/admin/layout.tsx:35`, is a hardcoded literal — and `/admin/spotify` is the **last entry in that same
+layout's own nav**, which is what a copy-paste looks like. The general helper
+`requireCapabilityOrRedirect(capability, returnTo)` already takes and encodes a return path; this call site
+simply did not use it.
+
+### Fixed, using machinery that already existed
+
+The middleware sets `x-pathname` for exactly this purpose and the root layout already reads it. The admin
+layout now does the same:
+
+    /admin/            307 -> /signin?…&next=%2Fadmin%2F
+    /admin/claims/     307 -> /signin?…&next=%2Fadmin%2Fclaims%2F
+    /admin/rights/     307 -> /signin?…&next=%2Fadmin%2Frights%2F
+    /admin/spotify/    307 -> /signin?…&next=%2Fadmin%2Fspotify%2F
+    /admin/archive/    307 -> /signin?…&next=%2Fadmin%2Farchive%2F
+
+Public pages unaffected; `/claims/` still gated. All 20 offline steps pass.
+
+### Why this was found by looking for something else
+
+I was checking whether the auth boundary holds with no accounts, and the boundary **does** hold — a
+question that returns yes or no. **The defect was in the URL printed beside the answer**, in a field I was
+reading past because it was not the thing I was testing.
+
+> **A measurement can be correct about its subject and wrong about everything next to it.** The four
+> redirects agreed with each other and with nothing else, and it was the sameness — not any single value —
+> that gave it away.

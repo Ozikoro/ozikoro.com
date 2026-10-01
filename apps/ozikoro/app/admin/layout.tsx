@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import { isAdmin } from '@ozituma/db/accounts';
 import { getDb } from '@ozituma/db/client';
@@ -32,7 +33,22 @@ const ROLE_LABEL: Record<string, string> = {
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const current = await getCurrentAccount();
-  if (!current) redirect('/signin?error=Sign+in+to+reach+the+administration.&next=%2Fadmin%2Fspotify');
+  /*
+   * The return path is the page the reader ACTUALLY asked for, not a fixed one.
+   *
+   * Round 129 measured all four admin routes redirecting with `next=%2Fadmin%2Fspotify` — the last entry
+   * in this layout's own nav, so it reads as a copy-paste. An editor who asked for `/admin/rights/` and
+   * signed in was sent to `/admin/spotify/` instead: the guard was right and the destination was wrong.
+   *
+   * The middleware already sets `x-pathname` for exactly this, and the root layout reads it the same way.
+   */
+  const requestedPath = (await headers()).get('x-pathname') ?? '/admin/';
+  if (!current) {
+    redirect(
+      `/signin?error=${encodeURIComponent('Sign in to reach the administration.')}` +
+        `&next=${encodeURIComponent(requestedPath)}`
+    );
+  }
 
   const { account } = current;
   /*
