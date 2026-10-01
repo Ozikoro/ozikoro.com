@@ -1485,3 +1485,55 @@ fatal in ways that do not announce themselves.
 * **No CI runs this.** It passes because it was run by hand.
 * `DATABASE_URL` pointing at server Postgres has never been exercised — every test in this project has
   run against PGlite.
+
+---
+
+## ROUND 41 — AN OPEN REDIRECT, FOUND AND CLOSED
+
+### What it was
+
+`redirectTo` in `lib/access.ts` put its `path` argument straight into a `Location` header with **no
+validation at all**:
+
+    export function redirectTo(path, params = {}) {
+      return new Response(null, { status: 303, headers: { Location: `${path}?${search}` } });
+    }
+
+Several form endpoints pass a **user-controlled `returnTo` field** to it — `/api/research`,
+`/api/claims`, `/api/admin/archive`. So an authenticated POST carrying
+`returnTo=https://evil.example/phish` answered `303` with that absolute URL, letting a trusted domain
+forward a reader to an attacker's page. That is the standard shape of a phishing link that appears to
+come from the archive.
+
+The auth route already guarded its own `?next=` through a local `safeNext`, which is why the
+unauthenticated probe looked harmless — it routed the hostile value into `next=`, where it was checked
+later. **The other endpoints had no such guard.**
+
+### The fix
+
+Validation moved to `safeRedirectPath`, inside `redirectTo`, so **every redirect goes through it**.
+Patching each endpoint would have left the next one written to be unprotected, which is the same
+reasoning that puts the capability check in one place elsewhere in this codebase.
+
+It refuses three things, and the second is the one a naive check misses:
+
+* `https://evil.example` — not a path.
+* `//evil.example` — **protocol-relative, absolute despite beginning with a slash.**
+* `/\\evil.example` — some browsers normalise a backslash to a slash and would then read it as
+  protocol-relative.
+
+### Verified with a real authenticated session
+
+Signed in as an administrator, then POSTed each case and read the `Location` header:
+
+    returnTo=https://evil.example/phish   ->  Location: /?error=…          refused
+    returnTo=//evil.example/phish         ->  Location: /?error=…          refused
+    returnTo=/admin/claims/               ->  Location: /admin/claims/?…   still works
+
+All three correct. Test account removed, **0 residue**.
+
+### Still to consider
+
+* The same pattern should be reviewed in the Ozituma application (`apps/web`), which is outside this
+  objective and was not examined.
+* A nonce-based CSP remains outstanding and is the larger remaining security item.
