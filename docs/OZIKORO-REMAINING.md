@@ -6308,3 +6308,55 @@ negative result. This round asked it of a **blocker**, and the blocker turned ou
 welded together: one true and unavoidable (no PostGIS) and one never checked (no coordinates). **The
 unchecked one is the one that matters, and it had been repeated in this file since round 7 without being
 measured.**
+
+---
+
+## ROUND 148 — ITEM 9 IS NOT "NOT STARTED". THE PLUMBING IS BUILT AND ALREADY AVAILABLE TO OZIKORO.
+
+This file has carried *"the AI research assistant — not started; needs a provider credential"* since the
+early status tables. Two of those three clauses are wrong.
+
+### What exists
+
+    packages/core/src/ai/gateway.ts        a full provider-agnostic gateway:
+                                             AiMessage · AiRequest · AiResponse · AiUsage · AiFailureKind
+                                             AiProvider · GatewayOptions · UsageEvent · AiError
+                                             AND a contract-test harness — providerContractCases(),
+                                             runProviderContract() — for validating any provider against it
+    apps/learn/lib/ai-provider.ts          a working provider implementation
+    apps/learn/app/api/learn/tutor/route.ts a live tutor route using it
+    learn_ai_conversation / learn_ai_message   tables, both 0 rows
+    .env.example:129                       # HF_TOKEN= — documented
+
+And critically, for Ozikoro specifically:
+
+    @ozituma/core is a dependency of apps/ozikoro    version "*"
+    the gateway reads NO environment variables        credentials are injected through AiProvider
+
+### So the accurate statement is
+
+    said   not started; needs a provider credential
+    true   a shared, contract-tested gateway exists and is ALREADY IMPORTABLE by this app; a working
+           provider implementation exists next door in the Learn app; the credential is documented and
+           injectable. What does not exist is the Ozikoro assistant itself — its prompts, its retrieval
+           over the archive, and its citation surface.
+
+**The plumbing is built. The product is not.** Those are different amounts of work and different kinds of
+work, and the difference decides who can do it: wiring and prompts are engineering; **deciding what the
+assistant is allowed to assert, from which records, with which citation format, is editorial.**
+
+### And the hard part was never the credential
+
+The objective's constraint is *"the grounded, cited AI research assistant"* and *"never invent a citation."*
+A gateway that can call a model is the easy half. **The hard half is grounding an answer in 1,051 records
+and 3,488 media items and citing them truthfully** — which is the same problem this file has been solving
+by hand since round 1, and it is not a credential problem at all.
+
+**So item 9's real blocker is a design decision about grounding, not an API key** — and the gateway's
+existence means that decision can be answered with an experiment rather than a purchase.
+
+### The reversal, on a second blocker, and it moved again
+
+Round 147 applied it to item 7 and found the blocker was data, not PostGIS. This round applied it to item 9
+and found the blocker was **design, not a credential**. **Two blockers in two rounds, both mis-stated in the
+same way** — an unmeasured dependency stated as the reason, and the real reason sitting one query away.
