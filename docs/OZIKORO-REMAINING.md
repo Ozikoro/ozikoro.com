@@ -1822,3 +1822,51 @@ it begin with a slash" — the check that looks correct and is not.
   a refactor would break silently.
 * Both live in `apps/ozikoro`, which has no test harness. **Giving that application a test script is
   the prerequisite for both**, and is the next thing to do here.
+
+---
+
+## ROUND 48 — THE APPLICATION HAS A TEST HARNESS
+
+Round 47 established that `apps/ozikoro` had none — no test files, no test script — which is why two
+security fixes in it, the origin guard (round 42) and the sign-in rate limit (round 43), were exercised
+only by hand. That is now fixed.
+
+    npm -w @ozikoro/site run test      # or: npm run test:ozikoro-app
+    ℹ tests 7  ℹ pass 7  ℹ fail 0
+
+`lib/rate-limit.test.ts` covers the limiter and, more importantly, the property the sign-in fix depends
+on. `rate-limit.ts` has no imports at all, so it tests in isolation without a database.
+
+### The test that was passing for the wrong reason, caught before it mattered
+
+The rotation test was first written as five calls to the **account key alone**. It passed, and it proved
+the account key throttles — but its name claimed it proved that *rotating the client key* does not help,
+and it never rotated anything.
+
+That distinction is the entire security property. Written that way, the test would still pass if the
+account key were accidentally client-scoped — which is precisely the regression it exists to catch.
+
+It now models what the route actually does — permit only when **both** keys allow — while rotating the
+client key every iteration:
+
+    for i in 0..4:
+      byClient  = rateLimit(`signin-client:10.0.0.${i}`)   // fresh key each time
+      byAccount = rateLimit(`signin-account:victim@…`)      // same key every time
+      outcomes.push(byClient && byAccount)
+
+    expected: [true, true, false, false, false]
+
+A fresh client key buys no extra guess at the same account. That matches what was measured against the
+running server in round 43, where rotating `x-forwarded-for` across fourteen addresses defeated the
+client limit and the account limit still throttled at attempt eleven.
+
+**This is the second round running where my own test was the defective part** — round 46's would have
+gone green proving nothing about the fix it was written for. Both were caught by asking what the test
+would do if the code were *wrong*, rather than by reading it and agreeing with it.
+
+### Still to do here
+
+* The origin guard (round 42) still has no test. It needs a request-shaped harness rather than a pure
+  module, so it is the next one for this file.
+* A root script `test:ozikoro-app` exists but is not yet part of whatever runs everything; there is
+  still no CI.
