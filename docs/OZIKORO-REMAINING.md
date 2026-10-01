@@ -6130,3 +6130,47 @@ of coincidence: one query answered "is this broken?" and "is this overstated?" t
     built and verified    the lookup, the link, and its absence on non-clan labels
     coverage              90 of 10,100 label pages, 0.89%
     NOT measured          whether https://ozituma.com/clans/<slug>/ returns 200
+
+---
+
+## ROUND 144 — THE LAST UNVERIFIED LINK, VERIFIED, AND IT COMPLETES A BIDIRECTIONAL CONNECTION
+
+Rounds 142 and 143 built the dictionary link and left exactly one thing unmeasured, recorded as such:
+**whether `https://ozituma.com/clans/<slug>/` actually returns 200.** It does.
+
+    https://ozituma.com/clans/umueri/  ->  HTTP 200
+
+And it is not a stub. The page carries the clan's name, a breadcrumb through the clan hierarchy, a class
+line (*Igbo · Town · Northern Igbo*), its parent (*Part of Umu-Eri*), its state, five towns, an **Origin**
+section and a **Sources** section citing Forde & Jones (1950) and Afigbo (1981), a correction route, and a
+citation block naming the registry. **The link from an Ozikoro label page lands on a sourced encyclopedia
+entry for the same subject** — which is what item 8 asked for and the opposite of duplicating it.
+
+### And the connection already runs the other way
+
+The dictionary's own navigation carries:
+
+    Blog — another site: ozikoro.com
+
+So **Ozituma links to Ozikoro in its header, and round 142 made 90 Ozikoro label pages link back.** The two
+sites named each other in one direction before this round and in both directions after it.
+
+### Item 8, closed
+
+    built and verified   the lookup and the conditional link on 90 label pages   (142, 143)
+    verified             the destination returns 200 and is a substantive entry  (144)
+    verified             the absence of the link on non-clan labels              (142)
+    connection            Ozituma -> Ozikoro (its nav) and Ozikoro -> Ozituma (90 label pages)
+
+**No new data, no new table, no new column, no new environment variable, and nothing invented.** Two
+populated databases matched on a column nobody had compared, and one lookup later the two sites reference
+each other by name from both sides.
+
+### The three things that made this findable, in order
+
+    round 140   noticed that a table of ZEROS says nothing about what is present
+    round 141   asked what could be JOINED instead of what was missing   -> 90 matching labels
+    round 143   checked the arithmetic before believing a zero           -> the sample was expected to be zero
+
+Each of the three was a correction of the previous round's framing rather than new information. **The data
+sat in two tables the whole time.**
