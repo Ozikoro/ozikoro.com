@@ -7398,3 +7398,50 @@ what this entry is.
 
 **The finding is the reversal**, and it is worth more than the two lines: a rule about not inventing was
 applied to a value that was not invented.
+
+---
+
+## ROUND 172 — BUILT, AND MY VERIFICATION COULD NOT SEE IT WORKING
+
+Round 171 established the region display was mechanical and stated the change. This round made it.
+
+    /labels/umueri/     link=True   region=Anambra
+    /labels/idemili/    link=True   region=Anambra
+    /labels/aba/        link=False  region=none
+
+**Two lines** — `region` added to a `select` that already fetched the row, and one line of JSX. The page
+serves 10,100 URLs and all 20 verification steps pass.
+
+### And the first check said it had not worked
+
+The verification searched the response for `the dictionary places it in ([A-Za-z ]+)` and found **nothing**
+on all three pages. The rendered HTML is:
+
+    <span> <!-- -->· the dictionary places it in <!-- -->Anambra</span>
+
+**React interleaves `<!-- -->` between adjacent text nodes**, so the sentence never appears contiguously in
+the response. Stripping the comments found it immediately.
+
+### The sixth time, and the pattern has a shape now
+
+    round 101   a quote on the wrong side of a directive name    -> four directives falsely missing
+    round 106   a `continue` that excluded the failing case       -> "clean" link text
+    round 109   a quoted attribute name                           -> my own fix reported missing
+    round 124   a grep for one checker's WORDING                  -> a guard reported absent
+    round 169   `grep -c` on a named file printing file:count     -> six fields falsely unused
+    round 172   a sentence spanning React text nodes              -> the fix reported missing
+
+**Six checks, six confident wrong answers, one cause**: the pattern did not describe the thing it was
+looking for. Four were written against **source** and applied to **output**; two were written against how
+the output *reads* and applied to how it is *serialised*.
+
+> **Every one was caught by the same move: looking at the artefact instead of the result.** In this case the
+> rendered HTML contained the answer in a form the search could not express — and the reason I looked is
+> that a link rendering correctly beside a region that did not was not a state any single line of the patch
+> could produce.
+
+### What that says about the two-line change
+
+It went in on the first attempt, with the indentations read from the file rather than typed, and round 142's
+three-attempt history did not repeat. **The patch was easy; believing it had failed was the hard part** —
+which is the reverse of the usual shape in this file and the same lesson from the other side.

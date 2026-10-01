@@ -48,8 +48,8 @@ export default async function LabelPage({ params }: { params: Promise<{ slug: st
    * missing clan must not stop a subject page rendering.
    */
   const clan = await db
-    .one<{ slug: string }>(
-      `select slug from clan where published = true and lower(slug) = lower($1) limit 1`,
+    .one<{ slug: string; region: string | null }>(
+      `select slug, region from clan where published = true and lower(slug) = lower($1) limit 1`,
       [label.slug]
     )
     .catch(() => null);
@@ -88,6 +88,11 @@ export default async function LabelPage({ params }: { params: Promise<{ slug: st
             <Link href={`https://ozituma.com/clans/${clan.slug}/`}>
               Read the dictionary’s entry for {label.name}
             </Link>
+          {clan.region ? (
+            <span>
+              {' '}· the dictionary places it in {clan.region}
+            </span>
+          ) : null}
           </p>
         ) : null}
         <p className="small muted">
