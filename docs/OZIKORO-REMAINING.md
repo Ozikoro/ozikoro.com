@@ -5480,3 +5480,54 @@ audit existing, and for the one habit it produces:**
 
 The three remaining items in this file that are *not* numbers are the ones that need the owner:
 the map and timeline screens, the PostGIS decision, the redirect row, and the media rights.
+
+---
+
+## ROUND 128 — THERE ARE NO ACCOUNTS. THE CLAIM PATH CANNOT BE ENTERED BY ANYONE.
+
+Checking the objective's own architectural requirement — *"keep the three sites connected through one
+database and one account table"* — turned up something the schema review would never show.
+
+    account table columns   id uuid email display_name role status email_verified password_hash
+                            created_at updated_at last_login_at password_changed_at avatar_url
+    account rows            **0**
+    ozikoro_contributor     11      the real authors are there
+    ozikoro_role_capability 53      the roles and grants are configured
+
+**The schema is complete, the roles are granted, the eleven contributors exist — and not one account
+exists to sign in with.**
+
+### What that means for item 2
+
+Item 2 is *"authentication and the ten server-enforced roles, with a claim path so the 11 real authors own
+their bylines."* Every part of that is **built and verified**: the sign-in form, the rate limit, the
+session cookie, the role checks, the capability gate, and the claim path with `manage_contributors` fixed
+in migration 0042 so a claim can actually be decided.
+
+**And none of it can be exercised.** With zero accounts, no one can sign in, so no one can claim a byline,
+so the claim path cannot be tested by a person and the 11 authors cannot own their work.
+
+**This is not a defect in the code. It is the absence of the data the code operates on** — and it is
+invisible to every check here, because every check asks whether the software behaves correctly, and `0
+accounts` is a perfectly correct answer.
+
+### Why it has not been done, and must not be done by me
+
+Creating accounts means **deciding who they are**: eleven real email addresses belonging to eleven real
+people, with real roles and real statuses. The objective is explicit — *never invent a record* — and **an
+invented account is a record that would let a real byline be claimed by nobody, or by the wrong name.**
+
+So this needs the owner, and it is a short list: the eleven email addresses, an initial role for each, and
+a decision on whether the claim path or a direct grant is used. **It is provisioning, and it is the last
+thing standing between "the claim path is verified" and "an author can sign in and claim their work."**
+
+### And the third site
+
+`apps/ozikoro` and `apps/web` both depend on `@ozituma/db` — the shared package, one database, and
+`information_schema` confirms **exactly one `account` table**. `learn/` has **no database dependency at
+all**; it reaches the shared sites through `app-shell.tsx`, its email templates and `send.server.ts`, which
+is a bridge rather than a shared connection.
+
+**One database and one account table hold for the two applications that use the database.** The third
+connects to them over HTTP, and whether that satisfies *"the three are all connected"* is a question about
+the intended architecture rather than a measurable defect — recorded as the distinction it is.
