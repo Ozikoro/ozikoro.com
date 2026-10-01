@@ -15,6 +15,10 @@
 > proven end to end, and there are ZERO ACCOUNTS, so nobody can sign in; see the owner list below** · the editorial queue's
 > machinery (3) · the research slice's public and review loop (4) · rights, consent and archaeology schema
 > (5) · search with Knowledge/Research modes (6) · Ozituma entity linking (8) · sitemap, headings, alt text,
+> **Four of those are MACHINERY WITHOUT DATA — measured, round 137: 0 of 1,051 records linked to an
+> entity, 0 articles with a source attached, 0 publications, 0 archaeology records.** The code and the
+> schema are built and tested; the records they operate on do not exist yet. Read "done" below as
+> "the software is ready for the work", never as "the work is done".
 > contrast, JSON-LD, security headers, health endpoint, backup and a restore drill (10) · four real
 > security fixes with regression tests · CI on the code-only half · a deploy artefact that builds and
 > serves · the Ozituma web app rescued into version control (round 92).
@@ -46,7 +50,19 @@
 > **0 of 3,488 items has an actual licence** · **what the `/` → `/home/` row in `ozikoro_redirect` is for**
 > (round 75: the handler as specified would send the homepage to a migrated page of the same name).
 >
-> **The largest gap is human:** **0 of 1,051 records linked to an entity.** The machinery is built and
+> **The largest gap is human, and it is four gaps, all measured (round 137).** The machinery is built and
+> verified in each case and the records are simply not there:
+>
+> | what | rows | what it needs |
+> |---|---|---|
+> | records linked to an entity | **0** of 1,051 | editorial retagging |
+> | articles with a source attached | **0** of 1,051 | editorial sourcing |
+> | publications | **0** | researchers to submit |
+> | archaeology records | **0** | fieldwork and deposits |
+> | media with a licence | **0** of 3,488 | rights decisions |
+> | media with a credit | **0** of 3,488 | attribution decisions |
+>
+> **No software change closes any of these**, and none can be invented into existence. The earlier
 > verified; the retagging is editorial work.
 >
 > **Nine checks, nine TESTED guards** — four offline (`check:secrets`, `check:residue`,
