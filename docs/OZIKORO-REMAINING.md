@@ -3054,3 +3054,44 @@ old archive paths to the new ones — `/author/<name>/` to that author's filter,
 Some of the article-like paths may be genuinely dangling references from the original site, and some may
 be articles whose slug differs from the link. Each needs looking at individually; they are not a family
 and should not be bulk-redirected on a guess.
+
+---
+
+## ROUND 75 — BEFORE BUILDING THE REDIRECT HANDLER, READ THE ONE ROW IT WOULD ACT ON
+
+Round 74 specified the fix for the 40 broken in-body links: populate `ozikoro_redirect` and add a
+handler. This round looked at the table before touching it, and found the reason to pause.
+
+    ozikoro_redirect: id, from_path, to_path, status, reason, created_at
+    one row: from_path '/', to_path '/home/', status 301,
+             reason 'Migrated from WordPress: the slug changed'
+    no handler anywhere reads this table
+
+**The single existing row redirects the site root to `/home/`.** Built as specified, the first thing the
+handler would do is send every visitor from the new homepage to a migrated WordPress page of the same
+name — replacing the front page of the platform with the page it was built to supersede.
+
+### My first reading of it was wrong, and checking corrected it
+
+I called it a landmine on the assumption that `/home/` did not exist. It does:
+
+    ARTICLE_HOME=[{"slug":"home","is_page":true,"status":"published"}]
+
+So the target is real, and the row is not dangling — it is a **deliberate-looking mapping whose intent I
+do not know**. `reason` says *"the slug changed"*, which describes a slug correction, but `from_path` is
+`/`, which is not a slug.
+
+**Two readings, and the evidence does not choose between them:**
+
+* it is a genuine mapping created by an editorial action, and the root is intended to move; or
+* `from_path` was meant to be something narrower and `/` was entered by mistake.
+
+Deleting it would destroy a mapping someone may have created on purpose; keeping it and building the
+handler would break the homepage. **Neither is mine to decide**, so nothing was changed.
+
+### What this means for the fix
+
+The 40 broken in-body links still need the redirect mechanism, and the mechanism is one row away from
+being safe to build. **The first step is not code — it is establishing what that row is for.** A question
+for the owner, and a good example of why the handler should be built deliberately rather than next to a
+table nobody has read.
