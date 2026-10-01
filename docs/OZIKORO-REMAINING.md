@@ -2316,3 +2316,50 @@ Verified:
     link checker                         ->  25 pages, every internal link resolved
 
 All 18 verification steps pass.
+
+---
+
+## ROUND 58 — ROUND 57'S FIX WAS ONE TABLE OF FOUR
+
+Round 57 fixed a percent-encoded slug in `ozikoro_topic` and called it done. The link checker had only
+sampled **25 pages of 14,667 URLs**, so it saw one instance. Asking the same question of **every slug in
+the database** — 19 tables, discovered from `information_schema` rather than listed — found it in three
+more:
+
+    ozikoro_article   1 of 1,057     a PUBLISHED article was unreachable
+    ozikoro_label     7 of 11,056
+    ozikoro_media     4 of 3,488
+
+**12 pages unreachable, all 12 published as broken addresses in the sitemap** — an instruction to search
+engines to index a 404. The same cause every time: WordPress stored the slug in percent-encoded form,
+the importer took it verbatim, and the router decoded the URL segment back to the real character and
+matched nothing.
+
+### Repaired
+
+Eleven rows normalised automatically. **One refused** — label 6483's normalised form
+`start-up-funding-igbo-system` was already taken by label 11056 — and the collision check reported it
+instead of clobbering. It was then resolved deliberately as `-2`.
+
+    repaired: 11 automatic + 1 by hand   remaining percent-encoded: 0
+
+### Verified
+
+    /entrance-to-an-igbo-compound-gwulu-onitsha-1903-1918-herbert-wimberley/   200
+    /labels/imo-miri/  /labels/ori-go/  /documents/cappa/                       200
+    /labels/start-up-funding-igbo-system-2/                                     200
+
+    sitemap: 14,667 urls, percent-encoded entries: 0     (was 12+)
+
+### A mistake in my own verification, for the tenth time
+
+I tested the repaired article at `/entrance-to-an-igbo-compound-gwulu-onitsha-1/` — which 404'd — and
+very nearly concluded the repair had failed. The slug is longer than the 40 characters my scan printed;
+the real address ends `-1903-1918-herbert-wimberley`. **I had truncated my own evidence and then tested
+what I had printed rather than what was there.**
+
+### Still outstanding
+
+`normaliseTopicSlug` is applied to **categories only**. Articles, labels and media still take their slug
+verbatim on import, so the next import will reintroduce this. The helper should be renamed and applied
+at every slug source — that is the durable fix, and the data is now clean so it can be done calmly.
