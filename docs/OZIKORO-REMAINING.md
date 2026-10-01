@@ -4987,3 +4987,53 @@ application does not use — and all three **print on every run with their reaso
 same treatment, and the pattern is now explicit enough to be the rule:
 
 > **Waive in code, print the waiver, and state what would remove it.**
+
+---
+
+## ROUND 116 — THE CONTROL EXISTED ALL ALONG, AND `force-dynamic` IS EXONERATED
+
+Round 114 concluded the 404's cause could not be isolated, because every route declares `force-dynamic` and
+creating a comparison would mean changing how an existing page renders — the class of change that took the
+site down twice in round 82.
+
+**That conclusion was wrong, and wrong in a way this file has recorded thirteen times: I reasoned about
+the cost of an experiment instead of looking for a cheaper one.** A **new** route is additive. It cannot
+alter any existing route's behaviour, so it supplies the missing control at no risk to the site.
+
+### The probe
+
+    STATIC route (no force-dynamic, throws notFound())   404  deferred=True  <main>=False  <h1>=False
+    DYNAMIC route (existing, force-dynamic)              404  deferred=True  <main>=False  <h1>=False
+
+**Identical.** So the rendering mode is not the cause. `force-dynamic` is exonerated, and by a control that
+cost one small file and one request rather than a change to a live route.
+
+The probe was removed immediately, no `zztest` route remains, and `/`, `/archive/` and `/labels/aba/` were
+re-checked at 200.
+
+### Which also exonerates the async layout
+
+Round 114's remaining candidate was the `async` root layout. But round 107 measured **`<main>` present in
+the server HTML of ten normal pages** — and every one of those pages is rendered inside that same async
+layout. **So the async layout does not prevent server rendering either.**
+
+What is left is the throw itself. A normal page **returns** markup; the 404 **throws**, and `notFound()`
+resolves a boundary after streaming has begun, so the boundary lands in the flight payload rather than the
+HTML. That is framework behaviour, and it is the same whether the route is static or dynamic.
+
+### What this changes about the fix
+
+Not a rendering-mode change — **that option is now closed rather than merely risky.** The remaining
+approaches are about how the not-found is *expressed*:
+
+* an explicit `Suspense` boundary around the route content, so a shell is committed before the throw
+* rendering the 404 view **inline** and setting the status without throwing
+
+Both are real changes with real failure modes, and both are better attempted with the site live. **But the
+hypothesis space is now one item narrower, and it got narrower by a measurement rather than an argument.**
+
+### The lesson, which is about me rather than the framework
+
+**"This experiment would change something risky" is not the same as "this experiment is risky."** Round 114
+stopped at the first framing; round 116 found that adding a file changes nothing existing. **Two rounds
+were spent on the difference between changing a route and adding one.**
