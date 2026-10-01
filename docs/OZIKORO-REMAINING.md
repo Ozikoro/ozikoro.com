@@ -27,7 +27,7 @@
 > server-side whenever Next handles a 404 as an unmatched route** — `<main>`, `<h1>`, correct status. It
 > defers instead (body becomes a Suspense placeholder, content only in the RSC payload) **only when a
 > matched dynamic route calls `notFound()`**. Affected: every nonexistent article, label, topic, document,
-> author or entity, the 3 waived in-body links and 4 strays, and any typo. Eliminated by measurement:
+> author or entity, the 3 waived in-body links, and any typo. Eliminated by measurement:
 > `force-dynamic` (116), the async layout (107), `await headers()` (118). Only the throw correlates (119).
 > No one-line fix: the good path needs *no route to match*, and a page cannot rewrite.
 >
@@ -5402,3 +5402,40 @@ waived set from what is still dead so a fixed link drops out on its own, and `ch
 
     verify-all   20 PASS lines, exit 0
     verify-live  4 PASS lines,  exit 0
+
+---
+
+## ROUND 126 — A SUPERSEDED NUMBER THAT SURVIVED IN TWO PLACES
+
+Rounds 121, 123 and 125 each found a claim that had gone stale. This round looked for one more by asking
+the tool instead of the prose, and found the same number wrong in two places.
+
+    what the tool reports    DISTINCT DEAD: 0     WAIVED (3)
+    the resume block said    "the 3 waived in-body links and 4 strays"
+    the waiver in check-not-found said   "the three waived in-body links and the four stray ones"
+
+**There are three, not three-plus-four.** Round 84 listed **4** genuine strays; round 86 re-measured and
+established the answer is **3**, noting that the fourth "resolves or is not present". The four survived
+anyway — in the resume block refreshed at round 120, and in a waiver written at round 115, **because both
+copied the number from earlier prose rather than re-deriving it.**
+
+Both now read three, and `check-not-found.sh` carries the measurement beside the claim so the next reader
+sees where the number came from:
+
+    Reachable from the 3 waived in-body links — measured, DISTINCT DEAD: 0, WAIVED (3) — and from any typo.
+
+### Why this one is worth recording separately
+
+The earlier staleness rounds were about **claims whose subject changed** — a route added, a check written, a
+reason refuted. This one is different: **nothing changed.** The number was wrong when it was first written
+down, and two later documents inherited the error by quoting it.
+
+> **A number copied from prose is a rumour; a number taken from the tool is a measurement.** The resume
+> block and the waiver were both written *after* the correction, by the same hand, and both got it wrong
+> the same way.
+
+The two documents now agree with the tool, and the tool is named as the source — which is the part that
+makes it checkable rather than merely corrected.
+
+    verify-all   20 PASS lines
+    check:body-links   DISTINCT DEAD: 0   WAIVED (3)   exit 0
