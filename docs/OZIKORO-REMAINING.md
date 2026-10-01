@@ -4751,3 +4751,43 @@ wrongly, and the difference is exactly what stopped a wrong fix from being appli
 
 **Naming a gap is not the same as understanding it, and the value of naming it was that it got
 investigated.**
+
+---
+
+## ROUND 111 — THE SKIP LINK WORKS, WHICH IS NOT ALWAYS TRUE
+
+A skip link is the cheapest accessibility feature and one of the most commonly broken: the link is added,
+the target id is not, and nobody notices because the failure is invisible until a keyboard user presses
+Tab and then Enter and nothing happens. Worth checking because it is a **two-part** feature and only one
+part is usually tested.
+
+    apps/ozikoro/app/layout.tsx:95    <a className="skip" href="#main">
+    apps/ozikoro/app/layout.tsx:162   <main id="main">{children}</main>
+
+Both halves exist, and in the rendered HTML on four pages:
+
+    /                      skip link: True   target id="main": True
+    /archive/              skip link: True   target id="main": True
+    /about/                skip link: True   target id="main": True
+    /documents/kolanut/    skip link: True   target id="main": True
+
+### Why one occurrence of `<main>` is the right number
+
+`<main>` appears **once, in `layout.tsx`** — not in any page. Every route inherits exactly one from the
+layout, which is why round 107 measured exactly one `<main>` on all ten pages it checked. **A page that
+added its own would produce two**, and this is the structure that makes that hard to do by accident.
+
+The `.skip` rule is also off-screen until focused (`top: -4rem`, moving to `var(--s-4)` on `:focus`), so it
+does not appear visually but is the first thing a keyboard user reaches — which is the point.
+
+### Where accessibility stands
+
+    verified   contrast · heading order and one h1 · landmarks and one main · alt text
+               link text (0 vague, 0 unlabelled) · focus visibility · focus order
+               skip link and its target
+    open       form error messaging — the page cannot say which field an error concerns,
+               because the server actions do not pass that (round 110, investigated and
+               deliberately not half-fixed)
+
+**One item remains, and it is one item because the others were checked rather than assumed.** Nine
+properties, eight verified, and the ninth correctly diagnosed rather than guess-fixed.
