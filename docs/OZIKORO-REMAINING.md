@@ -5151,3 +5151,50 @@ and it was caught by two requests made specifically to try to falsify it.**
 > **The value of a diagnosis is not how well it explains the evidence — round 117 explained everything —
 > but whether anyone tried to knock it down.** I wrote "one line in a file this project owns" and felt
 > finished. The test took two minutes.
+
+---
+
+## ROUND 119 — THE DESIGNED 404 WORKS. IT IS ONLY THE THROW THAT DEFERS.
+
+Round 118 isolated the throw by elimination. This round found the case that **proves** it, and in doing so
+changes what the defect actually is.
+
+    case                                      code  deferred  <main>  <h1>
+    1 segment, route THROWS notFound()         404      True   False   False
+    2 segments, middleware rewrites, THROWS    404      True   False   False
+    3 segments, NO route matches at all        404     False    True    True
+    4 segments, NO route matches at all        404     False    True    True
+
+**When no route matches, the 404 renders perfectly server-side — `<main>`, `<h1>`, the whole designed page,
+no Suspense fallback, correct status.** When a matched route throws `notFound()`, it does not.
+
+### So the statement of the defect was wrong for seven rounds
+
+    said      "the 404 never reaches first paint"
+    true      "the designed 404 reaches first paint whenever Next handles it as an unmatched route;
+               it is deferred only when a matched dynamic route calls notFound()"
+
+The component was never the problem. Rounds 112 to 118 variously blamed the blank page, the rendering
+mode, the async layout, and `headers()`. **All four were wrong, and the thing that was right — that the
+component is good work — was written in round 112 and then forgotten while chasing the framework.**
+
+### Which entry points are affected, restated precisely
+
+    affected      a dead in-body link, a mistyped address, or any path that MATCHES a route which
+                  then decides there is no record — the three waived links, the four strays,
+                  every nonexistent article, label, topic, document, author and entity
+    unaffected    a path matching no route at all, which is the case the designed 404 was built for
+                  and handles correctly
+
+### The fix this suggests, and why it is not a one-liner
+
+The good path is entered when **no route matches**. A dynamic route cannot decline a match, and a page
+cannot rewrite — only `notFound()`, `redirect()` and middleware can, and only middleware runs before
+matching. So there is no way to turn a throw into an unmatched path without either changing the URL
+(a redirect, which is wrong for an alias) or teaching middleware something it cannot know: **whether a
+slug resolves to a record requires a database query, and middleware does not have the database.**
+
+So the honest options are the ones already listed — express the 404 without throwing, or accept the
+deferral — and **neither was attempted here.** What changed is that the defect is now described correctly,
+and a fix aimed at it will be aimed at the throw rather than at the component, the layout or the rendering
+mode.
