@@ -60,7 +60,14 @@
 > | publications | **0** | researchers to submit |
 > | archaeology records | **0** | fieldwork and deposits |
 > | media with a licence | **0** of 3,488 | rights decisions |
-> | media with a credit | **0** of 3,488 | attribution decisions |
+> | media with a display credit | **0** of 3,488 | attribution decisions |
+>
+> **And what the same table gets wrong if read alone (round 138):** the media table has seven
+> provenance columns and only two are empty of *links*. Every one of the 3,488 carries a
+> `source_url`, and **3,478 of 3,488 carry a `contributor_id`** — the uploader is recorded for
+> 99.7% of the archive. `creator`, `credit`, `licence`, `rights_note` and `captured_at` are 0.
+> So the provenance to base rights decisions on is present and the decisions are not; **that is a
+> different job from "there is no attribution metadata"**, and the difference is one query.
 >
 > **No software change closes any of these**, and none can be invented into existence. The earlier
 > verified; the retagging is editorial work.
