@@ -5751,3 +5751,48 @@ check confirms 102 tables clean.
 
 **That is the point of a convention with a check behind it**: the safety net was not vigilance, it was a
 prefix and a query that has already caught this exact mistake once.
+
+---
+
+## ROUND 134 — THE COMPLETE STATE OF ITEM 2, AND WHY THE ADDRESSES ARE NOT IN THE ARCHIVE
+
+Round 133 proved *address → account → password → session*. This round measured the two links after it, and
+asked whether the archive could supply the addresses round 128 needed.
+
+### The links after the session
+
+    account table               0 rows
+    ozikoro_contributor        11 rows, account_id NULL on ALL ELEVEN
+    ozikoro_claim               0 rows
+    ozikoro_contributor_claim   0 rows
+
+So nothing is pending and nothing has been linked. **The eleven real authors are present with their
+WordPress user ids preserved — `wp_user_id` 5, 11, 2, 4, 6, 3, 13, 16, 15, 9, 1 — and not one is connected
+to an account**, because there are no accounts to connect them to.
+
+### Could the archive supply the addresses, and save asking?
+
+`data/ozikoro-wp/users.json` **exists**, holds **exactly 11 records**, and its keys are:
+
+    avatarUrls, description, link, name, slug, url, wpId
+
+**No `email` field, on any of them.** That is not an export failure: WordPress's REST API omits `email`
+from `/wp/v2/users` unless the request is authenticated as an administrator, because the field is in the
+`edit` context. The export captured the public context, which is correct behaviour and leaves the address
+out.
+
+**So the mapping exists and the addresses do not.** Contributor 1 carries `wp_user_id = 5` and `users.json`
+has a record with `wpId = 5` — but that record's only contact-ish fields are a display name and a link.
+
+### What that settles
+
+    built and proven   address -> account -> password -> authenticateAccount -> session   (round 133)
+    built, unexercised claiming a byline, which needs an account first
+    missing            the eleven addresses, and ONLY the owner has them
+
+**The request to the owner is now unambiguous and minimal**: eleven email addresses, or permission to use
+whatever addresses they already know. Everything else — the accounts, the roles, the sessions, the claim
+path, the linkage — is a command away, and the command is tested.
+
+**Nothing here was invented, and nothing could have been.** That is the constraint working as intended, and
+it is why this file can say precisely what is missing rather than guessing at it.
