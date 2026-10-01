@@ -2052,7 +2052,70 @@ the conclusion did not follow from it: the suites needed *splitting*, not *seedi
 test actually asserts — rather than what its file is called — is the same discipline that turned up the
 false positives in rounds 17, 18, 22 and 42.**
 
-### Not done
+### DONE in round 53 — and the conclusion above was still too optimistic
 
-The split itself. It touches `test-archive.ts`, `test-members.ts` and the other archive-dependent
-suites, and it should be done deliberately rather than at the end of a session.
+The split was attempted, and **it does not work the way this round assumed.** Guarding the counts was
+not enough: five further assertions then failed on an empty database, because they are data-dependent
+too — that exactly one source record is untitled, that the six WordPress pages are held separately,
+that the institution page is among them, that the sitemap lists the archive.
+
+So "the structural half runs anywhere" is wrong as well. On an empty database the structural
+assertions pass **vacuously** — no records, therefore no record lost its slug — and reporting that as a
+pass is precisely the overstatement this project keeps trying not to make.
+
+`test-archive.ts` now exits **cleanly with a notice** when the archive is absent, naming every check it
+did not perform and saying why a vacuous pass would be a false claim. That makes the suite safe to run
+in CI, and states plainly that **a green CI run says nothing about the archive.**
+
+The real fix is a **seeded fixture**: a small known dataset the structural assertions can bite on. It
+does not exist, and that is what remains outstanding — not a split, which the round-52 note wrongly
+called "the work".
+
+---
+
+## ROUND 53 — THE SPLIT, AND WHY IT DOES NOT DO WHAT ROUND 52 SAID
+
+Round 52 concluded that the archive suite needed *splitting* rather than *seeding*, and that putting
+the count assertions behind a condition "would let CI run the structural half today".
+
+**The split was done, and that conclusion was wrong too.** Guarding the counts was not enough — five
+more assertions then failed on an empty database, and they are data-dependent in the same way:
+
+    exactly one source record is untitled
+    the six WordPress pages are held separately
+    the institution page is among them
+    the sitemap lists the archive
+
+And the "structural" assertions that *would* run pass **vacuously** on empty data — no records,
+therefore no record lost its slug. A green result there means nothing, and reporting it as a pass would
+be the exact overstatement this project keeps trying not to make.
+
+### What was done instead
+
+`test-archive.ts` detects whether the archive is present and, when it is not, prints a notice naming
+every check it skipped and **exits cleanly**:
+
+    SKIPPED — the archive is not imported, so NOTHING here can be checked meaningfully.
+               Not checked: articles >= 1000, contributors == 11, media >= 3400, topics == 14,
+                            labels >= 11000, withImages > 1000, the publishing date range, the
+                            untitled-record invariant, the WordPress pages, the sitemap contents.
+               The structural checks would pass vacuously on an empty database, and reporting
+               that as a pass would be a false claim.
+
+Both paths verified:
+
+    empty but migrated database   ->  notice printed, exit 0, no false assertions
+    the real archive              ->  All checks passed
+
+That makes the suite safe to run in CI while **stating in the output that a green CI run says nothing
+about the archive.**
+
+### The lesson, which is the third version of this idea in three rounds
+
+    round 50/51   "cannot run in CI — a fixture does not exist"
+    round 52      "wrong: split the suite, then the structural half runs"
+    round 53      "wrong again: it runs vacuously, and five more checks are data-dependent"
+
+Each version was reached by checking rather than assuming, and each was still too optimistic until
+measured. **The real answer is a seeded fixture** — a small known dataset the structural assertions can
+bite on — and that remains outstanding.

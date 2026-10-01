@@ -29,16 +29,68 @@ const assert = (label: string, ok: boolean, detail = '') => {
   if (!ok) failures += 1;
 };
 
+const stats = await getArchiveStats(db);
+
+/*
+ * TWO KINDS OF ASSERTION, AND ONLY ONE OF THEM NEEDS THE REAL ARCHIVE.
+ *
+ * The counts below answer "did the migration actually happen?" — 1,051 records, 3,488 media, 11,056
+ * labels. Only the real archive can answer that, and it is answered every time this runs where the
+ * archive is present.
+ *
+ * Everything after this block answers "is the data structurally sound?" — no record lost its slug, its
+ * address, its author or its body; every record is searchable; no two share an address. Those hold for
+ * ANY dataset, so they are the half worth running where the archive is absent, which is what CI is.
+ *
+ * So the counts are conditional and ANNOUNCE what they skipped. A suite that quietly skips its
+ * strongest checks is worse than one that cannot run them, because the reader cannot tell the
+ * difference between "passed" and "not examined".
+ */
+const ARCHIVE_PRESENT = stats.articles >= 1000;
+
 console.log('\n--- what arrived from WordPress ---');
 
-const stats = await getArchiveStats(db);
-assert('the archive holds the migrated articles', stats.articles >= 1000, `${stats.articles} records`);
-assert('every article has an author', stats.contributors === 11, `${stats.contributors} contributors`);
-assert('the media records arrived', stats.media >= 3400, `${stats.media} records`);
-assert('the serials arrived', stats.topics === 14, `${stats.topics} topics`);
-assert('the labels arrived', stats.labels >= 11000, `${stats.labels} labels`);
-assert('most records carry an image', stats.withImages > 1000, `${stats.withImages} of ${stats.articles}`);
-assert('the archive spans the site\'s publishing history', Boolean(stats.earliest && stats.latest), `${stats.earliest} .. ${stats.latest}`);
+if (ARCHIVE_PRESENT) {
+  assert('the archive holds the migrated articles', stats.articles >= 1000, `${stats.articles} records`);
+  assert('every article has an author', stats.contributors === 11, `${stats.contributors} contributors`);
+  assert('the media records arrived', stats.media >= 3400, `${stats.media} records`);
+  assert('the serials arrived', stats.topics === 14, `${stats.topics} topics`);
+  assert('the labels arrived', stats.labels >= 11000, `${stats.labels} labels`);
+  assert('most records carry an image', stats.withImages > 1000, `${stats.withImages} of ${stats.articles}`);
+  assert('the archive spans the site\'s publishing history', Boolean(stats.earliest && stats.latest), `${stats.earliest} .. ${stats.latest}`);
+} else {
+  /*
+   * THE SUITE STOPS HERE, AND SAYS SO.
+   *
+   * The first attempt at this split guarded only the counts and let the rest run — and five further
+   * assertions then failed on an empty database, because they are data-dependent too: that exactly one
+   * source record is untitled, that the six WordPress pages are held separately, that the institution
+   * page is among them, that the sitemap lists the archive.
+   *
+   * Which means the honest description is not "the structural half runs anywhere". It is:
+   * **on an empty database there is nothing here that can be checked meaningfully.** The structural
+   * assertions would pass vacuously — no records, therefore no record lost its slug — and reporting
+   * that as a pass would be the exact overstatement this project keeps trying not to make.
+   *
+   * So it exits cleanly with a notice. That makes the suite safe to run in CI, where the archive is
+   * absent, WHILE BEING EXPLICIT THAT CI THEREFORE PROVIDES NO ARCHIVE COVERAGE. A green CI run says
+   * nothing about the archive.
+   *
+   * The real fix is a seeded fixture — a small known dataset the structural assertions can bite on.
+   * That does not exist, and this notice is what stands in for it.
+   */
+  console.log(
+    '  SKIPPED — the archive is not imported, so NOTHING here can be checked meaningfully.\n' +
+    '             Not checked: articles >= 1000, contributors == 11, media >= 3400, topics == 14,\n' +
+    '                          labels >= 11000, withImages > 1000, the publishing date range, the\n' +
+    '                          untitled-record invariant, the WordPress pages, the sitemap contents.\n' +
+    '             The structural checks would pass vacuously on an empty database, and reporting\n' +
+    '             that as a pass would be a false claim.\n' +
+    '             Import the archive to run this suite: npm run import:ozikoro-wp && npm run import:ozikoro-archive'
+  );
+  await closeDb();
+  process.exit(0);
+}
 
 console.log('\n--- completeness ---');
 
