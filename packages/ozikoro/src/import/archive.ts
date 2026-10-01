@@ -256,6 +256,28 @@ export interface ImportReport {
   skipped: Record<string, number>;
 }
 
+/**
+ * A category slug that is safe to put in a URL.
+ *
+ * Strips invisible formatting characters (word joiner, zero-width space, BOM and friends), decodes any
+ * percent-encoding WordPress left in the slug, and falls back to a derived form if nothing is left.
+ */
+export function normaliseTopicSlug(raw: string): string {
+  let slug = String(raw ?? '');
+  try {
+    slug = decodeURIComponent(slug);
+  } catch {
+    // A malformed escape sequence is not worth failing the whole import over.
+  }
+  return slug
+    .replace(/[\u200b-\u200f\u2060\ufeff]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
 export async function importArchive(db: Db, options: { apply?: boolean } = {}): Promise<ImportReport> {
   const apply = Boolean(options.apply);
   const [articles, media, users, categories, tags, pages] = await Promise.all([
@@ -322,7 +344,21 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
     db,
     'ozikoro_topic',
     ['wp_term_id', 'slug', 'name', 'description'],
-    categories.map((c) => [c.wpId, c.slug, plainText(c.name), c.description || null]),
+    /*
+     * The slug is normalised, not taken verbatim.
+     *
+     * MEASURED: WordPress category 14 arrived with a slug of `%e2%81%a0religion-and-spirituality` — the
+     * PERCENT-ENCODED form of a leading U+2060 WORD JOINER — while its name carried the raw character.
+     * The topic page therefore 404'd: the router decoded the URL segment back to the real character and
+     * looked up that, which matched nothing, because the database held the encoded text.
+     *
+     * Worse, the sitemap published the broken address, which is an instruction to a search engine to
+     * index a 404.
+     *
+     * A slug is a URL component, so it must not contain either invisible formatting characters or
+     * percent-encoding of its own. Both are removed here rather than left for the router to fail on.
+     */
+    categories.map((c) => [c.wpId, normaliseTopicSlug(c.slug), plainText(c.name), c.description || null]),
     'wp_term_id',
     ['slug', 'name', 'description']
   );

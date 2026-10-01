@@ -2254,3 +2254,65 @@ file itself, and the publications guard now matches the path exactly.
 **That is the tenth time in this project that my verification was the defective part.** Every one was
 caught by running the check and reading its output rather than trusting it, which is now the most
 reliable habit this work has produced.
+
+---
+
+## ROUND 57 — A LIVE LINK CHECKER, AND THE 404 IT FOUND ON ITS FIRST RUN
+
+### Why it exists
+
+In round 9 search began returning `/entities/<slug>/` links for a route that did not exist. It was
+caught by checking, and it was latent rather than live only because the knowledge graph happened to be
+empty. Nothing would still catch that class: every suite asserts data and logic, **not reachability.**
+
+`scripts/check-links.sh` walks the site from the pages a reader lands on, follows the internal links it
+finds, and reports every one that does not return 200. It needs a running server, so it is not part of
+`verify-all.sh`, which runs against a stopped server because the suites hold the PGlite lock.
+
+### The false pass, which is the more useful half of this round
+
+The first version used `declare -A`. **macOS ships bash 3.2, where that is not a thing** — the script
+died, checked nothing, and printed:
+
+    pages checked: 0
+    Every internal link resolved.
+
+**A green result from a run that did not happen.** That is the exact failure mode recorded in round 31
+and it happened again here, in a script written specifically to catch things nobody checks. It now uses
+a bash-3.2-compatible membership test **and refuses to report a pass unless it checked at least one
+page**, exiting 2 with *"NOTHING WAS CHECKED — the walker did not reach a single page. Not a pass."*
+
+### What it found once it ran
+
+    pages checked: 25
+    404    /topics/%e2%81%a0religion-and-spirituality
+    BROKEN LINKS: 1
+
+Topic 14 was **unreachable, and published as a broken address in the sitemap** — an instruction to a
+search engine to index a 404.
+
+### The cause, which is an import bug
+
+Measured from the database:
+
+    id=14  slug = '%e2%81%a0religion-and-spirituality'      <- PERCENT-ENCODED, and invisible
+           name = '⁠Religion and Spirituality'                <- a leading U+2060 WORD JOINER
+
+WordPress stored the slug in its already-encoded form while the name carried the raw character. The
+importer took `c.slug` **verbatim**, so the encoded text went into the database. The router then decoded
+the URL segment back to the real character and looked that up — which matched nothing.
+
+Two fixes:
+
+* **`normaliseTopicSlug`** decodes any percent-encoding, strips invisible formatting characters
+  (U+200B–U+200F, U+2060, U+FEFF), and slugifies. A slug is a URL component; it must contain neither.
+* **The row was repaired** — with a collision check first, so two topics collapsing to one address is
+  reported rather than silently clobbered.
+
+Verified:
+
+    /topics/religion-and-spirituality/   ->  200    (was 404)
+    /topics/%e2%81%a0religion-…/         ->  404    (the old encoded form, correctly gone)
+    link checker                         ->  25 pages, every internal link resolved
+
+All 18 verification steps pass.

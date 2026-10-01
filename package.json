@@ -79,7 +79,8 @@
     "test:unit": "npm run typecheck && npm -w @ozikoro/platform run test && npm -w @ozikoro/platform run test:redirects && npm -w @ozikoro/site run test",
     "verify:all": "bash scripts/verify-all.sh",
     "check:residue": "npm -w @ozikoro/platform run check:residue",
-    "check:capabilities": "npm -w @ozikoro/platform run check:capabilities"
+    "check:capabilities": "npm -w @ozikoro/platform run check:capabilities",
+    "check:links": "bash scripts/check-links.sh"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
