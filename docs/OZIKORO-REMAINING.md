@@ -6476,3 +6476,54 @@ conclusion that the measurement did not cover.**
 
     corrected   four services, ONE healthcheck, four restart policies
     retracted   eleven variables "documented nowhere" — they are in Secrets, as they should be
+
+---
+
+## ROUND 152 — MY OWN ESTIMATE OF THE DEPLOYMENT WORK WAS ONE STEP TOO OPTIMISTIC
+
+Round 149 said adding Ozikoro to the deployment was *"one service definition in a file that already
+defines three like it, plus a route in a Caddyfile that already routes two sites."* Reading the Dockerfile
+rather than the compose shows that is the second half of the job, not the whole of it.
+
+### What the Dockerfile actually does
+
+    FROM base AS builder-web          RUN npm -w @ozituma/web  run build
+    FROM base AS builder-learn        RUN npm -w @ozituma/learn run build
+    FROM runtime-base AS web          the dictionary's runtime image
+    FROM runtime-base AS learn        the courses' runtime image
+
+    COPY apps/web/package.json   ./apps/web/
+    COPY apps/learn/package.json ./apps/learn/
+
+    mentions of "ozikoro": 0
+
+**Every service in the compose names a `build.target` that exists**, and each target installs one app's
+dependencies and builds one app. There is no Ozikoro target, and the dependency-copy step lists two apps
+by name.
+
+### So the work is five parts across two files, not one
+
+    docker/Dockerfile          COPY apps/ozikoro/package.json into the deps stage
+                               FROM base AS builder-ozikoro    npm -w @ozikoro/site run build
+                               FROM runtime-base AS ozikoro    the runtime image
+    docker/docker-compose.prod.yml   an `ozikoro` service naming that target
+    docker/Caddyfile                 a route for ozikoro.com
+
+**The compose half is the easy half**, and the sentence I wrote in round 149 quoted exactly that half and
+called the job one definition. The Dockerfile half touches the dependency-install layer that all three
+services share, which is the part where a mistake breaks the other two sites **as well as** the new one.
+
+### Which also means the risk assessment changes
+
+Round 149 implied an additive change — a new service beside existing ones, and I wrote that adding it would
+be like round 83's destination route. **Adding a stage to a shared Dockerfile is not additive in the same
+way**: the `deps` stage is common to `web` and `learn`, so an error there is not confined to the new
+service. Round 82's lesson applies after all, and it was mine to notice before recommending the change.
+
+    said   one service definition plus a route
+    true   three Dockerfile stages, a dependency-copy line in a SHARED layer, a compose service and a
+           Caddy route — with the shared layer being where a mistake is not contained
+
+**Not attempted**, and the estimate is corrected rather than the change made. The four-part shape is now
+written down precisely enough that it can be done deliberately with a real build to verify against, which is
+the only way to check it and is not available here.
