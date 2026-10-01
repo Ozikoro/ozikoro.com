@@ -321,6 +321,15 @@ export interface ListOptions {
   topicSlug?: string | null;
   labelSlug?: string | null;
   entityId?: number | null;
+  /**
+   * A contributor's slug, for the `/author/<slug>/` addresses WordPress served.
+   *
+   * Filtered through a SUBQUERY rather than a join, deliberately: `listArticles` already joins
+   * `ozikoro_contributor`, but `countArticles` does not, and both call `listWhere`. Referencing
+   * `c.slug` there would break the count with an unknown-table error — a failure that would surface
+   * only on pages that paginate.
+   */
+  authorSlug?: string | null;
   limit?: number;
   offset?: number;
   /** Newest first by default; alphabetical is used by the A–Z index. */
@@ -335,6 +344,12 @@ function listWhere(options: ListOptions): { clause: string; params: unknown[] } 
   if (options.topicSlug) {
     params.push(options.topicSlug);
     conditions.push(`t.slug = $${params.length}`);
+  }
+  if (options.authorSlug) {
+    params.push(options.authorSlug);
+    conditions.push(
+      `a.author_id = (select id from ozikoro_contributor where slug = $${params.length})`
+    );
   }
   if (options.labelSlug) {
     params.push(options.labelSlug);

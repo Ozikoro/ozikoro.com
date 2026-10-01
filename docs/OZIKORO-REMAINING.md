@@ -3135,3 +3135,45 @@ unknown.
 
 I would rather leave it specified than half-built. Round 58 is the standing reminder that a rushed fix
 on a published record cost an Igbo character and a broken invariant.
+
+---
+
+## ROUND 77 — THE AUTHOR FAMILY IS FIXED: 25 OF THE 40 BROKEN LINKS NOW SERVE 200
+
+Rounds 74, 75 and 76 specified this; round 77 built it.
+
+    /author/nze/                  200      /author/ossai/   200
+    /author/chizobem-chinedu-opiah/ 200    /author/aka/     200
+    /author/chuka/                200      /author/nobody-here/  404
+
+### What was added
+
+* **`authorSlug` on `ListOptions`**, filtered through a **subquery** rather than a join —
+  `a.author_id = (select id from ozikoro_contributor where slug = $n)`. `listArticles` already joins
+  `ozikoro_contributor`, but `countArticles` does **not**, and both call `listWhere`. Referencing
+  `c.slug` there would have thrown an unknown-table error that appears **only on pages that paginate** —
+  invisible on the first page and on every test that does not turn a page.
+* **`app/author/[slug]/page.tsx`**, rendering that contributor's records with `CollectionPage` structured
+  data describing a list, not asserting a biography the archive does not hold.
+
+### Why a route and not a redirect
+
+The address can be **served**, so it stays a 200 at the URL WordPress published. That is what the archive
+invariant asks for, and it needed no entry in `ozikoro_redirect` — which keeps it clear of round 75's
+unresolved question about the `/` → `/home/` row entirely.
+
+### Two mistakes caught by checking rather than assuming
+
+* The first import was `'../../../components/ArticleCard'`, **which does not exist** — the working pages
+  use `'../../_components/article-entry'`. The typecheck found it immediately.
+* An earlier patch of the same file **silently failed on indentation**: my search string had two leading
+  spaces and the real code has none. The `assert` refused the edit instead of writing a mangled file,
+  which is the only reason a second pass was needed rather than a broken one.
+
+### Remaining from the 40
+
+The **category family** — `/historical-studies/`, `/biography/`, `/cultural-heritage/`, `/ethnohistory/`,
+`/discography/`, about 27 links — plus the article-like tail. Those are single-segment paths colliding
+with `app/[slug]/`, so they need the lookup-then-redirect mechanism, and that is still behind round 75's
+question. **The two halves of this defect turned out to need entirely different fixes**, which is why
+separating them a round at a time was worth doing.
