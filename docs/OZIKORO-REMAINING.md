@@ -5215,3 +5215,53 @@ So the honest options are the ones already listed — express the 404 without th
 deferral — and **neither was attempted here.** What changed is that the defect is now described correctly,
 and a fix aimed at it will be aimed at the throw rather than at the component, the layout or the rendering
 mode.
+
+---
+
+## ROUND 121 — WHO IS ACTUALLY AFFECTED, MEASURED, AND A WAIVER THAT HAD GONE STALE
+
+Two things were wrong with the waiver in `check-not-found.sh`: **who it affects** was asserted rather than
+measured, and **why it is waived** had been refuted two rounds after it was written.
+
+### Who is affected, measured
+
+The waiver said a reader without JavaScript sees a blank document. True — but it said nothing about the
+readers who *do* have JavaScript, which is nearly all of them. Checked against the payload a JS client
+hydrates from:
+
+    the heading                present
+    the eyebrow                present
+    the explanation            present
+    link: Browse the archive   present
+    link: Search               present
+    href /archive              present
+    href /search               present
+
+**A JavaScript-enabled client receives the complete designed page.** So the effect is narrower than
+"the 404 is broken":
+
+    affected       readers WITHOUT JavaScript, and crawlers that do not execute scripts
+    unaffected     every reader with JavaScript, and Googlebot, which does execute it
+
+That is a materially smaller blast radius than rounds 112 to 119 implied, and it was one request to
+establish.
+
+### And the stated reason had been refuted
+
+The waiver still said *"every route is force-dynamic, so the only experiment that would isolate the cause
+changes how a route renders (rounds 113, 114)."* **Round 116 did that experiment additively and round 119
+superseded the conclusion entirely.** A waiver carrying a refuted reason is worse than one carrying none,
+because it tells the next reader that a closed question is open.
+
+Corrected in the script to the round-119 finding: not `force-dynamic`, not the async layout, not
+`headers()`; the same 404 renders perfectly for an unmatched route; only the throw defers it.
+
+### The rule this adds to the waiver pattern
+
+Round 115's rule was *waive in code, print the waiver, state what would remove it.* This round adds the
+obvious corollary that the script itself just demonstrated:
+
+> **A waiver is source code, and it goes stale exactly like a comment does.** The three-part rule needs a
+> fourth part: **re-read the waiver when the thing it describes changes.** Round 119 changed what is known
+> about this defect and the waiver was not touched — the same drift round 97 found in the resume block's
+> route count, in the one place most likely to be trusted without being read.
