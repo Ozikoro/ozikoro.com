@@ -5796,3 +5796,46 @@ path, the linkage — is a command away, and the command is tested.
 
 **Nothing here was invented, and nothing could have been.** That is the constraint working as intended, and
 it is why this file can say precisely what is missing rather than guessing at it.
+
+---
+
+## ROUND 135 — THE WHOLE OF ITEM 2, PROVEN END TO END AND ROLLED BACK CLEAN
+
+Round 133 proved *address → account → password → session*. This round exercised **the claim**, the last
+unverified link, using a throwaway account **and a throwaway contributor** so that no real record was
+touched in either direction.
+
+    SETUP accounts=1362,1363 contributor=12
+    BEFORE status=null
+    AFTER_REQUEST status=pending
+    AFTER_APPROVE account_id=1362 (expected 1362)
+    AFTER_CLEANUP accounts=0 contributors=11 claims=0 linked=0
+
+**Every step of the chain holds.** A byline starts claimable, requesting sets it `pending`, approving
+**links the account to the contributor** — and the cleanup restored the database exactly: 11 contributors,
+0 accounts, 0 claims, 0 linked, which is precisely the state rounds 128 and 134 measured.
+
+### So item 2 is complete except for the data
+
+    sign-in form, rate limit, session cookie     built and tested
+    ten roles, 53 capability grants              built and tested
+    address -> account -> session                PROVEN   (133)
+    claimable byline -> pending -> approved      PROVEN   (135)
+    account_id linked to the contributor         PROVEN   (135)
+    the eleven addresses                          missing, and only the owner has them
+
+**Nothing in this chain is unverified any more.** The `manage_contributors` fix from migration 0042 —
+without which a claim could be started and never decided — is exercised by that approve step, which is why
+the approve succeeded rather than hanging.
+
+### Why testing it with throwaways was the right instrument
+
+The alternative was to claim a **real** byline and undo it. That would have proven the same code path while
+temporarily attaching a real person's name to an account that does not belong to them — **and if anything
+had gone wrong mid-way, the failure would have landed on a real record rather than on mine.**
+
+The throwaway contributor cost one inserted row and removed the entire class of risk, and the cleanup check
+is what proves it was removed: **`contributors=11`, the number this file has recorded since round 1.**
+
+    No test residue. 102 table(s) checked, every one clean.
+    All 20 offline steps pass.
