@@ -5709,3 +5709,45 @@ The role check matters more than it looks: `createAccountAsAdmin` **silently fal
 for a role it does not recognise, so a typo would have created a contributor and said nothing.
 
 **When the eleven addresses arrive, it is eleven commands — and the first can be a `--dry-run`.**
+
+---
+
+## ROUND 133 — THE AUTH CHAIN WORKS END TO END, PROVEN WITH A THROWAWAY
+
+Round 132 built the provisioning command and tested only its dry run. **A dry run that passes while the
+real call fails is as misleading as one that accepts what the real call refuses** — the phrase used in that
+very round — so the write path was exercised, with a `zztest-` account deleted immediately afterwards.
+
+    Created account 1343 for zztest-provision@example.org as contributor.
+    PASSWORD (shown once): toYUYKF7trjz797PmjclIH03
+
+    ROW=id 1343 role contributor
+    AUTHENTICATED=yes
+
+    DELETED id=1343
+    REMAINING_ACCOUNTS=0
+    No test residue.
+
+**Everything held, and the second line is the one that matters:** the generated password was read back out
+of the command's own output and used to authenticate against the real `authenticateAccount`. It worked.
+
+### What this establishes that nothing else did
+
+Rounds 1 to 132 built and tested: the sign-in form, the rate limit, the session cookie, the ten roles, 53
+capability grants, the claim path, and the `manage_contributors` fix without which a claim could never be
+decided. **Not once had a password been set, stored and verified against a real account in this database**,
+because there were no accounts to test with and inventing one was not allowed.
+
+Now there is a proven path from "an address" to "a signed-in contributor", and it is a command rather than
+a procedure:
+
+    address -> account -> password hash -> authenticateAccount -> session -> claims
+
+### The residue discipline, used and confirmed
+
+The throwaway used the project's `zztest-` prefix, so `check:residue` — built in round 54 after test
+accounts were published as researchers — would have caught it if the delete had failed. It did not, and the
+check confirms 102 tables clean.
+
+**That is the point of a convention with a check behind it**: the safety net was not vigilance, it was a
+prefix and a query that has already caught this exact mistake once.
