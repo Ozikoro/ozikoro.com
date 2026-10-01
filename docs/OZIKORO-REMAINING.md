@@ -4895,3 +4895,54 @@ with the context this round had left. Round 82 is the standing reminder: two att
 took the whole site down, and the shell rendering is a bigger surface than a route.
 
 **The finding is precise, its reach is measured, and the experiment is named rather than guessed.**
+
+---
+
+## ROUND 114 — THE EXPERIMENT I WANTED HAS NO CONTROL GROUP
+
+Round 113 named three candidate experiments for the deferred 404. This round ran the read-only one and
+found the hypothesis is **not testable the way I intended**.
+
+### What was checked
+
+    RootLayout                async            layout.tsx:56
+    loading.tsx anywhere      NONE
+    article route             export const dynamic = 'force-dynamic'
+    routes that force dynamic ALL OF THEM — 31 route files, no exceptions
+
+**There is no non-dynamic route in this application.** Every one of the 31 declares `force-dynamic`,
+including the root page.
+
+### Why that matters more than the answer would have
+
+I wanted to compare a 404 from a `force-dynamic` route against one from a static route — if the static one
+rendered server-side, `force-dynamic` would be the cause. **That comparison does not exist**, because there
+is nothing to compare against.
+
+So the difference between a normal page and the 404 is **not** the route's rendering mode. Both are
+`force-dynamic`. The difference is that the 404 **throws**, and the throw is handled after streaming has
+begun — so the boundary resolves into the flight payload instead of the HTML.
+
+### What this does and does not establish
+
+    established   every route is force-dynamic, so rendering mode cannot explain the difference
+    established   normal pages DO put <main> in the server HTML (round 107, ten pages)
+    established   the 404 does not, on every path tested (rounds 112, 113)
+    NOT established  whether the async RootLayout contributes — untested
+    NOT established  whether a Suspense or loading boundary would help — untested
+
+### And why testing it means the risky class of change
+
+The only way to create the missing control is to **change a route's rendering strategy** — remove
+`force-dynamic` from one route and see whether its 404 renders server-side. That is a caching and rendering
+change affecting how a page is served, and round 82's lesson was that two attempts at a comparable change
+took the **whole site** down rather than one page.
+
+A one-route experiment is much smaller than that, but it is the same *kind* of change, and the honest
+position is that it belongs in a session with room to verify the whole site afterwards.
+
+### The finding, stated in one line
+
+**The 404's blankness is not a route-configuration difference, because there is no route-configuration
+difference to find.** It is what Next does with a thrown not-found inside a dynamically rendered,
+streaming response — and the application has opted every route into that mode.
