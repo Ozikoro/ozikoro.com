@@ -39,7 +39,8 @@
     "import:media-upload": "node src/import/media-upload.ts",
     "backup": "node src/ops/backup.ts",
     "test:redirects": "node src/test-redirects.ts",
-    "check:residue": "node src/ops/residue-check.ts"
+    "check:residue": "node src/ops/residue-check.ts",
+    "check:capabilities": "node src/ops/capability-check.ts"
   },
   "dependencies": {
     "@ozituma/db": "*"

@@ -2207,3 +2207,50 @@ held a fixture row. The dynamic scan found it without being told where to look.
 
 Three separate failures, one cause: **a thing that has to be remembered will eventually not be.** The
 remedy each time was to make the system discover its own inputs rather than be told them.
+
+---
+
+## ROUND 56 — THE ROUND-12 BUG NOW HAS A GUARD THAT WOULD HAVE CAUGHT IT
+
+Round 12 found the byline claim path built, wired to a screen, and **unusable**: `manage_contributors`
+was required by the decision endpoint and held by **no role at all** — not an editor, not an
+administrator. An author could request a byline and nobody could ever decide it.
+
+It was found by exercising the path with a real account, being refused, and asking the role table why.
+**That is luck, not a process.** The capability matrix lives only in SQL migrations and in the
+database, so nothing connected "this string is required by code" to "this string is granted to anyone".
+`check:residue`'s sibling now makes that connection.
+
+`check:capabilities` reads capability names **out of the source** — the arguments to
+`requireCapability` and `hasCapability`, and the destination states in `TRANSITION_CAPABILITY` — and
+checks each against the grants. `verify-all.sh` runs it beside the residue check.
+
+### Verified by reproducing the bug
+
+    manage_contributors revoked
+      -> UNGRANTED CAPABILITIES — required by code, held by NOBODY.
+         manage_contributors
+           required by apps/ozikoro/app/api/claims/route.ts
+      -> exit 1
+
+    grant restored to editor and admin
+      -> Every one is held by at least one role.   exit 0
+
+**It names the bug, the capability, the endpoint that needs it, and exits non-zero** — which is exactly
+what round 12 lacked. Eight capabilities are required by the source and all eight are granted.
+
+### Two extraction bugs in my own check, caught by running it
+
+The first run reported two ungranted capabilities and both were mine, not the product's:
+
+* **`x`** — matched from this file's own doc comment, where `requireCapability('x', …)` appears as an
+  example. The checker was reading its own documentation as code.
+* **`journal_article`** — `'test-publications.ts'.endsWith('publications.ts')` is **true**, so the
+  transition-capability heuristic ran over a *test* file and picked up `kind: 'journal_article'`.
+
+Both are fixed: the walk excludes both test naming conventions (`x.test.ts` and `test-x.ts`) and this
+file itself, and the publications guard now matches the path exactly.
+
+**That is the tenth time in this project that my verification was the defective part.** Every one was
+caught by running the check and reading its output rather than trusting it, which is now the most
+reliable habit this work has produced.

@@ -54,6 +54,7 @@ run() {
 echo ""
 echo "  Database hygiene"
 run "no test residue" npm run check:residue
+run "every capability is granted" npm run check:capabilities
 
 echo ""
 echo "  Typecheck"
