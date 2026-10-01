@@ -4647,3 +4647,59 @@ and honestly labelled.
                focus visibility (3px outline, offset, skip link)
                focus order (no positive tabindex; DOM order is correct)
     open       form error messaging — needs interaction
+
+---
+
+## ROUND 109 — THE ERROR WAS ANNOUNCED BUT NOT ATTACHED TO THE FIELD
+
+Round 108 left **form error messaging** as the one open accessibility item, needing interaction. Applying
+the same split: the *interaction* half needs a browser, but the **markup half is static**, and checking it
+found something.
+
+    page        aria-invalid  aria-describedby  role="alert"  <label>
+    signin           0              0               1           2
+    submit           0              0               1          10
+    claims           0              0               2           1
+    reviews          0              0               1           3
+
+**Every form announced its error and none of them said which field it belonged to.** `role="alert"` makes a
+screen reader read *"Not signed in"*; `aria-invalid` and `aria-describedby` are what connect that message
+to the input it concerns. Without them a screen-reader user is told something went wrong and left to
+search for where.
+
+### Fixed on the sign-in form
+
+The notice gains `id="signin-error"`, and both fields carry attributes **that exist only when there is an
+error**, so they describe the field rather than decorating it permanently:
+
+    aria-invalid={params.error ? true : undefined}
+    aria-describedby={params.error ? 'signin-error' : undefined}
+
+Verified by rendering:
+
+    WITH an error      aria-invalid 4   aria-describedby 4   id="signin-error" 3   role="alert" 1
+    without an error   aria-invalid 2   aria-describedby 2   id="signin-error" 0   role="alert" 0
+
+The residual counts in the second row are **React's serialised payload**, not markup — the same strings
+travel in the hydration data. The difference between the rows, two each way, is the real attributes.
+
+### And my verification was wrong first — twice inside one check
+
+The first attempt searched for `"aria-invalid"` **with quotes around the attribute name**. HTML does not
+quote attribute names, so the pattern could never match and it reported 0 of 0 on a page that had four.
+
+This is the **fourth pattern that could not match** in this session:
+
+    round 101   a quote on the wrong SIDE of the directive name   -> four CSP directives "missing"
+    round 105   a pattern that never had a chance to run          (guarded, still correct)
+    round 106   a `continue` that EXCLUDED the failing case       -> "clean" link text
+    round 109   a quoted attribute NAME                           -> reported my own fix missing
+
+Four different mechanisms, one outcome: **a confident number from a check that could not have produced any
+other.** The rule that catches all four is the one this file keeps arriving at — *make the check fail on
+purpose before trusting it to pass* — and here it was caught only because the result contradicted a fix I
+had just verified with `grep` in the source.
+
+### Still open, honestly
+
+`submit`, `claims` and `reviews` have the same gap and are **not** fixed. Named rather than implied.

@@ -44,7 +44,7 @@ export default async function Page({
       </header>
 
       {params.error ? (
-        <div className="notice notice--error" role="alert">
+        <div className="notice notice--error" role="alert" id="signin-error">
           <div>
             <p className="notice__title">Not signed in</p>
             <p className="notice__body">{params.error}</p>
@@ -67,7 +67,25 @@ export default async function Page({
 
           <div className="field">
             <label htmlFor="email">Email address</label>
-            <input id="email" name="email" type="email" autoComplete="username" required maxLength={200} />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              required
+              maxLength={200}
+              /*
+               * `role="alert"` ANNOUNCES an error; it does not say WHICH FIELD is wrong. Round 109
+               * found the notice announced on all four form pages while aria-invalid and
+               * aria-describedby were zero everywhere. A screen-reader user heard "Not signed in"
+               * and then had to guess where to look.
+               *
+               * Both are set only when there IS an error, so the attributes describe the field
+               * rather than decorating it permanently.
+               */
+              aria-invalid={params.error ? true : undefined}
+              aria-describedby={params.error ? 'signin-error' : undefined}
+            />
           </div>
 
           <div className="field">
@@ -78,6 +96,8 @@ export default async function Page({
               type="password"
               autoComplete="current-password"
               required
+              aria-invalid={params.error ? true : undefined}
+              aria-describedby={params.error ? 'signin-error' : undefined}
             />
           </div>
 
