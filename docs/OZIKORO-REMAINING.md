@@ -4040,3 +4040,49 @@ both built during this session and neither was ever added to the count.
 
 The habit that would have caught it is the one already in this file: **when a claim can be counted, count
 it.** It applies to prose as much as to test output.
+
+---
+
+## ROUND 98 — I NEARLY "CORRECTED" A CLAIM THAT WAS RIGHT
+
+Round 97 found the resume block's route count wrong and established the rule: **when a claim can be
+counted, count it.** So this round counted the next ones.
+
+    claimed: 20 verification steps
+    grep -c '^run "' scripts/verify-all.sh    ->  15
+    grep -cE '^\s*(run|run_suite|step)' …     ->  16
+
+Fifteen. Then sixteen. Either would have justified rewriting the claim to match — and **both were wrong,
+for a reason visible in the same output I was reading past:**
+
+    16 run invocations, of which three take variables:
+      $name      loops over the section headings
+      $ROOT      the root check
+      $suite     loops over the shared suites
+
+**The script loops.** A static count of its source lines cannot equal the number of steps it performs —
+`$suite` alone expands to five suites. Measured where it counts, by running it and counting what it emits:
+
+    bash scripts/verify-all.sh > /tmp/va.txt ; echo $?   ->  0
+    PASS lines actually emitted                          ->  20
+
+**The claim was correct.** My count was not.
+
+### The fourth shape of one mistake
+
+    round 73   counted the wrong SPELLING        -> reported zero dead links
+    round 92   counted the wrong SET             -> missed 214 files
+    round 93   counted the wrong DIRECTORY RULES -> 190MB one command from history
+    round 95   counted against the wrong FILE    -> invented 58 missing variables
+    round 98   counted the SOURCE, not the BEHAVIOUR -> nearly "fixed" a correct number
+
+Every one is the same underlying error: **measuring something adjacent to the answer and reporting it as
+the answer.** Round 97's route count really was wrong, and the lesson from it really does hold — but the
+lesson is "count it **where it is observable**", not "count it wherever it is written down."
+
+The general rule, which this file has now earned five times:
+
+> **Measure the behaviour, not the description of the behaviour.**
+
+`check:secrets` at 7 sub-checks and `verify-live.sh` at 3 were counted the same way and are both correct —
+7 and 3 respectively, taken from their own output in rounds 95 and 90.
