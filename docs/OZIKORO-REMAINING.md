@@ -3327,3 +3327,41 @@ worked seconds earlier. Both were reverted and the server verified back on six k
 A routing mistake here is not a broken page; it is a broken site. That is worth knowing before the third
 attempt, and it is the reason the next attempt should be made against the middleware or the table —
 places where a mistake is contained — rather than against the route tree.
+
+---
+
+## ROUND 83 — HALF THE ATTACHMENT FIX, BUILT WHERE IT CANNOT BREAK ANYTHING
+
+Rounds 81 and 82 established that `/<parent>/<child>/` cannot be a route, and that each attempt to make
+it one **took the entire site down**. The remaining mechanism is the middleware, which touches every
+request and therefore carries the same blast radius.
+
+So this round built the half that cannot break anything: the **destination**.
+
+    app/attachment/[slug]/page.tsx      static parent, dynamic child — expressible
+
+Verified:
+
+    /attachment/igbo-sub-tribes/   308 -> /documents/igbo-sub-tribes/
+    /attachment/nothing-here/      404
+
+    /   /topics/historical-studies/   /labels/aba/   /documents/kolanut/   /author/nze/   all 200
+
+**Additive, and every existing route still resolves** — the opposite of rounds 81 and 82, where the
+attempt itself was the outage. A new static segment cannot collide with the route tree, which is why this
+was the safe half to build first.
+
+### What remains, and why it was not attempted now
+
+One middleware rewrite:
+
+    /<unknown-first-segment>/<media-slug>/   ->   /attachment/<media-slug>/
+
+The middleware would need to know which first segments are real routes — `topics`, `labels`, `documents`,
+`author`, `admin`, `api`, `researchers`, `publications`, `entities`, `media`, `_next`, `design` — and
+rewrite everything else. Get that list wrong in the permissive direction and a genuine 404 becomes a
+redirect loop; wrong in the strict direction and attachments keep 404ing.
+
+**It is a small change to a file every request passes through**, and the two previous attempts at this
+same defect each took the whole site down. Building it needs room to verify every route afterwards, which
+this round did not have. **The destination is in place and proven; the rewrite is one step, specified.**
