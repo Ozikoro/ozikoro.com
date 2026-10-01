@@ -7551,3 +7551,39 @@ became `3,437 of 3,488 > media`. **A fix for a serialisation problem that had a 
 by the same move: **looking at the artefact rather than at the result.** The difference this time is that the
 guard made the failures *loud* — it refused to pass while reporting fewer claims than intended, which is
 exactly what round 57 built that guard for.
+
+---
+
+## ROUND 176 — THE CHECK GREW TO THIRTEEN, AND TWO OF THE NEW ONES COULD NOT MATCH AT FIRST
+
+Round 175 built the handover checker with nine claims. The rounds since have added claims to the block —
+the 90 label pages, the 187 clans with regions, the 18,382 subject links — and each new claim is a new
+chance to go stale, so three were added.
+
+    ok  sitemap URLs 14667 · waived in-body links 3 · subject links 18382 · clans with a region 187
+    checked: 13   wrong: 0   pattern-found-nothing: 0
+
+**Thirteen countable claims, re-derived and compared.** Every one holds.
+
+### And the patterns needed a third fix for the same reason
+
+The block writes **"All \*\*14,667\*\* sitemap URLs"** — **markdown puts `**` between a number and its
+noun** — and the first patterns were written as though the sentence were plain prose. Two of the four new
+claims matched nothing on the first attempt.
+
+    round 172   React interleaves HTML comments between text nodes
+    round 175   markdown wraps the sentence and prefixes every line with "> "
+    round 176   markdown puts "**" between the number and the noun
+
+**Three times in five rounds, the same failure**: a pattern that cannot express how the text is
+**serialised**. And three times the guard turned it from a silent under-check into a loud one — which is
+the difference between a checker that reports nine claims holding and one that reports thirteen while
+quietly checking nine.
+
+### What the check is for, in one line
+
+    before   eight corrections to the resume block, seven of them found in a LATER round
+    now      a claim that goes stale fails step 21 of verify-all.sh the next time anybody runs it
+
+**The prose is still hand-written and still drifts.** What changed is that its countable half now has to
+answer for itself.

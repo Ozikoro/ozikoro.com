@@ -94,15 +94,27 @@ console.log([
   await q('select count(distinct article_id)::int n from ozikoro_article_entity'),
   await q(\"select count(*)::int n from ozikoro_media where licence is not null and licence <> ''\"),
   await q('select count(*)::int n from account'),
+  await q('select count(*)::int n from ozikoro_article_label'),
+  await q('select count(*)::int n from clan where published = true and region is not null and region <> \'\''),
+  await q('select count(*)::int n from clan where published = true'),
 ].join(' '));
 await closeDb();
 " 2>/dev/null | tail -1)
-read -r MEDIA SELFHOSTED ARTICLES LINKED LICENCED ACCOUNTS <<< "$DB"
+read -r MEDIA SELFHOSTED ARTICLES LINKED LICENCED ACCOUNTS SUBJECTLINKS CLANREGION CLANPUB <<< "$DB"
 
 if [ -z "${MEDIA:-}" ]; then
   echo "  COULD NOT READ THE DATABASE — not a pass." >&2
   exit 2
 fi
+
+SITEMAPURLS=$(node --input-type=module -e "
+import { getDb, closeDb } from '@ozituma/db/client';
+import { listIndexableUrls } from '@ozikoro/platform';
+const db = await getDb();
+console.log((await listIndexableUrls(db)).length);
+await closeDb();
+" 2>/dev/null | tail -1)
+WAIVEDLINKS=$(grep -cE "^  '/" scripts/check-body-links.mjs | tr -d ' ')
 
 echo ""
 echo "  Resume block against the system"
@@ -115,6 +127,13 @@ claim "media self-hosted"      "[0-9,]+ of [0-9,]+ media"            "$SELFHOSTE
 claim "articles"               "[0-9,]+ records"                     "$ARTICLES"
 claim "records entity-linked"  "0 of 1,051 records linked"             "$LINKED"
 claim "media licenced"         "[0-9,]+ of [0-9,]+ items"            "$LICENCED"
+# Markdown puts `**` between a number and its noun — "All **14,667** sitemap URLs" — so the patterns allow
+# for it. Round 175's lesson, in the third costume: a pattern that cannot express the serialisation reports
+# an absence. The guard makes that loud rather than silent, which is how these were found.
+claim "sitemap URLs"           "[0-9,]+[^ ]* *sitemap URLs"           "$SITEMAPURLS"
+claim "waived in-body links"   "[0-9]+ waived in-body"                "$WAIVEDLINKS"
+claim "subject links"          "[0-9,]+ subject links"                "$SUBJECTLINKS"
+claim "clans with a region"    "[0-9,]+ of [0-9,]+ *published clans"  "$CLANREGION"
 
 echo ""
 echo "  checked: $checked   wrong: $failed   pattern-found-nothing: $missing"
