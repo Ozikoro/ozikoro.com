@@ -5839,3 +5839,55 @@ is what proves it was removed: **`contributors=11`, the number this file has rec
 
     No test residue. 102 table(s) checked, every one clean.
     All 20 offline steps pass.
+
+---
+
+## ROUND 135 (CONTINUED) — MY OWN CLEANUP MISSED A TABLE, AND THREE MEASUREMENTS HID IT
+
+The claim test rolled back the contributor, the claim, the accounts and the sessions and reported a clean
+database. **`verify-all.sh` then failed on `no test residue`** — and it took three attempts to see why.
+
+### What was left
+
+    ozikoro_audit   id 1594   action 'approve_claim'   note 'zztest'
+
+`decideContributorClaim` writes an **audit row**, and the audit row is not mine to delete in the normal
+course of things — it is the system recording that an approval happened. My cleanup removed everything I
+had created and nothing that the functions had created on my behalf. **The one row that proved the test ran
+was the one row I forgot.**
+
+### Three ways I failed to see it
+
+**One: my grep hid the failing check.** I ran `check:residue` and filtered its output for
+`No test residue|SCANNED` — so when it printed **`TEST RESIDUE FOUND`**, my filter discarded the line and
+showed nothing. The command's own failure was invisible because I had written the pattern for its success.
+**Round 106's lesson — a `continue`, a `filter`, a skipped branch removes inputs before the assertion sees
+them — committed again, by hand, in a shell pipeline.**
+
+**Two: I guessed the column names.** The first probe searched `action`, `detail` and `entity_id`. The audit
+table has `entity_type`, `action`, `before`, `after` and **`note`** — no `detail` column at all. I wrote
+the query against a remembered schema instead of reading `information_schema`. **Round 99's mistake, in a
+new table.**
+
+**Three: I looked at the last three rows.** The second probe dumped `order by id desc limit 3` — rows 1629,
+1630 and 1606 — and the residue was row **1594**. **Round 126's mistake: a sample reported as a survey.**
+
+### And the fix was the checker's own predicate
+
+The query that found it read the column list from `information_schema`, built the same
+`"column"::text like 'zztest%'` test `residue-check.ts` uses, and scanned **all 145 rows**. It found one
+row on the first try.
+
+> **When something else can already find a thing, use its method rather than inventing one.** Three
+> independent measurement errors were all avoided by copying the predicate from the code that reported the
+> problem.
+
+    No test residue. 102 table(s) checked, every one clean.
+    All 20 offline steps pass.
+
+### What this says about the claim-chain proof itself
+
+**The proof stands** — every step ran, the linkage was verified, and the rollback restored the counts. What
+failed was my *report of the rollback*, and the residue check caught it exactly as it was built to. **The
+check written in round 54 after test accounts were published as researchers is now the thing that caught
+this round's error, which is the first time one of these has caught me rather than a real defect.**
