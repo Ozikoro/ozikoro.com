@@ -20,13 +20,24 @@
  */
 import { getDb } from '@ozituma/db/client';
 import { MemberError, decideContributorClaim, requestContributorClaim } from '@ozikoro/platform';
-import { redirectTo, requireCapability, requireUser } from '@/lib/access';
+import { redirectTo, requireCapability, requireUser, sameOrigin, jsonError } from '@/lib/access';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request): Promise<Response> {
   const form = await request.formData();
+
+  /*
+   * Cross-site form submissions are refused.
+   *
+   * The session cookie is `SameSite=Lax`, which already stops a browser sending it on a cross-site
+   * POST — so this is defence in depth rather than the only protection. It is added because the four
+   * Spotify and auth endpoints already do exactly this, and a state-changing route that omits it
+   * relies entirely on a cookie attribute continuing to be set correctly in every environment.
+   */
+  if (!sameOrigin(request)) return jsonError(403, 'cross_origin', 'That request did not come from this site.');
+
   const action = String(form.get('action') ?? '').trim().slice(0, 30);
   const backTo = String(form.get('returnTo') ?? '/claims/').trim().slice(0, 200) || '/claims/';
 

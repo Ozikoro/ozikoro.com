@@ -1537,3 +1537,44 @@ All three correct. Test account removed, **0 residue**.
 * The same pattern should be reviewed in the Ozituma application (`apps/web`), which is outside this
   objective and was not examined.
 * A nonce-based CSP remains outstanding and is the larger remaining security item.
+
+---
+
+## ROUND 42 — CSRF: CONSISTENCY ADDED, AND A CLAIM I DID NOT MAKE
+
+### What was measured
+
+`sameOrigin` exists and was used by four routes — the auth route and the three Spotify endpoints. It
+was **not** used by the four other state-changing POST routes:
+
+    /api/claims          /api/research          /api/admin/archive          /api/admin/rights
+
+The tempting conclusion is "CSRF vulnerability". **That would have been wrong**, and the reason is
+worth recording:
+
+    session cookie:  httpOnly: true,  sameSite: 'lax',  secure: (derived from the site URL scheme)
+
+`SameSite=Lax` means a browser **does not send the cookie on a cross-site POST**, which is exactly the
+request a CSRF attack needs. So the attack is mitigated before the request is authenticated. What was
+missing is **defence in depth**, not a hole — the four routes relied entirely on a cookie attribute
+continuing to be set correctly in every environment, while the other four did not.
+
+### What was done
+
+The origin guard added to all four, matching the pattern the protected routes already use. Verified on
+the running server, all four routes, three ways each:
+
+    cross-origin (Origin: https://evil.example)   403   refused
+    same-origin  (Origin: the site)               303   proceeds
+    no Origin    (curl, non-browser clients)      303   proceeds
+
+The third case is deliberate: `sameOrigin` returns true when no `Origin` header is present, because
+older browsers and non-browser clients do not send one. That behaviour is pre-existing and was left
+alone rather than changed in passing.
+
+### The discipline this round exercised
+
+This is the first security round where the answer was **"not a vulnerability"**, and it would have been
+easy to report otherwise. The cookie's `SameSite` attribute was checked *before* writing the finding,
+not after. Four rounds ago the opposite happened — an audit script reported failures that did not
+exist — and the cost of that was a correction to a file other people read.
