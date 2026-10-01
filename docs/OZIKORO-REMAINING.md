@@ -6816,3 +6816,56 @@ where a slow claim only delays it.
 **Four axes compared, and the last one found the sharpest thing yet.** The first three asked what Ozikoro
 lacks; this one asked what it lacks *and then asked whether the gap could be worked around*, which is the
 question that turned "no recovery page" into "no recovery at all".
+
+---
+
+## ROUND 159 — ROUND 158 CONFLATED TWO DIFFERENT PROHIBITIONS, AND THAT BLOCKED WORK THAT IS NOT BLOCKED
+
+Round 158 said a password-reset CLI *"cannot be exercised against a real account and a real actor"* and
+that writing one now *"would be tested by inventing the very records this project may not invent."* That
+second clause is wrong, and checking what the constraint actually says shows why.
+
+### What the rule prohibits
+
+    "*Never invent a record, a source, a rights statement, a citation or a statistic.*"
+
+**The rule is about content** — things a reader would be shown and take as real: an article, a citation, a
+rights claim, a figure. It is not about **test fixtures**, and this project has used those throughout:
+
+    round  62   a throwaway article, copied so every column was satisfied, deleted after
+    round 116   a throwaway /zztest-static-404 route, removed after one measurement
+    round 132   scripts/create-account.ts — the operator supplies the address
+    round 133   a zztest account, authenticated, deleted: REMAINING_ACCOUNTS=0
+    round 135   a zztest account AND a zztest contributor, claimed, approved, rolled back
+
+**Every one used the `zztest` prefix, and `packages/ozikoro/src/ops/residue-check.ts` enforces it** —
+`const PREFIX = 'zztest'`, scanning 102 tables on every run. Round 135 was caught by exactly that check when
+my cleanup missed an audit row, which is the guard working rather than the practice failing.
+
+### So the reset CLI is testable, and the actor problem has the same answer
+
+Round 158's other point was real: `setPasswordAsAdmin` needs an `actorId`, and there are no accounts. **But
+round 135 already solved that shape** — it created `zztest-decider@example.org` as an **admin** specifically
+to act as the decider, then deleted it.
+
+    create a zztest ADMIN          -> the actor
+    create a zztest ACCOUNT        -> the target
+    reset the target's password    -> assert the new one authenticates
+    delete both, rows and sessions -> check:residue confirms
+
+**Every part of that has been done before in this file**, and none of it invents anything a reader would
+see.
+
+### And a correction about what "ordering" even means
+
+Round 158 concluded the CLI was blocked behind the eleven addresses, joining round 154's notification.
+**That is true of the real thing and false of the tool.** The eleven addresses are needed before an author
+can *recover*, and they are not needed before the tool can be *written and proven* — which is precisely the
+distinction round 132 drew when it built `account:create` twenty-seven rounds before anyone could use it.
+
+    blocked by the addresses   the eleven authors signing in and claiming
+    NOT blocked                every tool that makes those eleven possible
+
+**Two rounds have now called a tool blocked because the thing it operates on does not exist yet**, and both
+times the tool could have been built and tested against throwaways. **The rule is narrower than I applied
+it: do not invent content, and do build instruments.**
