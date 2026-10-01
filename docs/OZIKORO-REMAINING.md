@@ -1971,3 +1971,44 @@ run only locally. Making them runnable in CI means building the import chain int
 extraction, the migrations, the seed and the four imports — which is not built.
 
 This is a genuine gap and the next thing to do for deployment confidence.
+
+---
+
+## ROUND 51 — ALL SIXTEEN SUITES IN ONE COMMAND
+
+    ./scripts/verify-all.sh          # or: npm run verify:all
+
+Every round of this work has ended by running the same ten suites by hand, from memory, in a
+particular order. That is slow, it is easy to skip one, and **a suite that is not run is a suite that
+does not exist.** Round 50's CI covers the database-free half; this covers all of it, including the
+suites that assert against the real imported archive.
+
+    16 suites: typecheck, sanitiser, redirects/same-origin, application, archive, members,
+               editorial, publications, rights, search, spotify, and the five shared suites
+    All suites passed.
+
+### The guard, tested rather than assumed
+
+A dev server holds the PGlite lock, and every suite would then fail with a mutex timeout that looks
+nothing like its cause — a failure mode that has cost real time twice in this project. The script
+refuses to start if anything is listening on 3100.
+
+Verified with a trivial socket listener standing in for the server:
+
+    $ bash scripts/verify-all.sh
+    FAIL: something is listening on 3100. Stop the dev server first — it holds the database lock,
+          and the suites will fail with a mutex timeout rather than a real error.
+    exit=1, and no suite was attempted
+
+It refuses **before** running anything, so it cannot produce a half-finished run whose output looks
+like a genuine failure.
+
+### What this does not solve
+
+It is not CI. It still runs only on this machine, and it assumes the archive, dictionary and research
+data are already imported — it verifies, it does not import. **Making the import chain run in CI is
+still the outstanding piece**, and the reason is unchanged: the integration suites assert real numbers
+(1,051 records, 3,488 media, 11,056 labels) and CI would need the 72 MB of extracted JSON committed,
+live access to the WordPress site being replaced, or a seeded fixture.
+
+This script is what CI would call once one of those exists.
