@@ -4851,3 +4851,47 @@ presence for its being rendered.
 
 This is the fifteenth measurement in this file that was confident and wrong, and the first one where
 **the right question only appeared after getting the answer twice.**
+
+---
+
+## ROUND 113 — THE DEFECT IS REACHABLE, AND WHERE IT IS NOT
+
+Round 112 found the 404 streams its whole body as a suspended boundary, so the served HTML contains no
+`<main>`, no `<h1>` and none of the layout's chrome. This round asked the question that decides how much
+it matters: **does anything real lead there?**
+
+    a waived body link      404  deferred=True  server <main>=False  server <h1>=False
+    a genuine stray         404  deferred=True  server <main>=False  server <h1>=False
+    a mistyped address      404  deferred=True  server <main>=False  server <h1>=False
+
+**Yes.** Three real entry points, all landing on a page whose server-rendered form is empty:
+
+* the **three waived body links** from round 87, which live inside published articles
+* the **four genuine strays** from round 74, also inside published articles
+* **any mistyped or outdated address** a reader arrives at
+
+### And where it is not
+
+**Not from the sitemap.** Round 70 requested **all 14,667 URLs it advertises** and every page that answered
+returned 200. So a crawler that follows the sitemap never reaches this page, and no indexed URL is affected.
+
+That distinction is worth stating precisely, because it bounds the severity honestly in both directions:
+
+    affected     readers following a dead in-body link, and anyone typing an old address
+    not affected any URL the sitemap advertises, and therefore normal search traffic
+
+### Why it was not fixed here
+
+The cause is not in `not-found.tsx` — that file is good — but in **why Next defers the whole body when
+`notFound()` is thrown from a dynamic render**. Candidates worth testing, none of them checked:
+
+* whether the root `layout.tsx` being `async` and awaiting the database puts the entire tree behind a
+  Suspense boundary, so the error boundary inherits a hole
+* whether `dynamic = 'force-dynamic'` on the article route changes it
+* whether an explicit `loading.tsx` or `Suspense` boundary in the layout would let the shell render first
+
+Each is a small experiment and **each changes how every page renders**, which is why none was attempted
+with the context this round had left. Round 82 is the standing reminder: two attempts at a routing change
+took the whole site down, and the shell rendering is a bigger surface than a route.
+
+**The finding is precise, its reach is measured, and the experiment is named rather than guessed.**
