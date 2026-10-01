@@ -2964,3 +2964,42 @@ Four of those five did not exist thirty rounds ago, and **each found a real defe
 its first run**: an unreachable published article, a navigation link to a 404 on every page, test residue
 published as researchers, a capability granted to nobody. The fifth, `verify-all.sh`, is what made
 running all of it routine rather than remembered.
+
+---
+
+## ROUND 73 — MY BODY-LINK CHECK FOUND NOTHING BECAUSE IT LOOKED FOR THE WRONG THING
+
+Round 71 named the remaining coverage gap: *"deep links inside article bodies — the walk follows href
+values, but only from pages it reaches."* So those links were extracted from all 1,057 published bodies
+and compared against the 14,667 URLs already verified.
+
+    ARTICLES_SCANNED=1057
+    INTERNAL_BODY_LINKS=0
+    DISTINCT_UNKNOWN_TARGETS=0
+
+**Zero links, and it looked like a clean bill of health.** It was a false negative. The pattern was
+`href="(/[^"#?]*)` — relative URLs only — and the archive's links are **absolute**:
+
+    ARTICLES=1057   WITH_HREF=91   WITH_ANCHOR=91   MENTIONS_SITE=1030
+
+Ninety-one articles contain anchors, and 1,030 mention the site. My check had discovered nothing because
+it was looking for a spelling that does not occur.
+
+### This is the mirror of the error this file keeps recording
+
+Thirteen previous corrections were **false positives** — a check reporting a fault that was not there.
+This is the opposite, and it is worse in one specific way: **a false positive is visible in the output
+and invites scrutiny. A false negative produces an empty result, and an empty result reads as success.**
+
+A pattern that matches nothing and a dataset with nothing to match are indistinguishable from the
+outside. The only defence is to check that the pattern can match *something* — which is exactly what the
+second query did, and why it took two attempts rather than one.
+
+### Still to do, now precisely scoped
+
+The 91 articles with anchors need their absolute internal links extracted and compared against the
+verified URL set. That is a small, well-defined job and it is **not done**: the first attempt at it was
+the one that failed.
+
+Also observed, and not a defect: **1 article has an empty body**, which rounds 9 and 43 established is
+deliberate — the record is kept, the gap is visible, and the page still renders a heading.
