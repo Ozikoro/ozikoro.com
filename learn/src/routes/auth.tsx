@@ -55,7 +55,29 @@ function AuthPage() {
     try {
       if (mode === "signin") {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        /*
+         * A failed sign-in explains the most likely reason.
+         *
+         * Everyone who has an ozituma.com account already HAS an account here -- the mirror
+         * created it -- but it has no usable password. The dictionary stores a scrypt hash,
+         * which is irreversible, so it cannot be copied across: those people must set a
+         * password on this side once.
+         *
+         * A generic "Invalid login credentials" hides that. They try their dictionary
+         * password, it fails, and the reasonable conclusion is that the site is broken.
+         * So the message names the cause and offers the fix directly.
+         */
+        if (error) {
+          const invalid = /invalid login credentials/i.test(error.message);
+          setMsg({
+            kind: "err",
+            text: invalid
+              ? "That email and password do not match an account here. If you signed up on ozituma.com, your account already exists but has no password set on this side — use \"Forgot password\" below to choose one."
+              : error.message,
+          });
+          setBusy(false);
+          return;
+        }
       } else if (mode === "signup") {
         if (!adult) throw new Error("Please confirm you are 13 or older.");
         const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin, data: { full_name: name } } });
