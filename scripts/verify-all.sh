@@ -53,6 +53,9 @@ run() {
 
 echo ""
 echo "  Database hygiene"
+# No credential is committed. Answered by hand once and answered correctly — which is not the same as
+# being guarded. A single `git add -A` after a local experiment puts a .env in the history.
+run "no committed credentials" npm run check:secrets
 run "no test residue" npm run check:residue
 run "every capability is granted" npm run check:capabilities
 # Links written inside article prose. Different in kind from the other two link checks: these were typed

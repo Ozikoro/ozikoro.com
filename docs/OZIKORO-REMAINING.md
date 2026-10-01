@@ -3735,3 +3735,53 @@ for anything known-and-deferred: *a waiver that silences is indistinguishable fr
                (and, when run at scale, all 14,667 sitemap URLs)
 
     exit codes are read from the commands themselves, never after a pipe
+
+---
+
+## ROUND 91 — NO COMMITTED CREDENTIALS, MADE STANDING — AND A FINDING I DID NOT GO LOOKING FOR
+
+`scripts/check-secrets.sh`, wired as `check:secrets` and now **step one of twenty** in `verify-all.sh`.
+
+    PASS  no committed credentials
+    PASS  no test residue
+    …                                    All suites passed.
+
+Four checks: no environment file is tracked; no credential-shaped text (`AKIA…`, private keys, `sk-…`)
+appears anywhere in tracked files; no secret is assigned a literal; and `.env.example` exists with its
+variable list. The `postgres://` lines that look alarming are placeholders (`ozituma:ozituma@localhost`)
+and a `${POSTGRES_PASSWORD}` interpolation.
+
+**Mutation-tested rather than assumed.** Staging a fake `.env.zztest`:
+
+    exit with a tracked env file: 1
+      TRACKED ENVIRONMENT FILE(S) — these must never be committed:
+        .env.zztest
+
+and after removing it, exit 0, with the file confirmed gone from both disk and the index.
+
+### And then `git status` showed 61 entries I did not create
+
+    total entries: 61
+      42 ??     19 M
+
+**Every one is in `apps/web/` — the Ozituma application, not the Ozikoro one this session has been
+working on.** An entire admin section is untracked: `ads/`, `analytics/`, `appearance/`, `clans/`,
+`learn/`, `names/`, `proverbs/`, `record/`, `recordings/`, `settings/`, `submissions/`, `users/`,
+`words/`, `layout.tsx`, `ui.tsx`, `admin.css` — plus API routes and nineteen modified core pages
+including `apps/web/app/page.tsx` and `apps/web/app/layout.tsx`.
+
+**This is the round-33 finding again, in the other application.** In round 33 the Ozikoro app had **zero
+tracked files** and one `git clean` would have destroyed it. That was fixed for `apps/ozikoro`. **Nobody
+checked `apps/web`, and it is in exactly that state now.**
+
+It matters directly to the objective — *"keep the three sites connected through one database and one
+account table"* — because this is one of the three sites, and it is uncommitted.
+
+### Deliberately not committed
+
+I did not commit it. It is not this session's work, I have not read it, and committing 61 files blind
+would put unreviewed code into the history under a message that could not honestly describe it. **The
+right next step is to establish whether it builds and what it is, then commit it deliberately** — which is
+what round 33 did for the Ozikoro app, after the same discovery, in the same shape.
+
+**Flagging it is the useful act available now. A silent `git add -A` would not be.**
