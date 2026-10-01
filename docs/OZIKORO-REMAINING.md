@@ -1,42 +1,54 @@
 # What remains
 
-> **RESUME HERE — status as of round 29.** This file is a running record, newest at the BOTTOM.
-> Read this block, then the round-26 status table near the end; the middle is history.
+> **RESUME HERE — status as of round 72.** This file is a running record, newest at the BOTTOM.
+> Read this block and the round-26 status table; the rest is history, and some of it is superseded.
 >
-> **Live and verified:** 16 public routes returning 200; a migrated record answers at its original
-> WordPress address from this platform's own database and media origin; 3,437 of 3,488 media files
-> served from our own storage with **zero hotlinks** (the 51 missing are 404 at source and the pages
-> say so); typecheck 0 errors; 58 unit tests plus every suite green.
+> **What is live.** 16 public routes; a migrated record answers at its original WordPress address from
+> this platform's own database and media origin; 3,437 of 3,488 media files served from our own storage
+> with **zero hotlinks**; typecheck clean; all 18 verification steps green via `./scripts/verify-all.sh`.
+>
+> **Verified by exhaustive request, not by sampling.** All **14,667** sitemap URLs were requested and
+> every page that answered returned 200 (round 70). The 120-page link walk is clean (round 66).
 >
 > **Done:** media into storage (1) · auth, ten roles and the byline claim path (2) · the editorial
 > queue's machinery (3) · the research slice's public and review loop (4) · rights, consent and
 > archaeology schema (5) · search with Knowledge/Research modes (6) · Ozituma entity linking (8) ·
 > sitemap, heading order, alt text, contrast, JSON-LD, security headers, health endpoint, backup and a
-> restore drill (10).
+> restore drill (10) · four real security fixes with regression tests · CI on the code-only half ·
+> a deploy artefact that builds and serves.
 >
-> **Not done:** the AI research assistant (9, needs a provider credential) · notifications ·
+> **Not done:** the AI research assistant (9 — needs a provider credential) · notifications ·
 > deployment · manuscript upload · public screens for archaeology and oral history.
 >
 > **Blocked on the owner — nothing here will be invented:** the map and timeline screens (none exist
-> among the 37 delivered designs) and the PostGIS decision (unavailable in PGlite) · `S3_BUCKET` and
-> `HEALTH_TOKEN` for production · nonce-based CSP · backup scheduling and off-machine storage · media
-> rights — **0 of 3,488 items has an actual licence.**
+> among the 37 delivered designs) and the PostGIS decision (unavailable in PGlite) · `S3_BUCKET`,
+> `HEALTH_TOKEN` and a server Postgres · nonce-based CSP · backup scheduling and off-machine storage ·
+> media rights — **0 of 3,488 items has an actual licence.**
 >
 > **The largest gap is human:** **0 of 1,051 records linked to an entity.** The machinery is built and
 > verified; the retagging is editorial work.
 >
-> **Four process lessons, learned the hard way — all cost real time:**
-> 1. Assert on the artefact after writing, never on the script's own success message.
-> 2. Kill a dev server **by port**; `pkill -9 -f node` killed the media download as collateral, and
->    `kill -9` while it held the PGlite lock corrupted the cluster and forced a full rebuild.
-> 3. `timeout` does not exist on macOS — `timeout 120 node …` exits 127 and mimics a database failure.
-> 4. Some importers are dry-run by default and say so only in a line a `grep` can hide:
->    `import:clans` and `import:learn` need `--apply`, and a root script whose body is another
->    `npm run` cannot forward flags.
+> **Five hazards that cost real time here, all recorded because they will recur:**
+> 1. A dev server holds the PGlite lock. Killing it with `kill -9` corrupted the cluster once and
+>    forced a full rebuild. Kill **by port**, and never `pkill -f node` — that killed the media
+>    download as collateral.
+> 2. `timeout` does not exist on macOS; `timeout 120 node …` exits 127 and mimics a database failure.
+> 3. BSD `sed` does not support `\?`. Silent no-op, dramatic false alarm.
+> 4. Some importers default to dry-run and say so in one line a `grep` can hide, and a root script whose
+>    body is another `npm run` cannot forward flags.
+> 5. **Piping a checker to `tail` discards its exit code** — it reported success while the script
+>    reported 31 failures.
 >
-> **Audit discipline:** in three separate rounds an audit script produced a *false positive* (the
-> form-labelling failures, the uppercase-Igbo hit, one other). A check that reports a problem is as
-> likely to be wrong as one that reports success — verify both against the artefact.
+> **The verification habit, which is the most valuable thing in this file.** More than a dozen times a
+> check or a test produced a confidently wrong answer — false failures, false passes, or a result that
+> was correct for the wrong reason. Every one was caught by insisting on a measurement that
+> distinguishes the answer from a nearby one. In two cases that insistence surfaced something far more
+> important than the original error. **Verify the verification.**
+>
+> **The debugging lesson, learned over eight rounds.** For an unreachable published article I ran four
+> rounds of theories — routing, middleware, encoding, non-ASCII dispatch — before doing the cheapest
+> thing available: **printing the value the code actually receives.** That took one line and gave the
+> answer immediately (a difference of letter case inside a percent-escape). Print the input first.
 
 
 The build plan (`Ozikoro_DSH_Main_Agent_Repository_Audit_and_Core_Build_Plan.docx`) defines done in
