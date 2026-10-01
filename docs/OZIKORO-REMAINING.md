@@ -4703,3 +4703,51 @@ had just verified with `grep` in the source.
 ### Still open, honestly
 
 `submit`, `claims` and `reviews` have the same gap and are **not** fixed. Named rather than implied.
+
+---
+
+## ROUND 110 — THE FIX THAT DOES NOT TRANSFER, AND WHY APPLYING IT WOULD HAVE BEEN WORSE
+
+Round 109 fixed the sign-in form and named `submit`, `claims` and `reviews` as having "the same gap". This
+round went to fix them, and found the gap is **not the same one.**
+
+### What the three forms actually are
+
+    {notices.error ? <div className="notice notice--error" role="alert">…</div> : null}
+    const notices = await searchParams;
+
+**The error is a free-form string arriving in the query string**, set by a server action's redirect. The
+page has no idea which field it concerns — the title, the authors, the disciplines, the file, or the
+request as a whole. It renders one notice at the top and announces it.
+
+### Why `aria-invalid` on every field would be wrong
+
+The sign-in fix works because the error there **is** about the credentials just entered, so marking both
+credential fields is accurate. Copying it to `submit` would put `aria-invalid="true"` and
+`aria-describedby="…"` on **every** field in a ten-field form, because the page cannot tell which one the
+server objected to.
+
+**That is not a fix, it is a false statement**: a screen-reader user would be told all ten fields are
+invalid when the server rejected one — or none, if the error was about the submission as a whole.
+
+> **A fix that is right in one context and copied into another becomes a fabrication.** The distinction is
+> the same one this file draws about records and rights: do not assert what you do not know.
+
+### The honest state of the three
+
+* `role="alert"` already announces the message, and that is correct behaviour for a form-level error.
+* The fields correctly carry `<label htmlFor>` — verified this round, including the dynamic ones
+  (`ev-${b.id}`, `rec-${review.id}`, `c-${review.id}`, `p-${review.id}`), which are more often wrong.
+* **What is genuinely missing is that the page cannot say which field the error concerns** — and it cannot,
+  because the server action does not pass that. The remediation is for the action to redirect with a field
+  name (e.g. `?error=…&field=title`) and the page to use it. **A larger change than it looked, and not
+  attempted.**
+
+### And a correction to round 109's own wording
+
+Round 109 said the three forms have "the same gap". **They have a different gap with the same symptom** —
+a message announced without a field attached. Round 109 described the symptom correctly and the cause
+wrongly, and the difference is exactly what stopped a wrong fix from being applied here.
+
+**Naming a gap is not the same as understanding it, and the value of naming it was that it got
+investigated.**
