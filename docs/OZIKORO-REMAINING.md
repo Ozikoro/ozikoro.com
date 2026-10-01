@@ -4138,3 +4138,52 @@ self-hosted` would have been an artefact.
 **Counting is not the same as verifying**, and this file has now demonstrated both outcomes from the same
 instruction. The instruction stands: *when a claim can be counted, count it* — and then check that the
 count is of the thing the claim is about.
+
+---
+
+## ROUND 100 — WHAT A NONCE-BASED CSP WOULD ACTUALLY HAVE TO COVER
+
+Item 10 lists nonce-based CSP as outstanding, and unlike most of what remains it is **blocked on nobody**.
+Before treating it as a small job, the scale was measured.
+
+The policy today, from `apps/ozikoro/next.config.ts`:
+
+    script-src 'self' 'unsafe-inline'            (+ 'unsafe-eval' in development only)
+    style-src  'self' 'unsafe-inline' https://fonts.googleapis.com
+
+`'unsafe-inline'` is there because **Next.js emits its bootstrap and the RSC payload as inline script**.
+The file's own comment already says so, and already names the fix: *"a nonce-based policy is stronger and is
+the right next step; it needs middleware to mint a nonce per request."*
+
+### Measured, for one page
+
+    homepage:
+      <script> tags total       : 52
+        with a src= (external)  :  5
+        INLINE                  : 47
+        of which JSON-LD        :  0
+        executable inline       : 47
+
+**Forty-seven inline scripts, every one of them Next's.** A nonce policy has to tag all of them on every
+request, which makes this a real piece of work with a real failure mode — get one wrong and the page stops
+hydrating, which looks like a broken site rather than a failed policy.
+
+### Why measuring first was the useful part
+
+The comment says *"Next.js emits an inline bootstrap and the RSC payload inline."* That reads like one or two
+scripts. **It is forty-seven**, and that number is what determines whether the job is an afternoon or a
+week — and whether it should be attempted without a running deployment to verify hydration against.
+
+Counted rather than estimated, and it changes the judgement: **this is the kind of change that should be
+made with the site live and a rollback ready**, not in a session that cannot check whether the result
+hydrates.
+
+### The honest state of item 10
+
+    done      security headers, HSTS in production, X-Content-Type-Options, Referrer-Policy,
+              X-Frame-Options DENY, COOP, Permissions-Policy, health endpoint, backup and
+              restore drill, sitemap, robots, headings, alt text, contrast, JSON-LD
+    open      nonce-based CSP (measured: 47 inline scripts per page)
+    open      notifications
+    open      backup scheduling and off-machine storage
+    blocked   deployment (needs S3_BUCKET and a server Postgres)
