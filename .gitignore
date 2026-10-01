@@ -100,4 +100,11 @@ Thumbs.db
 
 # The TanStack Start learner app (github.com/idenze/paper-whisperer-forge).
 # A separate stack with its own package manager; kept out of this workspace.
-learn/
+# Anchored: a bare `learn/` also matched the application at staging/learn/.
+# The learner app at staging/learn/ is NOT excluded.
+#
+# It was, by a bare `learn/` rule, on the reasoning that it is a separate stack with its
+# own package manager. The effect was that the entire application had NO version
+# control -- 0 files tracked -- so a bad edit could not be reverted and nothing could be
+# pushed. A separate stack still needs a history; if it should live in its own
+# repository, that is a move to make deliberately, not a reason to leave it untracked.

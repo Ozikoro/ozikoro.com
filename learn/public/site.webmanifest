@@ -1,0 +1,41 @@
+{
+  "name": "Ozituma",
+  "short_name": "Ozituma",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "theme_color": "#1E1B16",
+  "background_color": "#1E1B16",
+  "display": "standalone",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "description": "Learn Igbo: lessons, native audio and spaced review, from the Ozituma dictionary.",
+  "lang": "en",
+  "orientation": "portrait-primary",
+  "shortcuts": [
+    {
+      "name": "Review due words",
+      "url": "/practise"
+    },
+    {
+      "name": "Continue learning",
+      "url": "/learn"
+    }
+  ]
+}

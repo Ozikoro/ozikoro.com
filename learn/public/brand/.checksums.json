@@ -1,0 +1,23 @@
+{
+  "_note": "SHA-256 of every asset copied from the official brand kit. Regenerate with scripts/check-brand-kit.mjs --record.",
+  "_source": "Documents/ozituma-brand-kit 2",
+  "ozituma-horizontal-black.svg": "1f400749f0127f70f5d3fd348d92643797ced6e72f17153816c7e61f305e6bca",
+  "ozituma-horizontal-color.svg": "ac3df0b28b2bda2b115feb379963a038a92eb9fc04a26d334b4d8bb3ac097575",
+  "ozituma-horizontal-on-cream.svg": "bd73e6c54c0a3f286fd8e5dcb1d919a03033d6071110cf35603924552e838ca6",
+  "ozituma-horizontal-on-ink.svg": "73ef0a571988518208d6ca0197f84a2e8704d4dd759035e0aabea3c5cdcc685c",
+  "ozituma-horizontal-reversed.svg": "75eff725e20d4f093ca6f6f2dff64ff0f2b84f05c16c82faca8688dc749dcc27",
+  "ozituma-horizontal-white.svg": "cd7310c8f0b3af1886f7be86ff7e3f6f99cf845e9c1ffb79c8d7f4d6aa90ec1c",
+  "ozituma-mark-black.svg": "967bad048c7e8edec86ef34a4018a950f44e761b449e33f6a8b986fefcd914d4",
+  "ozituma-mark-color.svg": "d79e5ce846452ae5bcac852724f52d82dede3f4f3518e998b37235d2de8487c7",
+  "ozituma-mark-reversed.svg": "e819c1ce1f423a2546e05355a27324804433ddb4cb10156b32776434e0abf7e9",
+  "ozituma-mark-white.svg": "3ec1d145df773b34f8662ee0cdbc65e5ef2278fce81ff2fd8dd467ebbdb73885",
+  "ozituma-stacked-black.svg": "85ce32233f00ca786f54107c47383c995a0277d29682942b4bb9f5bd8391faa9",
+  "ozituma-stacked-color.svg": "8ae20a9781fd7f047193c4544e379d1df6b09f81ee7767e671b0e7f9863d7212",
+  "ozituma-stacked-reversed.svg": "be1c4e8158198695f0456ffff4df8d1d207b724cae10af2852eb88405ed8ce16",
+  "ozituma-stacked-white.svg": "8b375afec5f4c5bd40b633eb49e76cd759dad8d7bdf61aeba6e8b616d8e0bfc5",
+  "favicon.svg": "b3a856718a9aedc30d9c30d538800d8a91cb27aaf5896966b225b2cc00305606",
+  "favicon-32x32.png": "180236119311a55d310fbe6b18f034bebb3fe2c3e8840bf685b0630e7c2828a9",
+  "apple-touch-icon.png": "bf79e266042933d92f8634c682863d38dda813574daea30ebd1085bb1f6e9a49",
+  "android-chrome-192x192.png": "9b70a7cfa4e66de68185748669216226362fbfdc2f2abdb2bf2527bfc12e41cf",
+  "android-chrome-512x512.png": "96ebb26115299859b72fdace9304cd68876a5277869fceea07efd2c2b7261963"
+}

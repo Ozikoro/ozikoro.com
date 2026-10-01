@@ -1,0 +1,98 @@
+# CI for learn.ozituma.com.
+#
+# WHY EACH STEP IS HERE
+#
+# Every guard below encodes a failure that ALREADY HAPPENED in this project and looked like success
+# at the time: a publish that no-opped and returned 200, a database guard that was never created
+# because an exception swallowed it, and HTML served from cache with no header telling anyone.
+#
+# A clean build proved nothing about any of them. So the build is the least of this file.
+name: learn
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: staging/learn
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      # The non-negotiables, checked first because a violation here should stop the line before
+      # anything is built or deployed.
+      - name: No secrets in the repo
+        run: node scripts/check-no-secrets.mjs
+
+      - name: Tutor guardrails intact
+        run: node scripts/check-tutor-guards.mjs
+
+      - name: Service worker cannot cache a document
+        run: node scripts/check-html-not-cached.mjs
+
+      # The logo and favicons are the owner's brand, copied byte-identical from the official kit.
+      # An optimiser run or an editor's save-rewrite produces a file that still looks right at 36px
+      # and is no longer the approved mark.
+      - name: Brand assets match the official kit
+        run: node scripts/check-brand-kit.mjs
+
+      - name: Types
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npx vite build
+
+      # Nitro generates this file, so the binding must be re-added after every build or the tutor
+      # silently loses its model. The script fails loudly if Nitro's output shape changes.
+      - name: Worker bindings reachable
+        run: |
+          node -e "
+            const fs=require('fs'); const p='.output/server/wrangler.json';
+            const j=JSON.parse(fs.readFileSync(p,'utf8'));
+            if(!j.ai){ j.ai={binding:'AI'}; fs.writeFileSync(p, JSON.stringify(j,null,2)+'\n'); }
+          "
+          node scripts/patch-worker-env.mjs
+
+  # Separate job, because it reads the live database and the build job must not hold a credential to
+  # do so. "NFC everywhere" cannot be verified from source alone — the violation was 95% of the
+  # corpus sitting in NFD, which no client-side normalising repairs.
+  normalisation:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Corpus is Unicode NFC
+        working-directory: staging/learn
+        env:
+          SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/check-nfc.mjs
+
+      - name: Corpus non-negotiables
+        working-directory: staging/learn
+        env:
+          SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/check-non-negotiables.mjs
+
+      - name: Audio pipeline resolves
+        working-directory: staging/learn
+        env:
+          SUPABASE_MANAGEMENT_TOKEN: ${{ secrets.SUPABASE_MANAGEMENT_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: node scripts/check-audio.mjs
