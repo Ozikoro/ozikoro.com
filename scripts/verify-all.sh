@@ -52,6 +52,10 @@ run() {
 }
 
 echo ""
+echo "  Database hygiene"
+run "no test residue" npm run check:residue
+
+echo ""
 echo "  Typecheck"
 run "typecheck" npm run typecheck
 

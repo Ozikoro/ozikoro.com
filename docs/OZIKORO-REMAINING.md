@@ -2119,3 +2119,58 @@ about the archive.**
 Each version was reached by checking rather than assuming, and each was still too optimistic until
 measured. **The real answer is a seeded fixture** — a small known dataset the structural assertions can
 bite on — and that remains outstanding.
+
+---
+
+## ROUND 54 — MY TEST RESIDUE WAS THE ONLY CONTENT IN THE RESEARCHERS DIRECTORY
+
+Looking for invented content in live routes — donor figures, sponsors, investor numbers — turned up
+nothing: the four design screens about money (`donate`, `investors`, `sponsors`, `academy`) have **no
+routes at all**, and no live route mentions donations, pledges or sponsorship.
+
+What the same sweep found instead was worse, and it was mine.
+
+### What was there
+
+Two accounts left behind by the **exploratory authorization test in round 44** —
+`zztest-idor-a@example.com` and `zztest-idor-b@example.com` — still existed, still had
+`ozikoro_member` rows, and still had **`is_public = true`**.
+
+At that moment they were:
+
+    the ONLY TWO ENTRIES in the /researchers directory
+    https://ozikoro.com/researchers/298/   in the sitemap
+    https://ozikoro.com/researchers/299/   in the sitemap
+
+**Two made-up people, named after a test prefix, published as researchers and offered to search
+engines.** That is the precise thing the objective forbids — *never label demonstration content as
+real* — and nothing would have caught it. Every suite passed.
+
+### Why nothing caught it
+
+Tests clean up after themselves **when they finish**. The round-44 test was an exploratory one whose
+later runs cleaned `zztest-idor2-%` and `zztest-idor3-%` but not the first batch. Cleanup that misses
+one table, or a run that is interrupted, leaves rows behind — and a green suite says nothing about it,
+because the suites assert their own tables and not the database.
+
+### The lasting fix
+
+`check:residue` — asks the question directly, across **nine tables**, for the `zztest` prefix every
+fixture in this repository uses. `verify-all.sh` now runs it **first**.
+
+Verified both ways, because a check that always passes is worthless:
+
+    clean database       -> "No test residue",                  exit 0
+    planted probe        -> "TEST RESIDUE FOUND", account 1, ozikoro_member 1,   exit 1
+    probe removed        -> "No test residue",                  exit 0
+
+It reports test data as what it is: *"rows marked public are served to readers and listed in the
+sitemap as if they were real."*
+
+### Also checked, and clean
+
+The design's invented researcher — `Chinwe Ị̀kẹ̀jìànị̀` — appears in the application source in exactly
+one place: a string literal in `test-search.ts` **testing that the diacritic fold works**. It is a
+folding example, not a fabricated record, and it appears nowhere in the database.
+
+`listResearchers` now returns **0**, the directory is empty, and the two sitemap entries are gone.
