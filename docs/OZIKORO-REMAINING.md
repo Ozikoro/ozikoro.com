@@ -7270,3 +7270,43 @@ The lookup already runs. `app/labels/[slug]/page.tsx` queries `clan` for a publi
 a link; **the same row carries `region`, `parent_id`, `states` and `lgas`.** One more field in a select that
 already happens is not a feature, and it is not built here because deciding *what a subject page should say
 about a clan* is editorial, not mechanical — the same line rounds 155 and 156 drew.
+
+---
+
+## ROUND 169 — THE COLUMN AUDIT FOUND NOTHING, AND MY FIRST CHECK WAS BROKEN
+
+Round 168 found `clan.region` populated on 187 rows and read by nothing. This round asked whether that is a
+general condition of the schema, or one column.
+
+### The audit
+
+    populated columns on ozikoro_article, and the files referencing each:
+      title 1056 · standfirst 1009 · body_html 1056 · seo_title 1057 · seo_description 50
+      word_count 1055 · folded_title 1056 · legacy_url 1057 · canonical_url 1057
+
+      standfirst 7 files · seo_description 3 · word_count 4 · seo_title 3
+      folded_title 1 · legacy_url 2 · canonical_url 2
+
+**Every populated column is referenced somewhere.** `clan.region` is a single column, not a symptom of a
+schema nobody reads.
+
+### And the first version of the check was broken
+
+It ran `[ "$n" -gt 0 ]` against `grep -rc "$f" <one named file>` — and **`grep -c` with a named file prints
+`filename:count`, not a bare count**, so the comparison failed with *"integer expression expected"* on every
+field and the output said **"NOT used on the article page"** for all six. Two of them are used.
+
+**It reported six absences and produced six errors to stderr to say so**, and the corrected check — `grep -rl
+… | wc -l` — found references for every one. Round 101's lesson for the fifth time: a pattern that cannot
+match reports absence for everything, and the only reason this did not become a finding is that the errors
+were loud and I read them.
+
+### What it cost, and what it bought
+
+    cost      one round's subject, replaced by the audit that was supposed to support it
+    bought    the knowledge that clan.region is an outlier, which makes round 168's finding sharper
+              rather than weaker — a column nobody reads is notable precisely because the others all are
+
+**A negative result that confirms a positive one is worth having.** The rule this file keeps arriving at —
+*check the pattern can match before trusting its silence* — is now matched by its corollary: **when a check
+prints errors, the errors are the result**, and the table under them is not.
