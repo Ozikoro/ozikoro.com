@@ -6758,3 +6758,61 @@ marks or one is a **branding decision, not a copy step**.
 > **This is the fifth instance of the same pattern in nine rounds** — rounds 148, 149, 153, 154 and now this
 > one: a capability, an asset or a machine that exists in the estate and Ozikoro is not connected to. Four
 > were engineering. **This one is a decision**, which is the distinction the pattern keeps producing.
+
+---
+
+## ROUND 158 — PASSWORD RECOVERY HAS NO ROUTE AT ALL, NOT EVEN A TERMINAL ONE
+
+Round 155 found `forgot` and `reset` absent. Comparing the **API surfaces** sharpens it: the dictionary has
+`admin/password-link`, an admin-initiated recovery route, and the archive has no equivalent. So the question
+became whether an operator can do it by hand. They cannot.
+
+    apps/web/app/api/admin/password-link/route.ts   exists in the dictionary
+    apps/ozikoro/app/api/                           no password route of any kind
+    scripts/                                        create-account.ts, nothing for passwords
+    npm scripts                                     account:create — no password equivalent
+    packages/db/src/passwords.ts:171                setPasswordAsAdmin(db, accountId, newPassword, actorId, meta)
+    packages/db/src/role.ts                         a CLI for roles, invoked in docs/DEPLOYMENT.md
+
+**The function exists and the pattern for a CLI exists — `role.ts` does exactly this for roles — and there
+is no way to run it.** A contributor who forgets their password cannot recover it themselves, cannot be sent
+a link by an administrator, and cannot have it reset by an operator without writing code.
+
+**This is round 132's finding again**: the capability was in the package, the interface to it was not.
+
+### And it runs into the same ordering as the notification
+
+`setPasswordAsAdmin` requires an **`actorId: number`** — a real account to attribute the change to, because a
+password change is an auditable act and the audit row needs an actor. **There are no accounts.** So the
+ordering that round 154 found for notifications:
+
+    the eleven addresses  ->  accounts  ->  claimants  ->  claims  ->  a notification worth sending
+
+has a second chain hanging off the same root:
+
+    the eleven addresses  ->  accounts  ->  an actor  ->  a CLI that can reset somebody's password
+
+**Both are blocked on the same single thing**, and both are worth writing the day it arrives rather than
+now: a password-reset CLI that cannot be exercised against a real account and a real actor is a script that
+would be tested by inventing the very records this project may not invent.
+
+### What is genuinely at risk, stated plainly
+
+**Eleven authors, one of whom forgets their password, and no path back that does not involve a developer.**
+That is not a hypothetical: it is the ordinary failure mode of any system with passwords, and it is the flow
+the dictionary implements *specifically because* its failure locks somebody out of their own account.
+
+**The mitigation until accounts exist is the CLI itself**, which is why it is the first thing to write once
+the eleven addresses arrive — ahead of the notification, because a locked-out author blocks the archive
+where a slow claim only delays it.
+
+### The comparison, finished
+
+    lib/ capabilities     round 155   -> five missing pages, four of them decisions
+    routes                round 155   -> the same five
+    structural files      round 156   -> no favicon, and no error boundary in either app
+    API routes            round 158   -> no admin password route, and no CLI behind it
+
+**Four axes compared, and the last one found the sharpest thing yet.** The first three asked what Ozikoro
+lacks; this one asked what it lacks *and then asked whether the gap could be worked around*, which is the
+question that turned "no recovery page" into "no recovery at all".
