@@ -6360,3 +6360,65 @@ existence means that decision can be answered with an experiment rather than a p
 Round 147 applied it to item 7 and found the blocker was data, not PostGIS. This round applied it to item 9
 and found the blocker was **design, not a credential**. **Two blockers in two rounds, both mis-stated in the
 same way** — an unmeasured dependency stated as the reason, and the real reason sitting one query away.
+
+---
+
+## ROUND 149 — THE DEPLOYMENT STACK EXISTS AND OZIKORO IS NOT IN IT
+
+This file has said *"deployment — blocked on `S3_BUCKET` and a server Postgres."* Both of those are
+mis-statements, and the real situation is simultaneously better and more specific.
+
+### What exists, and it is substantial
+
+    docker/Dockerfile                    a built image
+    docker/docker-compose.prod.yml       postgres · web · learn · caddy, all four with healthchecks
+    docker/Caddyfile                     TLS and routing
+    docs/DEPLOYMENT.md                   a full runbook
+    scripts/build-standalone.sh          the artefact the image needs
+
+And inside the compose, the objective's own architectural requirement is already implemented:
+
+    web:    DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
+    learn:  DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
+
+**Two applications, one database, one password, defined rather than intended.** And the Postgres is
+`postgres:16-alpine` **as a service in the same file** — so "a server Postgres" is not something to be
+obtained. It is nine lines that already exist.
+
+### And none of it is Ozikoro's
+
+    grep -ri ozikoro docker/          ->  nothing. Zero matches.
+    services in the compose           ->  postgres · web · learn · caddy
+    docs/DEPLOYMENT.md                ->  Route 53 (ozituma.com) · media.ozituma.com · the ozituma app
+
+**There is no `ozikoro` service, no `ozikoro.com` route, no Ozikoro container and no Ozikoro deployment
+documentation.** The runbook is Ozituma's, and it says so throughout.
+
+### So the accurate statement is
+
+    said   blocked on S3_BUCKET and a server Postgres
+    true   the deployment stack is BUILT, modern and proven — for Ozituma and Learn. Ozikoro was
+           never added to it. That is one service definition in a file that already defines three
+           like it, plus a route in a Caddyfile that already routes two sites.
+
+**The dependency was never the blocker; the absence of a service definition was**, and calling it a
+dependency made it sound like something to wait for rather than something to write.
+
+### The three-candidate evaluation of the objective's own constraint
+
+    one database    implemented — web and learn share DATABASE_URL in the compose
+    one account table  verified — `information_schema` shows exactly one `account` table (round 128)
+    three sites connected  verified — all three answer 200 and link to each other (round 145)
+
+**Adding Ozikoro to that compose would make the share explicit for all three**, which is exactly what the
+objective asks for and what the file currently describes as blocked.
+
+### Third blocker in three rounds, mis-stated the same way
+
+    round 147   item 7   "blocked on PostGIS"        -> blocked on missing coordinates
+    round 148   item 9   "needs a provider credential" -> needs a grounding design
+    round 149   item 10  "blocked on S3_BUCKET and a server Postgres" -> Ozikoro is absent from a stack
+                                                                    that already exists
+
+**All three named a dependency that was not the obstacle.** In this one the dependency does not merely
+fail to block the work — **it is already satisfied twice over, in a file nobody had opened.**
