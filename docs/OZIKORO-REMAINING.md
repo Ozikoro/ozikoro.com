@@ -2539,3 +2539,51 @@ bounds the impact, and it means any future investigation has one specimen rather
 Insert a throwaway article whose slug is a plain ASCII string, request it, then change only its slug to
 one containing a non-ASCII character and request that. One record, one variable, two requests. **Not run
 here** — it writes to the database and this session has limited context left to undo it safely.
+
+---
+
+## ROUND 62 — THE HYPOTHESIS IS REFUTED, AND THAT NARROWS IT TO THE RECORD
+
+Round 61 ended with a hypothesis it could not test: *that Next does not dispatch a dynamic segment
+decoding to a non-ASCII character.* Round 61 also named the experiment that would settle it, and
+declined to run it for want of context. It has now been run.
+
+### The experiment, one record and one variable
+
+A throwaway article was copied from a real published one so every column was satisfied, given an ASCII
+slug, and requested. **Then only its slug changed** — the letters left alone, the character swapped for
+`ǹ` — and the same address was requested three ways.
+
+    STEP 1  zztest-probe-ascii-slug                    ->  200
+    STEP 2  slug changed to zztest-probe-ǹ-slug        (one variable)
+    STEP 3  /zztest-probe-ǹ-slug/      raw UTF-8       ->  200
+            /zztest-probe-%C7%B9-slug/ encoded upper   ->  200
+            /zztest-probe-%c7%b9-slug/ encoded lower   ->  200
+
+**The hypothesis is refuted.** Next dispatches a dynamic segment containing a non-ASCII character
+perfectly well, in raw and both encoded spellings.
+
+### And the tolerant lookup from round 59 works
+
+All three forms returned 200 against a database row holding the raw `ǹ` — which is the first positive
+evidence that `slugVariants` does its job end to end, rather than only at the domain level.
+
+### What that leaves
+
+The failure is **not** about encoding, **not** about routing, **not** about the middleware, and **not**
+about non-ASCII segments. Every general explanation is now eliminated by experiment, and the difference
+must lie **in the one record itself**.
+
+The concrete difference between the probe and the real article: the probe's stored slug contains the
+**raw character**, while the real article's stored slug contains the **literal text `%c7%b9`** — a
+percent-encoded string sitting in the database as data. A request for that address decodes to `ǹ`,
+`slugVariants` then re-encodes to `%c7%b9`, and round 59 verified that this finds the row — yet the page
+still 404s.
+
+That is now the specific thing to chase, with one record to chase it in.
+
+### Housekeeping
+
+The probe row was deleted immediately and `check:residue` confirms the table is clean. The probe used
+the `zztest` prefix deliberately, so that forgetting to remove it would fail verification rather than
+sit in the database.
