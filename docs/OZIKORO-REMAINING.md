@@ -11691,3 +11691,51 @@ still 0 have a *licence*.** A register that says "unknown" 3,488 times is not th
 conflating them would have turned a documented absence into a false assurance.
 
 **verify-all passes.**
+
+---
+
+## ROUND 261 — I WENT LOOKING FOR A PHASE 7 GAP AND THE GAP WAS ALREADY CLOSED
+
+**I had been carrying a finding in this file for many rounds:** *"`selectKnowledge` has no relevance floor, so
+`trustForGrounding` returns `'verified'` for irrelevant results."* Phase 7's brief asks for *"a relevance
+threshold"*, so I went to build one.
+
+**It is already built, and the comment at the site says so** — with the round number that fixed it:
+
+    // RELEVANCE, WHICH `empty` DOES NOT TELL YOU (measured in round 191).
+    //
+    // `selectKnowledge` does not filter on relevance. It scores every item, sorts, and takes the top N — and
+    // `scoreItem` gives every `culture` item +1 for its kind alone. So a question about quantum chromodynamics
+    // retrieves four Igbo heritage articles, `result.empty` is false, and `trustForGrounding` calls it
+    // "verified": **the archive would claim grounding for an answer that has nothing to do with the question.**
+
+`answerabilityOf` takes the question's terms and refuses when no passage contains any of them. **The gate
+exists, it is the right shape, and it is tested:**
+
+    knowledge.test.ts   tests 6 · pass 6 · fail 0
+      including "selectKnowledge returns items for a question nothing matches — this is the gap
+      answerabilityOf covers"
+
+### And the weakness I thought I had found is not one either
+
+**I read `term.length > 1` in the gate and thought a question containing "the" would match any passage
+containing "the"** — which would have defeated the whole check. **So I followed it upstream, and `queryTerms`
+filters stopwords:**
+
+    const STOP_WORDS = new Set(['the','and','for','are','but','not','you','all','can','her','was',
+      'what','when','where','which','while','with','this','that','does','mean','means','please',
+      'igbo','word','about','from','into', …]);
+
+**`igbo` and `word` are in the list**, which is a detail worth noticing: they are the words a question about
+the archive's own subject will always contain, so treating them as signal would have made nearly every
+question look relevant.
+
+### So this round's result is that there was nothing to build
+
+**The finding was wrong, and the entry that carried it was mine.** It has been repeated in the resume block
+and in three round summaries as though it were an open defect, **and it was closed in round 191 — before the
+first of those rounds.** The correction is the round's product.
+
+**That is the eleventh instance in this run of a claim in this file being the thing at fault**, and the first
+one where the claim was mine rather than an instrument's. **A stale finding is worse than no finding, because
+it spends attention on work already done.**
