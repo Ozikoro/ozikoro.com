@@ -11095,3 +11095,35 @@ the one most tempting to fill.
     404   /watch
 
 **Ten pass, eight to go, and `/watch` is still a missing route.**
+
+---
+
+## ROUND 249 — `/topics`: THE CONTENT WAS RIGHT AND THE STRUCTURE WAS NOT
+
+    before   .sx-discovery-hero and .sx-az-letter missing; the page used wrap, section, chips
+    after    ok — 2 design sections, 10 headings
+
+**This one is the opposite of `/about` and `/documents`.** Those were missing content as well as structure.
+`/topics` already had every heading the design has and the right data — 14 series and 11,056 subjects — and was
+rendering it in `wrap`/`section`/`chips` where the design uses `sx-discovery-hero`, `sx-az-letter` and
+`sx-az-jump`. **The page was correct and did not look like the design**, which is the failure this whole round
+of work exists to find.
+
+### And the design's jump bar carries a rule worth keeping
+
+**A letter with subjects is a link; a letter without is a `<span>`.** That is the design's own empty state —
+letters J, K, L, N, Q, U–Z have no entries and are not clickable here either, because **a link to an empty
+section teaches a reader that the index lies.** It is the same principle as plain dates on the cultural
+calendar and the "no object has been accessioned" state on material culture: **an empty state is a feature, and
+a control that appears to work and does not is worse than one that is visibly absent.**
+
+### The tally
+
+    ok    /  /archive  /photographs  /documents  /material-culture  /towns
+          /cite  /careers  /ledger  /about  /topics
+    FAIL  /listen  /igbo-calendar  /cultural-calendar  /projects
+          /publications  /folklore  /submit
+    404   /watch
+
+**Eleven pass, seven to go.** Three rounds, three pages, and the remaining set is now small enough to name
+individually: a missing route, four skeleton gaps and two narrower ones.

@@ -41,69 +41,87 @@ export default async function TopicsPage() {
   const usedLetters = LETTERS.filter((l) => (byLetter.get(l)?.length ?? 0) > 0);
 
   return (
-    <div className="wrap section">
-      <header>
-        <p className="eyebrow">Discovery</p>
-        <h1>Topics A–Z</h1>
-        <p className="lede">
-          {stats.labels.toLocaleString('en-GB')} subjects are filed in the archive, across{' '}
-          {stats.articles.toLocaleString('en-GB')} records. These are the ones most written about.
-        </p>
-      </header>
+    <main>
+      {/*
+        The design's discovery hero. Its eyebrow is "A simple index" and its h1 "Topics A–Z", and the search
+        form sits inside the hero rather than below it — a reader arrives to find a subject, so the box that
+        finds one belongs with the title.
+      */}
+      <section className="sx-discovery-hero">
+        <div className="wrap">
+          <p className="eyebrow">A simple index</p>
+          <h1>Topics A–Z</h1>
+          <p className="lede">
+            Find a subject without knowing which collection or category holds it. The archive writes about{' '}
+            {series.length} series and {stats.labels.toLocaleString('en-NG')} subjects.
+          </p>
+          <form className="search" action="/search" method="get" role="search">
+            <label className="sr-only" htmlFor="q">
+              Search topics
+            </label>
+            <input id="q" name="q" type="search" placeholder="Search topics" />
+            <button className="btn btn-gold" type="submit">
+              Search
+            </button>
+          </form>
+        </div>
+      </section>
 
-      {series.filter((t) => t.articleCount > 0).length > 0 ? (
+      <section className="wrap section">
+        <nav className="sx-az-jump" aria-label="Jump to a letter">
+          {/* A letter with subjects is a link; one without is a span, which is the design's own empty state
+              and the honest one — a link to an empty section teaches a reader that the index lies. */}
+          {LETTERS.map((letter) =>
+            byLetter.has(letter) ? (
+              <a href={`#letter-${letter}`} key={letter}>
+                {letter}
+              </a>
+            ) : (
+              <span key={letter} aria-hidden="true">
+                {letter}
+              </span>
+            )
+          )}
+        </nav>
+
         <section className="section">
           <p className="eyebrow">Series</p>
-          <ul className="chips">
-            {series.filter((t) => t.articleCount > 0).map((topic) => (
-              <li key={topic.slug}>
-                <Link className="chip" href={`/topics/${topic.slug}`}>
-                  {topic.name} <span className="muted">{topic.articleCount}</span>
-                </Link>
-              </li>
+          <nav className="sx-cats" aria-label="Series">
+            {series.map((topic) => (
+              <Link href={`/topics/${topic.slug}/`} key={topic.slug}>
+                {topic.name} <span className="muted">{topic.articleCount}</span>
+              </Link>
             ))}
-          </ul>
+          </nav>
         </section>
-      ) : null}
 
-      <nav className="section" aria-label="Jump to a letter">
-        <ul className="chips">
-          {usedLetters.map((letter) => (
-            <li key={letter}>
-              <a className="chip" href={`#letter-${letter}`}>{letter}</a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-
-      <form className="search section" method="get" action="/search" role="search">
-        <label className="small" htmlFor="q">Search the archive instead</label>
-        <div className="row">
-          <input id="q" name="q" type="search" placeholder="A town, a clan, a person, a period…" />
-          <button className="btn btn-ink" type="submit">Search</button>
+        <div className="sx-az-grid">
+          {usedLetters.map((letter) => {
+            const entries = byLetter.get(letter) ?? [];
+            const shown = entries.slice(0, 40);
+            return (
+              <section className="sx-az-letter" id={`letter-${letter}`} key={letter}>
+                <h2>{letter}</h2>
+                <ul>
+                  {shown.map((label) => (
+                    <li key={label.slug}>
+                      <Link href={`/labels/${label.slug}/`}>{label.name}</Link>
+                      {label.articleCount > 0 ? (
+                        <span className="muted small"> {label.articleCount}</span>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+                {entries.length > shown.length ? (
+                  <p className="muted small">
+                    {entries.length - shown.length} more under {letter}, reachable through search.
+                  </p>
+                ) : null}
+              </section>
+            );
+          })}
         </div>
-      </form>
-
-      {usedLetters.map((letter) => (
-        <section className="section" id={`letter-${letter}`} key={letter}>
-          <h2>{letter}</h2>
-          <ul className="chips">
-            {(byLetter.get(letter) ?? []).slice(0, 40).map((label) => (
-              <li key={label.slug}>
-                <Link className="chip" href={`/labels/${label.slug}`}>
-                  {label.name} <span className="muted">{label.articleCount}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
-
-      <p className="small muted section">
-        Showing the most-used subjects. The remaining{' '}
-        {(stats.labels - labels.length).toLocaleString('en-GB')} are reachable through{' '}
-        <Link href="/search">search</Link> and through the record that carries them.
-      </p>
-    </div>
+      </section>
+    </main>
   );
 }
