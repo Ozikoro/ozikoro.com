@@ -13129,3 +13129,59 @@ any element whose text merely *began* with the word. It is anchored to a heading
 one of the words, which is what a references section is.
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 289 — THE FRAME'S HEADINGS ARE ANCHORS, THE SOURCES ARE THE RECORD'S, AND DETECTION ALWAYS FIRES
+
+### The scaffolding that did not belong on an article
+
+**"The written record" and "Historical context" were visible headings above the first paragraph of every
+history.** They are the design's shaping for a walkthrough: a history *is* the written record, and a heading
+announcing that is noise. The owner: *"the places you wrote Written record should never have written visibly on
+the main article. it is enough by the side."*
+
+**Both headings are kept and hidden** — `sr-only`, not `display:none`, because a link to a `display:none`
+target scrolls nowhere in some browsers while an off-screen one always does, **and the sidebar's four links must
+resolve.**
+
+**The "Evidence note" box and the "What remains uncertain" heading are gone.** They described the archive's
+method — *"this shows where a claim can be supported, disputed, translated or still incomplete"* — rather than
+anything in the article. The owner: *"it looks weird and did not fit the article and almost like it is not for
+the article."*
+
+### Sources: the record's own, or nothing
+
+    james-africanus-beale-horton      sources shown · 3 references
+        Horton, J. A. B. (1835–1883). (n.d.). BlackPast. Retrieved March 11, 2026, from https://blackpast.org/…
+    iwa-gi-the-new-yam-festival-…     sources hidden
+    ndi-igbo-meet-the-igbo-people     sources hidden
+
+**A sources block that says "no source is recorded" is worse than no block**, because it draws the eye to an
+absence a reader did not come for. **When a record has none the section is hidden and an empty off-screen anchor
+is left in its place**, so the sidebar's two links to it still resolve — **the alternative is a link that
+scrolls nowhere, which is the fault this whole pass began with.**
+
+### Detection now fires on how the archive actually writes
+
+    records naming a sources section      495  ->  744
+    of those, references extracted        334  ->  728
+    missed                                161  ->   16
+
+**The first detector only read `<h2>References</h2>`, and the 161 it missed all mention the section INLINE** —
+as a plain paragraph, or as text that merely begins with the word — **because the archive's writers were writing
+articles, not filling a form.** The marker is now looked for in four places: a heading of any level; a paragraph
+that is nothing but the name; a paragraph that opens with the name and a colon; and the name inline with its
+citations following. **What comes after is collected the same way whatever found it.**
+
+### And a silent failure that had nothing to do with content
+
+    the design writes   <section class="provenance" id="sources">     class first
+    and                 <h2 id="record">                             id first
+
+**Patterns that expected one order matched one element and silently skipped the other.** The record's
+references were extracted and then never inserted; the "Evidence note" survived because the span it sat inside
+was never found. **An element's attributes have no guaranteed order, and matching `id="…"` anywhere in the tag is
+the only pattern that does not depend on how the design happens to order them today.**
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**

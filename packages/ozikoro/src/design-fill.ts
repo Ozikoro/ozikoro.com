@@ -595,7 +595,6 @@ export function fillArticle(html: string, a: RealArticle): string {
   out = fillArticleProse(out, {
     lead,
     rest: remainder,
-    context: a.context,
     sources: refs,
     citation: `${a.author ?? 'Ozikoro'}. “${a.title}.” Ozikoro, ${(a.published ?? '').slice(0, 4) || 'n.d.'}. https://ozikoro.com${a.path}`,
   });
@@ -941,37 +940,77 @@ export type TocEntry = { id: string; text: string };
  */
 export function fillArticleProse(
   html: string,
-  content: { lead: string; rest: string; context: string; sources: string[]; citation: string }
+  content: { lead: string; rest: string; sources: string[]; citation: string }
 ): string {
   let out = html;
 
+  /*
+   * AN ELEMENT'S ATTRIBUTES HAVE NO GUARANTEED ORDER, AND THAT COST THIS PASS TWICE.
+   *
+   * The design writes `<section class="provenance" id="sources">` — `class` first — while `<h2 id="record">`
+   * has `id` first. **Patterns that expected one order matched one element and silently skipped the other**,
+   * so the record's references were extracted and then never inserted, and the "Evidence note" the owner asked
+   * to remove survived because the span it sat inside was never found. Matching `id="…"` anywhere in the tag is
+   * the only pattern that does not depend on how the design happens to order its attributes today.
+   */
+  const byId = (tag: string, id: string) => new RegExp(`<${tag}[^>]*id="${id}"[^>]*>`);
+
+  /*
+   * THE FRAME'S HEADINGS ARE ANCHORS, NOT TITLES.
+   *
+   * "The written record" and "Historical context" are the design's own scaffolding — two headings that give the
+   * reading column a shape in a walkthrough. **On a real article they say nothing a reader needs**: a history is
+   * the written record, and a heading announcing that above the first paragraph is noise. The owner put it
+   * plainly: the words "Written record" should never appear on the article, and the sidebar is enough.
+   *
+   * So both headings are kept in the document — **the sidebar's four links must resolve** — and hidden from
+   * sight. `sr-only` rather than `display:none`, because a link to a `display:none` target scrolls nowhere in
+   * some browsers while an off-screen one always does.
+   */
+  out = out.replace(/<h2 id="record">[\s\S]*?<\/h2>/, '<h2 id="record" class="sr-only">The written record</h2>');
+  out = out.replace(/<h2 id="context">[\s\S]*?<\/h2>/, '<h2 id="context" class="sr-only">Historical context</h2>');
+
   // #opening — the lead paragraph keeps the design's class and id.
+  out = out.replace(/(<p id="opening" class="dropcap">)[\s\S]*?(<\/p>)/, `$1${content.lead}$2`);
+
+  /*
+   * #record — the record's own words, with the design's example scaffolding removed.
+   *
+   * Between the two headings the design draws a paragraph, a blockquote and a `<section class="sx-story-record">`
+   * labelled "Evidence note", and after the second an `<h2>What remains uncertain</h2>`. **Those are shapes a
+   * template needs and a history does not have**: a real record is continuous prose with its own headings, and a
+   * boxed note saying where a claim "can be supported, disputed, translated or still incomplete" describes the
+   * archive's method rather than anything in the article. The owner: it looks weird and did not fit the article.
+   */
   out = out.replace(
-    /(<p id="opening" class="dropcap">)[\s\S]*?(<\/p>)/,
-    `$1${content.lead}$2`
+    /(<h2 id="record" class="sr-only">The written record<\/h2>)[\s\S]*?(<h2 id="context")/,
+    `$1${content.rest}$2`
   );
 
-  // #record — the design's example paragraph and blockquote become the record's own text. **The blockquote is
-  // kept as an element and given a sentence from the record**, because removing it would be a design change.
+  // #context — the example paragraph and the Evidence note go; the hidden heading stays as the anchor.
   out = out.replace(
-    /(<h2 id="record">The written record<\/h2>\s*)<p>[\s\S]*?<\/p>\s*<blockquote>[\s\S]*?<\/blockquote>/,
-    `$1${content.rest}`
+    /(<h2 id="context" class="sr-only">Historical context<\/h2>)[\s\S]*?(<section[^>]*id="sources")/,
+    '$1$2'
   );
+  out = out.replace(/<h2>What remains uncertain<\/h2>\s*(<p>[\s\S]*?<\/p>)?/, '');
 
-  // #context — its paragraph carries the record's summary, or says plainly that none is recorded.
-  out = out.replace(
-    /(<h2 id="context">Historical context<\/h2>\s*)<p>[\s\S]*?<\/p>/,
-    `$1<p>${content.context}</p>`
-  );
-
-  // #sources — the record's own references, in the design's own list.
+  /*
+   * #sources — THE RECORD'S OWN REFERENCES, OR NOTHING AT ALL.
+   *
+   * 769 records state their sources; the rest do not. **A sources block saying "no source is recorded" is worse
+   * than no block**, because it draws the eye to an absence a reader did not come for.
+   *
+   * The section is hidden when the record has none, and **an empty anchor is left in its place so the sidebar's
+   * two links to it still resolve** — the alternative is a link that scrolls nowhere, which is the fault this
+   * whole pass began with.
+   */
   if (content.sources.length > 0) {
     const items = content.sources.map((r) => `<li>${esc(r)}</li>`).join('');
-    out = out.replace(/(<section id="sources" class="provenance">[\s\S]*?<ol>)[\s\S]*?(<\/ol>)/, `$1${items}$2`);
+    out = out.replace(/(<section[^>]*id="sources"[^>]*>[\s\S]*?<ol>)[\s\S]*?(<\/ol>)/, `$1${items}$2`);
   } else {
     out = out.replace(
-      /(<section id="sources" class="provenance">[\s\S]*?<ol>)[\s\S]*?(<\/ol>)/,
-      `$1<li>This record does not state a source. The archive holds it as it was published, and a source would be added here if one were supplied.</li>$2`
+      /<section[^>]*id="sources"[^>]*>[\s\S]*?<\/section>/,
+      '<span id="sources" class="sr-only"></span>'
     );
   }
 
@@ -981,6 +1020,7 @@ export function fillArticleProse(
   return out;
 }
 
+
 /**
  * The record's own references, pulled from its text.
  *
@@ -989,22 +1029,62 @@ export function fillArticleProse(
  * inferred and nothing is invented**: an ordered list under such a heading, or the sentences following one.
  */
 export function extractReferences(body: string): string[] {
-  const heading = /<h[2-4][^>]*>\s*((?:\d+\.\s*)?(?:references?|sources?|bibliography|works cited|further reading)[^<]*)<\/h[2-4]>/i;
-  const m = heading.exec(body);
-  if (!m) return [];
-  const after = body.slice(m.index + m[0].length);
-  const stop = after.search(/<h[2-4][^>]*>/i);
-  const region = stop === -1 ? after : after.slice(0, stop);
+  /*
+   * A SOURCES SECTION IS DETECTED WHEREVER A WRITER PUTS IT, NOT ONLY IN A HEADING.
+   *
+   * Measured on this archive: **495 of 1,051 published records name a sources or references section, and the
+   * first version of this found 334 of them.** The 161 it missed all mention the section INLINE — as a plain
+   * paragraph, or as a run of text that begins with the word — because **the archive's writers were writing
+   * articles, not filling a form.** A rule that only reads `<h2>References</h2>` reads a convention that half
+   * the archive does not follow.
+   *
+   * So the marker is looked for in four places, in order of how much they can be trusted:
+   *
+   *   1. a heading of any level that names the section
+   *   2. a paragraph that is NOTHING BUT the name, with or without a colon — `<p>Sources</p>`
+   *   3. a paragraph that OPENS with the name and a colon — `<p>Sources: Horton, J. A. B. …</p>`
+   *   4. the name used inline, with the citations following it in the same paragraph
+   *
+   * **What comes after is collected the same way whatever found it**: a list if there is one, and otherwise the
+   * sentences that follow, because a citation in this archive is as often a paragraph as a list item.
+   */
+  const NAME = '(?:\\d+\\.\\s*)?(?:references?|sources?|bibliography|works cited|further reading)';
+  const markers: RegExp[] = [
+    // 1. A heading that names it.
+    new RegExp(`<h[1-6][^>]*>[^<]*?\\b${NAME}\\b[^<]*<\\/h[1-6]>`, 'i'),
+    // 2. A paragraph that is only the name.
+    new RegExp(`<p[^>]*>(?:<[^>]+>)*\\s*${NAME}\\s*:?\\s*(?:<[^>]+>)*<\\/p>`, 'i'),
+    // 3. A paragraph that opens with the name and a colon.
+    new RegExp(`<p[^>]*>(?:<[^>]+>)*\\s*${NAME}\\s*:`, 'i'),
+    // 4. The name followed by a colon, inline.
+    new RegExp(`\\b${NAME}\\b\\s*:`, 'i'),
+  ];
 
-  const items = [...region.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)]
-    .map((x) => (x[1] ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
-    .filter(Boolean);
+  let at = -1;
+  let matched = '';
+  for (const re of markers) {
+    const m = re.exec(body);
+    if (m) { at = m.index + m[0].length; matched = m[0]; break; }
+  }
+  if (at === -1) return [];
 
-  if (items.length > 0) return items.slice(0, 40);
+  // The region from the marker to the end, or to the next heading — whichever comes first.
+  const after = body.slice(at);
+  const nextHeading = after.search(/<h[1-6][^>]*>/i);
+  const region = nextHeading === -1 ? after : after.slice(0, nextHeading);
 
-  // No list: the paragraphs themselves, if they are short enough to be citations rather than prose.
-  return [...region.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
-    .map((x) => (x[1] ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
-    .filter((t) => t.length > 20 && t.length < 400)
-    .slice(0, 40);
+  /** One item, with its markup removed and its whitespace collapsed. */
+  const clean = (v: string) => v.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // A list, if the section has one.
+  const items = [...region.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => clean(m[1] ?? '')).filter(Boolean);
+  if (items.length > 0) return items.slice(0, 60);
+
+  // Otherwise the paragraphs — and the rest of the line the marker itself opened, when it had one.
+  const inline = clean(matched.replace(/^<[^>]*>|<[^>]*>$/g, ''));
+  const paras = [...region.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((m) => clean(m[1] ?? '')).filter(Boolean);
+  const first = inline.includes(':') ? inline.slice(inline.indexOf(':') + 1).trim() : '';
+  const all = [first, ...paras].filter((t) => t.length > 20);
+  return all.slice(0, 60);
 }
+
