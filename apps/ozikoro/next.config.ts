@@ -22,6 +22,28 @@ import type { NextConfig } from 'next';
  * Spotify Developer Dashboard and with SPOTIFY_REDIRECT_URI, and the two must match exactly.
  */
 const nextConfig: NextConfig = {
+  /**
+   * THE DESIGN DELIVERABLE'S OWN STYLESHEETS, AT THE PATH ITS RELATIVE LINKS ASK FOR.
+   *
+   * Every screen in `public/design/screens/` links its stylesheets as `../styles/main.css`. At the deliverable's
+   * own address that resolves to `/design/styles/main.css`, which is served as a file. **When the same screen is
+   * served at a clean address such as `/about`, the identical relative link resolves to `/styles/main.css`** —
+   * one level shallower — and there is nothing there.
+   *
+   * A rewrite is the fix rather than a second copy of the files: it resolves after the filesystem, so
+   * `/design/styles/…` continues to serve the real files, and `/styles/…` is pointed at them. **Nothing is
+   * duplicated, so the two cannot drift**, and the deliverable is still untouched.
+   */
+  async rewrites() {
+    return [
+      { source: '/styles/:path*', destination: '/design/styles/:path*' },
+      // `main.css` imports its tokens as `../tokens.css`, which is one level above `styles/` — so from a clean
+      // address that is `/tokens.css`. Without this the screens load but every colour falls back to the browser
+      // default, which looks like a styling failure rather than a missing file.
+      { source: '/tokens.css', destination: '/design/tokens.css' },
+    ];
+  },
+
   // The database and core packages are TypeScript source, consumed directly rather than
   // pre-built. Same reason as the other two apps: one source of truth for the schema.
   transpilePackages: ['@ozituma/core', '@ozituma/db', '@ozikoro/platform'],

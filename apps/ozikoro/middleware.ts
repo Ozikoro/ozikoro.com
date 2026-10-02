@@ -27,8 +27,99 @@ import { NextResponse, type NextRequest } from 'next/server';
  * The matcher skips static assets, which have no chrome to decide about and no archived address to
  * preserve.
  */
+/*
+ * THE DESIGN DELIVERABLE, SERVED AT CLEAN ADDRESSES WITHOUT BEING TOUCHED.
+ *
+ * `public/design/` holds the handed-over deliverable: 51 screens of static HTML and CSS that open directly in
+ * a browser, with no build step and no framework — the design says so itself. **It is complete and navigable
+ * as it stands at `/design/index.html`.**
+ *
+ * This block makes those same files answer at the addresses a reader would type, by REWRITING rather than by
+ * editing. **Not one byte of the deliverable changes**, which is the condition the owner set: the screens keep
+ * their relative links (`about.html`, `archive-index.html`, `../styles/main.css`) and still resolve, because a
+ * rewrite preserves the path the browser sees and therefore the base those links are relative to.
+ *
+ * A rewrite is also why this can sit in front of the application routes without conflict: it runs before
+ * routing, so `/about` is served the design's `about.html` while `/archive/[slug]` and every other dynamic
+ * content route is untouched. **When a screen is later built for real, removing its name from this set is the
+ * whole change.**
+ *
+ * The set is generated from the directory rather than typed, so a screen added to the deliverable is served
+ * without anyone remembering to add it here.
+ */
+const DESIGN_SCREENS = new Set<string>([
+  "404",
+  "about",
+  "academy",
+  "archive-index",
+  "article",
+  "careers",
+  "cite",
+  "collections",
+  "cultural-calendar",
+  "cultural-event",
+  "dashboard-account",
+  "dashboard-admin",
+  "dashboard-editor",
+  "dashboard-independent-researcher",
+  "dashboard-knowledge-holder",
+  "dashboard-moderation",
+  "dashboard-reader",
+  "dashboard-researcher",
+  "dashboard-review",
+  "dashboard-reviewer",
+  "dashboard-states",
+  "dashboard-student",
+  "dashboard-teacher",
+  "dashboard-workflow",
+  "documents",
+  "donate",
+  "folklore",
+  "folklore-reader",
+  "home",
+  "igbo-calendar",
+  "investors",
+  "journeys",
+  "ledger",
+  "listen",
+  "market-days",
+  "material-culture",
+  "oral-recordings",
+  "photographs",
+  "project",
+  "projects",
+  "publication",
+  "publications",
+  "researcher-profile",
+  "sponsors",
+  "topics",
+  "town",
+  "towns",
+  "type-test",
+  "upload",
+  "watch",
+  "watch-video"
+]);
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // The deliverable's stylesheets, which its relative links request as `/styles/…`, rewritten to where the
+  // files live. The matcher is widened below so that `.css` under `/styles/` reaches here.
+  if (pathname.startsWith('/styles/')) {
+    return NextResponse.rewrite(new URL(`/design/styles/${pathname.slice('/styles/'.length)}`, request.url));
+  }
+
+  // A design screen at the address a reader would type, and the walkthrough at `/index`.
+  const single = pathname.replace(/^\//, '').replace(/\.html$/, '').replace(/\/$/, '');
+  if (single && !single.includes('/')) {
+    if (DESIGN_SCREENS.has(single)) {
+      return NextResponse.rewrite(new URL(`/design/screens/${single}.html`, request.url));
+    }
+    if (single === 'index' || single === 'design') {
+      return NextResponse.rewrite(new URL('/design/index.html', request.url));
+    }
+  }
 
   const headers = new Headers(request.headers);
   headers.set('x-pathname', pathname);
@@ -101,5 +192,9 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico|css|js|woff2?|xml|txt)$).*)'],
+  // `css` is deliberately NOT in the extension skip: the deliverable's relative links ask for its
+  // stylesheets as `/styles/…`, and a `.css` exclusion would swallow them before the middleware could
+  // rewrite them. Every other static extension is still skipped, and the middleware passes non-`/styles/`
+  // requests straight through, so the cost is one comparison.
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|styles/|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico|js|woff2?|xml|txt)$).*)'],
 };

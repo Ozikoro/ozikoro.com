@@ -12062,3 +12062,54 @@ or into a box, and a reader of Igbo is then reading a different word. **Nothing 
 content** — the characters are the characters.
 
 **Verified:** `/type-test/` 200, and a missing address returns `404`.
+
+---
+
+## ROUND 268 — THE DELIVERABLE IS SERVED AS IT WAS HANDED OVER. NOT ONE BYTE CHANGED.
+
+**The owner's instruction, and I had been misreading it for many rounds:** import everything from the Lovable
+repo and **serve the demo first**, do not change any single thing, then build from there.
+
+**`AGENTS.md` in this repository says the same thing and I had it in my own notes: *"Keep the Ozikoro
+deliverable as static HTML/CSS screens under `public/design`; this preserves the required no-build,
+backend-ready handoff format."*** The deliverable's own `index.html` says it too: **"Static HTML and CSS. No
+build step, no preprocessor, no framework. Every screen opens directly in a browser."**
+
+**I spent ten rounds rebuilding each screen as a React page — and every rebuild changed something.** That is
+what "do not change any single design" was about, and it was the wrong approach from the start.
+
+### What is now served
+
+    /                       the deliverable's home
+    /about  /academy  /archive-index  /collections  /donate  /journeys  /sponsors
+    /cultural-calendar  /cultural-event  /folklore  /folklore-reader  /igbo-calendar
+    /listen  /material-culture  /oral-recordings  /photographs  /project  /projects
+    /publication  /publications  /researcher-profile  /town  /towns  /topics  /watch
+    /watch-video  /type-test  /404  /upload  ·  and the fourteen dashboards
+    /index                  the walkthrough, listing all fifty-one
+
+    51 screens at clean addresses · 51 ok · 0 failing
+    /styles/main.css  ·  /styles/showcase.css  ·  /tokens.css      all 200
+    56 distinct local link targets inside the deliverable · 0 missing
+
+### How, without editing anything
+
+**By REWRITE rather than by editing.** `middleware.ts` maps a screen's clean address to its file in
+`public/design/screens/`, and `next.config.ts` maps `/styles/…` and `/tokens.css` to where those files
+actually live. **Not one byte of the deliverable changes**, which is why the screens keep their relative links
+(`about.html`, `archive-index.html`, `../styles/main.css`) and still resolve: **a rewrite preserves the path
+the browser sees, and therefore the base those links are relative to.**
+
+**The screen list is generated from the directory rather than typed**, so a screen added to the deliverable is
+served without anyone remembering to add it. **And when a screen is later built for real, deleting its name
+from that set is the whole change.**
+
+### The two rewrites that were needed, and why they were not obvious
+
+    /styles/:path*  ->  /design/styles/:path*     the screens link `../styles/main.css`
+    /tokens.css     ->  /design/tokens.css        and main.css imports `../tokens.css`, one level higher
+
+**`css` had to be removed from the middleware matcher's asset skip**, because `/styles/…` ends in `.css` and was
+being filtered out before the middleware could see it. **And `/tokens.css` matters more than it looks: without
+it the screens load but every colour falls back to the browser default, which reads as a styling failure
+rather than as one missing file** — the same confusion as the "scattered" report two rounds ago.
