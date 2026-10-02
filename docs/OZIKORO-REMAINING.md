@@ -9922,3 +9922,64 @@ cleanup missed an audit row — confirmed it rather than my having remembered to
 **Three of Phase 3's four requirements are now demonstrated working rather than merely present**, and the
 fourth — the database-level enforcement function — is a schema change to a shared database that belongs with
 the dashboards rather than ahead of them.
+
+---
+
+## ROUND 227 — PHASE 4 SURVEY: THE RESEARCH NETWORK IS BUILT AND HAS NOTHING IN IT
+
+Phase 4 asks for the research network end to end — *"draft → submit → editorial screen → expert review →
+revision → publication → profile → citation/download → project relationships."* **Nearly all of it exists.**
+The finding is the same shape as Phase 3's, and it is worth stating in the same terms.
+
+### The state machine, which is the whole of the workflow
+
+    PUBLICATION_STATES =
+      draft · submitted · editorial_screening · under_review · revision_required ·
+      expert_review · approved · published · archived                    NINE STATES
+
+    PUBLICATION_TRANSITIONS         where a work may go from where it is
+    capabilityForTransition(state)  which capability each destination needs
+    /api/research POST              "The state machine enforces the order; this route only asks
+                                     which capability the destination state requires."
+
+**And the rule that gives it its character:** *"`archived` is reachable from every live state, because
+withdrawing a work is always allowed and refusing to let an author or editor withdraw something is worse than
+any inconsistency it creates. **Nothing leaves `archived`: an archived work is kept, not resurrected, and a new
+version is a new submission.**"* That is a decision about how scholarship is treated, written into the
+transitions rather than into a comment.
+
+### The surfaces
+
+    /submit                 the submission flow
+    /reviews                the review queue
+    /admin/reviews          the editorial screen
+    /publications           the library
+    /publications/[slug]    one work
+    /researchers            the network
+    /researchers/[slug]     one researcher
+
+### And the tables, all of them empty
+
+    ozikoro_publication              0      ozikoro_publication_review       0
+    ozikoro_publication_author       0      ozikoro_publication_transition   0
+    ozikoro_publication_file         0      ozikoro_publication_version      0
+
+**Six tables, no rows.** Authors, files, reviews, the transition log and versions are all modelled and none has
+been used.
+
+### What Phase 4 therefore needs, and it is the same thing Phase 3 needs
+
+    built       the nine-state machine, the transitions, the capability per transition, the guard,
+                the six tables, and seven routes
+    missing     a publication
+
+**A research network with no research in it is a correct platform and not a working one.** The audit's
+definition of done for this phase — draft, submit, editorial, expert review, revision, publication, profile,
+citation, download — cannot be demonstrated by code alone, **because every step is a transition of a record that
+does not exist.** The one thing that would exercise it is a first submission, and that is content, which this
+project may not invent.
+
+**Recorded rather than filled.** The temptation here is the strongest it has been all session: a sample
+publication would make every one of these routes render something, and it would also be the exact thing the
+brief forbids — *"do not mark a publication peer-reviewed unless the actual expert-review transition has
+occurred."*
