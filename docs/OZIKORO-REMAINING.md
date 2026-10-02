@@ -10786,3 +10786,56 @@ condition read as a fact about the system:
 **In every case the check was cheap and the wrong conclusion was expensive.** The habit that would have caught
 all four is the same: read the tool's own error output before believing its verdict. Here the log said
 `EADDRINUSE` and would have saved the diagnosis.
+
+---
+
+## ROUND 243 — THE TOPIC FILTER, FIXED TWICE, AND THE PATTERN BEHIND BOTH FIXES
+
+The instruction is history, culture and origins only — no news, no gossip, no political commentary. **A
+filter was needed and it took three attempts, because the first two failed in opposite directions.**
+
+### Attempt one: too loose
+
+It matched a history word anywhere in the title or the opening, and matched noise words anywhere in the title.
+**382 keep, 279 drop** — and it kept two gender-equality policy papers and a piece on Nigeria's role in ECOWAS,
+which are not history.
+
+### Attempt two: too strict, and this is the interesting failure
+
+Tightened to require a historical TOPIC, it dropped to **169** — and it dropped the most important articles in
+the corpus. **Every one of these is history and every one was excluded:**
+
+    "ONLY AGBOR WAS ABLE TO WITHSTAND BENIN IN TERMS OF MILITARY STRENGTH"   — a Benin-origin article
+    "AKWUKWU-IGBO AND ONICHA-OLONA: LEGENDS OF FOUNDATION AND WARRING..."    — foundation legends
+    "An Overview of Festivals in Anioma"                                     — festivals
+    "Obomkpa-Ugboba Crisis: Historic Claims, Counter-claims and Government"  — historic claims
+    "A REVIEW OF THE BOOK 'THE KINGMAKER: BIOGRAPHY OF JUSTICE EUSTACE...'"  — a historical biography
+
+**The causes were three, and all three are the same kind of error:**
+
+    no stemming     "festival" did not match "festivals"; "history" did not match "historic";
+                    "founder" did not match "foundation"
+    title only      a topic word had to be in the TITLE, so a piece whose title is descriptive
+                    rather than topical was invisible
+    over-broad      "biography of" was in the gossip rule, which excluded a historical biography
+
+### Attempt three: stems, and the body as evidence
+
+**493 history, 168 other.** Stem patterns (`histor\w*`, `festiv\w*`, `found\w*`) and a body check recover
+**325** of the articles the strict pass had wrongly dropped.
+
+    topic in the title                 216   higher confidence
+    topic in the body only             277   a lower-confidence set that a reader should confirm
+
+### And what the filter is not
+
+**It is a queue, not a verdict.** 493 of 661 is seventy-five per cent, which is plausible for a blog by an
+Anioma historian — **and it is still a keyword filter, which means it has both false negatives and false
+positives and no way to tell which it has.** The two sets are labelled by confidence so the review starts with
+the 216, and the 277 are flagged as needing a look rather than presented as decided.
+
+**Three failures in one round, all of the same shape: a pattern that could not express the variety it was
+matching.** *"festival"* does not contain *"festivals"*; a title is not the article; a biography is not gossip.
+**The earlier rounds' mistakes were the same error against a server — a paging limit read as the end of the
+data, a crawler's reach read as a site's extent, a stale process read as a routing failure. The pattern is
+algorithms asserting more than they can see, and it has now appeared seven times in this session.**
