@@ -12009,3 +12009,56 @@ their search was applied.**
 
 **That is the honest state and it is recorded as a defect rather than tuned around.** Fixing it means giving
 `listArticles` a place predicate, which is the next step.
+
+---
+
+## ROUND 267 — STARTING FROM THE DESIGN INSTEAD OF FROM MY OWN ROUTE LIST
+
+**The owner's instruction was to check the design repo against mine and copy every single thing, leaving no
+design out. That required a different kind of check, because every check I had started from my own routes.**
+
+### What is already complete
+
+    apps/ozikoro/public/design        63 files
+    the design repo's public/design   63 files        byte-identical
+
+**Every one of the 63 handoff files is present and unmodified. The gap was never the files; it was the routes.**
+
+### The new check, which starts from the design
+
+`scripts/check-screen-coverage.mjs` reads the screen directory and **requires an answer for every file in it**,
+rather than verifying only the files it was handed. Each screen must be `routed`, `aliased` (rendered by a
+route whose name differs, with the reason stated) or `absent` (deliberately not routed, with a reason). **The
+exemptions are printed, so they are visible in the output rather than only in the script.**
+
+    routed 22 · aliased 10 · deliberately absent 0 · MISSING 19
+
+### The 19, and why they are two different jobs
+
+    academy · donate · investors · journeys · sponsors          5 programme pages — buildable now
+    dashboard-account · dashboard-admin · dashboard-editor     14 dashboards — need members
+    dashboard-independent-researcher · dashboard-knowledge-holder
+    dashboard-moderation · dashboard-reader · dashboard-researcher
+    dashboard-review · dashboard-reviewer · dashboard-states
+    dashboard-student · dashboard-teacher · dashboard-workflow
+
+**The dashboards are one screen each in the design and fourteen routes in production**, because each role sees
+a different dashboard. **They need `ozikoro_member` rows, which need the eleven authors' email addresses** —
+the same blocker that has stood since the start. **They can still be rendered as honest empty states, and that
+is what the next rounds will do rather than leaving fourteen designs unrouted.**
+
+### Two built this round
+
+**`/not-found`** — the design's 404, whose copy is kept nearly verbatim because each line says something a
+generic message does not: *"Either the entry has not been written yet, or the address has changed"* — not
+"something went wrong", because **in an archive still being written, a missing entry is a normal state** — and
+the note that entries carry a reference number, **so a rotted citation can be fixed by quoting it** rather than
+by searching. The doors point at the real routes rather than the design's demonstration links.
+
+**`/type-test`** — the typography specimen, and **not decoration.** The archive is written in Igbo, which needs
+dotted vowels, the velar nasal, and the combination that breaks first: **a dotted vowel carrying a tone mark,
+where the mark sits above and the dot below with neither clipped.** A face that fails that turns `ọ́` into `ọ`
+or into a box, and a reader of Igbo is then reading a different word. **Nothing on that page is sample
+content** — the characters are the characters.
+
+**Verified:** `/type-test/` 200, and a missing address returns `404`.

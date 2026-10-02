@@ -95,6 +95,7 @@
     "check:boundaries": "bash scripts/check-boundaries.sh",
     "check:design": "bash scripts/check-design-system.sh",
     "check:design-parity": "node scripts/check-design-parity.mjs",
+    "check:screens": "node scripts/check-screen-coverage.mjs",
     "check:grounding": "bash scripts/check-grounding.sh"
   },
   "devDependencies": {
