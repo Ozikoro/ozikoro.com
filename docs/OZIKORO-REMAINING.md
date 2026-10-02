@@ -9768,3 +9768,61 @@ the only thing in the way.**
 spaces, now fixed by encoding, and non-ASCII names WordPress sanitised on upload, which need the stored
 filename and therefore the server. **Nothing else is outstanding, and no further scan of the API will find
 anything more.**
+
+---
+
+## ROUND 222 — PHASE 2 IS COMPLETE, AND THE LAST CHECK THAT "FAILED" WAS THE CHECK
+
+Phase 2's final route is `/cultural-calendar`, built as all-plain dates because the archive holds no event
+records at all — there is no event table, and the only `%event%` tables are `learn_xp_event` and
+`spotify_event`. The design's own instruction settles the state: *"Gold dates have events. **Plain dates are not
+clickable.**"* All 31 are plain.
+
+### And one of my own checks was the thing at fault
+
+The verification script included this probe:
+
+    'no sample event'   ->   'Festival' not in the page
+
+**It failed, and the page was right.** "Festival" appears only as an `<option>` in the event-type filter, which
+is exactly what the design's filter bar specifies. **The check looked for a word rather than for an event
+record** — and the word is supposed to be there.
+
+Re-run against what an event actually looks like, every marker is absent:
+
+    an organiser name          absent
+    a place field              absent
+    a verified badge           absent
+    an event button            absent
+    a linked event story       absent
+
+**This is the same class as rounds 169, 181, 183 and 192**: a pattern that could not distinguish the thing from
+a word resembling it. It is recorded because the failure was in the *test*, and a test that reports a defect
+which is not there costs exactly as much as one that misses a defect which is.
+
+### Phase 2 is complete
+
+    public routes built this session
+      /careers            honest no-vacancies, from the design's screen
+      /towns             188 published clans, real regions, searchable
+      /town/[slug]       the real clan record with provenance
+      /cite              a worked citation generated from a real article
+      /ledger            no names, because there are none to carry
+      /photographs       3462 image records, 55 of 60 served from our own storage
+      /listen            0 audio, honest
+      /material-culture  0 objects, six declared fields
+      /oral-recordings   308 redirect to /listen, as the design says
+      /projects          0 records, because there is no table
+      /igbo-calendar     the four-day cycle with its anchor disclosed
+      /cultural-calendar 31 plain dates, no events verified
+
+    already present, not rebuilt: /publications, /documents, /researchers, /topics, /archive, /folklore,
+                                  /search, /about, /media, /entities
+
+**42 page routes and 35 reader-facing, asserted by the handover check, with verify-all passing.**
+
+### What Phase 2 deliberately did not build
+
+**`/cultural-event`** — a page for one event, and there are none. **`/project/[slug]`** — a page for one project,
+and there is no project table. Both would be routes with nothing to render, and both are what Phase 4's
+project-record work and a verified event supply will make real.
