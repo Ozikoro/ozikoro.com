@@ -8459,3 +8459,49 @@ second — would still leave `selectKnowledge` returning irrelevant items to any
 asserts the guard **so that the guard cannot hide it.** The archive is the one consumer that will not claim
 grounding it does not have — **which is the right place for the conservative behaviour to start, and the
 wrong place for it to stop.**
+
+---
+
+## ROUND 193 — ROUND 192 OVERSTATED ONE OF ITS TWO CLAIMS, AND THE CORRECTION IS THE ROUND
+
+Round 192 recorded that the tutor writes `trustLabel: 'verified'` as a literal "so a learner shown passages
+got that label from a constant rather than from retrieval." Checking whether that line is reachable made the
+claim wrong.
+
+### What is actually there
+
+    apps/learn/…/tutor/route.ts:261    if (retrieval.empty) { … trustLabel: 'needs_review',
+                                         validationIssues: [{ code: 'no_grounding' }] … }
+    apps/learn/…/tutor/route.ts:250    trustLabel: 'verified',   <- the no-provider fallback
+
+**The empty case is refused FIRST**, labelled `needs_review` and carrying an explicit `no_grounding`
+validation issue. The constant at 250 is only reached **after** that guard, so it is never written when
+nothing was retrieved. **The tutor's behaviour is correct; only the way it is expressed is not** — a literal
+where a computed label would say the same thing and could not drift.
+
+**And it uses a third label value this file had not recorded**: `'needs_review'`. So the estate's labels are
+not the two that `trustForGrounding` returns, and round 192's sentence *"that pair is the whole truth the
+function claims"* was about the function, not about the system — which is a distinction the sentence did not
+make.
+
+### What round 192 got right, and it is the part that matters
+
+    grounded: !retrieval.empty                                     (tutor, line 251)
+    return result.empty ? 'ai_assisted' : 'verified'               (core, line 220)
+
+**Both equate *"something came back"* with *"the answer is grounded"*, and neither considers relevance.** An
+off-topic question retrieves items, `empty` is false, and both sites call it grounded. **That is unchanged by
+this correction and is still the finding** — with the archive refusing where the tutor cannot tell.
+
+### Why the correction is worth a round rather than a footnote
+
+    overstated   "a learner got that label from a constant"          -> a behaviour defect
+    accurate     "the label is correct and written as a literal"     -> a maintainability defect
+
+**Those are different severities, and the record would have shipped the wrong one.** It was found by asking
+the claim a question it should be able to answer — *is that line reachable with an empty retrieval?* — which
+is round 174's habit and is now the fifth time it has changed a conclusion.
+
+> **The pattern is consistent enough to name: every finding in this file that has been re-checked has been
+> either overstated or understated, and never simply right.** The re-check is not a formality; it is where the
+> precision comes from.
