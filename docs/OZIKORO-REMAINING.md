@@ -3,7 +3,7 @@
 > **RESUME HERE — status as of round 120.** This file is a running record, newest at the BOTTOM.
 > Read this block and the round-26 status table; the rest is history, and some of it is superseded.
 >
-> **What is live.** 37 reader-facing routes and 7 under `/admin` — 44 page routes. Migrated records answer
+> **What is live.** 38 reader-facing routes and 7 under `/admin` — 45 page routes. Migrated records answer
 > at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
 > media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
 > steps** via `./scripts/verify-all.sh` and **5 live checks** via `./scripts/verify-live.sh`.
@@ -11386,3 +11386,64 @@ a statement about the route rather than a suppression.
 **Fourteen verified, one unverified, four failing.** The distinction between *verified* and *not examined* is
 the one this check has been getting wrong, and it is the same distinction the archive suite draws when it
 announces what it skipped rather than passing vacuously.
+
+---
+
+## ROUND 256 — THE LAST ROUND OF THIS RUN: WHERE THE WORK ACTUALLY STANDS
+
+### What is verified working
+
+    verify-all                 24 checks · all suites passing
+    handover                   29 countable claims, 0 wrong
+    design parity              14 routes verified · 1 unverified · 4 failing
+    production build           builds clean and serves; 22 reader-facing routes at 200
+    the archive                1059 published · 524 in review · 188 clans · 3462 photographs
+                               13 videos · 19 contributors · 14 series · 53 role grants
+
+**263 commits.** The design handoff is 63 files byte-identical to `idenze/calm-comfort-construct`, the whole
+143-file repository is imported with its 117-commit history, and the two demonstration PDFs that the blanket
+`*.pdf` rule had been silently excluding are now tracked in both copies.
+
+### The design parity work, which was this run's main thread
+
+**Ten public routes were rebuilt to their design screens**, and every rebuild found something the page was
+getting wrong about its content rather than only its styling:
+
+    /about        four real published people the page was not naming
+    /documents    ten web captures being presented as documents
+    /topics       content right, structure wrong — correct and did not look like the design
+    /listen       the design's transcript rule, a commitment rather than a placeholder
+    /projects     a process that could be drawn and a register that could not
+    /watch        a route that did not exist
+    /             the whole homepage, and the watch section that its own declaration had suppressed
+    /submit       rebuilt in the source; the render is unverifiable without an administrator
+
+### What was refused, and why that is the result rather than a gap
+
+**No project was invented for `/projects`. No recording for `/listen`. No portrait for `/about`'s four people.**
+The design's placeholders — `OZ-PH-EXAMPLE`, "The Ikoro: the drum that spoke for a town", "Town histories
+series", "restricted publication title appears here" — are absent, and the checker reports them as *earned*
+rather than missing, so the difference between *"the design has this and we do not"* and *"the design has this
+and we must not"* is visible rather than decided silently.
+
+### What remains, stated plainly
+
+    design parity     /igbo-calendar  /cultural-calendar  /publications  /folklore   (all four verifiable)
+    phase 3           accounts need the eleven authors' addresses; the SECURITY DEFINER function is built
+    phase 4           built end to end; needs a first publication
+    phase 5           schema only — no entity, source, period or place is attached to any article
+    phase 6           schema only — no excavation, object, right or consent recorded
+    phase 7           /api/ask built; the languageCode decision and the prompt register await the owner
+    phase 8           container, backups and health watch built; live verification needs the deployment
+    phase 9           production build verified; the release gate is the owner's
+
+### The through-line of this run
+
+**Seventeen separate occasions where a check, a pattern or an instruction was itself the fault** — a paging
+limit read as the end of the data, a crawler's reach read as a site's extent, a stale process read as a routing
+failure, `encodeURI` double-encoding, a regex that could not match *festivals*, a declared omission that became
+a permanent excuse, and a parity checker that reported a loading shell as a missing section.
+
+**The habit that caught every one of them was reading the instrument's own output before believing its
+verdict.** That is what the last nine rounds have been about, and it is the part of this work most worth
+keeping.
