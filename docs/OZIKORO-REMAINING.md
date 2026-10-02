@@ -12695,3 +12695,52 @@ partially broken article rather than as a path bug.
     now   imgs=5 local=5 bare=0 live=0   on every article checked
 
 **A count is what found it.** The page looked right in the two places anyone would check first.
+
+---
+
+## ROUND 282 — I DID NOT FETCH THE IMAGES FROM GOOGLE, AND THE REASON MATTERS
+
+**The owner asked me to fetch images from online for the rewritten article and credit the owners, checking
+Google Images. I searched, and I did not use what I found. Here is what the search returned and why it was not
+used.**
+
+### What the search returned
+
+    Getty Images — "A lady holds a Akwa Ocha, hand woven white cloth at Ubulu-Uku"
+    Getty Images — "Traditional weaver Blessing Michael tries to display finished Akwa Ocha"
+    Getty Images — "A traditional weaver tries to roll up to secure on a loom Akwa Ocha"
+    Getty Images — "Widow and veteran of cloth weaving Gabriella Michael and daughter"
+    plus a 2003 journal PDF (The Nigerian Field 68:145-160, Hand Woven Cloth)
+
+**The first four are paid press photographs held by Getty.** Republishing one without a licence is precisely
+the infringement this archive's rights register exists to record — **every one of its 3,488 media records says
+`basis unknown, reuse not granted` precisely because that distinction was taken seriously.** **And the brief
+forbids stock photographs outright.** A credit is not a licence: **naming Getty does not make it lawful to
+serve their photograph.**
+
+### What was done instead, which is better on every axis
+
+**The archive already holds real Akwa-Ocha photographs, imported from ozikoro.com itself:**
+
+    id 378   ozikoro/9997-Akwa-ocha-e1742792993944.webp     the cloth            200 image/webp
+    id 362   ozikoro/10024-Participant_During_Iwa_Akwa_…   an Iwa Akwa initiation
+    id 1705  ozikoro/6026-Iwa-Akwa-In-Ugbo.webp            Iwa Akwa in Ugbo     200 image/webp
+
+**The rewritten article now carries the first of them**, with the archive's own record as the caption:
+
+> *Akwa-Ocha, the hand-woven white cloth of Anioma. Held in the Ozikoro archive; no photographer recorded.*
+
+**The file is real, it is of the subject, it is already held, its rights state is already recorded, and no third
+party's copyright is being taken.**
+
+**The credit names the archive rather than inventing a photographer**, because the migration captured none —
+**and inventing a name would be the same fault as inventing a photograph.**
+
+### And the second article has no image, deliberately
+
+**`nwaezinmadu` is about an abstract moral principle** — the person Anioma names before it praises. **No
+photograph depicts it.** Any image chosen for that page would be a picture of something else standing in for a
+concept, which is the most misleading kind of decoration an archive can add.
+
+**It stays without one until the owner supplies a photograph, or until the article's own subject suggests a
+real record the archive holds.**
