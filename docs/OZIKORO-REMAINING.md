@@ -8667,3 +8667,61 @@ turned the rule into a program two rounds before it was needed.**
     the file exists, typechecks and is COMPILED into server-production
     a dynamic route that throws returns 500 and renders not-found.tsx instead
     which boundary handles a server-render throw is the thing to read, not to measure again
+
+---
+
+## ROUND 196 — THE DOCS ANSWERED IT, AND THE MISSING FILE WAS `loading.tsx`
+
+Rounds 194 and 195 measured the error boundary in two modes and could not explain the result. Round 195 said
+the next step was to **read** rather than measure a third time, and that was right.
+
+### The mechanism, from React's own rule
+
+**The type of the thrown value decides who handles it:**
+
+    a Promise is thrown   ->  Suspense handles it
+    an Error is thrown    ->  an error boundary handles it
+
+Source: [React — Suspense, "Providing a fallback for server errors"](https://react.dev/reference/react/Suspense#providing-a-fallback-for-server-errors-and-client-only-content),
+explained step by step in [this investigation of the same symptom](https://dev.classmethod.jp/articles/server-component-error-boundary-suspense/).
+
+**An async server component that has not resolved throws a Promise.** With no Suspense above it there is
+nothing to catch that, **the shell render fails, no HTML reaches the client, and the error boundary is never
+invoked.**
+
+### What the archive actually had
+
+    16 of the pages under app/ are `export default async function`   — they read the database
+    loading.tsx anywhere                                             NONE
+    explicit <Suspense> anywhere                                     NONE
+
+**So `app/error.tsx`, added in round 194, was unreachable for all sixteen routes** — not because it is written
+wrong, and not because the measurements were taken in the wrong mode, but because **the boundary it needs to
+be reached through did not exist.**
+
+### And that is what `loading.tsx` is
+
+**A `loading.tsx` is the Suspense boundary Next.js creates around a segment.** Round 156 recorded its absence
+as a missing *loading state*; it is that, **and its real job is to keep the shell alive so a failure has
+somewhere to be caught.** The spinner is the visible half and the smaller half.
+
+`apps/ozikoro/app/loading.tsx` is added, in the design's vocabulary, and says so in its own header.
+
+### Two rounds of measurement, and neither was wrong
+
+    194   development draws its own error page            TRUE, and not the reason
+    195   production returns 500 and draws not-found      TRUE, and not the reason
+    196   the boundary is unreachable without Suspense    the reason, read from the docs
+
+**Both measurements were accurate and both conclusions were wrong**, because they asked *"does the boundary
+render?"* of a boundary that **could not be reached**. The question that found it was *"what has to be true
+for it to be reached?"* — which is a question about the code, not about an HTTP response.
+
+### What this round did not verify, stated plainly
+
+**That a client-rendered boundary renders.** The mechanism is documented and the missing half is now present,
+but **`curl` sees server HTML and a client-rendered boundary is not in it** — so the verification needs a
+browser, which rounds 194 and 195 did not have and this one does not either.
+
+**What can be said is narrower and true**: the Suspense boundary that the documented mechanism requires was
+absent for all sixteen async routes, and it is no longer absent.
