@@ -159,3 +159,45 @@ export function fillWatch(html: string, films: RealFilm[]): string {
   out = out.slice(0, open) + '\n  ' + inner + '\n' + out.slice(i - 6);
   return out;
 }
+
+/** Replace every occurrence of a container's inner content, matched by balanced depth. */
+function replaceContainer(html: string, openTag: string, inner: string): string {
+  const start = html.indexOf(openTag);
+  if (start === -1) return html;
+  const open = start + openTag.length;
+  const closing = `</${openTag.match(/^<(\w+)/)?.[1] ?? 'div'}>`;
+  const tagName = openTag.match(/^<(\w+)/)?.[1] ?? 'div';
+  let depth = 1, i = open;
+  while (i < html.length && depth > 0) {
+    const nextOpen = html.indexOf(`<${tagName}`, i);
+    const nextClose = html.indexOf(`</${tagName}>`, i);
+    if (nextClose === -1) break;
+    if (nextOpen !== -1 && nextOpen < nextClose) { depth += 1; i = nextOpen + tagName.length + 1; }
+    else { depth -= 1; i = nextClose + closing.length; }
+  }
+  return html.slice(0, open) + '\n        ' + inner + '\n      ' + html.slice(i - closing.length);
+}
+
+/** One home-page entry, in the design's `a.sx-archive-entry` markup. */
+export function renderHomeEntry(index: number, e: { title: string; href: string; topic: string | null }): string {
+  const n = String(index).padStart(2, '0');
+  // The design puts the index first and the tag INSIDE entry-copy, before the title. Order matters here
+  // because the stylesheet positions `.index` against the entry rather than flowing it.
+  return `<a class="sx-archive-entry reveal" href="${esc(e.href)}">
+          <span class="index" aria-hidden="true">${n}</span><span class="entry-copy">${e.topic ? `<span class="tag">${esc(e.topic)}</span>` : ''}<strong>${esc(e.title)}</strong></span><span class="more">Read history <span aria-hidden="true">→</span></span>
+        </a>`;
+}
+
+/**
+ * Fill `home.html`'s "Fresh from the archive" list.
+ *
+ * The design's five entries link to `https://ozikoro.com/…`, which is the live WordPress site, and its credit
+ * line says the story titles are taken from there. **This points them at the archive's own records instead**,
+ * so a reader stays on the site being built rather than being sent to the one it will replace.
+ */
+export function fillHome(html: string, entries: { title: string; href: string; topic: string | null }[]): string {
+  let out = dropExampleFlag(html);
+  const rendered = entries.map((e, i) => renderHomeEntry(i + 1, e)).join('\n        ');
+  out = replaceContainer(out, '<div class="sx-archive-index"', rendered);
+  return out;
+}

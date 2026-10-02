@@ -20,14 +20,14 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArchiveIndex, fillWatch, type RealEntry, type RealFilm } from '@ozikoro/platform';
+import { fillArchiveIndex, fillHome, fillWatch, type RealEntry, type RealFilm } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
 
 /** Screens this route fills. Anything else is served untouched. */
-const FILLED = new Set(['archive-index', 'watch']);
+const FILLED = new Set(['archive-index', 'watch', 'home']);
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
@@ -106,6 +106,20 @@ export async function GET(
         total: total?.n ?? 0,
       });
     }
+    if (name === 'home') {
+      // The five most recent published records, with their topic as the design's `<span class="tag">`.
+      const db = await getDb();
+      const rows = await db.rows<{ slug: string; title: string; topic: string | null }>(
+        `select a.slug, a.title, t.name as topic
+           from ozikoro_article a left join ozikoro_topic t on t.id = a.topic_id
+          where a.status = 'published' and a.is_page = false
+          order by a.published_at desc nulls last, a.id desc limit 5`
+      );
+      if (rows.length > 0) {
+        html = fillHome(html, rows.map((r) => ({ title: r.title, href: `/${r.slug}/`, topic: r.topic })));
+      }
+    }
+
     if (name === 'watch') {
       /*
        * THE FILMS THE ARCHIVE ACTUALLY HOLDS.

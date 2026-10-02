@@ -12233,3 +12233,34 @@ using anything else would have replaced real ones with borrowed ones.**
 was pointed at. **The remaining example cards are still the design's own and still say they are example
 material** — which is the correct state until each grid is filled, and is why the example flag is dropped per
 region rather than per page.
+
+---
+
+## ROUND 272 — THE HOME PAGE, AND THE TWO TIMES THE OWNER FOUND THE SITE DOWN
+
+### The site was unreachable, and it was my doing twice
+
+**`scripts/verify-all.sh` rebuilds, which deletes `.next/standalone`, and it requires port 3100 free.** So every
+run of it takes the review build down — **and the owner found `http://127.0.0.1:3110` unreachable both times,
+because nothing puts it back.**
+
+**The runner now prints that fact when it finishes**, because forgetting is the default outcome:
+
+    NOTE: this rebuild removes the review server. Run `npm run serve:review` when it finishes.
+
+### The home page is filled
+
+    /     5 most recent records, in the design's own <a class="sx-archive-entry"> markup
+          index 01–05 · the record's real topic as <span class="tag"> · the real title
+          example flag dropped · 63 design files still byte-identical
+
+**And the links now point at the archive's own records rather than at the site it will replace.** The design's
+entries all read `href="https://ozikoro.com/…"` — the live WordPress site — and its credit line says the story
+titles are taken from there. **A reader on the new site was being sent to the old one.** They now stay.
+
+### One fault, found by comparing the render against the design rather than by reading the code
+
+**The `tag` span belongs INSIDE `entry-copy`, before the title.** My first renderer emitted it twice, once
+outside and once inside, because I wrote the markup from memory of the pattern rather than from the element.
+**The stylesheet positions `.index` against the entry rather than flowing it, so the duplicated tag would have
+shifted every row.** Caught by printing the rendered entry beside the design's.
