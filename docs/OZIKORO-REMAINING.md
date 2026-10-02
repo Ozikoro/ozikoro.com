@@ -10743,3 +10743,46 @@ record"*. Neither uses "I". Neither frames Anioma as awaiting European explanati
 
 **Recorded for the owner's judgement before the remaining ~380 are attempted.** If the voice is right the
 method scales; if it is wrong, two pieces are cheaper to correct than four hundred.
+
+---
+
+## ROUND 242 — BOTH ARTICLES VERIFIED IN PRODUCTION, AND TWO FALSE ALARMS WORTH RECORDING
+
+    /nwaezinmadu-the-person-anioma-names-before-it-praises/   200   47,940 bytes  h1  byline present
+    /akwa-ocha-the-white-that-carries-the-mark/               200   47,048 bytes  h1  byline present
+    /ute-okpu-an-ika-igbo-clan-and-its-nri-roots/             200   55,028 bytes  (a migrated record, for comparison)
+
+### The first alarm was mine, and it was the same mistake a fourth time
+
+The development server returned the Nwaezinmadu page at **494,861 bytes** and the Akwa-Ocha one at **69,542** —
+a factor of seven for two articles of nearly equal length. That looked like a bug.
+
+**It is a development-mode artifact.** Next inlines the RSC payload as `__next_f` script chunks in dev, and the
+Nwaezinmadu payload is much larger because it is dense with Igbo diacritics — *ụ ọ ị ṅ* — which escape
+expensively. In production both pages are **within 900 bytes of each other**, which is what two similar essays
+should be. **187 script tags against 29 was the clue, and it was there before I looked at the sizes.**
+
+### The second was a stale process, and it produced a 404 that meant nothing
+
+The production check reported **404 for both new articles**, which would have been a serious finding: the route
+is `[slug]`, the records are `published` in the database, and dev served them fine.
+
+**The server was never started.** Its log said so plainly:
+
+    code: 'EADDRINUSE'   port: 3110
+
+**An instance from an earlier round still held the port, so the responses came from a build that predated the
+articles.** The `[slug]` route is `export const dynamic = 'force-dynamic'`, so there was never anything wrong
+with it. Killing the port and restarting gave 200 on both.
+
+**This is the fourth instance this session of the same underlying error** — a client-side or environmental
+condition read as a fact about the system:
+
+    round 198   "the upload files 404"                unencoded spaces in the URL
+    round 217   "the media endpoint stopped at 1,698"  a client paging limit
+    round 235   "ibusa.net has no articles"            a crawler that could not follow the nav
+    round 242   "the articles 404 in production"       a stale process holding the port
+
+**In every case the check was cheap and the wrong conclusion was expensive.** The habit that would have caught
+all four is the same: read the tool's own error output before believing its verdict. Here the log said
+`EADDRINUSE` and would have saved the diagnosis.
