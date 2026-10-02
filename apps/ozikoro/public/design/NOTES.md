@@ -1,5 +1,15 @@
 # ozikoro.com — design notes
 
+## Discovery, place, calendar and careers expansion
+
+- Collections now separate photographs, documents, oral recordings and material culture instead of routing every format to one generic listing.
+- Town discovery now has an All Towns directory and a town profile pattern that groups related articles and archive records.
+- “How to cite Ozikoro” now opens a format-specific citation guide rather than a single publication mock.
+- The African Cultural Calendar demonstrates filters, event states, source labels and submissions without asserting fictional events.
+- The Igbo Calendar uses the supplied demonstration anchor: 1 January 2026 is Orie. This basis requires cultural and community verification before production and is not described as universal.
+- The homepage platform bar calculates the modern date and market day from the same shared script.
+- Careers uses an honest no-vacancies state; it does not invent jobs, benefits or employment claims.
+- The new and revised screens were checked at 1280px and 375px with no horizontal overflow, missing local links, broken images or console errors. The supplied example date, 2 October 2026, resolves to Nkwọ.
 Deliverable for the brief *Design brief: ozikoro.com* (Ozi Ikoro Limited). Static HTML and CSS,
 no build step, no preprocessor, no framework. Every file opens directly in a browser.
 
@@ -70,7 +80,7 @@ academic and an elder each reach their own way in without reading the page.
 
 **One institution, three roles.** A persistent dark platform bar across the top of every screen
 names ozikoro.com, ozituma.com and learn.ozituma.com with the current one marked, and carries
-"Ozi Ikoro Limited" on the right. It is the same bar on all three sites; each site keeps its own
+the live modern date and corresponding demonstration market day on the right. It is the same bar on all three sites; each site keeps its own
 masthead and colour emphasis beneath it, so they are one institution and three recognisable tools.
 
 **Typeface.** Noto Serif (headings and long-form) and Noto Sans (interface), with Noto Sans Mono
@@ -88,7 +98,7 @@ characterisations, and says so in the body. Source type is a neutral field — "
 "colonial record", "academic source" — with oral history given the same visual standing as the
 other two, not a lesser one. No imagery of people, named places or documents appears anywhere.
 
-**Fast and light.** No JavaScript at all in the deliverable, and none required by the design.
+**Fast and light.** Core reading remains available without JavaScript. Small scripts progressively enhance the market calendars, listening controls and in-page video player.
 Search and filtering are plain `GET` forms that submit and reload, so results have bookmarkable,
 citable addresses. The showcase home page uses real editorial images from the live Ozikoro site;
 archive records without approved imagery retain deliberate CSS image plates. Webfonts degrade to
@@ -168,26 +178,8 @@ Folklores is deliberately a separate reading register: a cover, contents and ful
 - Collections, Journeys & Places and Topics A–Z add media-, location- and alphabet-based discovery without copying the reference site's colonial framing or blog structure.
 - Corrections extend the existing contribution route and preserve a visible review trail instead of silently replacing a published record.
 
----
-
-## Departure from the delivered design: the folklore reader
-
-Recorded because this file is the reference and the change is deliberate.
-
-The delivered folklore reader opened on a full-bleed hero image behind a scrim
-(`.sx-folk-reader-hero` + `.sx-folk-reader-scrim`). The owner, having seen both, asked for the
-history article's opening to be used instead — "especially the title and first image" — and for
-the same treatment to carry folklores as well as histories:
-
-> I prefer the design of inside page of history contents there, so use it to replace the one they
-> did for folklores. It fits it better. Especially the title and first image, but use same design
-> on history articles for folklore.
-
-So `screens/folklore-reader.html` now opens with `.sx-article-opening` — the same title block and
-first-image figure the article uses — and `.sx-folk-reader-hero` is no longer used anywhere.
-
-The reading that supports the choice, beyond preference: the design notes justify `.provenance` as
-carrying "the same visual weight as a pull quote" because an academic judges a site in seconds, and
-the brief requires oral history to have "the same visual standing as the other two, not a lesser
-one". A hero with a scrim reads as a storybook; an opening with a title, a first image and a source
-note reads as a record. One design for both says a folktale is evidence.
+## Calendar and document-library refinement
+- Cultural-calendar dates containing events are real buttons that reveal an accessible same-page event view; plain dates remain non-interactive.
+- The Igbo calendar now offers date lookup, the next ten occurrences of a selected market day, aligned Gregorian month navigation and a 12-month year view. All calculations retain the explicitly labelled demonstration anchor pending community verification.
+- Oral recordings enter through Listen. Documents is a separate research and PDF library where open files download and restricted records remain visible without a download action.
+- Homepage categories return to a compact pill index, while town cards use stronger image labels and a phone-friendly horizontal browse pattern.
