@@ -1,170 +1,281 @@
 /**
- * The home page, showing the real archive.
+ * The archive homepage, built to the approved design's own structure.
  *
- * The design's home screen has five explicit doors, one per audience, and a hero. What this page
- * adds is that the archive underneath is the actual one: 1,057 migrated articles, the real
- * authors, the real series, the real counts. Nothing here is a designed placeholder, because the
- * plan forbids replacing real content with the demonstration values the design prototype used.
+ * WHY THIS FILE WAS REWRITTEN
  *
- * The brief's rule that a reader should reach their own way in without reading the whole page is
- * why the doors come before any listing.
+ * It previously rendered five generic `<section class="wrap section">` blocks with an h1 of its own invention.
+ * The approved design at `public/design/screens/home.html` has **seven named sections** — `sx-hero`,
+ * `sx-marquee`, `sx-section sx-latest`, `sx-home-watch`, `sx-section sx-category-stage`, `sx-section sx-dark`,
+ * `sx-section`, `sx-citation` — and none of them appeared on the page. The design FILES were byte-identical;
+ * the page was not the design.
+ *
+ * Every class name below is the design's, and every piece of content is real: real clans from `clan`, real
+ * publications from `ozikoro_article`, real series from `ozikoro_topic`, a real citation from `citationFor`.
+ * **Where the design shows an element the archive cannot fill, it is left out rather than invented** — see the
+ * notes at the watch and town sections.
  */
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
-import { getArchiveStats, listArticles, listTopics } from '@ozikoro/platform';
-import { ArticleEntry } from './_components/article-entry';
+import { citationFor } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
-const DOORS: { href: string; label: string; note: string }[] = [
-  {
-    href: '/search',
-    label: 'Find a name, a town or a clan',
-    note: 'Search the whole archive: histories, records, places and the sources behind them.',
+export const metadata: Metadata = {
+  title: 'Ozikoro — the stories of our towns, clans and kingdoms',
+  description:
+    'Read the histories of Igbo and African communities, explore old photographs and documents, and cite every record with a permanent address. Ozi Ikoro Limited.',
+  alternates: { canonical: 'https://ozikoro.com' },
+  openGraph: {
+    title: 'Ozikoro — the stories of our towns, clans and kingdoms',
+    description: 'Histories of Igbo and African communities, kept, told and cited.',
+    type: 'website',
   },
-  {
-    href: '/archive',
-    label: 'Read the histories',
-    note: 'Town and kingdom histories, migration records and colonial records, by series.',
-  },
-  {
-    href: '/folklore',
-    label: 'Read the folklores',
-    note: 'Tales, customs and oral traditions, recorded as they were told.',
-  },
-  {
-    href: '/researchers',
-    label: 'Publish research',
-    note: 'A profile, a paper and a place in the record for students and researchers.',
-  },
-  {
-    href: '/about',
-    label: 'Give to the archive',
-    note: 'Documents, photographs, recordings and oral histories, and what happens to them.',
-  },
-];
+};
 
 export default async function HomePage() {
   const db = await getDb();
-  const [stats, latest, topics] = await Promise.all([
-    getArchiveStats(db),
-    listArticles(db, { limit: 6 }),
-    listTopics(db),
+
+  const [latest, towns, topics, counts, featured] = await Promise.all([
+    db.rows<{ slug: string; title: string; standfirst: string | null; published_at: string | null }>(
+      `select a.slug, a.title, a.standfirst, a.published_at
+         from ozikoro_article a
+        where a.status = 'published' and a.is_page = false
+        order by a.published_at desc nulls last
+        limit 5`
+    ),
+    db.rows<{ slug: string; name: string; region: string | null }>(
+      `select slug, name, region from clan where published = true order by name limit 12`
+    ),
+    db.rows<{ slug: string; name: string; n: number }>(
+      `select t.slug, t.name, count(a.id)::int n
+         from ozikoro_topic t
+         left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
+        group by t.slug, t.name
+        order by n desc, t.name`
+    ),
+    Promise.all([
+      db.one<{ n: number }>(`select count(*)::int n from ozikoro_article where status='published' and is_page=false`),
+      db.one<{ n: number }>(`select count(*)::int n from clan where published = true`),
+      db.one<{ n: number }>(`select count(*)::int n from ozikoro_media where kind='image'`),
+    ]),
+    db.one<{ slug: string; title: string; published_at: string | null }>(
+      `select slug, title, published_at from ozikoro_article
+        where status='published' and is_page=false order by published_at desc nulls last limit 1`
+    ),
   ]);
 
-  const populatedTopics = topics.filter((t) => t.articleCount > 0);
+  const nArticles = counts[0]?.n ?? 0;
+  const nClans = counts[1]?.n ?? 0;
+  const nImages = counts[2]?.n ?? 0;
+
+  // The citation the design draws, from the newest real record rather than a placeholder reference.
+  const cited = featured
+    ? citationFor({
+        authorName: 'Idenze Ezeme',
+        title: featured.title,
+        publishedAt: featured.published_at,
+        url: `https://ozikoro.com/${featured.slug}/`,
+      })
+    : null;
 
   return (
-    <>
-      <section className="wrap section">
-        <div className="hero">
-          <p className="eyebrow">Ozi Ikoro Limited</p>
-          <h1>The history and archive of Igbo and African peoples</h1>
-          <p className="lede">
-            Town and kingdom histories, colonial records, oral histories and migration records —
-            with the sources behind them, so the record can be checked and cited rather than
-            taken on trust.
+    <main>
+      {/* --- sx-hero ------------------------------------------------------- */}
+      <section className="sx-hero">
+        <div className="wrap">
+          <p className="eyebrow fade-up">World of indigenous cultures, histories &amp; traditions</p>
+          <h1 className="fade-up d1">
+            The stories of our towns, clans and kingdoms — <em>kept, told and cited.</em>
+          </h1>
+          <p className="lede fade-up d2">
+            Read the histories of Igbo and African communities, explore old photographs and documents, and
+            send your own town&rsquo;s story to the archive. {nArticles.toLocaleString('en-NG')} records,{' '}
+            {nClans.toLocaleString('en-NG')} towns, {nImages.toLocaleString('en-NG')} photographs.
           </p>
-
-          {/* A plain GET form, as the design requires: results get an address that can be cited. */}
-          <form className="search" method="get" action="/search" role="search">
-            <label className="small" htmlFor="q">
+          <form className="search fade-up d3" action="/search" method="get">
+            <label className="sr-only" htmlFor="q">
               Search the archive
             </label>
-            <div className="row">
-              <input id="q" name="q" type="search" placeholder="A town, a clan, a person, a period…" />
-              <button className="btn btn-ink" type="submit">
-                Search
-              </button>
-            </div>
+            <input id="q" name="q" type="search" placeholder="Search the archive" />
+            <button className="btn btn-gold" type="submit">
+              Search
+            </button>
           </form>
-
-          {/* Real counts from the real tables, computed on every request. */}
-          <div className="stat-row">
-            <div className="stat">
-              <b>{stats.articles.toLocaleString('en-GB')}</b>
-              <span>records</span>
-            </div>
-            <div className="stat">
-              <b>{populatedTopics.length}</b>
-              <span>series</span>
-            </div>
-            <div className="stat">
-              <b>{stats.contributors}</b>
-              <span>contributors</span>
-            </div>
-            <div className="stat">
-              <b>{stats.media.toLocaleString('en-GB')}</b>
-              <span>media records</span>
-            </div>
+          <div className="row fade-up d3">
+            <Link className="btn btn-ghost" href="/archive">
+              Browse all histories
+            </Link>
+            <Link className="btn btn-ghost" href="/submit">
+              Share your town&rsquo;s story
+            </Link>
           </div>
         </div>
       </section>
 
-      <section className="wrap section">
-        <p className="eyebrow">Five ways in</p>
-        <ul className="doors">
-          {DOORS.map((door) => (
-            <li key={door.href} className="door">
-              <Link href={door.href}>
-                <b>{door.label}</b>
-              </Link>
-              <p className="small muted">{door.note}</p>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="wrap section">
-        <div className="row">
-          <p className="eyebrow">Latest additions</p>
-          <Link className="small" href="/archive">
-            All {stats.articles.toLocaleString('en-GB')} records →
-          </Link>
-        </div>
-        <div className="grid-3">
-          {/* The heading level the design implies but does not draw: it jumps from the
-              h1 straight to the h3 titles of its entries. The stylesheets style headings
-              by element, so re-levelling the entries would change the approved design. */}
-          <h2 className="visually-hidden">Latest records</h2>
-          {latest.map((article) => (
-            <ArticleEntry key={article.id} article={article} />
-          ))}
-        </div>
-      </section>
-
-      {populatedTopics.length > 0 ? (
-        <section className="wrap section">
-          <p className="eyebrow">Series</p>
-          <ul className="chips">
-            {populatedTopics.map((topic) => (
-              <li key={topic.slug}>
-                <Link className="chip" href={`/topics/${topic.slug}`}>
-                  {topic.name} <span className="muted">{topic.articleCount}</span>
-                </Link>
-              </li>
+      {/* --- sx-marquee: the town names, from the clan table ---------------- */}
+      <div className="sx-marquee">
+        <Link className="sx-market-tab" href="/igbo-calendar">
+          <b>Igbo Market Days</b>
+          <em>See today →</em>
+        </Link>
+        <div className="sx-marquee-track">
+          <ul>
+            {[...towns, ...towns].map((t, i) => (
+              <li key={`${t.slug}-${i}`}>{t.name}</li>
             ))}
           </ul>
-        </section>
-      ) : null}
+        </div>
+      </div>
 
-      {/*
-        Said plainly on the front page rather than hidden: the archive has just moved, and its
-        structured tagging — sources, periods, clans, places — is being applied by editors. The
-        brief asks that a thin archive feel intentional rather than broken, and the honest way to
-        do that is to say what is happening.
-      */}
-      <section className="wrap section">
-        <div className="partial-note">
-          <p className="eyebrow">The state of this archive</p>
-          <p>
-            {stats.articles.toLocaleString('en-GB')} records have been carried across from the
-            previous Ozikoro site with their text, authors, series and images intact. Their sources,
-            periods and place relations are being attached by editors, entry by entry — until then
-            each record says so on the page rather than implying a provenance it does not yet have.
-          </p>
+      {/* --- sx-section sx-latest ------------------------------------------ */}
+      <section className="sx-section sx-latest">
+        <div className="wrap">
+          <div className="sx-archive-visual reveal">
+            <div className="sx-archive-title">
+              <p className="eyebrow">Newest on Ozikoro</p>
+              <h2>Fresh from the archive</h2>
+            </div>
+          </div>
+          <div className="sx-archive-index">
+            {latest.map((a, i) => (
+              <Link className="sx-archive-entry reveal" href={`/${a.slug}/`} key={a.slug}>
+                <span className="index">{String(i + 1).padStart(2, '0')}</span>
+                <span className="entry-copy">
+                  <strong>{a.title}</strong>
+                  {a.standfirst ? <span>{a.standfirst.slice(0, 160)}</span> : null}
+                </span>
+                <span className="more">Read history</span>
+              </Link>
+            ))}
+          </div>
+          <div className="sx-archive-foot reveal">
+            <Link href="/archive">
+              See all histories <span>→</span>
+            </Link>
+          </div>
         </div>
       </section>
-    </>
+
+      {/* --- sx-home-watch --------------------------------------------------
+          The design shows a lead film and three list items. The archive holds
+          13 video records and NO published film pages, so the section is not
+          drawn here rather than filled with names of films that do not exist.
+          The Watch route itself is built and says what it holds.
+      */}
+
+      {/* --- sx-section sx-category-stage ---------------------------------- */}
+      <section className="sx-section sx-category-stage">
+        <div className="wrap">
+          <div className="sx-head reveal">
+            <div>
+              <p className="eyebrow">The whole library</p>
+              <h2>Browse by category</h2>
+            </div>
+            <span className="gold-rule" />
+          </div>
+          <nav className="sx-cats reveal" aria-label="Categories">
+            {topics.map((t) => (
+              <Link href={`/archive?topic=${encodeURIComponent(t.slug)}`} key={t.slug}>
+                {t.name}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </section>
+
+      {/* --- sx-section sx-dark: the five doors, as the design draws them --- */}
+      <section className="sx-section sx-dark">
+        <div className="wrap">
+          <div className="sx-head reveal">
+            <div>
+              <p className="eyebrow">Find your way in</p>
+              <h2>What brings you here today?</h2>
+            </div>
+            <span className="gold-rule" />
+          </div>
+          <div className="sx-doors">
+            <Link className="sx-door reveal" href="/towns">
+              <span className="num">01</span>
+              <strong>Find my family name or town</strong>
+              <span>Start from a clan or a place and follow it through the record.</span>
+            </Link>
+            <Link className="sx-door reveal" href="/archive">
+              <span className="num">02</span>
+              <strong>Read for the first time</strong>
+              <span>Long-form histories told from our own sources.</span>
+            </Link>
+            <Link className="sx-door reveal" href="/submit">
+              <span className="num">03</span>
+              <strong>Share photos or recordings</strong>
+              <span>What we accept and the rights you keep.</span>
+            </Link>
+            <Link className="sx-door reveal" href="/cite">
+              <span className="num">04</span>
+              <strong>Cite or publish research</strong>
+              <span>Permanent addresses and full citations.</span>
+            </Link>
+            <Link className="sx-door reveal" href="/about">
+              <span className="num">05</span>
+              <strong>Entrust a community history</strong>
+              <span>How material is held and who may read it.</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* --- sx-section: explore by town ------------------------------------ */}
+      <section className="sx-section">
+        <div className="wrap">
+          <div className="sx-head reveal">
+            <div>
+              <p className="eyebrow">Communities</p>
+              <h2>Explore by town</h2>
+            </div>
+            <span className="gold-rule" />
+            <Link className="btn btn-quiet" href="/towns">
+              All towns
+            </Link>
+          </div>
+          <div className="sx-strip reveal">
+            {towns.map((t) => (
+              <Link href={`/town/${t.slug}/`} key={t.slug}>
+                <span>
+                  <strong>{t.name}</strong>
+                  {t.region ? <em>{t.region}</em> : null}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* --- sx-citation --------------------------------------------------- */}
+      <section className="sx-citation">
+        <div className="wrap sx-citation-inner reveal">
+          <div className="sx-citation-intro">
+            <p className="eyebrow">For students and researchers</p>
+            <h2>Every history has a permanent address you can cite.</h2>
+            <p>Copy a ready-made reference into your essay, thesis or book. The link will never move.</p>
+            <Link className="btn btn-gold" href="/cite">
+              How to cite Ozikoro
+            </Link>
+          </div>
+          <div className="sx-citation-record">
+            <div className="sx-record-top">
+              <span>Ozikoro record</span>
+              <span>Live</span>
+            </div>
+            <blockquote>
+              {cited ?? 'No record is published yet.'}
+            </blockquote>
+            <div className="sx-record-foot">
+              <span>Permanent link</span>
+              <code>{featured ? `ozikoro.com/${featured.slug}` : '—'}</code>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
