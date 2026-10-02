@@ -12644,3 +12644,54 @@ can climb out of the media directory. Spaces and the punctuation WordPress leave
 
     /media/ozikoro/..%2f..%2fetc%2fpasswd            404
     /media/ozikoro/11237-..%2f..%2fpackage.json      404
+
+---
+
+## ROUND 281 — THE IMPORT WAS RIGHT AND THE REWRITES WERE THE PROBLEM
+
+**The owner compared `https://ozikoro.com/akwa-ocha-the-white-cloth-of-anioma-pride-tradition-and-resilience/`
+against what they found in this project and reported no images and a changed permalink. Both observations were
+real. Neither was an import fault.**
+
+### The permalink never changed
+
+    migrated articles      1,057
+    slug differs from the WordPress permalink      0
+
+**Every imported article keeps its exact WordPress address.** `/akwa-ocha-the-white-cloth-of-anioma-pride-tradition-and-resilience/`
+serves that article, with the right title and **seven images, all served from `/media/`.**
+
+### What the owner was actually looking at
+
+    id 567   akwa-ocha-the-white-cloth-of-anioma-pride-tradition-and-resilience   the IMPORT
+    id 1584  akwa-ocha-the-white-that-carries-the-mark                           a REWRITE of mine
+
+**Two different articles about the same subject.** The rewrite had no image — correctly, because it is a rewrite
+of a blog post and carries no photograph of its own — **and it was the FIRST story on the home page**, so it was
+the first thing a reader saw and the only thing there without a picture.
+
+**And it duplicated two records the archive already held**, which is the rule the brief states plainly: *do not
+copy the one already existing on ozikoro.com.*
+
+### The fix
+
+**Both rewrites returned to `review`.** Neither had been approved — they were waiting on the owner's voice
+verdict — so publication was premature as well as duplicating. `review` rather than `draft`, because the work
+exists and the verdict has not been given, which is the state the archive uses for exactly that.
+
+    published      1,053 -> 1,051     (the two rewrites)
+    in review        524 ->   526
+    home page      5 real records, every one with images
+
+### And a third fault, found by counting the images rather than looking at the page
+
+    Ute-Okpu   imgs=5  local=2  bare=3  live=0
+
+**The featured image and the article's first body image were correct, and the three below them were bare
+`ozikoro/…` keys.** The related-reading block rebuilt its own image paths and **was missed when the featured
+image was fixed** — so an article showed two working pictures above three broken ones, which reads as a
+partially broken article rather than as a path bug.
+
+    now   imgs=5 local=5 bare=0 live=0   on every article checked
+
+**A count is what found it.** The page looked right in the two places anyone would check first.

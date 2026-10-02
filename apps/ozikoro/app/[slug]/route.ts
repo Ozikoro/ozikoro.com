@@ -98,8 +98,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const exact = new Map<string, string>();
   const base = new Map<string, string>();
   for (const m of media) {
-    exact.set(m.source_url, `/media/${m.storage_key}`);
-    base.set(m.source_url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, ''), `/media/${m.storage_key}`);
+    exact.set(m.source_url, mediaPath(m.storage_key));
+    base.set(m.source_url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, ''), mediaPath(m.storage_key));
   }
   const resolveImage = (url: string): string | null =>
     exact.get(url) ?? base.get(url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, '')) ?? null;
@@ -115,7 +115,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     caption,
     rights,
     body: row.body_html ?? '<p>This record has no written body yet.</p>',
-    related: related.map((r) => ({ title: r.title, href: `/${r.slug}/`, topic: r.topic, image: r.image })),
+    // EACH RELATED IMAGE GOES THROUGH `mediaPath` TOO. The row carries a `storage_key`, which is a disk path
+    // — `ozikoro/11231-umunede-king.jpeg` — and a page needs `/media/…`. **The featured image was fixed and
+    // this was missed, so three of the five images on an article 404'd** while the two above them worked.
+    related: related.map((r) => ({
+      title: r.title,
+      href: `/${r.slug}/`,
+      topic: r.topic,
+      image: r.image ? mediaPath(r.image) : null,
+    })),
     resolveImage,
   };
 
