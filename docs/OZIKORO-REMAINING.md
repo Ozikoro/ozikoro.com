@@ -7722,3 +7722,60 @@ the former now, which is the question that matches the dependency.
 quietly stopped covering the thing it exists to cover — which is the same failure round 122 found when a
 lesson did not travel between two checkers, one level up: **here the lesson had travelled, and the
 *territory* had not.**
+
+---
+
+## ROUND 180 — THE CAPABILITY CHECK'S SCOPE IS CORRECT, AND ITS GUARD CANNOT SAY SO
+
+Round 179 found that moving a module had invalidated the drift check's file list. `check:capabilities` has a
+file list too, so it was audited the same way.
+
+    SOURCE_DIRS = ['apps/ozikoro/app', 'apps/ozikoro/lib', 'packages/ozikoro/src']
+
+    capability call sites repo-wide, against that scope:
+      apps/ozikoro/app/api/admin/archive/route.ts        inside
+      apps/ozikoro/app/api/admin/rights/route.ts         inside
+      apps/ozikoro/app/api/claims/route.ts               inside
+      apps/ozikoro/app/api/research/route.ts             inside
+      apps/ozikoro/lib/access.ts                         inside
+      packages/ozikoro/src/members.ts                    inside
+      packages/ozikoro/src/ops/capability-check.ts       inside — and excluded by name, round 56
+      packages/ozikoro/src/test-members.ts               inside
+
+    total 8   inside the scope 8   outside 0
+
+**The scope is correct, and no capability lives in `packages/core`** — capabilities are an Ozikoro concern, so
+round 178's move did not affect this check the way it affected the drift check.
+
+### But the check cannot tell you that, and that is the finding
+
+Round 104 gave it a guard: **if it extracts no capability names it exits 2** rather than reporting every
+capability granted. That catches **total** extraction failure.
+
+**It does not catch a partial one.** If a future round puts `requireCapability('publish_archives')` in a file
+outside those three directories — a new `apps/ozikoro/components/`, a shared package, anything — the check
+extracts seven names instead of eight, every one of them is granted, and it prints:
+
+    Every one is held by at least one role.
+
+**Green, and short by one.** The guard cannot see it because the guard asks *did you find anything* and the
+question is *did you find everything*.
+
+### The fix, stated rather than built
+
+**Ask the repository, not the scope.** One grep for `requireCapability(|hasCapability(` across `apps` and
+`packages`, and every match must fall inside `SOURCE_DIRS`; a match outside means the scope is stale and the
+check should say so. That is the same move round 179 made by hand — **count the call sites, compare them to
+the territory, and report the difference** — and it turns the residual risk into a one-line assertion.
+
+**Not built** because it changes the check that gates all 53 capability grants, and this round's context is
+better spent recording the shape than half-writing its replacement.
+
+### The pattern across rounds 179 and 180
+
+    round 179   a scope that had gone stale    -> found by grepping the whole repo by hand
+    round 180   a scope that is correct        -> and no guard can distinguish that from a partial miss
+
+**Both rounds are about the same thing: a checker's scope is an assertion, and only a check against the
+whole repository can confirm it.** Round 104 built the guard for the empty case; **the partial case is the
+one that still passes quietly**, and it is the one a future module move would produce.
