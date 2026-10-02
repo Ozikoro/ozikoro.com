@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+#
+# Refuse a commit that does not typecheck.
+#
+# WHY THIS EXISTS (round 187)
+#
+# Round 186 committed a test that used `item.source.length` where `KnowledgeItem.source` is optional.
+# `verify-all.sh` reported FAIL typecheck and "1 suite(s) FAILED", I ran that command, the grep printed the
+# failure in the output I was reading, and I committed anyway — then had to commit a second time to fix it.
+#
+# The lesson was already written in docs/OZIKORO-REMAINING.md from rounds 31, 70 and 86: never read a
+# checker's exit code after a pipe. **A rule that has failed three times is not a rule; it is a hope.** This
+# is the same rule expressed as something that cannot be forgotten, because it runs whether or not anybody
+# remembers it.
+#
+# It runs TYPECHECK ONLY, deliberately: it is fast, it needs no database, it holds no lock, and it is the
+# exact check that failed. The heavier suites belong in `npm run verify`, which a person chooses to run.
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)" || exit 1
+cd "$REPO_ROOT" || exit 1
+
+echo "  pre-commit: typecheck (npm run typecheck)"
+if ! npm run --silent typecheck > /tmp/dsh-pre-commit-typecheck.log 2>&1; then
+  echo ""
+  echo "  COMMIT REFUSED — typecheck failed. Nothing has been committed."
+  echo ""
+  grep -E "error TS" /tmp/dsh-pre-commit-typecheck.log | head -10 | sed 's/^/    /'
+  echo ""
+  echo "  Full output: /tmp/dsh-pre-commit-typecheck.log"
+  echo "  To commit anyway (and you should not): git commit --no-verify"
+  echo ""
+  exit 1
+fi
+echo "  pre-commit: typecheck clean"

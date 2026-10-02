@@ -88,7 +88,8 @@
     "check:secrets": "bash scripts/check-secrets.sh",
     "account:create": "node scripts/create-account.ts",
     "account:reset": "node scripts/reset-password.ts",
-    "check:handover": "bash scripts/check-handover.sh"
+    "check:handover": "bash scripts/check-handover.sh",
+    "hooks:install": "git config core.hooksPath scripts/hooks && chmod +x scripts/hooks/* && echo \"  hooks installed (core.hooksPath=scripts/hooks)\""
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",

@@ -8162,3 +8162,52 @@ reader nothing.**
 this round that mattered did that afterwards — `> /tmp/va2.txt 2>&1; echo "exit: $?"` — and the difference is
 that the exit code is then a value I have to look at rather than a line in a stream I am skimming for
 something else.
+
+---
+
+## ROUND 187 — ROUND 186'S MISTAKE IS NOW IMPOSSIBLE, RATHER THAN REGRETTED
+
+Round 186 committed a test that did not typecheck, with the failure printed in the output being read. The
+round named the fix as a habit — *"read the exit code from a file rather than a pipe"* — and **a habit is
+what failed.** This round made it a mechanism.
+
+### What was built
+
+    scripts/hooks/pre-commit      runs `npm run typecheck`; refuses the commit on failure
+    npm run hooks:install         git config core.hooksPath scripts/hooks
+
+**`core.hooksPath` rather than `.git/hooks`**, because `.git/hooks` is not tracked: a hook written there
+protects one working copy and disappears on clone. This one is in `scripts/hooks/`, is versioned with the
+code, and is installed by one command a fresh checkout can run.
+
+**It runs typecheck only, deliberately**: it is fast, needs no database, holds no lock, and is the exact
+check that failed. The heavier suites belong in `npm run verify`, which a person chooses to run.
+
+### Proven against git itself, not against the script
+
+    bash scripts/hooks/pre-commit, clean tree           exit 0
+    bash scripts/hooks/pre-commit, broken tree          exit 1, COMMIT REFUSED
+    git commit, broken tree                             exit 1
+    is the bad commit in history?                       NO — HEAD unchanged
+    after restore                                       exit 0
+
+**Running the hook directly proves the script works. Letting `git commit` run it proves the mechanism
+works**, and they are different claims. The second is the one that matters, and it is the one that was
+tested.
+
+### Why this is the right shape of fix, in this file's terms
+
+    round 186   a rule was written down after it had already failed three times (31, 70, 86)
+    round 187   the rule is a program that runs whether or not anyone remembers it
+
+> **A rule that has failed three times is not a rule; it is a hope.** Rounds 31, 70 and 86 each produced a
+> sentence; round 186 produced a fourth sentence and the same mistake. **This is the first time the response
+> was something other than a sentence**, and it is available for every rule in this file that has a
+> mechanical form.
+
+### And it is documented where a fresh checkout will find it
+
+`hooks:install` prints what it did, the hook's own header explains why it exists and names round 186, and the
+command is listed with the others in `package.json`. **A reader who clones this repository and runs
+`npm run setup` should be told to run it** — which is the one thing this round has not checked and is worth
+checking.
