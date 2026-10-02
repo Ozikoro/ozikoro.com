@@ -942,83 +942,138 @@ export function fillArticleProse(
   html: string,
   content: { lead: string; rest: string; sources: string[]; citation: string }
 ): string {
+  /*
+   * ONE PASS OVER THE FRAME, WITH PATTERNS THAT DO NOT ASSUME HOW THE DESIGN WRITES A TAG.
+   *
+   * This function has now been wrong three times for the same reason: **it matched an element by the exact
+   * text it expected, and the element did not have that text.**
+   *
+   *   the design writes `<section class="provenance" id="sources">` — `class` first, `id` second
+   *   and `<h2 id="record">` — `id` first
+   *   and after the first pass added `style="scroll-margin-top:6rem"`, a pattern expecting
+   *   `<h2 id="record" class="sr-only">` matched nothing at all — **so the design's example text stayed on the
+   *   page and the record's own words went somewhere else.**
+   *
+   * Every pattern below therefore matches on the `id` alone, anywhere in the tag, with anything after it.
+   * **A tag is found by what identifies it, not by how it happens to be spelled today.**
+   */
+  const TAG = (name: string, id: string) => new RegExp(`<${name}[^>]*\\bid="${id}"[^>]*>`);
+
+  const recordOpen = TAG('h2', 'record');
+  const contextOpen = TAG('h2', 'context');
+  const sourcesOpen = TAG('section', 'sources');
+  const citationOpen = TAG('section', 'citation');
+
+  /*
+   * THE SCROLL OFFSET, WHICH THE DESIGN'S STYLESHEET DOES NOT SET.
+   *
+   * `.sx-reader-header` is `position: sticky; top: 0` and a progress bar sits over it, and **the browser scrolls
+   * a target to the very top of the viewport — which is where the header is.** Every link therefore landed a
+   * few lines into its section. The owner saw it: *"when you click on opening, it takes you to three lines after
+   * the first words."*
+   *
+   * `scroll-margin-top` is the property for this. **It goes on the elements rather than in the stylesheet
+   * because the stylesheet is the design and is not edited**, and how much room an element needs above it when
+   * scrolled to is the element's own business.
+   */
+  const OFFSET = ' style="scroll-margin-top:6rem"';
+  /**
+   * The OPENING TAG ONLY.
+   *
+   * This was called with a complete element — `<h2 …>The written record</h2>` — and appended the attribute
+   * before the final `>`, **which is the closing tag's bracket**, producing `</h2 style="scroll-margin-top:6rem">`.
+   * It takes an opening tag and returns one; anything else is a misuse.
+   */
+  const withOffset = (openTag: string) => (/\sstyle="/.test(openTag) ? openTag : openTag.replace(/>$/, `${OFFSET}>`));
+
   let out = html;
 
   /*
-   * AN ELEMENT'S ATTRIBUTES HAVE NO GUARANTEED ORDER, AND THAT COST THIS PASS TWICE.
+   * #context IS MOVED INTO THE RECORD.
    *
-   * The design writes `<section class="provenance" id="sources">` — `class` first — while `<h2 id="record">`
-   * has `id` first. **Patterns that expected one order matched one element and silently skipped the other**,
-   * so the record's references were extracted and then never inserted, and the "Evidence note" the owner asked
-   * to remove survived because the span it sat inside was never found. Matching `id="…"` anywhere in the tag is
-   * the only pattern that does not depend on how the design happens to order its attributes today.
+   * With the example paragraph removed it sat eighty characters above the sources, so "Historical context" and
+   * "Sources" scrolled to the same place — and the owner reported exactly that: *"when one clicks on sources, it
+   * seems to take them to the cite this article."*
+   *
+   * A record's context is where it stops opening and starts explaining: **its own first sub-heading.** The anchor
+   * goes immediately before it, or directly after the lead when the record has no sub-heading — the earliest
+   * point at which there is context to point at.
    */
-  const byId = (tag: string, id: string) => new RegExp(`<${tag}[^>]*id="${id}"[^>]*>`);
-
-  /*
-   * THE FRAME'S HEADINGS ARE ANCHORS, NOT TITLES.
-   *
-   * "The written record" and "Historical context" are the design's own scaffolding — two headings that give the
-   * reading column a shape in a walkthrough. **On a real article they say nothing a reader needs**: a history is
-   * the written record, and a heading announcing that above the first paragraph is noise. The owner put it
-   * plainly: the words "Written record" should never appear on the article, and the sidebar is enough.
-   *
-   * So both headings are kept in the document — **the sidebar's four links must resolve** — and hidden from
-   * sight. `sr-only` rather than `display:none`, because a link to a `display:none` target scrolls nowhere in
-   * some browsers while an off-screen one always does.
-   */
-  out = out.replace(/<h2 id="record">[\s\S]*?<\/h2>/, '<h2 id="record" class="sr-only">The written record</h2>');
-  out = out.replace(/<h2 id="context">[\s\S]*?<\/h2>/, '<h2 id="context" class="sr-only">Historical context</h2>');
+  const contextHeading = withOffset('<h2 id="context" class="sr-only">') + 'Historical context</h2>';
+  const firstHeading = /<h[23][^>]*>/.exec(content.rest);
+  let restWithContext: string;
+  if (firstHeading) {
+    restWithContext = content.rest.slice(0, firstHeading.index) + contextHeading + content.rest.slice(firstHeading.index);
+  } else {
+    /*
+     * NO SUB-HEADING, SO THE ANCHOR GOES WHERE THE RECORD STOPS OPENING AND STARTS EXPLAINING.
+     *
+     * Most of this archive was written as continuous paragraphs, so there is often no heading to hang the
+     * anchor on. **Putting it at the end made "Historical context" scroll to the sources** — which is what the
+     * owner saw. A few paragraphs in is the point at which a record has usually said what it is about and begun
+     * to account for it, and it is a real, distinct place to land.
+     */
+    const paras = [...content.rest.matchAll(/<p[^>]*>/g)];
+    const at = paras.length >= 4 ? (paras[2]?.index ?? 0) : (paras[1]?.index ?? 0);
+    restWithContext = content.rest.slice(0, at) + contextHeading + content.rest.slice(at);
+  }
 
   // #opening — the lead paragraph keeps the design's class and id.
-  out = out.replace(/(<p id="opening" class="dropcap">)[\s\S]*?(<\/p>)/, `$1${content.lead}$2`);
+  // `#opening` and `#record` are written here, so the offset is written with them rather than patched on after.
+  out = out.replace(/(<p[^>]*\bid="opening"[^>]*>)[\s\S]*?(<\/p>)/, (_m, open: string) => `${withOffset(open)}${content.lead}</p>`);
 
   /*
-   * #record — the record's own words, with the design's example scaffolding removed.
+   * EVERYTHING BETWEEN `#record` AND `#sources`, REPLACED IN ONE MOVE.
    *
-   * Between the two headings the design draws a paragraph, a blockquote and a `<section class="sx-story-record">`
-   * labelled "Evidence note", and after the second an `<h2>What remains uncertain</h2>`. **Those are shapes a
-   * template needs and a history does not have**: a real record is continuous prose with its own headings, and a
-   * boxed note saying where a claim "can be supported, disputed, translated or still incomplete" describes the
-   * archive's method rather than anything in the article. The owner: it looks weird and did not fit the article.
+   * That span holds the design's paragraph, its blockquote, its "Evidence note" section and the "What remains
+   * uncertain" heading — **scaffolding a template needs and a history does not have.** The record's own words
+   * take their place, and the `#context` anchor rides in front of the record's first sub-heading.
+   */
+  const recordToSources = new RegExp(`${recordOpen.source}[\\s\\S]*?${sourcesOpen.source}`);
+  /*
+   * THE `#sources` OPENING TAG IS RE-EMITTED, NOT DROPPED.
+   *
+   * The pattern is non-greedy and so ENDS at that tag — and the first version replaced the whole match without
+   * putting it back, **which deleted the sources section's opening tag and left its list and heading parentless.**
+   * A replacement that consumes a delimiter has to write the delimiter again.
    */
   out = out.replace(
-    /(<h2 id="record" class="sr-only">The written record<\/h2>)[\s\S]*?(<h2 id="context")/,
-    `$1${content.rest}$2`
+    recordToSources,
+    `${withOffset('<h2 id="record" class="sr-only">')}The written record</h2>${restWithContext}${withOffset(sourcesOpen.exec(out)?.[0] ?? '<section class="provenance" id="sources">')}`
   );
-
-  // #context — the example paragraph and the Evidence note go; the hidden heading stays as the anchor.
-  out = out.replace(
-    /(<h2 id="context" class="sr-only">Historical context<\/h2>)[\s\S]*?(<section[^>]*id="sources")/,
-    '$1$2'
-  );
-  out = out.replace(/<h2>What remains uncertain<\/h2>\s*(<p>[\s\S]*?<\/p>)?/, '');
 
   /*
    * #sources — THE RECORD'S OWN REFERENCES, OR NOTHING AT ALL.
    *
-   * 769 records state their sources; the rest do not. **A sources block saying "no source is recorded" is worse
-   * than no block**, because it draws the eye to an absence a reader did not come for.
-   *
-   * The section is hidden when the record has none, and **an empty anchor is left in its place so the sidebar's
-   * two links to it still resolve** — the alternative is a link that scrolls nowhere, which is the fault this
-   * whole pass began with.
+   * 769 records state their sources; the rest do not. **A block saying "no source is recorded" is worse than no
+   * block**, because it draws the eye to an absence a reader did not come for. When a record has none the
+   * section is hidden and **an empty off-screen anchor is left in its place so the sidebar's two links still
+   * resolve** — the alternative is a link that scrolls nowhere, which is the fault this pass began with.
    */
   if (content.sources.length > 0) {
     const items = content.sources.map((r) => `<li>${esc(r)}</li>`).join('');
-    out = out.replace(/(<section[^>]*id="sources"[^>]*>[\s\S]*?<ol>)[\s\S]*?(<\/ol>)/, `$1${items}$2`);
+    out = out.replace(/(<section[^>]*\bid="sources"[^>]*>[\s\S]*?<ol>)[\s\S]*?(<\/ol>)/, `$1${items}$2`);
+    out = out.replace(sourcesOpen, (tag) => withOffset(tag));
   } else {
-    out = out.replace(
-      /<section[^>]*id="sources"[^>]*>[\s\S]*?<\/section>/,
-      '<span id="sources" class="sr-only"></span>'
-    );
+    out = out.replace(new RegExp(`${sourcesOpen.source}[\\s\\S]*?<\\/section>`), `<span id="sources" class="sr-only"${OFFSET}></span>`);
   }
 
-  // .cite-block — where the design put it, at the foot.
+  // The citation stays in the design's own block, at the foot, where it was written.
+  out = out.replace(citationOpen, (tag) => withOffset(tag));
+  // The design's own panels are sidebar targets too, so they take the offset as well — `#listen` is the first
+  // link under "Reading tools" and landed under the header just like the rest.
+  out = out.replace(/<(section|span)([^>]*\bid="listen"[^>]*)>/, (_m, tag: string, attrs: string) =>
+    attrs.includes('scroll-margin') ? `<${tag}${attrs}>` : `<${tag}${attrs}${OFFSET}>`
+  );
+  // `#related` is the design's own section and is a sidebar target too, so it takes the offset as well.
+  out = out.replace(/<section([^>]*\bid="related"[^>]*)>/, (_m, attrs: string) =>
+    attrs.includes('scroll-margin') ? `<section${attrs}>` : `<section${attrs}${OFFSET}>`
+  );
   out = out.replace(/(<div class="cite-block">)[\s\S]*?(<\/div>)/, `$1${esc(content.citation)}$2`);
 
   return out;
 }
+
 
 
 /**

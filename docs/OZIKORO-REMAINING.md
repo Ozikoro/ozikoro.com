@@ -13185,3 +13185,61 @@ was never found. **An element's attributes have no guaranteed order, and matchin
 the only pattern that does not depend on how the design happens to order them today.**
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 290 — TWO ANCHOR BUGS, AND FOUR TIMES THE SAME MISTAKE IN ONE FUNCTION
+
+### The bugs the owner found
+
+    click "Opening"              landed three lines INTO the paragraph
+    click "Sources"              landed on "Cite this article"
+    click "Historical context"   landed on "Cite this article" too
+
+### Why each happened
+
+**1. The design's header is `position: sticky; top: 0` and sets no `scroll-margin`.** A browser scrolls an anchor
+to the very top of the viewport — **which is where the header is** — so every link landed with its first lines
+hidden behind it. `scroll-margin-top` is the property for exactly this, **and it goes on the elements rather than
+in the stylesheet, because the stylesheet is the design and is not edited.**
+
+**2. `#context` sat eighty characters above `#sources`.** With the design's example paragraph removed, the hidden
+heading had nothing under it and both links scrolled to the same place.
+
+**A record's context is where it stops opening and starts explaining** — its own first sub-heading. Where the
+record has one, the anchor goes in front of it. **Most of this archive was written as continuous paragraphs with
+no sub-heading**, so the anchor goes a few paragraphs in: 1,170 characters into the Horton record, and 9,098
+before the sources.
+
+### And the same mistake four times
+
+**Every wrong version of this function matched an element by the exact text it expected, and the element did not
+have that text:**
+
+    the design writes    <section class="provenance" id="sources">    class first, id second
+    and                  <h2 id="record">                            id first
+    then this function   added style="scroll-margin-top:6rem"
+    and a pattern for     <h2 id="record" class="sr-only">           matched NOTHING
+
+**That last one was the worst: the design's example text stayed on the page and the record's own words went
+somewhere else entirely.** The body disappeared from between `#record` and `#sources` — 10,268 characters
+missing — and the example paragraph about "long passages at a comfortable measure" was on the page in its place.
+
+**Three more from the same pass:**
+
+    withOffset() called with a whole element      put the attribute after `</h2`, producing `</h2 style=…>`
+    a non-greedy pattern ending at a tag           replaced the match without re-emitting the tag, so the
+                                                   `#sources` opening tag was consumed and its list left parentless
+    the context anchor appended when no heading    put it at the very end, beside the sources
+
+**Every pattern now matches on `id` alone, anywhere in the tag, with anything after it.** A tag is found by what
+identifies it, not by how it happens to be spelled today — **and a replacement that consumes a delimiter has to
+write the delimiter again.**
+
+### Verified
+
+    james-africanus-beale-horton        targets 7 · problems none
+    ute-okpu-an-ika-igbo-clan-…         targets 7 · problems none
+    akwa-ocha-the-white-cloth-of-…      targets 7 · problems none
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**
