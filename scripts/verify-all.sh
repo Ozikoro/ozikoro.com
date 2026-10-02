@@ -58,6 +58,9 @@ echo "  Database hygiene"
 # The resume block's countable claims, re-derived from the system. verify-all checks twenty things about
 # the code and nothing about the block it exists to keep honest; round 174 counted eight corrections to
 # that block, seven of them made in a LATER round than the change they described.
+# Rounds 196, 201 and 202: a Suspense boundary above a page that decides its own 404 defers the status
+# and turns a 404 into a 200. The rule was broken twice, so it is a program now.
+run "loading boundaries sit where the router resolves" npm run check:boundaries
 run "the handover still matches" npm run check:handover
 run "no committed credentials" npm run check:secrets
 run "no test residue" npm run check:residue

@@ -9142,3 +9142,52 @@ dynamic ones carry none, so their 404s keep their status and their async pages c
 is the better half of a trade that cannot be split**, and both the defect and the boundary rule now sit in the
 same paragraph so the next round begins from it rather than rediscovering it — which is what round 203 said
 this paragraph is for.
+
+---
+
+## ROUND 205 — THE BOUNDARY RULE IS A PROGRAM NOW, BECAUSE IT WAS BROKEN TWICE
+
+Rounds 196 and 201 broke the same rule, and round 203 found the block had stated it since round 119. **A rule
+that has been broken twice and was written down once is a rule that needs a program** — the same reasoning as
+round 187's commit hook, applied to the thing that hook cannot see.
+
+### `scripts/check-boundaries.sh`, step 22 of `verify-all.sh`
+
+For every `loading.tsx` under any `app/` directory, two conditions:
+
+    at or beneath it, a dynamic segment    an unmatched single path would MATCH a catch-all like
+      (`[slug]`, `[id]`)                   `[slug]`, and the page would then decide the status
+    at or beneath it, a page calling       that page decides the status during its render, so the
+      `notFound()`                         boundary defers it
+
+**Both are the same rule in different clothes: the status must be settled by the router before the boundary
+is entered.**
+
+### Mutation-tested, both directions
+
+    a boundary above [slug]        exit 1   "wraps a dynamic segment"
+    a boundary above a notFound()  exit 1   "wraps a dynamic segment"
+    restored                       exit 0   "Every loading boundary sits on a route the router resolves
+                                            (12 checked)"
+
+**And it refuses to pass on an empty scan**: if no `loading.tsx` exists anywhere it exits 2 with *"that is a
+broken glob, not a clean result"* — round 57's guard, which this project has needed often enough to keep
+repeating.
+
+### One honest limitation
+
+**Condition 2 has no independent case yet.** Both mutations were caught by condition 1, because every page that
+calls `notFound()` today also sits in a directory with a dynamic segment. **The second condition is a rule for
+the future rather than a description of the present** — it would catch a page that decides its own 404 in a
+*static* route, which none does now, and it is written down as such rather than counted as two proven checks.
+
+### Where the boundary work ends
+
+    apps/ozikoro   12 segment boundaries on static routes · 17 dynamic routes carry none
+    apps/web       none — its boundary was reverted in round 200 on the same evidence
+    guard          any future `loading.tsx` is checked against the rule on every run
+
+**The defect is unchanged and understood**: ten pages decide their own 404, their boundary is deferred, and
+the block's paragraph says why there is no one-line fix. **What this round adds is that nobody can now
+reintroduce the mistake without a check failing** — which is the most this project can do about a trade it
+cannot split.
