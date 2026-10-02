@@ -11805,3 +11805,43 @@ this run of a claim here being the thing at fault — and the second in a row th
 
 > **Round 261 checked the gate existed and that its test passed. Round 262 asked the endpoint a question it
 > should have refused.** Those are different examinations, and only the second one is about the system.
+
+---
+
+## ROUND 263 — THE RARITY FLOOR, WHICH IS WHAT THE GATE ACTUALLY NEEDED
+
+    answerable   "What is the New Yam Festival about?"   grounded=true  · 6 passages
+                 "Tell me about Igbo clans"              grounded=true  · 6 passages
+                 "What is Nwaezinmadu?"                  grounded=true  · 6 passages
+                 "Akwa-Ocha cloth"                       grounded=true  · 6 passages
+    refused      "Explain quantum chromodynamics"        grounded=false · 0 passages
+                 "What is the capital of France?"        grounded=false · 0 passages
+                 "Who won the 1994 World Cup?"           grounded=false · 0 passages
+
+**Seven for seven, where round 261 had nought of three refused and round 262 had two of three.** The whole
+difference is that frequency is now MEASURED rather than assumed.
+
+### What the gate was missing, stated once
+
+**A proportional rule cannot tell a discriminating word from a frequent one, because frequency is not part of
+what it measures.** *"world"* and *"1994"* are each common across 1,059 articles, so a majority match on them
+is not evidence — and no arrangement of `some` or `ceil(n/2)` can discover that, because both answers are
+computed from the question alone.
+
+**So the corpus is asked.** Every question term's document frequency is counted in one query, and **a term
+appearing in more than a quarter of the published archive carries no weight** — which is the same conclusion
+the stopword list reaches for `igbo`, arrived at by measurement instead of by a list someone maintains.
+
+**And if nothing survives, the question was asked entirely in words that describe the whole archive.** That is
+the *"capital of France"* case: **the archive holds many capitals and no France**, and the answer is that it
+cannot be grounded rather than that it has nothing.
+
+### Why this took three rounds
+
+    round 261   read the gate, saw a test, concluded it was sufficient       WRONG
+    round 262   asked the endpoint a question it should refuse              found 2 of 3
+    round 263   asked what the gate could not know                          fixed 3 of 3
+
+**Each round's method was sound and its conclusion was premature**, and the difference between them is the same
+one this file has been recording all run: **reading the code tells you what it is meant to do; exercising it
+tells you what it does; and asking what it cannot know tells you why.**

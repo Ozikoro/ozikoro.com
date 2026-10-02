@@ -92,9 +92,69 @@ export async function GET(request: Request): Promise<NextResponse> {
   const db = await getDb();
   const items = await archiveKnowledgeItems(db, languageCode, { limit: 1000 });
   const terms = queryTerms(question);
-  const result = selectKnowledge(items, { languageCode, terms, maxItems: 6 });
 
-  const decision = answerabilityOf(result, terms);
+  /*
+   * TERM RARITY, WHICH A PROPORTION CANNOT SUBSTITUTE FOR (round 263).
+   *
+   * Round 262 made the gate require a passage to share most of the question's terms, and two of three
+   * nonsense questions were then refused. **The third survived because its words are common:** "Who won the
+   * 1994 World Cup?" matched on "world" and "1994", and across 1,059 articles a majority match on frequent
+   * words is not evidence of anything. A proportional rule cannot tell a discriminating word from a frequent
+   * one, because frequency is not part of what it measures.
+   *
+   * So frequency is measured. Every question term's document frequency is counted once, and a term appearing
+   * in more than a quarter of the published archive is treated as carrying no weight — the same reason
+   * `igbo` is a stopword, arrived at by measurement rather than by a list.
+   *
+   * **If nothing survives, the question was asked entirely in words that describe the whole archive, and the
+   * answer is that it cannot be grounded.** That is the "capital of France" case: the archive holds many
+   * capitals and no France.
+   *
+   * One query, not one per term, and it reads only `search_vector`'s table.
+   */
+  const total = (await db.one<{ n: number }>(
+    `select count(*)::int n from ozikoro_article where status = 'published' and is_page = false`
+  ))?.n ?? 0;
+  const frequency = new Map<string, number>();
+  if (total > 0 && terms.length > 0) {
+    const counts = await db.rows<{ term: string; n: number }>(
+      `select t.term, count(a.id)::int n
+         from unnest($1::text[]) as t(term)
+         left join ozikoro_article a
+           on a.status = 'published' and a.is_page = false
+          and a.search_vector @@ websearch_to_tsquery('english', t.term)
+        group by t.term`,
+      [terms]
+    );
+    for (const c of counts) frequency.set(c.term.toLowerCase(), c.n);
+  }
+  const DISCRIMINATING = 0.25;
+  const discriminatingTerms = terms.filter((t) => {
+    const n = frequency.get(t.toLowerCase());
+    // A term the corpus does not contain at all is the MOST discriminating kind.
+    if (n === undefined || n === 0) return true;
+    return n / total <= DISCRIMINATING;
+  });
+
+  if (total > 0 && terms.length > 0 && discriminatingTerms.length === 0) {
+    return NextResponse.json(
+      {
+        grounded: false,
+        trust: 'ai_assisted',
+        reason:
+          'Every word of this question appears in a large share of the archive, so nothing here ' +
+          'distinguishes it from anything else the archive holds. An answer built on passages chosen that ' +
+          'way would not be grounded in a record rather than merely nearby one.',
+        passages: [],
+      },
+      { status: 200 }
+    );
+  }
+
+  const effectiveTerms = discriminatingTerms.length > 0 ? discriminatingTerms : terms;
+  const result = selectKnowledge(items, { languageCode, terms: effectiveTerms, maxItems: 6 });
+
+  const decision = answerabilityOf(result, effectiveTerms);
   if (!decision.canAnswer) {
     // 200, not 404: the request was understood and the archive's answer is that it holds nothing. The
     // passages are empty rather than approximate, and the reason is the library's own sentence.
