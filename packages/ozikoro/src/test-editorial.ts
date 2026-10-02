@@ -94,10 +94,25 @@ console.log('\n--- the queue tells the truth about the archive ---');
 const progress = await getEditorialProgress(db);
 assert('the archive has records to work on', progress.records >= 1000, `${progress.records} records`);
 assert('and reports how many carry sources', progress.withSources >= 0, `${progress.withSources} with sources`);
+/*
+ * THE TWO HALVES ARE NOW DIFFERENT, AND ONLY ONE IS STILL THE PROBLEM.
+ *
+ * This asserted that the migration arrived with neither sources nor entities and called that "the whole
+ * problem". Round 259 attached 205 articles to the towns named in their titles, so the entity half is no
+ * longer zero — and the source half still is.
+ *
+ * Sources are the claim that matters: a record with a source can be checked, and a record with a place link
+ * cannot. So that half stays exact and the entity half becomes a report of progress rather than a failure
+ * when it moves.
+ */
 assert(
-  'the migrated archive arrived untagged, which is the whole problem',
-  progress.withSources === 0 && progress.withEntities === 0,
-  `${progress.withSources} sourced, ${progress.withEntities} with entities`
+  'the migrated archive still arrived with NO source attached, which is the real problem',
+  progress.withSources === 0,
+  `${progress.withSources} sourced`
+);
+console.log(
+  `  note: ${progress.withEntities} record(s) now carry a place link. That is progress, not provenance — a ` +
+    'town link says which place a record is about and says nothing about whether its claims are sourced.'
 );
 
 const queue = await listEditorialQueue(db, { limit: 10 });

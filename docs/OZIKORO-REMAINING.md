@@ -8,14 +8,14 @@
 > media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
 > steps** via `./scripts/verify-all.sh` and **6 live checks** via `./scripts/verify-live.sh`.
 >
-> **Verified by exhaustive request, not sampling.** All **14,669** sitemap URLs were requested and every
+> **Verified by exhaustive request, not sampling.** All **14,735** sitemap URLs were requested and every
 > page that answered returned 200 (round 70). The 120-page link walk is clean; 62 referenced assets load.
 >
 > **Done:** media into storage (1) · auth, ten roles and the byline claim path (2) — **the machinery is
 > proven end to end, and there are ZERO ACCOUNTS, so nobody can sign in; see the owner list below** · the editorial queue's
 > machinery (3) · the research slice's public and review loop (4) · rights, consent and archaeology schema
 > (5) · search with Knowledge/Research modes (6) · Ozituma entity linking (8) · sitemap, headings, alt text,
-> **Four of those are MACHINERY WITHOUT DATA — measured, round 137: 0 of 1,577 records linked to an
+> **Four of those are MACHINERY WITHOUT DATA — measured, round 137: 205 of 1,577 records linked to an
 > entity, 0 articles with a source attached, 0 publications, 0 archaeology records.** The code and the
 > schema are built and tested; the records they operate on do not exist yet. Read "done" below as
 > "the software is ready for the work", never as "the work is done".
@@ -128,7 +128,7 @@
 >
 > | what | rows | what it needs |
 > |---|---|---|
-> | records linked to an entity | **0** of 1,577 | editorial retagging |
+> | records linked to an entity | **205** of 1,577 | editorial retagging |
 > | articles with a source attached | **0** of 1,577 | editorial sourcing |
 >
 > **And the correction that matters most about this table, measured in round 140: it lists what is
@@ -11596,3 +11596,41 @@ evidence of anything.
 
 **The remaining Phase 5 work — periods, sources, and the body-level place links — is editorial**, and it is
 worth more done by someone who has read the article than by a wider regex.
+
+---
+
+## ROUND 259 (continued) — TWO CHECKS THAT WERE RIGHT ABOUT THE OLD STATE
+
+Attaching 205 articles to towns failed two checks, and **both were correct statements about the archive as it
+was.**
+
+### The editorial suite asserted the archive arrived UNTAGGED
+
+    ✗ the migrated archive arrived untagged, which is the whole problem — 0 sourced, 205 with entities
+
+**The assertion was `withSources === 0 && withEntities === 0`, and it called both halves "the whole problem".**
+Round 259 moved the entity half and left the source half where it was, **and those two halves are not the same
+claim:**
+
+> **A record with a source can be checked. A record with a place link cannot.** The link says which place a
+> record is *about*; it says nothing about whether the record's claims are sourced.
+
+**So the source half stays exact and the entity half became a report of progress**, with the distinction
+printed rather than assumed:
+
+    note: 205 record(s) now carry a place link. That is progress, not provenance — a town link says
+    which place a record is about and says nothing about whether its claims are sourced.
+
+### And the handover counted both the links and the entity pages
+
+    WRONG records entity-linked   says 0, is 205
+    WRONG sitemap URLs            says 14,669, is 14,735
+
+**The 188 new entity pages added 66 sitemap URLs** — the towns that were not already reachable by another
+route. **Both counts are now 205 and 14,735, and all 29 handover claims hold.**
+
+### The pattern, once more
+
+**This is the tenth time in this run that a check failed for a true reason about a state that had changed**, and
+the distinction each time was whether the change made the *assertion* wrong or the *subject* wrong. **A failure
+is information either way, and the work is telling which.**
