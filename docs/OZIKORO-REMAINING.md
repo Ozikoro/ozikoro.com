@@ -8836,3 +8836,48 @@ fewer than the ways an invented layout could be.
 
 **The second and third are the same shape as the first and need the same restraint**: an error page and a 404
 in the dictionary's own voice, which is its author's work and not a copy of the archive's.
+
+---
+
+## ROUND 199 — THE DICTIONARY HAS ALL THREE NOW, AND ALL THREE ARE MINIMAL ON PURPOSE
+
+Rounds 197 and 198 recorded the gap and then added the first boundary under one rule: **use only classes that
+appear in that application's own files.** This round completed the set the same way.
+
+    wrap    seen in apps/web/app/names/page.tsx
+    muted   seen in apps/web/app/clans/page.tsx
+    btn     seen in apps/web/app/admin/layout.tsx
+
+`apps/web/app/not-found.tsx` and `apps/web/app/error.tsx` both typecheck with 0 errors, and every class used
+is one this application already writes.
+
+### The state of both applications
+
+    apps/ozikoro   loading · error · not-found     three of three
+    apps/web       loading · error · not-found     three of three
+
+**Round 197 found one app with three and the other with none. They are level now**, and the archive's files
+remain the richer ones because they are written in the approved design's vocabulary — which is right, because
+that is the design this project was asked to keep.
+
+### What the dictionary's three files deliberately are not
+
+**They are not the dictionary's design.** Loading, 404 and error for a site with its own visual language are
+that site author's work; **what was missing was the machinery**, and machinery is what is here. The files say
+so in their own headers, so nobody mistakes a placeholder for a decision somebody made.
+
+**And the two error files withhold `error.message` and show `error.digest`** — the same choice as the
+archive's, made for the same reason: exception text can carry a query, a path or a fragment of a record, and a
+digest is the identifier the server log has too.
+
+### The order was the point, and it is now closed
+
+    round 196   the archive needed a Suspense boundary before its error page could be reached
+    round 197   the dictionary had none of the three
+    round 198   loading.tsx first, because without it the other two cannot be reached
+    round 199   then the other two
+
+**Loading first is not a stylistic preference.** An async server component that has not resolved throws a
+*Promise*, and without a Suspense boundary above it **the shell render fails before any HTML is produced**, so
+an error boundary is never reached however well it is written. **Adding the three in the wrong order would
+have produced two files that could not run**, and the record says which one the order depends on.
