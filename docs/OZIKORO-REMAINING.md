@@ -11161,3 +11161,36 @@ who cannot hear it.* **The design drew the rule; the page commits to it.**
     404   /watch
 
 **Twelve pass, six to go.**
+
+---
+
+## ROUND 251 — `/projects`: THE PROCESS IS DRAWN, THE REGISTER IS EMPTY
+
+    before   .sx-section and .sx-dark missing
+    after    ok — 3 design sections, 5 headings
+
+**The schema has no project table**, so the design's featured "Town histories series", its six `sx-proj` cards
+and their thumbnails cannot be reproduced. **Their figures are declared example material by the design's own
+notice** — *"progress figures, budgets and dates are example material until Ozi Ikoro Limited supplies verified
+figures"* — and a project card whose only substance is progress, dates and budget would be example material
+wearing a real title.
+
+**So the page draws what is not a claim about a project and leaves the register bare.**
+
+    drawn   sx-pg-hero with the four-figure statistics strip, as em dashes
+            the notice, the status filter bar, the four process steps, the three ways to help
+    empty   the featured project, the six-card grid, and every figure
+
+**The process and the ways-to-help sections are complete because neither describes a project.**
+*"From community request to public record"* is a description of how the institution works, and the three ways
+to help are real pages. **Drawing those while leaving the shelf empty is the honest shape: the route is
+complete and the register is not.**
+
+### The tally
+
+    ok    /  /archive  /photographs  /documents  /material-culture  /towns  /cite
+          /careers  /ledger  /about  /topics  /listen  /projects
+    FAIL  /igbo-calendar  /cultural-calendar  /publications  /folklore  /submit
+    404   /watch
+
+**Thirteen pass, five to go, and `/watch` is still the one that does not exist.**

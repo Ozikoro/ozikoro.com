@@ -1,28 +1,26 @@
 /**
  * Projects — the work Ozi Ikoro Limited has embarked on, in the open.
  *
- * NO PROJECT RECORDS EXIST, AND THE DESIGN'S OWN NOTICE SAYS WHY THAT MATTERS
+ * Built to the design's `screens/projects.html`, which has four sections: `sx-pg-hero` with a four-figure
+ * statistics strip, a notice plus a featured project and a grid, an `sx-section` holding the process steps,
+ * and an `sx-dark` block of ways to help.
  *
- * `screens/projects.html` shows six example projects with figures under them, and carries this notice:
- * *"Project titles reflect work visible on ozikoro.com; progress figures, budgets and dates are example
- * material until Ozi Ikoro Limited supplies verified figures."*
+ * WHY THE FEATURE AND THE GRID ARE ABSENT, AND THE OTHER TWO SECTIONS ARE NOT
  *
- * **The schema has no project table at all** — measured: no `%project%` table exists and
- * `ozikoro_publication` has no project column. So there is nowhere for a project record to live, and the
- * six example projects are not reproduced: their titles may describe real work, but their **figures are
- * declared example material**, and a project page whose only substance is its progress, dates and budget
- * would be example material wearing a real title.
+ * **The schema has no project table.** There is nowhere for a project record to live, so the six example
+ * projects, their thumbnails and the featured "Town histories series" cannot be reproduced. Their titles may
+ * describe real work, but their **figures are declared example material** — the design's own notice says
+ * *"progress figures, budgets and dates are example material until Ozi Ikoro Limited supplies verified
+ * figures"* — and a project card whose only substance is progress, dates and budget would be example material
+ * wearing a real title.
  *
- * WHAT THE PAGE DOES INSTEAD
+ * **The process and the ways-to-help sections are drawn in full, because neither is a claim about a project.**
+ * How a proposal becomes a public record is a description of how the institution works, and the three ways to
+ * help are real pages. Drawing those while leaving the register empty is the honest shape: the route is
+ * complete and the shelf is bare.
  *
- * It lists the fields a project record will carry, taken from the design's own detail screen — purpose, what
- * the work includes, outputs, status, and the figures — and states that none is recorded. The design's own
- * filter bar (ongoing, planned, completed) is shown as structure with nothing behind it.
- *
- * **This is the one route in Phase 2 whose absence is architectural rather than editorial**: the other empty
- * collections hold nothing because nothing has been accessioned, and this one holds nothing because there is
- * no table. Building the model is Phase 4's "project relationships" work, and until it exists a page of
- * project cards could only be invented.
+ * The four statistics are em dashes rather than numbers, for the same reason — the archive has no project to
+ * count.
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -30,119 +28,117 @@ import Link from 'next/link';
 export const metadata: Metadata = {
   title: 'Projects',
   description:
-    'The research, preservation and public-history projects Ozi Ikoro Limited runs — their purpose, communities, progress and outputs. No project record has been created yet.',
+    'The research, preservation and public-history projects Ozi Ikoro Limited runs — how a proposal becomes a public record, and how to help.',
   alternates: { canonical: 'https://ozikoro.com/projects' },
-  openGraph: {
-    title: 'Projects — Ozikoro',
-    description: 'The work we have embarked on, in the open.',
-    type: 'website',
-  },
+  openGraph: { title: 'Projects — Ozikoro', description: 'The work we have embarked on, in the open.', type: 'website' },
 };
 
-/** The statuses the design's filter bar offers. Shown as structure; none is populated. */
-const STATUSES = ['All', 'Ongoing', 'Planned', 'Completed'] as const;
+const STATUSES = ['All', 'Ongoing', 'Planned', 'Completed', 'Research', 'Preservation'];
 
-/** What the design's project detail screen says a project carries. None of it is recorded. */
-const FIELDS: Array<{ label: string; meaning: string }> = [
-  { label: 'Purpose', meaning: 'What the project is for, in one sentence someone can disagree with.' },
-  { label: 'What the work includes', meaning: 'The stages, named rather than gestured at.' },
-  { label: 'Communities', meaning: 'Who the work involves, and on what terms they took part.' },
-  { label: 'Outputs', meaning: 'The records, publications and collections the project produced.' },
-  { label: 'Status', meaning: 'Ongoing, planned or completed — and completed means finished.' },
-  { label: 'Figures', meaning: 'Progress, dates and spend, published only when verified.' },
+const STEPS = [
+  { t: 'A community asks', b: 'A town, a family or an institution asks for a history to be recorded.' },
+  { t: 'The scope is agreed', b: 'What will be covered, who will be credited, and who holds the rights.' },
+  { t: 'The work is done', b: 'Interviews, archival work and photography, with consent recorded as it goes.' },
+  { t: 'The record is published', b: 'Every output gets a permanent address, and the project is listed with it.' },
+];
+
+const PATHS = [
+  { href: '/submit', t: 'Propose a project', b: 'Tell us what needs recording and why.' },
+  { href: '/submit', t: 'Volunteer', b: 'Research, translation, transcription or photography.' },
+  { href: '/ledger', t: 'Fund a project', b: 'Support preservation, digitisation and public access.' },
 ];
 
 export default function ProjectsPage() {
   return (
-    <>
+    <main>
       <section className="sx-pg-hero">
         <div className="wrap">
           <p className="eyebrow">Our projects</p>
           <h1>The work we have embarked on, in the open.</h1>
           <p className="lede">
             Every research, preservation and public-history project Ozi Ikoro Limited runs — its purpose,
-            communities, progress and outputs. No project has been recorded yet, so nothing is listed.
+            communities, progress and outputs. No project is recorded yet, so nothing is listed.
           </p>
           <div className="sx-stats">
-            <div>
-              <b>—</b>
-              <span>Projects recorded</span>
-            </div>
-            <div>
-              <b>—</b>
-              <span>Ongoing</span>
-            </div>
-            <div>
-              <b>—</b>
-              <span>Planned</span>
-            </div>
-            <div>
-              <b>—</b>
-              <span>Completed</span>
-            </div>
+            <div><b>—</b><span>Projects recorded</span></div>
+            <div><b>—</b><span>Ongoing</span></div>
+            <div><b>—</b><span>Planned</span></div>
+            <div><b>—</b><span>Completed</span></div>
           </div>
         </div>
       </section>
 
       <section className="wrap section">
         <p className="sx-notice">
-          <b>No project record exists yet.</b> There is no table for one, so there is nothing to show and
-          nothing has been shown in its place. Progress figures, budgets and dates are published only when
-          they are verified — until then this page counts nothing.
+          <b>No project record exists yet, and no figure is shown in place of one.</b> The design&rsquo;s own
+          notice is that project titles reflect work visible on ozikoro.com while progress figures, budgets and
+          dates are <b>example material</b> until Ozi Ikoro Limited supplies verified figures. There is no table
+          for a project here, so the register is empty rather than illustrative.
         </p>
 
+        <h2>All projects</h2>
         <nav className="sx-filterbar" aria-label="Project status">
-          {STATUSES.map((status) => (
-            <Link key={status} href="/projects">
-              {status}
+          {STATUSES.map((s) => (
+            <Link href="/projects" key={s}>
+              {s}
             </Link>
           ))}
         </nav>
 
-        <div className="empty section">
-          <p className="eyebrow">Project register</p>
-          <h2>Nothing is listed.</h2>
+        <div className="empty">
           <p>
-            The archive&rsquo;s schema holds no project table, so no project can be recorded, filtered or
-            completed. When one exists, each entry will carry the fields below — and a project with a title
-            and no figures will say so rather than displaying sample ones.
+            Nothing is listed, and nothing has been listed in its place. A project appears here when its
+            purpose, communities, status and outputs can be recorded together — and a project with a title and
+            no verified figures will say so rather than displaying sample ones.
+          </p>
+          <p>
+            <Link className="btn" href="/archive">
+              Browse the records instead
+            </Link>
           </p>
         </div>
-
-        <section className="section">
-          <h2>What a project record carries</h2>
-          <table>
-            <tbody>
-              {FIELDS.map((field) => (
-                <tr key={field.label}>
-                  <th scope="row">{field.label}</th>
-                  <td>{field.meaning}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <article className="sx-record-placeholder">
-          <div>
-            <small>Where the work is visible now</small>
-            <h2>The records are the work</h2>
-            <p>
-              Until projects can be recorded, what the institution has actually produced is already in the
-              archive — the histories, the photographs, the records and the dictionary. That is the evidence
-              rather than a description of it.
-            </p>
-            <p>
-              <Link className="btn" href="/archive">
-                Browse the archive
-              </Link>{' '}
-              <Link className="btn" href="/about">
-                About Ozi Ikoro
-              </Link>
-            </p>
-          </div>
-        </article>
       </section>
-    </>
+
+      <section className="sx-section">
+        <div className="wrap">
+          <div className="sx-head">
+            <div>
+              <p className="eyebrow">How it works</p>
+              <h2>From community request to public record</h2>
+            </div>
+            <span className="gold-rule" />
+          </div>
+          <ol className="sx-steps">
+            {STEPS.map((s, i) => (
+              <li key={s.t}>
+                <b>{String(i + 1).padStart(2, '0')}</b>
+                <strong>{s.t}</strong>
+                <span>{s.b}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="sx-section sx-dark">
+        <div className="wrap">
+          <div className="sx-head">
+            <div>
+              <p className="eyebrow">Take part</p>
+              <h2>Back, propose or volunteer on a project</h2>
+            </div>
+            <span className="gold-rule" />
+          </div>
+          <div className="sx-paths">
+            {PATHS.map((p) => (
+              <Link className="sx-path" href={p.href} key={p.t}>
+                <strong>{p.t}</strong>
+                <span>{p.b}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }
