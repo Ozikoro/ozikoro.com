@@ -9725,3 +9725,46 @@ stop.
 
 **Recorded rather than forced**, because the next attempt should not repeat the two mistakes this round made:
 trusting a client error as a server fact, and trusting a short page as the end of the data.
+
+---
+
+## ROUND 218 — THE 94 DO NOT EXIST. THE API'S TOTAL DISAGREES WITH THE API.
+
+Round 217 left the enumeration unfinished because ascending pagination stopped at 1,698. Descending reaches the
+top, and the answer is not what three rounds of arithmetic assumed.
+
+    ours                              3488 items
+    live ids walked, descending       3488
+    MISSING (live, not ours)             0
+    page 37                           rest_post_invalid_page_number
+
+**The endpoint serves exactly 3,488 media items, and every one of them is already in the archive.** Page 37 is
+refused because there is no page 37: 34 full pages and a page of 88 is 3,488. **Nothing is missing.**
+
+### So where did 94 come from
+
+`X-WP-Total: 3582` — **the API's own count header disagrees with the API's own pagination.** The header says
+3,582; the endpoint will not serve past 3,488. The difference is 94, and it is not content we failed to fetch.
+It is most likely media attached to posts that are not publicly listed, or items in a status the public
+endpoint counts and does not return — **which is exactly the class of thing a public API is entitled to
+withhold, and nothing this project should try to reach around.**
+
+    round 212   "94 media records added since our snapshot"      arithmetic on a header
+    round 216   "the 94 is established arithmetically"           arithmetic on the same header
+    round 218   the header is wrong, and the endpoint is complete
+
+**Three rounds treated a count as content.** A number in a response header is a claim the endpoint makes about
+itself; only walking the endpoint establishes what it will actually serve. **The ascending walk in round 217
+stopped at 1,698 and the descending walk here reached 3,488 — the data was always reachable, and the paging was
+the only thing in the way.**
+
+### The media position, now closed
+
+    items the API serves       3488   all held, ids verified, zero missing
+    full-size files on disk    3437   51 fail, with two known causes
+    X-WP-Total says            3582   and the endpoint refuses to serve 94 of them
+
+**The archive holds 100% of what the public endpoint exposes.** The remaining work on media is the 51 files —
+spaces, now fixed by encoding, and non-ASCII names WordPress sanitised on upload, which need the stored
+filename and therefore the server. **Nothing else is outstanding, and no further scan of the API will find
+anything more.**
