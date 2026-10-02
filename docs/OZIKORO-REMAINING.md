@@ -12580,3 +12580,67 @@ dashboard, the API checks and the table agree by construction. **A member with n
 archive", which is exactly what the `reader` grant means.**
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 280 — A FILE ON DISK, IN THE TABLE, CORRECTLY NAMED, SERVING A 404
+
+**The owner asked for everything remaining to be finished. This round found three faults, and the third is the
+kind that hides behind a working page.**
+
+### 1. `documents` now lists only files a reader can download
+
+**Twelve media records carry `kind = 'document'`. Eight are `text/html` — saved web pages, not files** — so the
+screen lists the **four real PDFs** and says what they are. **Presenting a capture as a downloadable document
+would repeat a fault this archive has already recorded once.**
+
+### 2. Fifty-one records named files that were never written
+
+    media rows            3,488
+    files on disk         3,437
+
+**The original import walked the media API and recorded every item it saw, downloading as it went — and the API
+reports items whose file it will not serve.** So the rows existed and the bytes did not, and **a page listing
+them offered downloads that 404'd.**
+
+### 3. And then the repair duplicated the whole collection, confidently
+
+**`storage_key` is `ozikoro/<id>-<name>`; the files on disk have the prefix STRIPPED** — which is exactly what
+`app/media/[...key]/route.ts` does before reading. **The repair script joined the key as given, found all 3,437
+files "missing", and re-downloaded 803 MB into `data/media/ozikoro-wp/ozikoro/` while reporting success.**
+
+    root of ozikoro-wp   3,437 files
+    ozikoro-wp/ozikoro   3,750 files      <- 3,437 duplicates + the 313 genuinely new
+    total                1.6 GB
+
+**A migration script that misreads its own layout does not fail — it does the wrong thing confidently, and the
+only reason this was caught is that the number was absurd.** The 313 unique files were moved into the flat
+layout and the 3,437 duplicates removed:
+
+    root now holds       3,750 files
+    total                860 MB        (740 MB of duplication freed)
+
+**Both importers now read and write the flat layout**, and the check is `existsSync` against the name the route
+would actually use.
+
+### And the fault underneath, which the file being present revealed
+
+    file on disk          data/media/ozikoro-wp/11237-Igbo Folk Idioms in Caribbean Phrase.pdf
+    in the table          storage_key "ozikoro/11237-Igbo Folk Idioms in Caribbean Phrase.pdf"
+    served                HTTP 404
+
+**The route guards the key with `/^ozikoro\/\d{1,8}-[A-Za-z0-9._-]{1,180}$/` — and that class rejects the
+space.** WordPress keeps the uploaded filename, so **the files with the most descriptive names were exactly the
+ones that could not be served**, and the page offering them looked like a broken download rather than a
+rejected address.
+
+**The guard's purpose is path traversal, and it still holds** — no `/` is permitted after the prefix, so no key
+can climb out of the media directory. Spaces and the punctuation WordPress leaves in filenames are admitted now:
+
+    11237-Igbo Folk Idioms in Caribbean Phrase.pdf   200  application/pdf  191,005 b
+    11236-Introduction_to_Igbo_Mythology_…pdf        200  application/pdf  3,214,249 b
+    10118-capacity_building_for_traditional.pdf      200  application/pdf    713,607 b
+    9085-SAMTDO-7v1.pdf                              200  application/pdf  1,059,363 b
+
+    /media/ozikoro/..%2f..%2fetc%2fpasswd            404
+    /media/ozikoro/11237-..%2f..%2fpackage.json      404

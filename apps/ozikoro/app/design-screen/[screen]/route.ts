@@ -20,11 +20,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
+import { mediaPath } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import {
-  fillArchiveIndex, fillCollections, fillDashboard, fillFolklore, fillHome, fillListen,
+  fillArchiveIndex, fillCollections, fillDashboard, fillDocuments, fillFolklore, fillHome, fillListen,
   fillPhotographs, fillTopics, fillTowns, fillWatch,
-  type DashboardWho, type RealAzEntry, type RealCollection, type RealEntry, type RealFilm,
+  type DashboardWho, type RealAzEntry, type RealCollection, type RealDocument, type RealEntry, type RealFilm,
   type RealPhotograph, type RealStory, type RealTown, type RealTrack,
 } from '@ozikoro/platform';
 
@@ -60,6 +61,7 @@ const DASHBOARD_ROLE: Record<string, { role: string; label: string }> = {
 
 const FILLED = new Set([
   'archive-index', 'watch', 'home', 'photographs', 'folklore', 'listen', 'topics', 'towns', 'collections',
+  'documents',
   ...DASHBOARDS,
 ]);
 
@@ -140,6 +142,32 @@ export async function GET(
         total: total?.n ?? 0,
       });
     }
+    if (name === 'documents') {
+      /*
+       * ONLY THE FILES. Eight of the twelve records the migration called `document` are `text/html` — saved
+       * web pages — and **a capture is not a document a reader can download.** Listing them would repeat the
+       * fault this archive already recorded once: presenting web captures as documents.
+       */
+      const db = await getDb();
+      const rows = await db.rows<{ id: number; title: string | null; storage_key: string; filesize_bytes: number | null }>(
+        `select id, title, storage_key, filesize_bytes from ozikoro_media
+          where kind = 'document' and mime_type = 'application/pdf' and storage_key is not null
+          order by id`
+      );
+      const docs: RealDocument[] = rows.map((r) => ({
+        title: r.title?.trim() || `Document ${r.id}`,
+        // THE KEY CAN CONTAIN SPACES. `storage_key` is derived from the WordPress filename, and a filename
+        // like `11237-Igbo Folk Idioms in Caribbean Phrase.pdf` is stored verbatim. **An unencoded space
+        // truncates the URL at the space**, so the link 404s on exactly the files whose names are most
+        // descriptive. Each segment is encoded, and `/` between them is preserved.
+        href: `/media/${r.storage_key.split('/').map(encodeURIComponent).join('/')}`,
+        label: 'Held by the archive · PDF',
+        note: 'Downloadable file held in the archive. Rights and reuse terms are recorded with the record.',
+        size: r.filesize_bytes ? `${Math.max(1, Math.round(r.filesize_bytes / 1024))} KB` : null,
+      }));
+      if (docs.length > 0) html = fillDocuments(html, docs);
+    }
+
     if (DASHBOARDS.includes(name)) {
       /*
        * A ROLE DASHBOARD, FILLED WITH WHAT THE ACCOUNT ACTUALLY HOLDS.
@@ -195,7 +223,7 @@ export async function GET(
       const rows = await db.rows<{ slug: string; name: string; region: string | null; n: number; img: string | null }>(
         `select c.slug, c.name, c.region,
                 (select count(*)::int from ozikoro_article_entity ae where ae.entity_id = e.id) as n,
-                (select '/media/' || m.storage_key
+                (select m.storage_key
                    from ozikoro_article a
                    join ozikoro_media m on m.id = a.featured_media_id
                   where a.status = 'published' and a.is_page = false
@@ -206,7 +234,7 @@ export async function GET(
           order by c.name`
       );
       const towns: RealTown[] = rows.map((r) => ({
-        name: r.name, href: `/town/${r.slug}/`, region: r.region, image: r.img, records: Number(r.n) || 0,
+        name: r.name, href: `/town/${r.slug}/`, region: r.region, image: r.img ? mediaPath(r.img) : null, records: Number(r.n) || 0,
       }));
       if (towns.length > 0) html = fillTowns(html, towns);
     }
@@ -226,7 +254,7 @@ export async function GET(
            from ozikoro_media`
       );
       const hero = await db.one<{ img: string | null }>(
-        `select '/media/' || storage_key as img from ozikoro_media
+        `select storage_key as img from ozikoro_media
           where kind = 'image' and storage_key is not null order by id limit 1`
       );
       const collections: RealCollection[] = [
@@ -247,7 +275,7 @@ export async function GET(
       const db = await getDb();
       const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
         `select a.slug, a.title, t.name as topic,
-                (select '/media/' || m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
+                (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
            from ozikoro_article a
            join ozikoro_topic t on t.id = a.topic_id
           where a.status = 'published' and a.is_page = false and t.slug = 'folklores'
@@ -255,7 +283,7 @@ export async function GET(
       );
       if (rows.length > 0) {
         html = fillFolklore(html, rows.map((r) => ({
-          title: r.title, href: `/${r.slug}/`, topic: r.topic, image: r.img, alt: r.title,
+          title: r.title, href: `/${r.slug}/`, topic: r.topic, image: r.img ? mediaPath(r.img) : null, alt: r.title,
         })));
       }
     }
@@ -269,14 +297,14 @@ export async function GET(
       const db = await getDb();
       const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
         `select a.slug, a.title, t.name as topic,
-                (select '/media/' || m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
+                (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
            from ozikoro_article a
            left join ozikoro_topic t on t.id = a.topic_id
           where a.status = 'published' and a.is_page = false
           order by a.published_at desc nulls last limit 12`
       );
       const tracks: RealTrack[] = rows.map((r) => ({
-        title: r.title, href: `/${r.slug}/`, series: r.topic ?? 'The archive', image: r.img, length: 'Read',
+        title: r.title, href: `/${r.slug}/`, series: r.topic ?? 'The archive', image: r.img ? mediaPath(r.img) : null, length: 'Read',
       }));
       if (tracks.length > 0) html = fillListen(html, tracks);
     }
@@ -319,11 +347,12 @@ export async function GET(
           where kind = 'image' and storage_key is not null
           order by id limit 24`
       );
-      const photos: RealPhotograph[] = rows.map((r) => ({
+      const photos: RealPhotograph[] = rows.filter((r) => r.storage_key).map((r) => ({
         id: r.id,
         title: r.title?.trim() || `Photograph ${r.id}`,
         alt: r.alt_text?.trim() || r.title?.trim() || 'Archive photograph',
-        src: `/media/${r.storage_key}`,
+        // `filter` does not narrow the property, and the guard above is what makes this safe.
+        src: mediaPath(r.storage_key as string),
         creator: r.creator,
         credit: r.credit,
         licence: r.licence,

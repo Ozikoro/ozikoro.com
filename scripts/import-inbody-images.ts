@@ -32,7 +32,8 @@ import { mkdir, writeFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb, closeDb } from '@ozituma/db/client';
 
-const OUT_DIR = join(process.cwd(), 'data', 'media', 'ozikoro-wp', 'ozikoro');
+// No `ozikoro/` subdirectory: the local layout is flat and the route strips the prefix from the key.
+const OUT_DIR = join(process.cwd(), 'data', 'media', 'ozikoro-wp');
 const UA = 'OzikoroArchiveImporter/1.0 (+https://ozikoro.com; contact hello@ozikoro.com)';
 
 type Need = { url: string };

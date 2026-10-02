@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, type RealArticle } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,7 +49,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   }>(
     `select a.id, a.title, a.body_html, t.name as topic,
             c.display_name as author, a.published_at, a.modified_at,
-            (select '/media/' || m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as image,
+            (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as image,
             (select m.alt_text from ozikoro_media m where m.id = a.featured_media_id) as image_alt,
             (select coalesce(m.credit, m.creator) from ozikoro_media m where m.id = a.featured_media_id) as image_credit,
             (select m.licence from ozikoro_media m where m.id = a.featured_media_id) as image_licence,
@@ -64,7 +64,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   const related = await db.rows<{ slug: string; title: string; topic: string | null; image: string | null }>(
     `select a.slug, a.title, t.name as topic,
-            (select '/media/' || m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as image
+            (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as image
        from ozikoro_article a
        left join ozikoro_topic t on t.id = a.topic_id
       where a.status = 'published' and a.is_page = false and a.id <> $1
@@ -110,7 +110,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     author: row.author,
     published: row.published_at ? new Date(row.published_at).toISOString() : null,
     updated: row.modified_at ? new Date(row.modified_at).toISOString() : null,
-    image: row.image,
+    image: row.image ? mediaPath(row.image) : null,
     imageAlt: row.image_alt ?? row.title,
     caption,
     rights,

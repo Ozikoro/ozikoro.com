@@ -35,6 +35,17 @@ export type RealEntry = {
   attached: number;
 };
 
+/**
+ * A servable path for a stored media key.
+ *
+ * **A WordPress filename can contain spaces** — `11237-Igbo Folk Idioms in Caribbean Phrase.pdf` is real — and
+ * an unencoded space truncates a URL at the space, so the file 404s. Each segment is encoded and the `/`
+ * separators are kept, since a key like `ozikoro/1234-name.jpg` is a path, not a name.
+ */
+export function mediaPath(key: string): string {
+  return `/media/${key.split('/').map(encodeURIComponent).join('/')}`;
+}
+
 /** HTML-escape, because a title can contain `&`, `<` and the Igbo characters. */
 export function esc(value: string): string {
   return value
@@ -627,5 +638,32 @@ export function fillDashboard(html: string, who: DashboardWho): string {
     if (close !== -1) out = out.slice(0, open) + glance + out.slice(close);
   }
 
+  return out;
+}
+
+/** A downloadable document the archive actually holds as a file. */
+export type RealDocument = { title: string; href: string; label: string; note: string; size: string | null };
+
+/** One document card, in the design's `.sx-pdf-grid > article` markup. */
+export function renderDocument(d: RealDocument): string {
+  return `<article><span class="sx-file-icon">PDF</span><div><small>${esc(d.label)}</small><h3>${esc(d.title)}</h3><p>${esc(d.note)}</p><a href="${esc(d.href)}" download>Download PDF${d.size ? ` · ${esc(d.size)}` : ''} <span aria-hidden="true">↓</span></a></div></article>`;
+}
+
+/**
+ * Fill `documents.html`'s file grid.
+ *
+ * THE MIGRATION'S `document` KIND IS NOT ALL DOCUMENTS
+ *
+ * Twelve media records carry `kind = 'document'`. **Eight of them are `text/html` — saved web pages, not
+ * files** — and the brief is explicit that a capture is not a publication. **Only the four real PDFs are
+ * listed**, and the screen says so rather than presenting a saved page as a document a reader can download.
+ *
+ * The design's own examples are two *demonstration* PDFs, and the brief forbids converting those into
+ * official records. They are replaced by files the archive genuinely holds.
+ */
+export function fillDocuments(html: string, docs: RealDocument[]): string {
+  let out = dropExampleFlag(html);
+  const rendered = docs.map(renderDocument).join('\n        ');
+  out = replaceContainer(out, '<div class="sx-pdf-grid"', rendered);
   return out;
 }

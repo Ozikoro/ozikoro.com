@@ -35,8 +35,22 @@ export const dynamic = 'force-dynamic';
 /** Where the WordPress extraction put the files. Mirrors `packages/ozikoro/src/import/wordpress.ts`. */
 const ARCHIVE_MEDIA_DIR = join(process.cwd(), '..', '..', 'data', 'media', 'ozikoro-wp');
 
-/** `ozikoro/<wpId>-<filename>`. Nothing else is addressable. */
-const KEY_PATTERN = /^ozikoro\/\d{1,8}-[A-Za-z0-9._-]{1,180}$/;
+/**
+ * `ozikoro/<wpId>-<filename>`. Nothing else is addressable.
+ *
+ * A SPACE BELONGS IN THE FILENAME AND WAS NOT ALLOWED.
+ *
+ * The class was `[A-Za-z0-9._-]`, which rejects the space — and the archive holds real files whose names have
+ * them, because WordPress keeps the uploaded name. **`11237-Igbo Folk Idioms in Caribbean Phrase.pdf` was on
+ * disk, in the table, correctly named, and served a 404**, and the page offering it looked like a broken
+ * download rather than a rejected address.
+ *
+ * **The traversal guard is what the pattern is for, and it still holds: no `/` is permitted after the
+ * prefix, so no key can climb out of the media directory.** Spaces and the punctuation WordPress leaves in
+ * filenames — parentheses, brackets, commas, apostrophes, `&` — are admitted; nothing that separates a path
+ * is.
+ */
+const KEY_PATTERN = /^ozikoro\/\d{1,8}-[A-Za-z0-9._\- ()[\],'&+]{1,180}$/;
 
 const CONTENT_TYPES: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
