@@ -535,7 +535,10 @@ export function fillArticle(html: string, a: RealArticle): string {
    *
    * Only the prose block's contents are replaced now. The panel above it stays as the design drew it.
    */
-  const body = a.resolveImage ? rewriteBodyImages(a.body, a.resolveImage) : a.body;
+  const resolved = a.resolveImage ? rewriteBodyImages(a.body, a.resolveImage) : a.body;
+  // The featured image goes in the design's own figure; the body is tidied so it does not repeat it, and so
+  // its WordPress widths do not run past the reading column.
+  const body = tidyBody(resolved, a.image);
   out = replaceContainer(out, '<div class="prose">', body);
 
   // Related reading, from the same topic.
@@ -665,5 +668,87 @@ export function fillDocuments(html: string, docs: RealDocument[]): string {
   let out = dropExampleFlag(html);
   const rendered = docs.map(renderDocument).join('\n        ');
   out = replaceContainer(out, '<div class="sx-pdf-grid"', rendered);
+  return out;
+}
+
+/**
+ * Tidy an article's body so it reads inside the design's column.
+ *
+ * TWO FAULTS, BOTH FROM WORDPRESS, BOTH VISIBLE ON THE PAGE AND NOWHERE ELSE
+ *
+ * 1. THE FEATURED IMAGE APPEARED TWICE. WordPress writes the featured image into `figure.sx-article-image`
+ *    AND, very often, again as the first thing in the body — the same file, twice, one above the other.
+ *    **The reader sees a photograph, then the same photograph.** So a leading figure whose image is the
+ *    featured image is dropped. **Only the leading one, and only on an exact file match**: a later appearance
+ *    of the same photograph is a deliberate repetition in the prose and is left alone.
+ *
+ * 2. THE IMAGES OVERFLOWED THE COLUMN. WordPress writes `style="width: 719px"` on the figure and
+ *    `width="719" height="480"` on the image, and **the design's own stylesheet sets `.prose figure { max-width:
+ *    none; }` on purpose** — it does not police a body it did not write. So a 719-pixel figure sat inside a
+ *    narrower reading column and ran past it.
+ *
+ *    **`max-width: 100%` and `height: auto` are applied to the element itself**, because the design is not to be
+ *    edited and an inline style is the only place left that a body can carry. The `srcset` is kept, so the
+ *    browser still chooses a sensible file for the width it has; only the fixed dimensions are removed.
+ */
+export function tidyBody(body: string, featuredImage: string | null): string {
+  let out = body;
+
+  /*
+   * 1. THE FEATURED IMAGE IS NOT REPEATED IN THE BODY — ANYWHERE, NOT ONLY AT THE TOP.
+   *
+   * The first version removed only a LEADING figure. **On `ndi-igbo-meet-the-igbo-people` the same photograph
+   * also appears at the END of the body**, so the reader still met the featured image twice — once as the
+   * design's figure and once again below the text. **The owner's rule is that the same exact image must not
+   * show twice, and a rule about a file cannot depend on where in the prose it was pasted.**
+   *
+   * So every `<figure>` whose image is the featured file is dropped, and a bare `<img>` of it is dropped too.
+   * **A deliberate repetition is lost as a result**, which is the right trade: an archive repeating its own
+   * lead photograph by accident is far more likely than one doing it on purpose.
+   */
+  if (featuredImage) {
+    const escaped = featuredImage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const inFigure = new RegExp(`<figure[^>]*>(?:(?!</figure>)[\\s\\S])*?src="${escaped}"[\\s\\S]*?</figure>`, 'g');
+    out = out.replace(inFigure, '');
+    // A bare image of the same file, not wrapped in a figure.
+    const bare = new RegExp(`<img[^>]*?src="${escaped}"[^>]*>`, 'g');
+    out = out.replace(bare, '');
+  }
+
+  // 2. Responsive images, without touching the stylesheet.
+  const FIT = 'max-width:100%;height:auto;';
+  /*
+   * A FIXED WIDTH IS REMOVED WHEREVER IT SITS, IN ANY STYLE ATTRIBUTE.
+   *
+   * The first version handled `style="width: 719px"` on a `<figure>` and then rewrote the `style` of every
+   * element — **but the rewrite only dropped a declaration that was exactly `width: Npx` on its own, so three
+   * survived inside multi-declaration styles.** The pattern below removes the width declaration wherever it
+   * appears in a style string, and leaves the others alone.
+   */
+  out = out.replace(/style="([^"]*)"/g, (_whole: string, decls: string) => {
+    const kept = decls
+      .split(';')
+      .map((d: string) => d.trim())
+      .filter((d: string) => d && !/^width\s*:\s*\d+(\.\d+)?px$/i.test(d))
+      .join('; ');
+    return kept ? `style="${kept};"` : '';
+  });
+  // And on any element that carries one alongside other declarations.
+  out = out.replace(/style="([^"]*)"/g, (whole: string, decls: string) => {
+    const kept = decls
+      .split(';')
+      .map((d: string) => d.trim())
+      .filter((d: string) => d && !/^width:\s*\d+px$/i.test(d))
+      .join('; ');
+    return kept ? `style="${kept};${FIT}"` : `style="${FIT}"`;
+  });
+  // The fixed attributes, which `height:auto` cannot override on their own.
+  out = out.replace(/<img([^>]*)>/g, (_m: string, attrs: string) => {
+    const cleaned = attrs
+      .replace(/\swidth="\d+"/g, '')
+      .replace(/\sheight="\d+"/g, '');
+    return `<img${cleaned} style="${FIT}">`;
+  });
+
   return out;
 }

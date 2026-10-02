@@ -12744,3 +12744,54 @@ concept, which is the most misleading kind of decoration an archive can add.
 
 **It stays without one until the owner supplies a photograph, or until the article's own subject suggests a
 real record the archive holds.**
+
+---
+
+## ROUND 283 — THE SAME PHOTOGRAPH TWICE, AND IMAGES WIDER THAN THE COLUMN
+
+**Both faults were WordPress's, both were invisible in the data, and both were obvious on the page.**
+
+### 1. The featured image appeared again inside the body
+
+    figure.sx-article-image   <img src="/media/ozikoro/11234-ute-king.webp">     the design's slot
+    .prose                    <img src="/media/ozikoro/11234-ute-king.webp" …>   the same file, again
+
+**WordPress writes the featured image into its own figure and, very often, again as the first thing in the
+body.** So a reader met the photograph, then the same photograph.
+
+**The first fix removed only a LEADING figure — and that was not enough.** On
+`ndi-igbo-meet-the-igbo-people` the same file appears at the **END** of the body, so the reader still met it
+twice. **A rule about a file cannot depend on where in the prose it was pasted**, so every figure and every
+bare image of the featured file is now dropped, wherever it sits.
+
+> **A deliberate repetition is lost as a result, and that is the right trade: an archive repeating its own lead
+> photograph by accident is far more likely than one doing it on purpose.**
+
+### 2. The images ran past the reading column
+
+    WordPress:  <figure style="width: 719px">   and   <img width="719" height="480">
+    The design: .prose figure { max-width: none; }
+
+**The design deliberately does not police a body it did not write** — so a 719-pixel figure sat inside a
+narrower column and overflowed it.
+
+**The design is not to be edited, so the constraint goes on the elements themselves**: `max-width:100%` and
+`height:auto` are applied inline, and the fixed `width` declarations and attributes are removed. **The `srcset`
+and the `sizes` hint are kept**, so the browser still chooses the right file for the width it has.
+
+    ndi-igbo-meet-the-igbo-people      body_imgs=5  featured_repeated=0  css_fixed_width=0  responsive_imgs=5
+    uli-traditional-igbo-tattoo        body_imgs=4  featured_repeated=0  css_fixed_width=0  responsive_imgs=4
+    ichi-mark-the-igbo-scarification   body_imgs=3  featured_repeated=0  css_fixed_width=0  responsive_imgs=3
+    trade-by-barter…                   body_imgs=1  featured_repeated=0  css_fixed_width=0  responsive_imgs=1
+    aya-adesuwa-the-ubulu-uku-bini-war body_imgs=1  featured_repeated=0  css_fixed_width=0  responsive_imgs=1
+
+### And a check of mine that was wrong
+
+**My first verification reported three fixed widths still present** — and they were the `sizes="(max-width:
+600px) 100vw, 437px"` attribute, **which is exactly the responsive hint that should be there.** The pattern
+matched `max-width: 600px` inside `sizes` and called it a fixed width.
+
+**That is the sixteenth time in this run that an instrument's limit was read as a fact about its subject, and
+the second time it has happened while checking this very fix.**
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**
