@@ -12387,3 +12387,48 @@ extension now wins over a generic stored type, while a specific one is still res
 
 **That is the fifteenth fault this run that a rendered page could not have revealed**, and it is the kind only a
 header comparison finds.
+
+---
+
+## ROUND 276 — EVERY IMAGE INSIDE EVERY ARTICLE, INCLUDING THE ONES THAT WERE NEVER OURS
+
+**The owner's instruction: an image embedded in an article must be imported even when it is hosted somewhere
+else.** Three cases, and the first was not visible at all.
+
+### The lazy-load placeholder, which hid 69 images
+
+    <img src=".../trx_addons/.../placeholder.png" data-trx-lazyload-src="REAL-URL" …>
+
+**The theme writes a grey box in `src` and the real address in `data-trx-lazyload-src`.** Reading only `src`
+counts 69 things that are not images. **Resolving the lazy attribute is what turned them back into pictures.**
+
+### The import
+
+    urls needing import        323
+    downloaded                 313   (48.9 MB)
+    failed, left untouched      10
+    media rows                 3,488 -> 3,801
+    articles still holding a live-site upload or placeholder:  1,013 -> 10
+
+**The ten failures are all `pbs.twimg.com` returning 404** — the tweets have been deleted, so the files are
+gone from the internet. **They are left pointing at the original address rather than at a local path to
+nothing**, because an article with a dead external link is a fault a reader can see and diagnose, and an
+article whose image silently became `/media/…` for a file that was never written is one they cannot.
+
+### The fault that made the first run a half-success
+
+**The first run rewrote `<img src>` and left 1,013 articles still holding live-site URLs** — because **a
+`<img>` with a `srcset` is loaded from the `srcset`, not from the `src`.** Rewriting only the fallback left
+the archive importing files it then did not serve. The second run handles both.
+
+    /umunede-an-ika-igbo-kingdom-in-western-igboland/   design · 5 images · 4 local · 0 live · 0 placeholder
+    /owa-an-ika-igbo-kingdom-built-from-many-lineages/  design · 5 images · 4 local · 0 live · 0 placeholder
+    images verified: 200 · image/jpeg · image/webp · real bytes
+
+### And the script had to be made re-runnable
+
+**Its first version re-scanned its own output** — `/media/…` paths are not in `known`, which is keyed on
+`source_url` — and printed a thousand lines of "unparseable" while changing nothing. **A migration that cannot
+be safely re-run is a migration that cannot be corrected**, and this one had to be corrected twice.
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**
