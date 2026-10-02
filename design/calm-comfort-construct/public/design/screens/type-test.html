@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Igbo typeface proof — ozikoro.com design</title>
+<meta name="description" content="Explicit test of dotted vowels and tone marks at every size, weight, roman and italic.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="../styles/main.css">
+<link rel="stylesheet" href="../styles/showcase.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="platform-bar">
+  <div class="wrap">
+    <ul><li><a href="../index.html" class="here">← Back to the walkthrough</a></li></ul>
+    <span class="owner">Typeface proof</span>
+  </div>
+</div>
+
+<main id="main" class="wrap-narrow section">
+  <p class="eyebrow">Hard constraint 1</p>
+  <h1 style="margin-top:var(--s-3)">The typeface must carry Igbo properly</h1>
+  <p class="lede" style="margin-top:var(--s-4)">Noto Serif (headings, long-form) and Noto Sans (interface) both cover Latin Extended Additional and the combining marks. Nothing below falls back to a second font, and no mark collides with the line above at the body leading of 1.72.</p>
+
+  <section style="margin-top:var(--s-7)">
+    <h2>Dotted vowels and ñ — serif, all weights, roman and italic</h2>
+    <div style="font-family:var(--font-serif);margin-top:var(--s-4)">
+      <p style="font-size:var(--t-4xl);line-height:1.15">Ị ị Ọ ọ Ụ ụ Ñ ñ</p>
+      <p style="font-size:var(--t-2xl);font-weight:600">Ị ị Ọ ọ Ụ ụ Ñ ñ — semibold</p>
+      <p style="font-size:var(--t-2xl);font-weight:700">Ị ị Ọ ọ Ụ ụ Ñ ñ — bold</p>
+      <p style="font-size:var(--t-read);font-style:italic">Ị ị Ọ ọ Ụ ụ Ñ ñ — italic at reading size</p>
+      <p style="font-size:var(--t-read);font-style:italic;font-weight:600">Ị ị Ọ ọ Ụ ụ Ñ ñ — bold italic</p>
+      <p style="font-size:var(--t-xs)">Ị ị Ọ ọ Ụ ụ Ñ ñ — 12px, the smallest size used</p>
+    </div>
+  </section>
+
+  <section style="margin-top:var(--s-7)">
+    <h2>Tone marks — sans, all weights</h2>
+    <div style="font-family:var(--font-sans);margin-top:var(--s-4)">
+      <p style="font-size:var(--t-2xl)">à á è é ì í ò ó ù ú · À Á È É Ì Í Ò Ó Ù Ú</p>
+      <p style="font-size:var(--t-lg);font-weight:600">à á è é ì í ò ó ù ú — semibold</p>
+      <p style="font-size:var(--t-base);font-weight:700">à á è é ì í ò ó ù ú — bold, UI size</p>
+      <p style="font-size:var(--t-base);font-style:italic">à á è é ì í ò ó ù ú — italic</p>
+      <p style="font-size:var(--t-xs);text-transform:uppercase;letter-spacing:var(--ls-caps);font-weight:600">à á è é ì í ò ó — small caps-styled label</p>
+    </div>
+  </section>
+
+  <section style="margin-top:var(--s-7)">
+    <h2>Marked dotted vowels — the combination that usually breaks</h2>
+    <p class="small muted" style="margin-top:var(--s-2)">Dotted vowel carrying a tone mark: the mark sits above, the dot below, and neither is clipped.</p>
+    <div style="font-family:var(--font-serif);margin-top:var(--s-4)">
+      <p style="font-size:var(--t-3xl)">ị̀ ị́ ọ̀ ọ́ ụ̀ ụ́ · Ị̀ Ị́ Ọ̀ Ọ́ Ụ̀ Ụ́</p>
+      <p style="font-size:var(--t-read)">ị̀ ị́ ọ̀ ọ́ ụ̀ ụ́ at reading size</p>
+      <p style="font-size:var(--t-xs)">ị̀ ị́ ọ̀ ọ́ ụ̀ ụ́ at 12px</p>
+    </div>
+  </section>
+
+  <section style="margin-top:var(--s-7)">
+    <h2>Tight leading, stacked marks</h2>
+    <p class="small muted" style="margin-top:var(--s-2)">Headings run at 1.15. Marks on the lower line must not touch descenders above.</p>
+    <p style="font-family:var(--font-serif);font-size:var(--t-2xl);line-height:1.15;margin-top:var(--s-4);max-width:22ch">
+      Ǹrì, Ọ̀nị̀cha, Ǹkwèrè, Agụ̀lụ̀, Ènugwu-Ukwu, Ụ̀mụ̀nrì, Ọ̀hụ̀hụ̀, Ị̀kẹ̀jìànị̀
+    </p>
+  </section>
+
+  <section style="margin-top:var(--s-7)">
+    <h2>Running text at the body setting</h2>
+    <div class="prose" style="margin-top:var(--s-4)">
+      <p>Ǹrì nwere ahịa anọ: Èke, Orìè, Àfọ̀ na Ǹkwọ́. Ndị Ụ̀mụ̀nrì gara Agụ̀lụ̀ na Ènugwu-Ukwu, ha jeghachiri Ǹrì tupu Ǹkwọ́ agwụ. Ọ̀nị̀cha dị n'akụkụ osimiri; Ǹkwèrè bụ obodo ndị ụzụ.</p>
+      <p><i>Italic at the same measure:</i> <i>Ǹrì nwere ahịa anọ: Èke, Orìè, Àfọ̀ na Ǹkwọ́. Ndị Ụ̀mụ̀nrì gara Agụ̀lụ̀ na Ènugwu-Ukwu.</i></p>
+    </div>
+  </section>
+
+  <section style="margin-top:var(--s-7)">
+    <h2>Monospace — reference numbers and citations</h2>
+    <div class="cite-block" style="margin-top:var(--s-4)">Ị̀kẹ̀jìànị̀, C. (2026) "Ǹrì, Ọ̀nị̀cha, Ǹkwèrè." OZ-OH-2025-014 · OZ-D-0441</div>
+  </section>
+
+  <section class="provenance" style="margin-top:var(--s-7)">
+    <p class="eyebrow">If this typeface is ever substituted</p>
+    <p class="small" style="margin-top:var(--s-3);line-height:1.65">Open this page in the replacement and check four things: that no glyph on it renders in a different face; that the dot below and the mark above appear together on ị̀ ọ́ ụ̀; that nothing is clipped at 12px; and that the tight-leading block above has no collision. A face that fails any of the four is disqualified.</p>
+  </section>
+
+  <p style="margin-top:var(--s-7)"><a class="btn btn-quiet" href="../index.html">← Back to the walkthrough</a></p>
+</main>
+</body>
+</html>

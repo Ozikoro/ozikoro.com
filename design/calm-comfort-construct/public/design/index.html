@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ozikoro.com — design deliverable, walkthrough</title>
+<meta name="description" content="Static HTML and CSS design for ozikoro.com: every screen, the tokens, and the notes.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="styles/main.css">
+<link rel="stylesheet" href="styles/showcase.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="platform-bar">
+  <div class="wrap">
+    <ul><li><a href="index.html" class="here">Design deliverable — walkthrough</a></li></ul>
+    <span class="owner">Ozi Ikoro Limited · ozikoro.com</span>
+  </div>
+</div>
+
+<main id="main" class="wrap section">
+  <p class="eyebrow">Design deliverable</p>
+  <h1 style="margin-top:var(--s-3);max-width:20ch">ozikoro.com</h1>
+  <p class="lede" style="margin-top:var(--s-5);max-width:52ch">Static HTML and CSS. No build step, no preprocessor, no framework. Every screen opens directly in a browser and works at desktop width and at 375px. All mock content is labelled as example material.</p>
+
+  <section style="margin-top:var(--s-8)">
+    <h2>Screens</h2>
+    <div class="grid-3 walk-list" style="margin-top:var(--s-5)">
+      <a class="card" href="screens/home.html"><p class="eyebrow">01</p><h3 style="margin-top:var(--s-2)">Home</h3><p class="small muted" style="margin-top:var(--s-2)">Image-led archive entrance and category map.</p></a>
+      <a class="card" href="screens/market-days.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Igbo Market Days</h3><p class="small muted" style="margin-top:var(--s-2)">Modern date beside the four market days.</p></a>
+      <a class="card" href="screens/folklore-reader.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Folklore reader</h3><p class="small muted" style="margin-top:var(--s-2)">Book-like story page with listening.</p></a>
+      <a class="card" href="screens/listen.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Listen library</h3><p class="small muted" style="margin-top:var(--s-2)">Narrated series with transcripts.</p></a>
+      <a class="card" href="screens/watch.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Watch library</h3><p class="small muted" style="margin-top:var(--s-2)">Films, talks, series and clear source labels.</p></a>
+      <a class="card" href="screens/watch-video.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Watch video</h3><p class="small muted" style="margin-top:var(--s-2)">Responsive player, source context and transcript-first view.</p></a>
+      <a class="card" href="screens/collections.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Collections</h3><p class="small muted" style="margin-top:var(--s-2)">Photographs, oral records, documents and objects.</p></a>
+      <a class="card" href="screens/photographs.html"><p class="eyebrow">New</p><h3>Photographs</h3><p class="small muted">Image records with provenance.</p></a><a class="card" href="screens/listen.html"><p class="eyebrow">New</p><h3>Oral recordings</h3><p class="small muted">Voices, consent and transcripts.</p></a><a class="card" href="screens/material-culture.html"><p class="eyebrow">New</p><h3>Material culture</h3><p class="small muted">Objects, makers and communities.</p></a><a class="card" href="screens/towns.html"><p class="eyebrow">New</p><h3>All towns</h3><p class="small muted">Town and community directory.</p></a><a class="card" href="screens/town.html"><p class="eyebrow">New</p><h3>Town profile</h3><p class="small muted">Connected article and record list.</p></a><a class="card" href="screens/cite.html"><p class="eyebrow">New</p><h3>Citation guide</h3><p class="small muted">Citation formats by record type.</p></a><a class="card" href="screens/cultural-calendar.html"><p class="eyebrow">New</p><h3>African cultural calendar</h3><p class="small muted">Events by date and place.</p></a><a class="card" href="screens/igbo-calendar.html"><p class="eyebrow">New</p><h3>Igbo calendar</h3><p class="small muted">Market-day lookup and month view.</p></a><a class="card" href="screens/careers.html"><p class="eyebrow">New</p><h3>Careers</h3><p class="small muted">Roles and application journey.</p></a><a class="card" href="screens/journeys.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Journeys &amp; Places</h3><p class="small muted" style="margin-top:var(--s-2)">Map and timeline-ready archive discovery.</p></a>
+      <a class="card" href="screens/projects.html"><p class="eyebrow">New</p><h3>Projects</h3><p class="small muted">Programmes Ozikoro has embarked on.</p></a><a class="card" href="screens/project.html"><p class="eyebrow">New</p><h3>Project detail</h3><p class="small muted">Purpose, work, outputs and participation for one project.</p></a><a class="card" href="screens/ledger.html"><p class="eyebrow">New</p><h3>Public ledger</h3><p class="small muted">Donors, contributors and volunteers recognised.</p></a><a class="card" href="screens/topics.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Topics A–Z</h3><p class="small muted" style="margin-top:var(--s-2)">A flat index across categories, places and media.</p></a>
+      <a class="card" href="screens/article.html"><p class="eyebrow">02</p><h3 style="margin-top:var(--s-2)">Modern article reader</h3><p class="small muted" style="margin-top:var(--s-2)">Image, chapters, evidence, citation and mobile reading tools.</p></a>
+      <a class="card" href="screens/folklore.html"><p class="eyebrow">03</p><h3 style="margin-top:var(--s-2)">Folklores storybook</h3><p class="small muted" style="margin-top:var(--s-2)">A book-like cover, chapter index and story spread.</p></a>
+      <a class="card" href="screens/archive-index.html"><p class="eyebrow">04</p><h3 style="margin-top:var(--s-2)">Archive index</h3><p class="small muted" style="margin-top:var(--s-2)">Structured discovery and filters.</p></a>
+      <a class="card" href="screens/researcher-profile.html"><p class="eyebrow">05</p><h3 style="margin-top:var(--s-2)">Researcher profile</h3><p class="small muted" style="margin-top:var(--s-2)">Public scholarly identity and work.</p></a>
+      <a class="card" href="screens/publications.html"><p class="eyebrow">New</p><h3 style="margin-top:var(--s-2)">Publications library</h3><p class="small muted" style="margin-top:var(--s-2)">Research papers, essays, access and citation.</p></a>
+      <a class="card" href="screens/publication.html"><p class="eyebrow">06</p><h3 style="margin-top:var(--s-2)">Publication</h3><p class="small muted" style="margin-top:var(--s-2)">Abstract, authors, evidence and citation.</p></a>
+      <a class="card" href="screens/upload.html"><p class="eyebrow">07</p><h3 style="margin-top:var(--s-2)">Upload & publishing</h3><p class="small muted" style="margin-top:var(--s-2)">Deposit and publishing entry flow.</p></a>
+      <a class="card" href="screens/documents.html"><p class="eyebrow">08</p><h3 style="margin-top:var(--s-2)">Documents & photographs</h3><p class="small muted" style="margin-top:var(--s-2)">Material records with provenance.</p></a>
+      <a class="card" href="screens/academy.html"><p class="eyebrow">09</p><h3 style="margin-top:var(--s-2)">Academy</h3><p class="small muted" style="margin-top:var(--s-2)">Learning across the platform family.</p></a>
+      <a class="card" href="screens/about.html"><p class="eyebrow">10</p><h3 style="margin-top:var(--s-2)">About & people</h3><p class="small muted" style="margin-top:var(--s-2)">Visual institution story and verified published authors.</p></a>
+      <a class="card" href="screens/donate.html"><p class="eyebrow">11</p><h3 style="margin-top:var(--s-2)">Donate</h3><p class="small muted" style="margin-top:var(--s-2)">Complete demonstration giving flow.</p></a>
+      <a class="card" href="screens/sponsors.html"><p class="eyebrow">12</p><h3 style="margin-top:var(--s-2)">Sponsors</h3><p class="small muted" style="margin-top:var(--s-2)">Packages, safeguards and enquiry flow.</p></a>
+      <a class="card" href="screens/investors.html"><p class="eyebrow">13</p><h3 style="margin-top:var(--s-2)">Investors</h3><p class="small muted" style="margin-top:var(--s-2)">Opportunity and responsible enquiry flow.</p></a>
+      <a class="card" href="screens/dashboard-reader.html"><p class="eyebrow">14</p><h3 style="margin-top:var(--s-2)">Reader dashboard</h3><p class="small muted" style="margin-top:var(--s-2)">Saved histories, topics, history and collections.</p></a>
+      <a class="card" href="screens/dashboard-student.html"><p class="eyebrow">15</p><h3 style="margin-top:var(--s-2)">Student dashboard</h3><p class="small muted" style="margin-top:var(--s-2)">Projects, notes, submissions and learning.</p></a>
+      <a class="card" href="screens/dashboard-teacher.html"><p class="eyebrow">16</p><h3 style="margin-top:var(--s-2)">Teacher dashboard</h3><p class="small muted" style="margin-top:var(--s-2)">Courses, classes, sources and resources.</p></a>
+      <a class="card" href="screens/dashboard-researcher.html"><p class="eyebrow">17</p><h3 style="margin-top:var(--s-2)">Researcher dashboard</h3><p class="small muted" style="margin-top:var(--s-2)">Projects, datasets, fieldwork and citations.</p></a>
+      <a class="card" href="screens/dashboard-independent-researcher.html"><p class="eyebrow">18</p><h3 style="margin-top:var(--s-2)">Independent researcher</h3><p class="small muted" style="margin-top:var(--s-2)">Verification, sources and collaborations.</p></a>
+      <a class="card" href="screens/dashboard-knowledge-holder.html"><p class="eyebrow">19</p><h3 style="margin-top:var(--s-2)">Community knowledge holder</h3><p class="small muted" style="margin-top:var(--s-2)">Oral traditions, media, consent and review.</p></a>
+      <a class="card" href="screens/dashboard-editor.html"><p class="eyebrow">20</p><h3 style="margin-top:var(--s-2)">Editor dashboard</h3><p class="small muted" style="margin-top:var(--s-2)">Content queue, entity linking and revisions.</p></a>
+      <a class="card" href="screens/dashboard-reviewer.html"><p class="eyebrow">21</p><h3 style="margin-top:var(--s-2)">Expert reviewer</h3><p class="small muted" style="margin-top:var(--s-2)">Evidence review and decisions.</p></a>
+      <a class="card" href="screens/dashboard-admin.html"><p class="eyebrow">22</p><h3 style="margin-top:var(--s-2)">Admin dashboard</h3><p class="small muted" style="margin-top:var(--s-2)">Users, content, moderation, analytics and audit.</p></a>
+      <a class="card" href="screens/dashboard-workflow.html"><p class="eyebrow">23</p><h3 style="margin-top:var(--s-2)">Publishing workflow</h3><p class="small muted" style="margin-top:var(--s-2)">Draft through permanent publication.</p></a>
+      <a class="card" href="screens/dashboard-review.html"><p class="eyebrow">24</p><h3 style="margin-top:var(--s-2)">Evidence review</h3><p class="small muted" style="margin-top:var(--s-2)">Claims, evidence and alternative interpretations.</p></a>
+      <a class="card" href="screens/dashboard-moderation.html"><p class="eyebrow">25</p><h3 style="margin-top:var(--s-2)">Moderation queue</h3><p class="small muted" style="margin-top:var(--s-2)">Rights, corrections, sensitivity and appeals.</p></a>
+      <a class="card" href="screens/dashboard-account.html"><p class="eyebrow">26</p><h3 style="margin-top:var(--s-2)">Account settings</h3><p class="small muted" style="margin-top:var(--s-2)">Identity, privacy, languages and security.</p></a>
+      <a class="card" href="screens/dashboard-states.html"><p class="eyebrow">27</p><h3 style="margin-top:var(--s-2)">System states</h3><p class="small muted" style="margin-top:var(--s-2)">Empty, loading, error, permission and pending.</p></a>
+      <a class="card" href="screens/404.html"><p class="eyebrow">28</p><h3 style="margin-top:var(--s-2)">404</h3><p class="small muted" style="margin-top:var(--s-2)">Citation recovery.</p></a>
+      <a class="card" href="screens/type-test.html"><p class="eyebrow">Test</p><h3 style="margin-top:var(--s-2)">Igbo typeface proof</h3><p class="small muted" style="margin-top:var(--s-2)">Every diacritic, weight and style.</p></a>
+    </div>
+  </section>
+
+  <section style="margin-top:var(--s-8)">
+    <h2>Files</h2>
+    <table class="record" style="margin-top:var(--s-4);max-width:42rem">
+      <tbody>
+        <tr><th scope="row">index.html</th><td>This walkthrough</td></tr>
+        <tr><th scope="row">screens/*.html</th><td>One file per screen</td></tr>
+        <tr><th scope="row">styles/main.css</th><td>All CSS, plain, imports the tokens</td></tr>
+        <tr><th scope="row">tokens.css</th><td>Custom properties alone</td></tr>
+        <tr><th scope="row">NOTES.md</th><td>Rationale, inventory, and every departure</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section style="margin-top:var(--s-8)">
+    <div class="provenance">
+      <p class="eyebrow">Two things the implementer must know</p>
+      <ol>
+        <li>Every name, town, count and entry in these screens is example material and is labelled on the page. Nothing here is a record held by Ozikoro, and none of it should ship.</li>
+        <li>The typeface choice is a hard requirement, not a preference: Noto Serif and Noto Sans carry ị ọ ụ ñ and the combining tone marks in every weight and in italic, so no dotted vowel falls back to a second font. See the typeface proof and NOTES.md before substituting anything.</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <div class="legal" style="margin-top:0;border-top:0;padding-top:0">
+      <span>Design deliverable for ozikoro.com · Ozi Ikoro Limited</span>
+      <span>Plain HTML &amp; CSS · no build step</span>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

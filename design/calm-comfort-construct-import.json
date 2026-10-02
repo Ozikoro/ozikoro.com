@@ -1,0 +1,731 @@
+{
+ "source": "https://github.com/idenze/calm-comfort-construct.git",
+ "imported_from_commit": "e0dfa7248fbf3a34f529ebdfd95e1e6504448f73",
+ "files": 143,
+ "total_bytes": 846453,
+ "note": "Every file of the upstream repository, byte-identical, verified by SHA-256 against a fresh clone. .git and node_modules are excluded, which is the only difference.",
+ "layout": {
+  "public/design/**": "the design handoff: 63 files of static HTML/CSS/JS. AGENTS.md states this IS the deliverable.",
+  "src/routes/**": "the TanStack shell that lists and links those screens",
+  "src/components/ui/**": "50 shadcn/ui components (Radix)",
+  "src/styles.css": "the Tailwind theme carrying the design tokens",
+  "README.md / AGENTS.md / roadmap.md": "the brief, the delivery contract, and the design roadmap"
+ },
+ "manifest": [
+  {
+   "path": ".gitignore",
+   "bytes": 334,
+   "sha256": "74366d54bcd8375f43e80ebe6c1963c27bfa139cb2f384a5a4ee113a9a462e81"
+  },
+  {
+   "path": ".lovable/plan/calm-reading-listening-and-igbo-market-days-2026-10-01.md",
+   "bytes": 2463,
+   "sha256": "70c47ba64a1f8203b46eaa11ad7dbddb94abbc80a7dacd62a1df3d5a6ed8fdca"
+  },
+  {
+   "path": ".lovable/plan/complete-ozikoro-discovery-towns-calendars-and-careers-2026-10-01.md",
+   "bytes": 3912,
+   "sha256": "8a84eb2d35e5ac120435bd593114858793d794f1c5b9cb22501634f429e472f1"
+  },
+  {
+   "path": ".lovable/plan/complete-the-ozikoro-experience-2026-10-01.md",
+   "bytes": 5603,
+   "sha256": "2d6825007039ba586ec1500ab2f94636700c35e858c823c8bc23ea3c4ea7e97a"
+  },
+  {
+   "path": ".lovable/plan/ozikoro-watch-and-archive-discovery-expansion-2026-10-01.md",
+   "bytes": 3206,
+   "sha256": "18b65eebe32f99006145c836582512f356ca2656ab91cdca65a50069b1cc8f80"
+  },
+  {
+   "path": ".lovable/plan/refine-towns-publications-donations-folklore-and-calendars-2026-10-02.md",
+   "bytes": 1785,
+   "sha256": "d325948717d2653006177fec9a9079646d18f228ac419e50bdbd6270106a4bcd"
+  },
+  {
+   "path": ".lovable/project.json",
+   "bytes": 124,
+   "sha256": "d31c52d1c798145a943367b5098271d61262d7d176ee2ac69bc4a6b9dcfc9b61"
+  },
+  {
+   "path": ".prettierignore",
+   "bytes": 92,
+   "sha256": "52c7c767ff0615eec4eb64cc71265877f7f423eb597d665b5e439f337c661a5a"
+  },
+  {
+   "path": ".prettierrc",
+   "bytes": 90,
+   "sha256": "1ed88d3b99eced8dc3b6f58f26645466dd1ceaca6c5a9b818531c941ac28e55b"
+  },
+  {
+   "path": "AGENTS.md",
+   "bytes": 970,
+   "sha256": "0da90404eecb7ff5de18d54fc1f9571880b990f27936b2865b9172373b6983f1"
+  },
+  {
+   "path": "README.md",
+   "bytes": 856,
+   "sha256": "6bcfe095e276943b08bd47583f7a67ca51fc7045b5b8ae81ebc4488aeb8d22db"
+  },
+  {
+   "path": "bun.lock",
+   "bytes": 150205,
+   "sha256": "f43169ae78b202c5be09ef8c079c4b21c83655b54d0b5d3547a65f494e660e43"
+  },
+  {
+   "path": "bunfig.toml",
+   "bytes": 380,
+   "sha256": "366fc9712878c09fe0fee77df1f41a1614b45c561f673f53d9bc39a9fc7b6569"
+  },
+  {
+   "path": "components.json",
+   "bytes": 443,
+   "sha256": "37c484818824d2521eee3367e7aa2c2abbd19635d8103d19734b6e24603d0292"
+  },
+  {
+   "path": "eslint.config.js",
+   "bytes": 1250,
+   "sha256": "3266245a1ff610a0b37dbb8b8c77b93a125e0d8758b9838cfd04b2e0a1397d56"
+  },
+  {
+   "path": "package.json",
+   "bytes": 2942,
+   "sha256": "d9dc40ea54a1ae4efc04f924f1067c9e444ebfb2faa1402ec3d5d7371e038979"
+  },
+  {
+   "path": "public/design/NOTES.md",
+   "bytes": 14563,
+   "sha256": "1cee126bd93d148cb93efff9e743fdc066692c4b42a5bb4a4cb763b583a05dc2"
+  },
+  {
+   "path": "public/design/cultural-calendar.js",
+   "bytes": 1551,
+   "sha256": "adf078f55f92a2c3c9a6af9c4aa10ad99e67ec4dc9bb9ed9ac5a0b72b96779b3"
+  },
+  {
+   "path": "public/design/downloads/archive-guide-demonstration.pdf",
+   "bytes": 839,
+   "sha256": "14a4c8f6696c06b26cc15f0d39bd2b4fa2bf3100ff5074401411a45e1dc4d490"
+  },
+  {
+   "path": "public/design/downloads/research-download-demonstration.pdf",
+   "bytes": 855,
+   "sha256": "3a361ac115bdc03bd1ec321c897b3a2b871261b759dc0787afbf74b850171903"
+  },
+  {
+   "path": "public/design/index.html",
+   "bytes": 14200,
+   "sha256": "62742e94b73b68c0e361967a16cd83a2d0d5683ad26da790f5921c739d096488"
+  },
+  {
+   "path": "public/design/market-days.js",
+   "bytes": 4264,
+   "sha256": "306ddb2176e45141d1a1c48949ee613fb9a3883c09e51e900c93a509704af69f"
+  },
+  {
+   "path": "public/design/mobile-nav.js",
+   "bytes": 1891,
+   "sha256": "4f851936bf831f5ec1430a1fca0016e96eea839fd1b604f6b7525e8bf9504cb3"
+  },
+  {
+   "path": "public/design/reader.js",
+   "bytes": 3840,
+   "sha256": "e8a23205f32a1334b57444af84d24576c2670e3055e3ff49da3ec83bc05b3d36"
+  },
+  {
+   "path": "public/design/screens/404.html",
+   "bytes": 4764,
+   "sha256": "f1a58dcd91ed56ddf7141e1149fb648873577851d2ee797d67c00d0de3e333d2"
+  },
+  {
+   "path": "public/design/screens/about.html",
+   "bytes": 16302,
+   "sha256": "12e333b3bc3c2f079bc38d1daec81b1a4e2418a4a3a6948dd019dadb056e2690"
+  },
+  {
+   "path": "public/design/screens/academy.html",
+   "bytes": 8551,
+   "sha256": "76cb494ec97c02dae734433f4301ce9f262551b746ce46909d4692c9ec66c289"
+  },
+  {
+   "path": "public/design/screens/archive-index.html",
+   "bytes": 12279,
+   "sha256": "84b6f13a535d29d5dbcb4921b0e2e516101d4d95db0d6e4075504e527c08876b"
+  },
+  {
+   "path": "public/design/screens/article.html",
+   "bytes": 7340,
+   "sha256": "3a9e94aa83040d2d2f2b615fca5ee88fff8f0bfebc77aaf4657b0acc9ce37a18"
+  },
+  {
+   "path": "public/design/screens/careers.html",
+   "bytes": 3534,
+   "sha256": "1cc4fc1de5d49815f9f8d02f6d28abe3e3f95d37c07e910d72673b1dcc60f3e8"
+  },
+  {
+   "path": "public/design/screens/cite.html",
+   "bytes": 3438,
+   "sha256": "1627dcd946552a4d68bfeca7439002aba914d6374e234a166456f632159e23d9"
+  },
+  {
+   "path": "public/design/screens/collections.html",
+   "bytes": 3362,
+   "sha256": "0bb7e3d83725d0c3d14a502c17751e38a8c4d1f7a36d99bd52364cddf52fcd04"
+  },
+  {
+   "path": "public/design/screens/cultural-calendar.html",
+   "bytes": 7592,
+   "sha256": "34d55d127176846b1e69e3dc88c05583006c6c078155be592012a81315098794"
+  },
+  {
+   "path": "public/design/screens/cultural-event.html",
+   "bytes": 4666,
+   "sha256": "6c12691872f14c9173b26eb7054d1125f6ec90552288d0635165dd0006484162"
+  },
+  {
+   "path": "public/design/screens/dashboard-account.html",
+   "bytes": 2413,
+   "sha256": "74662a4141bf00bfa3ebd2a8bb4419726f97885d6ffbb06c024a3f718b3b0a26"
+  },
+  {
+   "path": "public/design/screens/dashboard-admin.html",
+   "bytes": 6187,
+   "sha256": "af427e45745131ee28cbe784d9bf4b9c27980ccae0e43bf86227593750a392e3"
+  },
+  {
+   "path": "public/design/screens/dashboard-editor.html",
+   "bytes": 5234,
+   "sha256": "baa7eb366092ae8ad8627cd61319931fef62a5faa8b7094ab4af36fbac21254e"
+  },
+  {
+   "path": "public/design/screens/dashboard-independent-researcher.html",
+   "bytes": 5449,
+   "sha256": "b4614e284b4dc7db2c458faec8090819360591ca4585effa600337324d688d3d"
+  },
+  {
+   "path": "public/design/screens/dashboard-knowledge-holder.html",
+   "bytes": 5302,
+   "sha256": "f23978555bf35f868999c2a96ec46d551379dfab6bc592abba51c48220d32b7f"
+  },
+  {
+   "path": "public/design/screens/dashboard-moderation.html",
+   "bytes": 2421,
+   "sha256": "01a4ade7c6f5afe37b65abece7717bddada941f3aed3acb73f9a78b34b094f6c"
+  },
+  {
+   "path": "public/design/screens/dashboard-reader.html",
+   "bytes": 5034,
+   "sha256": "0140ca97fbcbca7301be2533140aa57f060841ff2fff12c04a34d2d0fa0c2f9e"
+  },
+  {
+   "path": "public/design/screens/dashboard-researcher.html",
+   "bytes": 5728,
+   "sha256": "ed78df7b6f13f3b2d40b12fc165dbbb7424757bd21f42d4995699241da2543a1"
+  },
+  {
+   "path": "public/design/screens/dashboard-review.html",
+   "bytes": 2438,
+   "sha256": "330458bd2a68f56620d28b4b2626808dee9ff8f8149d17e843be7873047d38a3"
+  },
+  {
+   "path": "public/design/screens/dashboard-reviewer.html",
+   "bytes": 5084,
+   "sha256": "47e5bfe70833621bbd29d3f834e0d1f39c0cd9b8698c388b7d441ca88cc8e6e1"
+  },
+  {
+   "path": "public/design/screens/dashboard-states.html",
+   "bytes": 2271,
+   "sha256": "1615f157867bdf2a27b2ef6083155d7d5d589f64700d0b8aa3ad177f458f63ba"
+  },
+  {
+   "path": "public/design/screens/dashboard-student.html",
+   "bytes": 5404,
+   "sha256": "9905f134e18b7dc3bc1ca46da4e1a03504b82d26470b33ecc44fc7a345032592"
+  },
+  {
+   "path": "public/design/screens/dashboard-teacher.html",
+   "bytes": 5213,
+   "sha256": "58ed739cfaf8c939eb330f97edf94af3e32f25cedf9fccfc63175a2eb550c329"
+  },
+  {
+   "path": "public/design/screens/dashboard-workflow.html",
+   "bytes": 2854,
+   "sha256": "de0e67a92aca54139988071929d187e67c675949f0570f80b4642924bb987a06"
+  },
+  {
+   "path": "public/design/screens/documents.html",
+   "bytes": 6069,
+   "sha256": "f2dd5f47c060543006d50d4079fae1176e3d1e070403692aac1ba5790792371e"
+  },
+  {
+   "path": "public/design/screens/donate.html",
+   "bytes": 5966,
+   "sha256": "de9a7d215fa4ea8aa8a11048f1ed76b94d17d91fc09d808c7229a9083a60ee45"
+  },
+  {
+   "path": "public/design/screens/folklore-reader.html",
+   "bytes": 4227,
+   "sha256": "7b4c796d4ab5dd48c08cacbd0b7902aa0feef9060dfaa1bf8ef7c37b375385de"
+  },
+  {
+   "path": "public/design/screens/folklore.html",
+   "bytes": 4196,
+   "sha256": "ba76aacc957afae85b00192f1affecce26b40648ac9b2a004558152be0915719"
+  },
+  {
+   "path": "public/design/screens/home.html",
+   "bytes": 15462,
+   "sha256": "a8ba2ecffd85d55b7ba07228750463dc84142df735c90bedefba546dab90e235"
+  },
+  {
+   "path": "public/design/screens/igbo-calendar.html",
+   "bytes": 4844,
+   "sha256": "28d856dcdbf88ef83615a07c2298c8a89e25e33789090071ce9811007ee2ebde"
+  },
+  {
+   "path": "public/design/screens/investors.html",
+   "bytes": 5471,
+   "sha256": "39ab333cfc27675ff2cf420e90d31b0705da9cbc8a59642cb62815f2da27fa44"
+  },
+  {
+   "path": "public/design/screens/journeys.html",
+   "bytes": 2556,
+   "sha256": "f9bedc888fa38fc3f89476bd44b3cfb5ed465d6d609657a168a82766ba9c94b8"
+  },
+  {
+   "path": "public/design/screens/ledger.html",
+   "bytes": 7493,
+   "sha256": "da100be92ef32f5797c03c3c521f0430b3ea559594257d13bd884c11e3207688"
+  },
+  {
+   "path": "public/design/screens/listen.html",
+   "bytes": 5911,
+   "sha256": "36b188928d429a2ecb6730c92cf6ec3629908cc0ce5628a953e635ac3570148c"
+  },
+  {
+   "path": "public/design/screens/market-days.html",
+   "bytes": 3772,
+   "sha256": "f3471377bd9dc13827cbddcdd83e34307e120f5c0340297832d1da0ffb4c6e93"
+  },
+  {
+   "path": "public/design/screens/material-culture.html",
+   "bytes": 3116,
+   "sha256": "258f6891c58e11be8d9dce45bdf3438a6b4093e218127134a7675e6e89a12672"
+  },
+  {
+   "path": "public/design/screens/oral-recordings.html",
+   "bytes": 365,
+   "sha256": "1e514da7b798c77814398c7bf09ddebdd7dc2a60b94c562075ec80a29f30abba"
+  },
+  {
+   "path": "public/design/screens/photographs.html",
+   "bytes": 3080,
+   "sha256": "1d4f1e1f97535f338fe5949234962038fd2419e2bbb25e916d7293ba6fc3553f"
+  },
+  {
+   "path": "public/design/screens/project.html",
+   "bytes": 4528,
+   "sha256": "4a7f0a7fda231ac751a2a4ed7fba61d3cbb97ea62bce24dfca8873863034ebb2"
+  },
+  {
+   "path": "public/design/screens/projects.html",
+   "bytes": 10012,
+   "sha256": "c98d6aeae9a04278b23d9ee094728459a0902b5cb1caf848729b32f046f82cbc"
+  },
+  {
+   "path": "public/design/screens/publication.html",
+   "bytes": 9751,
+   "sha256": "1bd2d554da0e30de5dd203029395592d13f8a7e4b60ba492ee786d8ccd7352fe"
+  },
+  {
+   "path": "public/design/screens/publications.html",
+   "bytes": 4693,
+   "sha256": "10f9f9b4c4ebe1358626524109c969e9e86cff3cede747af31d4da20e301ff27"
+  },
+  {
+   "path": "public/design/screens/researcher-profile.html",
+   "bytes": 10347,
+   "sha256": "fba8c7342c386d6d80e43e91f87ae6b14824378333fb763645b2e8b9a6a110c6"
+  },
+  {
+   "path": "public/design/screens/sponsors.html",
+   "bytes": 6162,
+   "sha256": "d1699e2951b27447b0cef0daad5bd2967939c3baf1c867610b8895252c9be875"
+  },
+  {
+   "path": "public/design/screens/topics.html",
+   "bytes": 3653,
+   "sha256": "a8b11544fee86e5c27282fcad66d209fe8b73c63c472c101667355aa11e4faac"
+  },
+  {
+   "path": "public/design/screens/town.html",
+   "bytes": 3641,
+   "sha256": "befcc896f1c2a24723db6e49250b88c005e14ef211f5ef2c78b52c113b95703d"
+  },
+  {
+   "path": "public/design/screens/towns.html",
+   "bytes": 3619,
+   "sha256": "f3c4cac8caa593e5b9bf2b43f102f95aabe9d7f2e06e42bf8838ad0572204bd3"
+  },
+  {
+   "path": "public/design/screens/type-test.html",
+   "bytes": 5838,
+   "sha256": "8a2360a4fcb5c4697d378dc7818e65ba9af21d9cb844e1f760f0afdd6693e7c1"
+  },
+  {
+   "path": "public/design/screens/upload.html",
+   "bytes": 13494,
+   "sha256": "2f9d4b9f7734cc755f102a1bf26f2ac287e0630f9fdb976376c26e92dbebd739"
+  },
+  {
+   "path": "public/design/screens/watch-video.html",
+   "bytes": 3928,
+   "sha256": "2a0e501989b9176fe4654132462a0caf171277751e1a84c4b5f87418048e6f32"
+  },
+  {
+   "path": "public/design/screens/watch.html",
+   "bytes": 7315,
+   "sha256": "0e8be53a914ba90e3132a073308cc56c1ccc69d5ea49980aa6af9b45c2411da9"
+  },
+  {
+   "path": "public/design/styles/main.css",
+   "bytes": 20169,
+   "sha256": "6a6f7329ed3dbc1c2db75e461ec11c5168510d77353a5193175a4f5f60e8a77c"
+  },
+  {
+   "path": "public/design/styles/showcase.css",
+   "bytes": 108333,
+   "sha256": "9855333255bde37b2d2d1b78414651bf2704b86943cd3a38bd0eb2297484eb49"
+  },
+  {
+   "path": "public/design/tokens.css",
+   "bytes": 4348,
+   "sha256": "0fad280e698905891f51cb6898f90e3bacf34d50cc7dd6d77ea114306e1d7ec3"
+  },
+  {
+   "path": "public/design/watch.js",
+   "bytes": 1965,
+   "sha256": "8ad954c121e1b1bcca26b0d9a42a13d5c12ec3ab32a3ceb3779eaf9e08969a84"
+  },
+  {
+   "path": "public/favicon.ico",
+   "bytes": 20373,
+   "sha256": "dd821076a9b03adc2173c93956226aea3d92482d7578fc4339c5d3a2e9c24586"
+  },
+  {
+   "path": "public/robots.txt",
+   "bytes": 160,
+   "sha256": "a3d27b3ca5ce32341fa9f96f01169b521b1657c05d1860c45d1e53a6258e9e8b"
+  },
+  {
+   "path": "roadmap.md",
+   "bytes": 3836,
+   "sha256": "be8ab7f219b3de935ae963ac15a388d42002a03961158a913eacf04e0ceaa109"
+  },
+  {
+   "path": "src/components/ui/accordion.tsx",
+   "bytes": 2015,
+   "sha256": "0903efcd7b746eef0a10c954a541b0dfa7aa1172f3c380a1a88f4e19a317fda3"
+  },
+  {
+   "path": "src/components/ui/alert-dialog.tsx",
+   "bytes": 4183,
+   "sha256": "ee4d7f3341a1e5592787b7dac8e924bd226189492819f6704d8a7faf8fe64d20"
+  },
+  {
+   "path": "src/components/ui/alert.tsx",
+   "bytes": 1589,
+   "sha256": "e7f4c2e6f78c59270905b4152b7d3ef4d5c6b9e3b2d370daa7b301aa7cbd27b3"
+  },
+  {
+   "path": "src/components/ui/aspect-ratio.tsx",
+   "bytes": 143,
+   "sha256": "d72c73d629e37995a0a71647d851d68d6fdcd7ec120797f36ab83a8ee89f2cab"
+  },
+  {
+   "path": "src/components/ui/avatar.tsx",
+   "bytes": 1413,
+   "sha256": "0326c9041c5a0b1ba31ff29822c51950b6aeac485cd0985e7df714741a54e7f4"
+  },
+  {
+   "path": "src/components/ui/badge.tsx",
+   "bytes": 1123,
+   "sha256": "6519775252fe729f21c60b92c7c9feefd1fe7d0a8c2cf16d6f1c2fa7e153fe75"
+  },
+  {
+   "path": "src/components/ui/breadcrumb.tsx",
+   "bytes": 2749,
+   "sha256": "d5224e87344b3ac0f8b002e5dda6a71ff8fee296db8a5fbe6b034d06bd5c2ae1"
+  },
+  {
+   "path": "src/components/ui/button.tsx",
+   "bytes": 1894,
+   "sha256": "e39813b666ba434660ec088356a0349246b6803a4e99961295d0c82bab1ab862"
+  },
+  {
+   "path": "src/components/ui/calendar.tsx",
+   "bytes": 7226,
+   "sha256": "e883f2245873fdf360764f77fc8f391426bef5776c6397537012c46970ebd6ee"
+  },
+  {
+   "path": "src/components/ui/card.tsx",
+   "bytes": 1817,
+   "sha256": "f13878a0078a5ef9f3e92af29259fc1e93ea56ea80cb992e0c4dea4e35396459"
+  },
+  {
+   "path": "src/components/ui/carousel.tsx",
+   "bytes": 6200,
+   "sha256": "568e00e8edbfab8af67ee902ca9ef5ceb6d5ed6f3045e7f9b3c15b4f7ef9e974"
+  },
+  {
+   "path": "src/components/ui/chart.tsx",
+   "bytes": 10570,
+   "sha256": "81b1f692f9334ba3030213ff37eeaf2dd762b644e5d96e51ada7072109f07430"
+  },
+  {
+   "path": "src/components/ui/checkbox.tsx",
+   "bytes": 1043,
+   "sha256": "c44d02535d5c9c92807576804407dd63d01e7189dbde526e925b53885e645fd4"
+  },
+  {
+   "path": "src/components/ui/collapsible.tsx",
+   "bytes": 335,
+   "sha256": "5f0a45d8f6ca72d37ed10bf0a85306158b67d7cbc386319186ce013ead9bc0a6"
+  },
+  {
+   "path": "src/components/ui/command.tsx",
+   "bytes": 4876,
+   "sha256": "ba8c0f8b23044ce9a5066e66d7ab7be3a3c79bfc4a0ab7dfae6ffafe439145a3"
+  },
+  {
+   "path": "src/components/ui/context-menu.tsx",
+   "bytes": 7360,
+   "sha256": "b299f50a0a7840b136db5670f2b2e7eec6fc62b3c06bc2ad0015800959cc381b"
+  },
+  {
+   "path": "src/components/ui/dialog.tsx",
+   "bytes": 3648,
+   "sha256": "e3a6de153fb15597ea95be9c4549211a297c060267787915599e3d680d476bd9"
+  },
+  {
+   "path": "src/components/ui/drawer.tsx",
+   "bytes": 2973,
+   "sha256": "478c487f66245641d5fa0f0d1c53a07d68bd60c4b3c497ec4c41ce08b482e14b"
+  },
+  {
+   "path": "src/components/ui/dropdown-menu.tsx",
+   "bytes": 7565,
+   "sha256": "a6b87c89f5a806225b7f3a81f13a6577289c67e5787c2a56b5a22bd1edea02ce"
+  },
+  {
+   "path": "src/components/ui/form.tsx",
+   "bytes": 4201,
+   "sha256": "1ed53d4ab564a64708938643de590f2bef3718b0b2a309c1019c57e9c1fde23f"
+  },
+  {
+   "path": "src/components/ui/hover-card.tsx",
+   "bytes": 1246,
+   "sha256": "69dc172ece56ac77bf3a044a1cd60ed601b0041945d16b5da4c6cc4f42116988"
+  },
+  {
+   "path": "src/components/ui/input-otp.tsx",
+   "bytes": 2232,
+   "sha256": "45b7c4fd518616f76dd611b9da13bc60bece1352e050878bf943e1cc6a4ed678"
+  },
+  {
+   "path": "src/components/ui/input.tsx",
+   "bytes": 776,
+   "sha256": "92debb7d6d2d96d9e607a42d5ce8f37b2d63384ae5dd9ffbbf5f047b680ffb85"
+  },
+  {
+   "path": "src/components/ui/label.tsx",
+   "bytes": 716,
+   "sha256": "9f72e2ecf16206593aa9e3c4fbc14cd8e81aa8488d57d92d4a950b30935a9fa9"
+  },
+  {
+   "path": "src/components/ui/menubar.tsx",
+   "bytes": 8515,
+   "sha256": "5bd157c3a446ea1e451867e63724b2e87ad6bba6251c8b5f1b267d1df7bd4e0e"
+  },
+  {
+   "path": "src/components/ui/navigation-menu.tsx",
+   "bytes": 5152,
+   "sha256": "755aecc77b7911ab61159c9fbb9b25254009eb4c32c95b1430b6b5b7d37ed8f0"
+  },
+  {
+   "path": "src/components/ui/pagination.tsx",
+   "bytes": 2739,
+   "sha256": "cbe8559c578ee2d34c7daef5ee75dc3afeb795851e294b111dec375ba44a9a2d"
+  },
+  {
+   "path": "src/components/ui/popover.tsx",
+   "bytes": 1352,
+   "sha256": "861c18577ea5988c6f5ca00d1c677200319fd427cf8b424e59a5cca6ff24f830"
+  },
+  {
+   "path": "src/components/ui/progress.tsx",
+   "bytes": 781,
+   "sha256": "418f612946a520d1380b7a0d058185bb6a6d09846846dd6d6904a0016152dd4a"
+  },
+  {
+   "path": "src/components/ui/radio-group.tsx",
+   "bytes": 1405,
+   "sha256": "8c55aa0496b00a27fc4f609ca8b43a7e82c6802f6bf613998438b7632899fa96"
+  },
+  {
+   "path": "src/components/ui/resizable.tsx",
+   "bytes": 1552,
+   "sha256": "f0399fec7bc334f06433b41b6ebf34255942ce4916b99173898893fa7fcc8281"
+  },
+  {
+   "path": "src/components/ui/scroll-area.tsx",
+   "bytes": 1635,
+   "sha256": "b607f562455152a079d70a22538c95072b0267e0d59a1a1cf16a905a2e373a6f"
+  },
+  {
+   "path": "src/components/ui/select.tsx",
+   "bytes": 5749,
+   "sha256": "6d4deee18cf7ced0354eb719300833a83caf46400de6ee9c3d1942fa4c579ad4"
+  },
+  {
+   "path": "src/components/ui/separator.tsx",
+   "bytes": 723,
+   "sha256": "bf5838b692e5f74fde7083280b99492dd402bce6966e912e79f5e23f14bc98eb"
+  },
+  {
+   "path": "src/components/ui/sheet.tsx",
+   "bytes": 4248,
+   "sha256": "a82f9341962e766ee925a2fe883b0a9ab5d5dd8475c402ac8e491ee37dc95fde"
+  },
+  {
+   "path": "src/components/ui/sidebar.tsx",
+   "bytes": 23975,
+   "sha256": "9f44f4523271f965adec608ae1c3b8a2f350f2f45ba1401a2c7ee33bc5eda238"
+  },
+  {
+   "path": "src/components/ui/skeleton.tsx",
+   "bytes": 239,
+   "sha256": "f4c42257d73925b0b856a3500e2cbdd918fe6744fcd6be87ef28bb88e7eb7366"
+  },
+  {
+   "path": "src/components/ui/slider.tsx",
+   "bytes": 1025,
+   "sha256": "d307cf3ff05b54be4a04389ef4379f9e8b4dc49720197937991ce843a8d4b5ec"
+  },
+  {
+   "path": "src/components/ui/sonner.tsx",
+   "bytes": 734,
+   "sha256": "3ad40f66c339e799b1a57c00e10b4627294c7d580d99d8a48ae0d8d4c13cf931"
+  },
+  {
+   "path": "src/components/ui/switch.tsx",
+   "bytes": 1156,
+   "sha256": "c3c298df4ffb56695e4a8f0ff3e37eee08437dec542a677153ec16bed0820107"
+  },
+  {
+   "path": "src/components/ui/table.tsx",
+   "bytes": 2820,
+   "sha256": "1e945e564c2cc5ca3ef33019ba7da7a8b94cbc73feb3cbc2b7b33c36ea648d92"
+  },
+  {
+   "path": "src/components/ui/tabs.tsx",
+   "bytes": 1934,
+   "sha256": "e9b454d2f987c83b36cc8870bba47d9355db4e8f5c733b310dbc1119a7d27654"
+  },
+  {
+   "path": "src/components/ui/textarea.tsx",
+   "bytes": 677,
+   "sha256": "35617a2cf053e52c9e56983bde82d556861d38e462f9e578876c8e99a0432687"
+  },
+  {
+   "path": "src/components/ui/toggle-group.tsx",
+   "bytes": 1752,
+   "sha256": "d59cd3937c967a3e221fdfcfe4ea5cd57eb97cbe37e1ac98126664c9c7db49c1"
+  },
+  {
+   "path": "src/components/ui/toggle.tsx",
+   "bytes": 1534,
+   "sha256": "62e6e21993f1ab633b9f830cbbf0c181f3d161bae3a7792dbf2d842d42a2f09c"
+  },
+  {
+   "path": "src/components/ui/tooltip.tsx",
+   "bytes": 1278,
+   "sha256": "9682690fc3755d0f4b8684f2d7b1f77945876d41a45b723d0761b26804ad5010"
+  },
+  {
+   "path": "src/hooks/use-mobile.tsx",
+   "bytes": 576,
+   "sha256": "21eff740f9e5c965c7f0782925a7e8f67ddfcdf0f58b6613550f99c3e1c454e9"
+  },
+  {
+   "path": "src/lib/error-capture.ts",
+   "bytes": 2898,
+   "sha256": "d6fa7756cbc4c399f4e891b174c2dce8160e2354972c2ae68413dfd1db843088"
+  },
+  {
+   "path": "src/lib/error-page.ts",
+   "bytes": 1371,
+   "sha256": "635915886f5d44a18b6add2a53959dbe2e8ba1bb3f7e597fc714650e74157bb6"
+  },
+  {
+   "path": "src/lib/lovable-error-reporting.ts",
+   "bytes": 1821,
+   "sha256": "fa4d3d0759cb8eff71be71e620d739224a4fb746babc85c6fa75408687a74857"
+  },
+  {
+   "path": "src/lib/utils.ts",
+   "bytes": 169,
+   "sha256": "d1f1e0d62cb8d8d1e04c26e14de842d8a151f75812d81b046c65b5d1fe8e4b27"
+  },
+  {
+   "path": "src/routeTree.gen.ts",
+   "bytes": 1797,
+   "sha256": "fe513400857214ac5d86672722817dc91b9e425e373c65219feae049a882bf0b"
+  },
+  {
+   "path": "src/router.tsx",
+   "bytes": 394,
+   "sha256": "72b68964d3f55ba4f7dcf2a04aad9d97d7c61fabad13aec1d298f1e39ee59fcc"
+  },
+  {
+   "path": "src/routes/README.md",
+   "bytes": 835,
+   "sha256": "5c8187dbe79dac7a3c494f2600585508f5d15e75f04f21ea364d0de14de10575"
+  },
+  {
+   "path": "src/routes/__root.tsx",
+   "bytes": 4076,
+   "sha256": "d6937cb9f877c9a83f1eda0070837886d4c9aa25805bcd64a16fead3c6100b9d"
+  },
+  {
+   "path": "src/routes/index.tsx",
+   "bytes": 5390,
+   "sha256": "74e752449df7b2bdacc8f1bfa0f92badc97eaea316701bd058ad2ad933e2f2f7"
+  },
+  {
+   "path": "src/server.ts",
+   "bytes": 2048,
+   "sha256": "f0ee683067afee145f81a63a3af76b3d3767e2a1f61f0e82582f8da184ad3ef6"
+  },
+  {
+   "path": "src/start.ts",
+   "bytes": 944,
+   "sha256": "d79d142c6c5d057acc7a140197f464ef29a2c55bb422aafe700f82b418894e74"
+  },
+  {
+   "path": "src/styles.css",
+   "bytes": 5415,
+   "sha256": "4e2fbbd2e15db6e5e9a5d4eca67be642a05482a6673eaa4d81b5e649395ccbc5"
+  },
+  {
+   "path": "tsconfig.json",
+   "bytes": 820,
+   "sha256": "0ff5b0536ac765fe8beabcfe2202c3069c4cc43136e20e4c2f04c55f6f4ebc84"
+  },
+  {
+   "path": "vite.config.ts",
+   "bytes": 820,
+   "sha256": "694f17daf64d3bf3481ee838ce69c26c593c60c0ed45a19209754fe5a742bcf0"
+  }
+ ]
+}
