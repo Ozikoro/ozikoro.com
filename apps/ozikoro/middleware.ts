@@ -121,14 +121,19 @@ export function middleware(request: NextRequest) {
    * The root is handled explicitly before the slash-stripping, because it cannot be reached by it.
    */
   if (pathname === '/') {
-    return NextResponse.rewrite(new URL('/design/screens/home.html', request.url));
+    return NextResponse.rewrite(new URL('/design-screen/home', request.url));
   }
 
   // A design screen at the address a reader would type, and the walkthrough at `/index`.
   const single = pathname.replace(/^\//, '').replace(/\.html$/, '').replace(/\/$/, '');
   if (single && !single.includes('/')) {
     if (DESIGN_SCREENS.has(single)) {
-      return NextResponse.rewrite(new URL(`/design/screens/${single}.html`, request.url));
+      // Through the fill route, which reads the design file as a template and passes any screen it
+      // does not fill straight back byte-for-byte. See app/design-screen/[screen]/route.ts.
+      //
+      // NOT a `_`-prefixed folder: Next.js treats those as private and generates no route at all, which
+      // is what broke this the first time.
+      return NextResponse.rewrite(new URL(`/design-screen/${single}`, request.url));
     }
     if (single === 'index' || single === 'design') {
       return NextResponse.rewrite(new URL('/design/index.html', request.url));

@@ -12153,3 +12153,59 @@ owner found it by opening the one file I had not rewritten.
 **A check that starts from what the author produced cannot detect that the author is producing the wrong
 thing.** The screen-coverage check added last round starts from the design instead, and that is the shape the
 rest should have had from the beginning.
+
+---
+
+## ROUND 270 — FILLING THE DESIGN WITH REAL RECORDS, WITHOUT EDITING IT
+
+**The owner's instruction: move the articles and media in, keep the design exactly as it is, and fill the
+categories. This is the first screen done.**
+
+### The method: the design is a TEMPLATE, not a source file
+
+    public/design/screens/archive-index.html     read at request time
+    packages/ozikoro/src/design-fill.ts          the design's own markup, contents swapped
+    app/design-screen/[screen]/route.ts          serves the result
+    middleware.ts                                rewrites /archive-index to that route
+
+**Not one byte of `public/design/` changes — verified after the fill: 63 files, 0 differing, 0 missing.**
+The browser's URL is unchanged, so the design's relative links still resolve against the same base.
+
+### What is filled and what is not, and why
+
+The design's example entries carry four chips: **Place, Period, Source, Sources-attached.** The archive has data
+for one of them:
+
+    188 towns as entities, 205 articles linked to one     -> Place, when the record has one
+    no article has a period                               -> the chip is omitted
+    no article has a source type                          -> the chip is omitted
+    ozikoro_article_source is empty                       -> the chip is omitted
+
+**So a real entry renders with the chips its record can support and none of the others.** An entry with four
+chips would be the design's example; an entry with one is what the archive holds.
+
+### The example flag was removed, and that is not a design change
+
+Every screen opens with `<p class="example-flag">Design mock — entries, counts and filter figures are example
+material.</p>`. **That sentence is true of the design and false of a page filled with real records**, so it is
+dropped on the screens this file fills and **kept on every screen it does not.** Removing a statement that would
+otherwise be a lie is not the same as altering a design.
+
+### The result
+
+    /archive-index                 24 real records, in the design's own <article class="entry"> markup
+    /archive-index?topic=folklores 17 records   (the real count)
+    /archive-index?topic=video      0 records   (video holds no articles, and says so)
+    63 design files byte-identical · 0 differing · 0 missing
+
+**The category counts on the rail are now the archive's own**, matching the fourteen topics and their real sizes:
+Cultural Heritage 416 · Anthropology and Ethnography 240 · Historical Studies 125 · Biography 107 ·
+Ethnohistory 86 · Photos 26 · Folklores 17 · Religion and Spirituality 14 · Indigenous Architecture 11 ·
+Discography 6 · Uncategorized 3 · Art 1 · Proverbs & Idioms 1 · Video 0.
+
+### Three faults found and fixed on the way, each by a check rather than by reading
+
+    `app/_design/` produced NO ROUTE      Next.js treats a `_`-prefixed folder as private
+    `cp -R src dst` with dst present      copied INTO it, leaving public/public/ — my own
+                                          stylesheet guard caught it rather than serving unstyled
+    the entries wrapper matched nothing   found by testing the served page, not the code

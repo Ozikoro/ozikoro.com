@@ -48,9 +48,29 @@ echo "==> building (standalone output)"
 NODE_ENV=production npm -w @ozikoro/site run build
 
 echo "==> copying what standalone output omits, exactly as the Dockerfile does"
+# BOTH PARENTS MUST EXIST, and the first version of this script only created the second.
+#
+# `verify-all` rebuilds, which deletes the whole standalone directory. Running this afterwards then failed at
+# the first copy — the parent `$SD/apps/ozikoro` did not exist — and with `set -e` the script exited before
+# starting a server. **The visible symptom was different and worse than a crash**: a stale server kept
+# answering on the port with a build whose stylesheets were gone, so every page rendered as unstyled HTML.
+# That is what "scattered" means, and it is why both mkdirs are here.
+mkdir -p "$SD/apps/ozikoro" "$SD/apps/ozikoro/.next"
+# REMOVE THE DESTINATION FIRST. `cp -R src dst` with `dst` already present copies src INTO dst, so a second
+# run produced `public/public/` and left `/design/styles/main.css` missing — which the guard below now catches
+# rather than starting a server that renders unstyled.
+rm -rf "$SD/apps/ozikoro/public" "$SD/apps/ozikoro/.next/static"
 cp -R "$ROOT/apps/ozikoro/public" "$SD/apps/ozikoro/public"
-mkdir -p "$SD/apps/ozikoro/.next"
 cp -R "$ROOT/apps/ozikoro/.next/static" "$SD/apps/ozikoro/.next/static"
+
+# Prove the copy happened rather than assuming it. The stylesheets are the thing whose absence is invisible
+# from the server's own logs and obvious to a reader.
+for asset in "$SD/apps/ozikoro/public/design/styles/main.css" "$SD/apps/ozikoro/.next/static"; do
+  if [ ! -e "$asset" ]; then
+    echo "  the copy did not produce $asset — refusing to start a server that would render unstyled" >&2
+    exit 1
+  fi
+done
 
 echo "==> serving on http://127.0.0.1:$PORT"
 (
