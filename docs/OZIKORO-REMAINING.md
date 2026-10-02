@@ -9875,3 +9875,50 @@ that should have been refused is refused by the database rather than by whoever 
 brief's own instruction is that this is Phase 3 work with the dashboards — not a thing to add sideways at the
 end of a round. **It is also the first Phase 3 item that is genuinely missing rather than already present**,
 which is worth knowing before the dashboards are built on top of it.
+
+---
+
+## ROUND 226 — THE SIGNED-IN WORKSPACE IS VERIFIED, AND THE WHOLE CHAIN WITH IT
+
+Round 225 shipped `/workspace` and recorded honestly that its signed-in rendering was unverified *"because it
+needs a member and there are none."* This round supplied one, verified it, and removed it.
+
+### The chain, end to end
+
+    account:create            created 2536, zztest-workspace@example.org, role editor
+    POST /api/auth/signin     303, with a session cookie          (Origin and Referer set)
+    GET  /workspace/          200 — SIGNED IN
+
+    one h1                    yes
+    signed in as shown        "Probe Editor"
+    role shown                Editor
+    capabilities              edit_entity · manage_source · publish · review_queue and three more
+    53 role-to-capability grants stated
+    the tenth role disclosed  moderator, with its reason
+
+**This is the first time the permission model has been exercised rather than inspected.** Everything before it
+read the tables and the code; this signed in as a real role and rendered what `capabilitiesFor` resolved —
+**and the resolved set is the editor's seven, not a list the page asserted.**
+
+### Removed, on the checker's own terms
+
+    accounts deleted        1
+    residue rows removed    0
+    accounts remaining      0
+    check:residue           "No test residue. 102 table(s) checked, every one clean."
+
+**Nothing was left behind**, and the residue check that was written for exactly this — after round 135's
+cleanup missed an audit row — confirmed it rather than my having remembered to.
+
+### What is now verified about Phase 3
+
+    verified    the roles table, its 53 grants, and capabilitiesFor resolving a real member's set
+    verified    /account and /workspace both gate unsigned visitors with a 307 carrying next=
+    verified    neither appears in the sitemap, so robots and the sitemap agree
+    verified    a signed-in editor reaches /workspace and sees their own capabilities
+    NOT built   the SECURITY DEFINER function the brief names
+    NOT built   the nine role dashboards, which need members before they need code
+
+**Three of Phase 3's four requirements are now demonstrated working rather than merely present**, and the
+fourth — the database-level enforcement function — is a schema change to a shared database that belongs with
+the dashboards rather than ahead of them.
