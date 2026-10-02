@@ -11877,3 +11877,28 @@ rule is: **a question the archive cannot ground returns no passages at all.** Bo
 
 **Mutation-tested**: making the overlap test always pass turns all three refusals into failures and exits 1,
 and restoring it returns the check to green. **Wired into `verify-live`, which is now seven checks.**
+
+---
+
+## ROUND 264 (continued) — FIXING A REAL BUG EXPOSED A FALSE FAILURE IN THE LINK CHECK
+
+    BROKEN LINKS: 1
+    307                    /submit
+
+**`/submit` returning 307 is correct.** It is a gated route and an unauthenticated request is *supposed* to be
+sent to `/signin` — round 258 removed the loading boundary above it precisely so that it would, instead of
+answering `200` with a fallback shell.
+
+**The link check required `200` and called everything else broken, so fixing the gate made the link check
+fail.** That is a false failure **introduced by fixing a real one**, and it is the thirteenth time in this run
+that an instrument's limit has been read as a fact about its subject.
+
+### The fix
+
+**The request now follows redirects and the FINAL status is what is judged.** A gated route that leads to the
+sign-in page is a link a reader can follow; **a redirect that ends at a 404 is still caught**, because the final
+status is what is read. The failure line now prints both codes — `307 -> 404` — so a redirect to a genuinely
+missing page cannot hide behind the new tolerance.
+
+    before   BROKEN LINKS: 1   (307 /submit)
+    after    Every internal link resolved (120 pages)

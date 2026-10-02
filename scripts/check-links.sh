@@ -58,14 +58,28 @@ while [ "${#queue[@]}" -gt 0 ] && [ "$checked" -lt "$MAX_PAGES" ]; do
   fi
   checked=$((checked + 1))
 
+  # A REDIRECT IS NOT A BROKEN LINK (round 264).
+  # This required 200 and called anything else broken. **That was a false failure introduced by fixing a real
+  # one:** round 258 removed a loading boundary above /submit so that an unauthenticated request would return
+  # a 307 to /signin rather than a 200 with a loading shell — and this check then reported /submit as broken,
+  # because 307 is not 200.
+  # So the request follows redirects and the FINAL status is what is judged. A gated route that leads to the
+  # sign-in page is a link that resolves; a redirect that ends at a 404 is still caught, because the final
+  # status is what is read.
   if [ "$code" != "200" ]; then
-    if [ "$code" = "000" ]; then
-      printf '  %-22s %s\n' "NO RESPONSE (retried)" "$path"
+    final=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 120 "$BASE$path" 2>/dev/null)
+    if [ "$final" = "200" ]; then
+      # A 3xx that lands on a page is a link a reader can follow. Counted as resolved.
+      code="200"
     else
-      printf '  %-22s %s\n' "$code" "$path"
+      if [ "$code" = "000" ]; then
+        printf '  %-22s %s\n' "NO RESPONSE (retried)" "$path"
+      else
+        printf '  %-22s %s\n' "$code -> $final" "$path"
+      fi
+      broken=$((broken + 1))
+      continue
     fi
-    broken=$((broken + 1))
-    continue
   fi
 
   # Internal links only: same-origin paths. Assets and anchors are skipped.
