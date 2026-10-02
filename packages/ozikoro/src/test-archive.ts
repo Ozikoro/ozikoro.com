@@ -178,7 +178,20 @@ const ingested = await db.one<Record<string, number>>(`
     count(*) filter (where canonical_url is null) as no_canonical,
     count(*) filter (where search_vector is null) as no_search,
     count(*) filter (where body_html = '') as no_body
-  from ozikoro_article where is_page = false and wp_post_id is null
+  from ozikoro_article
+  /*
+   * EXCLUDING THE REWRITTEN PIECES, WHICH ARE A THIRD CLASS.
+   *
+   * These assertions describe INGESTION: material brought in from elsewhere, held in review until an editor
+   * has looked, with no address on the archive being migrated from. The rewritten articles are not ingestion.
+   * They were written for Ozikoro in the owner's voice from a named earlier article, so they are published by
+   * design and their legacy_url holds the source they were written from — provenance, not an address of ours.
+   *
+   * The marker is the standfirst the publish script writes. A prose marker is weaker than a column and it is
+   * what exists; a column becomes worth it when there are more than a handful of these.
+   */
+  where is_page = false and wp_post_id is null
+    and coalesce(standfirst, '') not like 'By Idenze Ezeme, for Ozikoro.%'
 `);
 if (Number(ingested?.total) === 0) {
   console.log('  SKIPPED — no ingested records are present.');

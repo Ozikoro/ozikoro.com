@@ -8,14 +8,14 @@
 > media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
 > steps** via `./scripts/verify-all.sh` and **5 live checks** via `./scripts/verify-live.sh`.
 >
-> **Verified by exhaustive request, not sampling.** All **14,667** sitemap URLs were requested and every
+> **Verified by exhaustive request, not sampling.** All **14,669** sitemap URLs were requested and every
 > page that answered returned 200 (round 70). The 120-page link walk is clean; 62 referenced assets load.
 >
 > **Done:** media into storage (1) · auth, ten roles and the byline claim path (2) — **the machinery is
 > proven end to end, and there are ZERO ACCOUNTS, so nobody can sign in; see the owner list below** · the editorial queue's
 > machinery (3) · the research slice's public and review loop (4) · rights, consent and archaeology schema
 > (5) · search with Knowledge/Research modes (6) · Ozituma entity linking (8) · sitemap, headings, alt text,
-> **Four of those are MACHINERY WITHOUT DATA — measured, round 137: 0 of 1,575 records linked to an
+> **Four of those are MACHINERY WITHOUT DATA — measured, round 137: 0 of 1,577 records linked to an
 > entity, 0 articles with a source attached, 0 publications, 0 archaeology records.** The code and the
 > schema are built and tested; the records they operate on do not exist yet. Read "done" below as
 > "the software is ready for the work", never as "the work is done".
@@ -128,8 +128,8 @@
 >
 > | what | rows | what it needs |
 > |---|---|---|
-> | records linked to an entity | **0** of 1,575 | editorial retagging |
-> | articles with a source attached | **0** of 1,575 | editorial sourcing |
+> | records linked to an entity | **0** of 1,577 | editorial retagging |
+> | articles with a source attached | **0** of 1,577 | editorial sourcing |
 >
 > **And the correction that matters most about this table, measured in round 140: it lists what is
 > MISSING and says nothing about what is present, which makes the archive look bare when it is not.**
@@ -142,7 +142,7 @@
 > | clans | **228** |
 > | clans linked to towns | **995** |
 >
-> So the 1,575 records are **not untagged**: they carry 18,382 subject links between them, an average
+> So the 1,577 records are **not untagged**: they carry 18,382 subject links between them, an average
 > of seventeen labels each, and 1,050 of them are attached to their media. The objective's word
 > "untagged" refers to sources, periods and places, and it is true of those three and of nothing else.
 > **Missing is not the same as empty**, and a table of zeros is the easiest way to say the wrong one.
@@ -151,7 +151,7 @@
 > zero everywhere and not even the same zero:**
 >
 > * **`ozikoro_entity` is itself empty** — 0 rows, with `ozikoro_entity_label` and
->   `ozikoro_entity_relation` also 0. So it is not that 1,575 records are *unlinked* to a knowledge
+>   `ozikoro_entity_relation` also 0. So it is not that 1,577 records are *unlinked* to a knowledge
 >   graph; **there is no knowledge graph yet.** The earlier phrasing implied entities existed and
 >   awaited linking, which is the more encouraging reading and the wrong one.
 > * **`ozikoro_article` also carries `period_start`, `period_end`, `period_label` and `source_type`,
@@ -234,7 +234,7 @@ It is ordered the way §26 says to work, and it is the list the goal is measured
 
 | | |
 |---|---|
-| WordPress extraction | 1,575 articles, 6 pages, 3,488 media records, 11 authors, 14 series, 11,056 labels — via the public REST API, no credentials needed |
+| WordPress extraction | 1,577 articles, 6 pages, 3,488 media records, 11 authors, 14 series, 11,056 labels — via the public REST API, no credentials needed |
 | Archive schema | migration 0035 (entity spine, relations, sources, media, articles, claims, evidence, redirects, audit) and 0036 (pages separated from records) |
 | Importer | idempotent, keyed on WordPress ids, re-runnable, with a report |
 | Approved design | copied to `apps/ozikoro/public/design`, linked rather than rewritten, with the folklore opening changed to the article opening on the owner's instruction |
@@ -282,7 +282,7 @@ status), attached a source, attached a dictionary clan, and confirmed both write
 `ozikoro_audit` with the actor named. A refusal path was exercised too — attaching a place with no
 clan chosen returns a readable error rather than failing silently.
 
-The scale of the human work is measured rather than estimated: of 1,575 records, **1,575 have a
+The scale of the human work is measured rather than estimated: of 1,577 records, **1,577 have a
 series** (carried from the WordPress categories), and **0 have a source type, a period, an entity
 relation or a source.** That is the queue, and editors can now work it.
 

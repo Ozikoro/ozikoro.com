@@ -103,13 +103,14 @@ const standfirst =
 await db.query(
   `insert into ozikoro_article
      (slug, legacy_url, title, standfirst, body_html, author_id, source_type,
-      status, published_at, modified_at, word_count, is_page)
-   values ($1,$2,$3,$4,$5,$6,$7,'published',now(),now(),$8,false)
+      status, published_at, modified_at, word_count, is_page, topic_id)
+   values ($1,$2,$3,$4,$5,$6,$7,'published',now(),now(),$8,false,
+           (select id from ozikoro_topic where slug = 'cultural-heritage'))
    on conflict (slug) do update set
      title = excluded.title, standfirst = excluded.standfirst, body_html = excluded.body_html,
      author_id = excluded.author_id, source_type = excluded.source_type, status = excluded.status,
      published_at = excluded.published_at, modified_at = excluded.modified_at,
-     word_count = excluded.word_count, updated_at = now()`,
+     word_count = excluded.word_count, topic_id = excluded.topic_id, updated_at = now()`,
   [slug, sourceUrl, title, standfirst, bodyHtml, author.id, SOURCE_TYPE, words(text)]
 );
 
