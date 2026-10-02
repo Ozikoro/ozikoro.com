@@ -86,6 +86,15 @@ export type SeoRecord = {
   topics?: string[];
   /** Suppress indexing — for a dashboard or a search page. */
   noindex?: boolean;
+  /**
+   * Further nodes for the graph, for a page that describes more than itself.
+   *
+   * `/towns` is a list of 188 places and `/photographs` is a collection of images with rights on each. **Those
+   * are facts about the page's subject, not about the page**, and a second `seoHead` would be a second
+   * definition of the site's own identity. So the graph takes extra nodes rather than the function taking
+   * extra callers.
+   */
+  extraNodes?: Record<string, unknown>[];
 };
 
 const OG_TYPE: Record<SeoRecord['kind'], string> = {
@@ -169,6 +178,7 @@ export function seoHead(record: SeoRecord, styles: string[]): string {
   if (record.image) {
     page.image = { '@type': 'ImageObject', url: record.image, caption: record.imageAlt ?? title };
   }
+  for (const extra of record.extraNodes ?? []) nodes.push(extra);
   nodes.push(page);
 
   const trail = record.trail ?? [];
@@ -253,4 +263,80 @@ ${sheets}
  */
 export function withSeoHead(html: string, head: string): string {
   return html.replace(/<head>[\s\S]*?<\/head>/, `<head>\n${head}\n</head>`);
+}
+
+/**
+ * A `Place` node for a town or clan in the archive.
+ *
+ * **NO COORDINATES ARE EMITTED, AND THAT IS THE POINT.** The archive holds 188 places, each with a name, a
+ * region, an ethnic group and an origin summary. **It holds no latitude and no longitude for any of them** —
+ * the clan records carry none, and inventing a pair would put a pin on a map that looks like evidence. **A
+ * fabricated coordinate is the most convincing kind of invented content there is**, because it renders.
+ *
+ * `containedInPlace` is used where a region is recorded, because that is a real relationship from the data, and
+ * a search engine can resolve a region name without a coordinate beside it.
+ */
+export function placeNode(place: {
+  name: string;
+  url: string;
+  region?: string | null;
+  ethnicGroup?: string | null;
+  description?: string | null;
+}): Record<string, unknown> {
+  const node: Record<string, unknown> = {
+    '@type': 'Place',
+    '@id': `${place.url}#place`,
+    name: place.name,
+    url: place.url,
+  };
+  if (place.region) {
+    node.containedInPlace = { '@type': 'AdministrativeArea', name: place.region };
+  }
+  if (place.ethnicGroup) {
+    node.additionalProperty = { '@type': 'PropertyValue', name: 'Ethnic group', value: place.ethnicGroup };
+  }
+  if (place.description) node.description = place.description;
+  return node;
+}
+
+/**
+ * An `ImageObject` node for a photograph, **carrying the rights state the archive actually recorded.**
+ *
+ * THE LICENCE FIELD IS THE POINT
+ *
+ * `license`, `creditText` and `creator` are how schema.org expresses an image's reuse terms. **For all 3,750
+ * media records this archive holds, `licence` is null and the rights basis is `unknown`** — the migration
+ * carried no rights fields and the register states that plainly.
+ *
+ * **So no `license` property is emitted at all.** Emitting one would assert a licence that does not exist, and
+ * a search engine — or a person reading the structured data — would take it as permission. **The absence is the
+ * accurate statement, and it is a statement rather than an omission because `copyrightNotice` says why.**
+ */
+export function imageNode(photo: {
+  url: string;
+  contentUrl: string;
+  caption?: string | null;
+  creator?: string | null;
+  credit?: string | null;
+  licence?: string | null;
+  datePublished?: string | null;
+}): Record<string, unknown> {
+  const node: Record<string, unknown> = {
+    '@type': 'ImageObject',
+    '@id': `${photo.url}#image`,
+    url: photo.url,
+    contentUrl: photo.contentUrl,
+    representativeOfPage: true,
+  };
+  if (photo.caption) node.caption = photo.caption;
+  if (photo.creator) node.creator = { '@type': 'Person', name: photo.creator };
+  if (photo.credit) node.creditText = photo.credit;
+  if (photo.datePublished) node.datePublished = photo.datePublished;
+  // A licence is emitted ONLY when one is recorded. There are none in this archive, and saying so is the point.
+  if (photo.licence) {
+    node.license = photo.licence;
+  } else {
+    node.copyrightNotice = 'No licence recorded. Reuse not granted. Held by Ozi Ikoro Limited.';
+  }
+  return node;
 }

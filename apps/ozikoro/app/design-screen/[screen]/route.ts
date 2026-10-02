@@ -20,8 +20,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { seoHead, withSeoHead } from '@ozikoro/platform';
-import { mediaPath } from '@ozikoro/platform';
+import { imageNode, mediaPath, placeNode, seoHead, withSeoHead } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import {
   fillArchiveIndex, fillCollections, fillDashboard, fillDocuments, fillFolklore, fillHome, fillListen,
@@ -149,6 +148,12 @@ export async function GET(
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   }
 
+  /*
+   * DECLARED OUTSIDE THE TRY, because the head is written after it — and a fill that throws must still leave a
+   * page with its own title rather than falling back to the design's demonstration one.
+   */
+  let extraNodes: Record<string, unknown>[] = [];
+
   try {
     if (name === 'archive-index') {
       const url = new URL(request.url);
@@ -176,6 +181,13 @@ export async function GET(
         total: total?.n ?? 0,
       });
     }
+    /*
+     * FURTHER GRAPH NODES, FOR THE PAGES THAT DESCRIBE MORE THAN THEMSELVES.
+     *
+     * `/towns` is a list of 188 places and `/photographs` is a collection of images with a rights state on
+     * each. **Those are facts about the page's subject rather than about the page**, so they go into the same
+     * graph rather than into a second head.
+     */
     if (name === 'documents') {
       /*
        * ONLY THE FILES. Eight of the twelve records the migration called `document` are `text/html` — saved
@@ -271,6 +283,16 @@ export async function GET(
         name: r.name, href: `/town/${r.slug}/`, region: r.region, image: r.img ? mediaPath(r.img) : null, records: Number(r.n) || 0,
       }));
       if (towns.length > 0) html = fillTowns(html, towns);
+      // A Place per town. **No coordinates**: the archive holds none, and a pin that looks like evidence is
+      // the most convincing kind of invented content there is.
+      extraNodes = towns.map((t) =>
+        placeNode({
+          name: t.name,
+          url: `https://ozikoro.com${t.href}`,
+          region: t.region,
+          description: t.records > 0 ? `${t.records} record(s) in the archive.` : 'No records yet.',
+        })
+      );
     }
 
     if (name === 'collections') {
@@ -393,6 +415,18 @@ export async function GET(
         captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : null,
       }));
       if (photos.length > 0) html = fillPhotographs(html, photos);
+      // An ImageObject per photograph. `licence` is null for every one of them, so `imageNode` emits a
+      // `copyrightNotice` saying so rather than a `license` asserting a permission nobody granted.
+      extraNodes = photos.map((ph) =>
+        imageNode({
+          url: `https://ozikoro.com/photographs/`,
+          contentUrl: `https://ozikoro.com${ph.src}`,
+          caption: ph.title,
+          creator: ph.creator,
+          credit: ph.credit,
+          licence: ph.licence,
+        })
+      );
     }
 
     if (name === 'home') {
@@ -462,6 +496,7 @@ export async function GET(
         kind: meta.kind ?? 'page',
         image: null,
         trail,
+        extraNodes,
         // A dashboard, a search page and the form behind the auth gate are not for indexing.
         noindex: name.startsWith('dashboard') || name === 'search' || name === 'upload' || name === 'signin',
       },

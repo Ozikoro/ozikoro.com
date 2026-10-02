@@ -32,7 +32,27 @@ export interface IndexableUrl {
   lastModified?: string;
   changeFrequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
   priority: number;
+  /**
+   * Which sitemap this belongs to.
+   *
+   * WHY THE ENUMERATION IS SPLIT ON THE WAY OUT
+   *
+   * Every address the archive wants found, in one document, is **a 2 MB XML file** — and a sitemap protocol
+   * limit is 50,000 URLs and 50 MB uncompressed, so size was not yet the problem. **The problem is what a
+   * crawler does with it.** One file mixes a page that changes daily with 11,056 subject pages that have not
+   * changed since import, so Search Console can only report on the whole, and a single malformed entry
+   * invalidates the lot.
+   *
+   * **A sitemap index with one file per kind is what lets each kind be diagnosed on its own** — and it is how
+   * a crawler is told which parts of an archive are large and which are small.
+   */
+  group: 'pages' | 'histories' | 'topics' | 'subjects' | 'media' | 'places' | 'publications' | 'researchers';
 }
+
+/** The child sitemaps, in the order the index lists them. */
+export const SITEMAP_GROUPS = [
+  'pages', 'histories', 'topics', 'subjects', 'media', 'places', 'publications', 'researchers',
+] as const;
 
 /** The site's own origin. One constant, so no entry can be built from a different one by accident. */
 export const SITE_ORIGIN = 'https://ozikoro.com';
@@ -47,15 +67,15 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
   const out: IndexableUrl[] = [];
 
   // The pages that always exist, whether or not the archive has content yet.
-  out.push({ url: canonicalUrl(''), changeFrequency: 'daily', priority: 1 });
-  out.push({ url: canonicalUrl('archive'), changeFrequency: 'daily', priority: 0.9 });
-  out.push({ url: canonicalUrl('folklore'), changeFrequency: 'weekly', priority: 0.8 });
-  out.push({ url: canonicalUrl('documents'), changeFrequency: 'weekly', priority: 0.7 });
-  out.push({ url: canonicalUrl('topics'), changeFrequency: 'weekly', priority: 0.7 });
-  out.push({ url: canonicalUrl('entities'), changeFrequency: 'weekly', priority: 0.7 });
-  out.push({ url: canonicalUrl('publications'), changeFrequency: 'daily', priority: 0.8 });
-  out.push({ url: canonicalUrl('researchers'), changeFrequency: 'weekly', priority: 0.7 });
-  out.push({ url: canonicalUrl('about'), changeFrequency: 'monthly', priority: 0.5 });
+  out.push({ url: canonicalUrl(''), group: 'pages', changeFrequency: 'daily', priority: 1 });
+  out.push({ url: canonicalUrl('archive'), group: 'pages', changeFrequency: 'daily', priority: 0.9 });
+  out.push({ url: canonicalUrl('folklore'), group: 'pages', changeFrequency: 'weekly', priority: 0.8 });
+  out.push({ url: canonicalUrl('documents'), group: 'pages', changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('topics'), group: 'pages', changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('entities'), group: 'places', changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('publications'), group: 'publications', changeFrequency: 'daily', priority: 0.8 });
+  out.push({ url: canonicalUrl('researchers'), group: 'pages', changeFrequency: 'weekly', priority: 0.7 });
+  out.push({ url: canonicalUrl('about'), group: 'pages', changeFrequency: 'monthly', priority: 0.5 });
 
   // Records at their original addresses, which the plan requires to survive the move.
   const articles = await db.rows<{ slug: string; modified_at: string | null }>(
@@ -64,7 +84,7 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
   );
   for (const a of articles) {
     out.push({
-      url: canonicalUrl(a.slug),
+      url: canonicalUrl(a.slug), group: 'histories',
       ...(a.modified_at ? { lastModified: new Date(String(a.modified_at)).toISOString() } : {}),
       changeFrequency: 'monthly', priority: 0.8,
     });
@@ -74,10 +94,10 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
   const pages = await db.rows<{ slug: string }>(
     `select slug from ozikoro_article where status = 'published' and is_page = true order by id`
   );
-  for (const p of pages) out.push({ url: canonicalUrl(p.slug), changeFrequency: 'monthly', priority: 0.6 });
+  for (const p of pages) out.push({ url: canonicalUrl(p.slug), group: 'pages', changeFrequency: 'monthly', priority: 0.6 });
 
   const topics = await db.rows<{ slug: string }>(`select slug from ozikoro_topic order by id`);
-  for (const t of topics) out.push({ url: canonicalUrl(`topics/${t.slug}`), changeFrequency: 'weekly', priority: 0.7 });
+  for (const t of topics) out.push({ url: canonicalUrl(`topics/${t.slug}`), group: 'topics', changeFrequency: 'weekly', priority: 0.7 });
 
   /*
    * The 11,056 subjects. Each one is a real page listing the records filed under it, and each is how
@@ -88,11 +108,11 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
       where exists (select 1 from ozikoro_article_label al where al.label_id = ozikoro_label.id)
       order by id`
   );
-  for (const l of labels) out.push({ url: canonicalUrl(`labels/${l.slug}`), changeFrequency: 'weekly', priority: 0.6 });
+  for (const l of labels) out.push({ url: canonicalUrl(`labels/${l.slug}`), group: 'subjects', changeFrequency: 'weekly', priority: 0.6 });
 
   // The media pages, which are records in their own right with provenance and rights on them.
   const media = await db.rows<{ slug: string }>(`select slug from ozikoro_media order by id`);
-  for (const m of media) out.push({ url: canonicalUrl(`documents/${m.slug}`), changeFrequency: 'monthly', priority: 0.5 });
+  for (const m of media) out.push({ url: canonicalUrl(`documents/${m.slug}`), group: 'media', changeFrequency: 'monthly', priority: 0.5 });
 
   // Entities, and only those with something behind them — an empty page is a thin page.
   const entities = await db.rows<{ slug: string }>(
@@ -100,14 +120,14 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
       where exists (select 1 from ozikoro_article_entity ae where ae.entity_id = ozikoro_entity.id)
       order by id`
   );
-  for (const e of entities) out.push({ url: canonicalUrl(`entities/${e.slug}`), changeFrequency: 'weekly', priority: 0.7 });
+  for (const e of entities) out.push({ url: canonicalUrl(`entities/${e.slug}`), group: 'places', changeFrequency: 'weekly', priority: 0.7 });
 
   const publications = await db.rows<{ slug: string; published_at: string | null }>(
     `select slug, published_at from ozikoro_publication where status = 'published' and is_public = true order by id`
   );
   for (const p of publications) {
     out.push({
-      url: canonicalUrl(`publications/${p.slug}`),
+      url: canonicalUrl(`publications/${p.slug}`), group: 'publications',
       ...(p.published_at ? { lastModified: new Date(String(p.published_at)).toISOString() } : {}),
       changeFrequency: 'monthly', priority: 0.7,
     });
@@ -116,7 +136,7 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
   const researchers = await db.rows<{ account_id: number }>(
     `select account_id from ozikoro_member where is_public = true and status = 'active' order by account_id`
   );
-  for (const r of researchers) out.push({ url: canonicalUrl(`researchers/${r.account_id}`), changeFrequency: 'monthly', priority: 0.6 });
+  for (const r of researchers) out.push({ url: canonicalUrl(`researchers/${r.account_id}`), group: 'researchers', changeFrequency: 'monthly', priority: 0.6 });
 
   /*
    * Deduplicate on the way out.
@@ -135,4 +155,41 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
     seen.add(entry.url);
     return true;
   });
+}
+
+/** XML text, escaped. A title can contain `&`, and an unescaped one invalidates the whole document. */
+const x = (v: string) =>
+  v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+/** One sitemap document, from a list of entries. */
+export function sitemapDocument(entries: IndexableUrl[]): string {
+  const urls = entries
+    .map((e) => {
+      const parts = [`<loc>${x(e.url)}</loc>`];
+      if (e.lastModified) parts.push(`<lastmod>${x(new Date(e.lastModified).toISOString())}</lastmod>`);
+      parts.push(`<changefreq>${e.changeFrequency}</changefreq>`);
+      parts.push(`<priority>${e.priority.toFixed(1)}</priority>`);
+      return `<url>${parts.join('')}</url>`;
+    })
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`;
+}
+
+/**
+ * The sitemap index, which is what `/sitemap.xml` now returns.
+ *
+ * **A child is listed only when the archive actually holds something of that kind.** An index entry pointing at
+ * an empty sitemap is a crawl request for nothing, and Search Console reports it as a problem rather than as a
+ * category with no content.
+ */
+export function sitemapIndex(groups: { group: string; count: number; lastModified?: string }[]): string {
+  const children = groups
+    .filter((g) => g.count > 0)
+    .map((g) => {
+      const parts = [`<loc>${x(`${SITE_ORIGIN}/sitemap/${g.group}`)}</loc>`];
+      if (g.lastModified) parts.push(`<lastmod>${x(new Date(g.lastModified).toISOString())}</lastmod>`);
+      return `<sitemap>${parts.join('')}</sitemap>`;
+    })
+    .join('');
+  return `<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${children}</sitemapindex>`;
 }

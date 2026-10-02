@@ -182,6 +182,10 @@ export function middleware(request: NextRequest) {
     // /town/<slug>/ returned 404 while `clan` held the row and /towns/<nothing> worked: `town` was absent,
     // so the path was rewritten to /attachment/<slug>/. Every future static parent belongs in this list.
     'town', 'project',
+    // The sitemap index's children — `/sitemap/histories` and the rest. **An omission here is not a 404 for
+    // the attachment fallback but a 404 for the real route**, because the rewrite runs before routing: every
+    // child sitemap answered "Not found" until this was added.
+    'sitemap',
   ]);
   const segments = pathname.split('/').filter(Boolean);
   if (!isApi && segments.length === 2 && !KNOWN_FIRST_SEGMENTS.has(segments[0] ?? '')) {

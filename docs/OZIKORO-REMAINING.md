@@ -13010,3 +13010,62 @@ anchor the design places inside the prose column.
 own `.cite-block` class so the styling is the design's.
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 287 — THE SITEMAP SPLIT, THE PLACES, AND THE RIGHTS THAT ARE NOT THERE
+
+### The sitemap was one 2 MB file. It is now an index and eight children.
+
+    /sitemap.xml              a <sitemapindex> with seven children
+    /sitemap/pages            1,372 b
+    /sitemap/histories      220,735 b
+    /sitemap/topics           1,770 b
+    /sitemap/subjects     1,205,384 b
+    /sitemap/media          521,527 b
+    /sitemap/places           7,711 b
+    /sitemap/publications       216 b
+    (researchers: empty, so not listed)
+
+**The size was not the fault — a sitemap may hold 50,000 URLs. The fault was that one file mixed a page that
+changes daily with 11,056 subject pages untouched since import.** Search Console could report only on the whole
+of it, and a single malformed entry would invalidate the lot. **One child per kind is what lets each kind be
+diagnosed on its own.**
+
+**The enumeration still lives in one place.** `listIndexableUrls` gained a `group` on each entry and the routes
+filter that one list, so **"what is indexable?" still has exactly one answer** — only the delivery is split.
+
+### Two faults on the way, both in the delivery rather than the content
+
+    Next's app/sitemap.ts wraps whatever it returns in a <urlset>
+
+**A sitemap index must be a `<sitemapindex>` containing `<sitemap>` elements — a different document type.** The
+convention produced a file listing the child URLs **as if they were pages of the site**, so a crawler reading it
+would have tried to index `/sitemap/histories` as a page. The index is now a route, and `/sitemap.xml` ends in
+`.xml`, which the middleware's asset skip already excludes — **so it needs no entry in the known-segments list.**
+
+    every child sitemap answered 404
+
+**`/sitemap/histories` is a two-segment path, and the middleware rewrites those to `/attachment/<slug>/` unless
+the first segment is known.** `sitemap` was not in the list. **An omission there is not a 404 for the fallback
+but a 404 for the real route**, which is the third time this file has recorded that same trap.
+
+### 188 Places, and not one coordinate
+
+    Place: 188   ·   Abagana | containedInPlace: Anambra | latitude present: false
+
+**The archive holds no latitude and no longitude for any of its 188 places** — the clan records carry none.
+**Inventing a pair would put a pin on a map that looks like evidence**, and a fabricated coordinate is the most
+convincing kind of invented content there is, because it renders. `containedInPlace` is used where a region is
+recorded, because that is a real relationship in the data.
+
+### 24 ImageObjects, and the licence field deliberately absent
+
+    ImageObject: 24   ·   license: NONE   ·   copyrightNotice: "No licence recorded. Reuse not granted."
+
+**`license` is how schema.org expresses an image's reuse terms, and for all 3,750 media records this archive
+holds it is null.** So **no `license` property is emitted at all** — emitting one would assert a permission that
+does not exist, and a search engine, or a person reading the structured data, would take it as consent.
+
+**The absence is the accurate statement, and `copyrightNotice` is what makes it a statement rather than an
+omission.**
