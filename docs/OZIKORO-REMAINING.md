@@ -11194,3 +11194,53 @@ complete and the register is not.**
     404   /watch
 
 **Thirteen pass, five to go, and `/watch` is still the one that does not exist.**
+
+---
+
+## ROUND 252 — `/watch` BUILT, THE ROUTE THAT DID NOT EXIST
+
+    before   HTTP 404 — the design has a watch screen and the archive had no route at all
+    after    ok — 3 design sections, 4 headings
+
+**This was the only remaining item that was a build rather than a rebuild.** The design has `screens/watch.html`
+and the archive had nothing at `/watch`, which the homepage made visible by linking "Open Watch" from a section
+that was deliberately omitted.
+
+### The videos are real, and the design's player was the wrong instrument
+
+**Thirteen video records**, twelve stored by the archive and one hotlinked to its source: masquerade films
+(Agbogho Mmuo, Agbeji, Adamma, Ekpo), kingdom films (Oko), Egwu Amala, and a recorded Haitian dance in honour
+of Igbo ancestors.
+
+**The design's inline player uses an `<iframe>`, because it assumed embedded third-party video.** These are the
+archive's own MP4 and QuickTime files, so the player is a `<video>` element. **An iframe would have been the
+wrong instrument and would also have misrepresented where the file comes from** — which is exactly the
+distinction the design's own source note is about.
+
+**Four records have no title and are not given invented ones.** They appear as "Untitled recording", the same
+treatment the archive gives an untitled article.
+
+**And "Unspoken Stories" is a series the design names with three example cards and the archive holds no film
+for.** The section is drawn — heading, honest state, an offer to contribute — rather than omitted, because the
+series is the institution's and a reader looking for it should find a shelf rather than nothing. **It is not
+filled with the design's three examples.**
+
+### The consequence for the homepage, which is now stale
+
+**The homepage's omission declaration reads:** *"the design draws a lead film and three list items; the archive
+holds 13 video records and no published film pages, so the section is left out rather than naming films that do
+not exist."* **That was true when it was written and is not true now** — `/watch` exists, the films are listed,
+and `sx-home-watch` can be drawn from the same records. The declaration and the parity check's
+`EXPECTED_OMISSIONS` entry both need to go, and the section needs building.
+
+**That is the next round's first task**, and it is worth noting that the instrument reported the homepage as
+*passing* throughout — because it was told the omission was intended. **A declared omission is a promise to
+revisit it, and nothing in the check enforces that promise.**
+
+### The tally
+
+    ok    /  /archive  /photographs  /documents  /material-culture  /towns  /cite  /careers
+          /ledger  /about  /topics  /listen  /projects  /watch
+    FAIL  /igbo-calendar  /cultural-calendar  /publications  /folklore  /submit
+
+**Fourteen pass, five to go, and the 404 is gone.**
