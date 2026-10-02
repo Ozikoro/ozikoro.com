@@ -8505,3 +8505,81 @@ is round 174's habit and is now the fifth time it has changed a conclusion.
 > **The pattern is consistent enough to name: every finding in this file that has been re-checked has been
 > either overstated or understated, and never simply right.** The re-check is not a formality; it is where the
 > precision comes from.
+
+---
+
+## ROUND 194 — AN ERROR BOUNDARY IS WRITTEN, AND I COULD NOT VERIFY THAT IT RENDERS
+
+Round 156 found that neither app has an error boundary: a missing address draws a page in the archive's own
+voice, and a failed one drew Next.js's. This round wrote `apps/ozikoro/app/error.tsx` in the same design
+vocabulary — `wrap section`, `notfound`, `eyebrow`, `lede`, `row`, the two buttons — with three deliberate
+choices:
+
+    it shows error.digest        not error.message — an exception's text can carry a path or a
+                                 fragment of a record, and a reader has no use for it
+    it does NOT say the record   an error is not a 404, and telling a reader a history does not
+      is missing                 exist because a query failed states something the archive does not know
+    it reports once per failure  so the server log carries the same digest the reader is shown
+
+**It typechecks. I could not show that it renders.**
+
+### What the measurement said, and why it does not settle the question
+
+A temporary route that throws — round 116's technique — was requested and answered:
+
+    status                                   500
+    "This page could not be loaded"          NOT FOUND
+    "Browse the archive"                     found (from the navigation)
+    "zztest deliberate failure"              LEAKED into the response
+
+**Next.js in development draws its own error document, message included, and does not invoke the route's
+`error.tsx`.** That is a deliberate framework behaviour for developers — and it means **this measurement
+cannot tell a working boundary from a broken one**, because the thing being measured never ran.
+
+**The leaked message is therefore Next's dev output and not this component's**, which withholds it by
+design — but that is an argument rather than a measurement, and the difference matters.
+
+### What would settle it, and why it is not done here
+
+    npm -w @ozikoro/site run build && next start   then request a throwing route
+    production renders error.tsx; development renders the framework's own page
+
+**A production build of the site is the only thing that exercises this path**, it takes minutes, and this
+round's remaining context was better spent recording the gap than half-running it. **The file is committed
+because it typechecks, uses the documented API and is strictly better than no boundary** — and the record
+says plainly that its rendering is unverified, so the next round can finish it rather than trust it.
+
+### The habit this is the seventh instance of
+
+    round 112   "is it in the file" instead of what the browser draws
+    round 172   React interleaves text nodes; the fix looked missing
+    round 194   development draws its own error page; the boundary looked absent
+
+**Each time, the artefact contained the answer in a form the check could not express** — and this time the
+check was pointing at a build mode that never runs the code under test. **A measurement taken in the wrong
+mode is not a weak measurement; it is a measurement of something else.**
+
+### And the pre-commit hook caught a real failure on the way in
+
+Committing `error.tsx` was **refused**:
+
+    .next/types/app/zztest-throws/page.ts(2,24): error TS2307: Cannot find module
+      '../../../../app/zztest-throws/page.js'
+
+**Next.js had generated route types for the temporary throwing route and kept them after the route was
+deleted**, so the repository typechecked against a page that no longer existed. The hook named the file and
+stopped the commit.
+
+**This is round 187's mechanism doing exactly what it was built for, on the first real occasion.** Two things
+are worth separating:
+
+    the failure    a stale BUILD ARTEFACT, not a source error — `.next/` is generated, and
+                   deleting a route does not delete the types generated for it
+    who caught it  the hook, in about a minute, at the moment of committing
+
+**Without it this would have been found later, by a `verify-all` run, and the cause — a deleted temporary
+route — would have been several rounds cold.** The habit of leaving temporary routes behind is one this
+file has used repeatedly (rounds 62, 116, 172, 194); **until now nothing checked that removing one also
+removed what the build had made of it.**
+
+Clearing `apps/ozikoro/.next/types/app/zztest-throws` fixed it, and the cache regenerates on the next build.
