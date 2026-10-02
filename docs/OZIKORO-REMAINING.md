@@ -7779,3 +7779,60 @@ better spent recording the shape than half-writing its replacement.
 **Both rounds are about the same thing: a checker's scope is an assertion, and only a check against the
 whole repository can confirm it.** Round 104 built the guard for the empty case; **the partial case is the
 one that still passes quietly**, and it is the one a future module move would produce.
+
+---
+
+## ROUND 181 — THE SCOPE ASSERTION, AND THREE BUGS IN IT THAT ONLY A MUTATION COULD FIND
+
+Round 180 stated the fix: every capability call site must fall inside `SOURCE_DIRS`, so a future module move
+cannot add one the check never reads. This round built it — and it did not work, three times.
+
+    cwd under npm -w            /Users/…/staging/packages/ozikoro
+    walk('apps') from there     0 files
+
+### Bug 1 — the wrong root
+
+The extraction at line 70 reads `walk(join(REPO_ROOT, dir))`, where `REPO_ROOT` is derived from the file's own
+URL. **The assertion walked a bare `'apps'`.** Under `npm -w` the working directory is the package, so it
+found nothing at all and inspected nothing.
+
+### Bug 2 — the wrong basis for comparison
+
+Had it found anything, `file.startsWith(dir + '/')` compares an **absolute** path against a **relative**
+prefix, so every call site would have been reported as outside the scope. **A false alarm instead of a silent
+pass** — the opposite failure, and just as wrong.
+
+### Bug 3 — my own filter excluded the evidence
+
+Before either of those, a redundant `/test-/` excluded `zztest-outside.ts`, because **the project's own
+fixture prefix collides with the token `test-`**. The file written to prove the assertion bites was filtered
+out by the assertion. `walk` already excludes both test conventions correctly — with anchored predicates — so
+the filter was not only redundant but wrong.
+
+### And it reported exit 0 every time
+
+    scope correct     -> exit 0     which was right
+    call outside      -> exit 0     which was WRONG, three times, for three different reasons
+
+**Only the mutation found it.** A check that is supposed to catch a stale scope was itself silently scoped
+wrong, and its own passing output was identical to the output it gives when the scope is genuinely fine.
+
+### The rule this is the third instance of
+
+    round 169   grep -c on a named file printing file:count -> six fields falsely unused
+    round 180   a scope matching the old shape               -> correct, and unable to say so
+    round 181   three bugs in the guard for round 180        -> and it reported success
+
+> **A new check is not evidence. It is a claim, and the only thing that tests a claim is making it fail on
+> purpose.** Round 180 recorded the fix as *"a one-line assertion"*; it took three corrections, and none of
+> them would have been visible from reading the code.
+
+### Now
+
+    scope correct                     exit 0
+    requireCapability outside it      exit 2, naming apps/ozikoro/components/zztest-outside.ts
+                                      and saying to add the directory to SOURCE_DIRS
+    after cleanup                     exit 0
+
+**The partial-miss case that has passed quietly since round 104 now fails loudly**, and the checker that
+gates 53 capability grants can no longer be short by one without saying so.

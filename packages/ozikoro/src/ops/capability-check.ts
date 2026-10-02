@@ -114,6 +114,57 @@ if (process.argv[1] && process.argv[1].endsWith('capability-check.ts')) {
    * This is the check written because a capability held by nobody shipped once already (round 12), so its
    * silence is the last silence that should be trusted.
    */
+  /*
+   * THE SCOPE ASSERTION (round 181).
+   *
+   * The guard below catches an extractor that found NOTHING. It cannot catch one that found seven names
+   * instead of eight, because every name it did find is granted and the output is a clean green line — short
+   * by one, with nothing to say so.
+   *
+   * That is the failure a future module move would produce: `requireCapability` called from a directory
+   * outside SOURCE_DIRS, silently unchecked. So the repository is asked rather than the scope — every call
+   * site in apps/ and packages/ must fall inside the directories this check reads.
+   *
+   * Round 179 found the env-drift check's file list had gone stale after a module moved; this is that lesson
+   * made mechanical instead of remembered.
+   */
+  const outside: string[] = [];
+  for (const root of ['apps', 'packages']) {
+    // TWO BUGS LIVED HERE, and the mutation test found both by refusing to pass.
+    //
+    // 1. The walk used a BARE relative path while the extraction above uses `join(REPO_ROOT, dir)`. Under
+    //    `npm -w` the working directory is `packages/ozikoro`, so `walk('apps')` returned zero files and
+    //    this loop had nothing to inspect: measured `cwd=…/packages/ozikoro apps=0`.
+    // 2. Had it found any, `file.startsWith(dir + '/')` compared an ABSOLUTE path against a relative
+    //    prefix, so every call site would have been reported as outside the scope — a false alarm instead
+    //    of a silent pass.
+    //
+    // `walk` already restricts to .ts/.tsx and already excludes both test conventions and this file, so
+    // there are no filters here. There WERE, and that was the third bug: a redundant `/test-/` was not
+    // anchored, so it excluded `zztest-outside.ts` — the project's own fixture prefix collides with the
+    // token `test-`, and the file written to prove the assertion bites was itself filtered out by it.
+    //
+    // **Round 169's lesson, a third time: the check was broken and said everything was fine.** Each bug
+    // was found only by running the mutation and refusing to accept the exit code it produced.
+    for (const file of await walk(join(REPO_ROOT, root))) {
+      const text = await readFile(file, 'utf8');
+      if (!/requireCapability\(|hasCapability\(/.test(text)) continue;
+      const shown = file.slice(REPO_ROOT.length + 1);
+      if (!SOURCE_DIRS.some((dir) => shown.startsWith(dir + '/'))) outside.push(shown);
+    }
+  }
+  if (outside.length > 0) {
+    console.error(
+      '\n  CAPABILITY CALLS OUTSIDE THE SCANNED SCOPE — this check would not see these, and would\n' +
+        '  report every capability it DID see as granted:\n'
+    );
+    for (const f of outside) console.error(`    ${f}`);
+    console.error(
+      `\n  Add the directory to SOURCE_DIRS in ${'packages/ozikoro/src/ops/capability-check.ts'}.\n`
+    );
+    process.exit(2);
+  }
+
   if (required.size === 0) {
     console.error(
       '\n  EXTRACTED NO CAPABILITY NAMES — the source scan found nothing, which cannot be right: this\n' +
