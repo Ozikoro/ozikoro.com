@@ -727,5 +727,14 @@
    "bytes": 820,
    "sha256": "694f17daf64d3bf3481ee838ce69c26c593c60c0ed45a19209754fe5a742bcf0"
   }
- ]
+ ],
+ "git_history": {
+  "path": "design/calm-comfort-construct/.git-upstream",
+  "commits": 117,
+  "head": "e0dfa7248fbf3a34f529ebdfd95e1e6504448f73",
+  "read_with": "git --git-dir=design/calm-comfort-construct/.git-upstream log",
+  "note": "The complete upstream history. Named .git-upstream rather than .git so the parent repository treats the directory as ordinary files it ignores, rather than as a nested repository it would record as a gitlink \u2014 which would replace 143 tracked files with a single pointer."
+ },
+ "pdfs": "public/design/downloads/*.pdf are part of the deliverable. They were excluded by the blanket *.pdf rule in .gitignore, in BOTH the import and the app, so a fresh clone received a design handoff missing two of its files while every check passed \u2014 because the checks read the working tree and the working tree had them. Negation rules now track them.",
+ "verified_against_upstream_head": "e0dfa7248fbf3a34f529ebdfd95e1e6504448f73"
 }

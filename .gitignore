@@ -113,3 +113,23 @@ Thumbs.db
 # control -- 0 files tracked -- so a bad edit could not be reverted and nothing could be
 # pushed. A separate stack still needs a history; if it should live in its own
 # repository, that is a move to make deliberately, not a reason to leave it untracked.
+
+# The design handoff's two demonstration PDFs are PART OF THE DELIVERABLE, not output.
+#
+# The blanket `*.pdf` rule above exists so generated documents and scraped PDFs never reach a commit. It also
+# caught these two, in BOTH copies — the imported design source and the app's public/design — which meant a
+# fresh clone received a design handoff missing two of its files while every check reported the handoff
+# complete, because the checks read the working tree and the working tree had them.
+#
+# These are the screens' own download affordances: the Documents screen links them and the brief forbids
+# treating them as official publications. They are small, static, and referenced by the design.
+!apps/ozikoro/public/design/downloads/*.pdf
+!design/calm-comfort-construct/public/design/downloads/*.pdf
+
+# The design repository's COMPLETE git history, kept beside the files it belongs to.
+#
+# The working tree was imported file-by-file, which loses the 117 commits behind it. This directory is that
+# history: a full clone's .git, readable with `git --git-dir=design/calm-comfort-construct/.git-upstream log`.
+# It is ignored because it is history rather than source, and because its object files are not something the
+# parent repository should carry twice.
+design/calm-comfort-construct/.git-upstream/
