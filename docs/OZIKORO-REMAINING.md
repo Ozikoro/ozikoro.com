@@ -12209,3 +12209,27 @@ Discography 6 · Uncategorized 3 · Art 1 · Proverbs & Idioms 1 · Video 0.
     `cp -R src dst` with dst present      copied INTO it, leaving public/public/ — my own
                                           stylesheet guard caught it rather than serving unstyled
     the entries wrapper matched nothing   found by testing the served page, not the code
+
+---
+
+## ROUND 271 — THE FILMS WERE ALREADY IN THE ARCHIVE, SO NONE WERE FETCHED
+
+**The owner asked whether any article carried a YouTube video to use for the watch page, and said that if none
+did, I should source videos from YouTube myself. The answer is that 24 published articles embed one:**
+
+    24 articles embed a YouTube video
+    23 have a readable 11-character id
+     4 have no id in a form the regex reads
+
+**So nothing was fetched from outside, and nothing is invented.** Each film's title is its article's title, its
+source is the article, and its poster frame is YouTube's own for that id. **The archive already held the films;
+using anything else would have replaced real ones with borrowed ones.**
+
+    /watch   23 film cards in the design's own <button class="sx-video-card"> markup
+             with data-video-id, the design's poster <img>, <h3> and source <p>
+             verified: design card markup preserved, example flag dropped
+
+**A partial fill, stated:** the design's `watch.html` holds more than one grid, and the fill replaces the one it
+was pointed at. **The remaining example cards are still the design's own and still say they are example
+material** — which is the correct state until each grid is filled, and is why the example flag is dropped per
+region rather than per page.

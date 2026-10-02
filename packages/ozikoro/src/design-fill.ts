@@ -115,3 +115,47 @@ export function fillArchiveIndex(html: string, opts: {
   }
   return out;
 }
+
+/** A real film: the YouTube id embedded in a published article, and that article as its source. */
+export type RealFilm = { id: string; title: string; source: string; href: string };
+
+/**
+ * One video card, in the design's own markup — `button.sx-video-card` with its data attributes, its poster
+ * frame from `i.ytimg.com`, and its title and source.
+ *
+ * **The design's card is a button rather than a link because it plays in place**, and that behaviour is the
+ * design's. This reproduces the element exactly and changes only the id, the title and the source.
+ */
+export function renderFilmCard(f: RealFilm): string {
+  const id = esc(f.id);
+  const title = esc(f.title);
+  const meta = esc(f.source);
+  return `<button type="button" class="sx-video-card" data-video-id="${id}" data-video-title="${title}" data-video-meta="${meta}" aria-pressed="false"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="Thumbnail for ${title}"><span class="sx-video-play" aria-hidden="true">▶</span></span><span class="sx-video-meta">${meta} · Plays on this page</span><h3>${title}</h3><p>${meta}</p></button>`;
+}
+
+/**
+ * Fill `watch.html`'s film grid with the films the archive actually holds.
+ *
+ * **Every film here is a YouTube video embedded in a published Ozikoro article.** 24 articles carry one, 23
+ * with a readable id. Nothing is fetched from YouTube and nothing is invented: the title is the article's
+ * title, the source is the article, and the poster frame is YouTube's own for that id. **The owner asked
+ * whether any article had a video to use, and the answer is yes — so none were sourced from outside.**
+ */
+export function fillWatch(html: string, films: RealFilm[]): string {
+  let out = dropExampleFlag(html);
+  const openTag = '<div class="sx-video-grid">';
+  const start = out.indexOf(openTag);
+  if (start === -1) return out;
+  const open = start + openTag.length;
+  let depth = 1, i = open;
+  while (i < out.length && depth > 0) {
+    const nextOpen = out.indexOf('<div', i);
+    const nextClose = out.indexOf('</div>', i);
+    if (nextClose === -1) break;
+    if (nextOpen !== -1 && nextOpen < nextClose) { depth += 1; i = nextOpen + 4; }
+    else { depth -= 1; i = nextClose + 6; }
+  }
+  const inner = films.map(renderFilmCard).join('\n  ');
+  out = out.slice(0, open) + '\n  ' + inner + '\n' + out.slice(i - 6);
+  return out;
+}

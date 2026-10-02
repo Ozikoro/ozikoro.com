@@ -20,14 +20,14 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArchiveIndex, type RealEntry } from '@ozikoro/platform';
+import { fillArchiveIndex, fillWatch, type RealEntry, type RealFilm } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
 
 /** Screens this route fills. Anything else is served untouched. */
-const FILLED = new Set(['archive-index']);
+const FILLED = new Set(['archive-index', 'watch']);
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
@@ -105,6 +105,28 @@ export async function GET(
         topics: topics.map((t) => ({ slug: t.slug, name: t.name, count: t.n })),
         total: total?.n ?? 0,
       });
+    }
+    if (name === 'watch') {
+      /*
+       * THE FILMS THE ARCHIVE ACTUALLY HOLDS.
+       *
+       * 24 published articles embed a YouTube video and 23 have a readable id, so **no video was sourced from
+       * outside the archive** — the owner's fallback was not needed. The title is the article's own, the href
+       * is the article, and the poster frame is YouTube's for that id.
+       */
+      const db = await getDb();
+      const rows = await db.rows<{ slug: string; title: string; ytid: string }>(
+        `select a.slug, a.title,
+                substring(a.body_html from '(?:youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)([A-Za-z0-9_-]{11})') as ytid
+           from ozikoro_article a
+          where a.status = 'published' and a.is_page = false
+            and a.body_html ~ '(youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)'
+          order by a.published_at desc nulls last`
+      );
+      const films: RealFilm[] = rows
+        .filter((r) => r.ytid)
+        .map((r) => ({ id: r.ytid, title: r.title, source: 'Ozikoro archive film', href: `/${r.slug}/` }));
+      if (films.length > 0) html = fillWatch(html, films);
     }
   } catch (error) {
     // Degrade to the design rather than to an error page, and say so in the log.
