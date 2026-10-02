@@ -9363,3 +9363,48 @@ available and always measurable — and it is now the least valuable thing in th
 
 **The next round should do one of those, or nothing.** Three failures in five rounds is the signal that this
 line of work has stopped paying.
+
+---
+
+## ROUND 209 — THE ARCHIVE ANSWERS WITH ITS OWN WORDS, AND NEVER WITH A MODEL'S
+
+Round 208 said the remaining work needed the owner or nothing. **One piece of item 9 needed neither**, and it
+is the half that has to be right before a model is attached.
+
+### `GET /api/ask?q=…&lang=ibo`
+
+**It returns recorded passages and the address each came from. It does not generate a sentence, call a model,
+or paraphrase anything** — every word a caller receives was written by an archivist and is already published at
+the URL beside it. **That is why it can exist before the assistant does**: round 190 established that the
+archive's system prompt is an editorial decision and round 183 that the declared language is another, and
+**neither is needed to return what the archive holds.**
+
+### The four paths, measured
+
+    no question       400   "Add a question: /api/ask?q=…&lang=ibo"
+    no lang           400   "The archive records no language per article, so this cannot be assumed."
+    a real question   200   grounded · 6 passages · every one with an http source
+    nothing matches   200   REFUSED · "Nothing in the archive matches the words of this question."
+
+**The first source returned for "What is the New Yam Festival about" is
+`https://ozikoro.com/ili-ji-nkpor-obododike-the-indigenous-agricultural-ritual-cycle/`** — the indigenous
+agricultural ritual cycle, which is the New Yam Festival. **The retrieval is doing its job on real data.**
+
+**And the unanswerable question is refused rather than answered approximately**, which is round 191's
+`answerabilityOf` doing at the edge what `selectKnowledge` cannot do in the middle: the shared trust label
+calls any non-empty result `verified`, and this route does not.
+
+**`lang` is a required parameter and is not defaulted.** A route that assumed `ibo` would be inventing the
+field the adapter refuses to invent, and the decision stays visible where it belongs.
+
+### What is not done, and one thing that should be before this is public
+
+    no generation, by design          the assistant needs the archive's voice, which is the owner's
+    no surface in the design          a page, with the approved design's markup
+    NO RATE LIMIT                     an unauthenticated endpoint that runs a query and a retrieval on
+                                      every request is a cost and availability surface, and item 10's
+                                      security hardening covers it
+
+**The last one is the reason this is recorded as built and not as finished.** The route is correct and it is
+not yet safe to expose, and those are different claims — the same distinction round 194 drew when it shipped
+an error boundary whose rendering it had not verified.
