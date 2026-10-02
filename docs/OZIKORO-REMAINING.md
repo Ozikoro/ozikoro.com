@@ -10046,3 +10046,58 @@ written in (round 190) — plus a page in the approved design.
 **Three of the nine phases are done. Four are built and empty. Two are unbuilt.** And the pattern across all of
 them is that **what is missing is overwhelmingly content, not code** — which is what the audit predicted in its
 own words and what this survey now measures rather than asserts.
+
+---
+
+## ROUND 230 — THE RELEASE GATE: THE ARCHIVE BUILDS AND SERVES IN PRODUCTION
+
+Phase 9's artifact is a production build the owner can review, and it exists and works.
+
+### The build
+
+    exit 0 · 58 route lines · First Load JS shared by all 102 kB · Middleware 34.2 kB
+    ○ /robots.txt is the only static route; every other route is ƒ (dynamic)
+
+Dynamic is correct here: every page reads the database, and the sitemap alone lists 14,667 URLs.
+
+### Two things the standalone output proved, both of which the Dockerfile already accounts for
+
+**1. `public/` and `.next/static` are NOT in standalone output.** Measured: neither directory exists under
+`.next/standalone/` until it is copied. **This is precisely what the Dockerfile's COPY lines are for**, and
+without them the archive would serve unstyled HTML — a failure that looks like a broken design rather than a
+missing line.
+
+**2. `next start` refuses to work at all.** It warns: *"next start does not work with output: standalone
+configuration. Use node .next/standalone/server.js instead."* **So the Dockerfile's `CMD ["node",
+"apps/ozikoro/server.js"]` is the only correct way to run this app**, and it was already written that way.
+
+### And one error that was the harness rather than the app
+
+The first sweep returned **500 on 22 of 23 routes and 200 on `/`**. The cause was mine:
+
+    Failed to proxy http://localhost:3110/archive [Error: socket hang up]  ECONNRESET
+
+**I had set `HOSTNAME=127.0.0.1`, and `localhost` resolves to `::1` first while the server was bound to IPv4
+only.** The Dockerfile sets `ENV HOSTNAME=0.0.0.0`, which I overrode. **Re-run with the Dockerfile's own value,
+every route returned 200 or a correct 307.**
+
+**So that failure was a fact about my command line, not about the archive** — and it is the third time this
+session a client-side setting has been read as a server-side fault. It also confirms `ENV HOSTNAME=0.0.0.0` is
+load-bearing rather than conventional.
+
+### The verified production surface
+
+    22 reader-facing routes          200
+    /workspace  /account             307   gated, carrying next=
+    /town/abam                       200   a real clan record
+    /igbo-calendar?date=2026-01-01   200
+    /igbo-calendar?year=2026         200   the opt-in full year
+    /oral-recordings                 308   the permanent redirect
+    /a11y.css                        200   2,205 bytes
+    /design/styles/main.css          200   20,169 bytes
+    /design/tokens.css               200   4,348 bytes
+    /design/index.html               200   14,200 bytes
+    /sitemap.xml                     200   1,980,601 bytes · 14,667 <loc>
+    /robots.txt                      200
+
+    stylesheets linked on a page     5, and the design classes are present — the page IS styled
