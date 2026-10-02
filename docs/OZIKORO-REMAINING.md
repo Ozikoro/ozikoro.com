@@ -11549,3 +11549,50 @@ green line mean anything.
 looked for dynamic segments and `notFound()` and found neither. **`check-auth-boundary` found it by asking a
 different question — does an unauthenticated caller actually get refused — and that is the difference between
 checking that a rule is written and checking that it holds.**
+
+---
+
+## ROUND 259 — PHASE 5 HAS CONTENT: 188 ENTITIES AND 249 GROUNDED LINKS
+
+`ozikoro_entity` held zero rows. The audit's Phase 5 asks for entities to be populated and for articles to be
+attached to places, periods and sources — **and most of that is editorial work**: attaching a period to a
+history means reading it, and attaching a source means knowing where it came from. **This round did the part
+that is mechanical and grounded.**
+
+### The entities come from records the archive already holds
+
+**188 published clans already exist** with real names, regions, ethnic groups and origin summaries. An entity
+is created for each, and **`clan_id` points at the record it came from, so the graph node and the clan row
+cannot drift apart.** The summary is the clan's own `origin_summary` where one was recorded and **null where
+none was — never a sentence this script wrote.**
+
+### Coordinates are left null on all 188, deliberately
+
+    entities 188 · with coordinates 0 · links 249
+
+**The brief says do not create fake coordinates, and the clan records carry none.** Every map surface in the
+archive must therefore handle a place with no dot rather than being handed a plausible one. **A fabricated
+coordinate is the most convincing kind of invented content there is**, because it renders as a pin on a map and
+looks like evidence.
+
+### The article links are title-based, and that limit is the point
+
+    links 249 · across 205 articles · matched on the TITLE only
+
+**A title match is evidence that the article is about the place. A body match is evidence that the place was
+mentioned, which is a much weaker claim** — and a body search would attach almost every article to almost every
+town. So this links fewer articles than a body search would, **and every link it makes is defensible:**
+
+    "Ngwa-Ngwa: The Origin of the Ngwa People"                  -> Ngwa
+    "Ethnic Tensions and the Anioma Igbo: Asaba and Aboh …"     -> Aboh, Asaba
+
+**Names shorter than four characters are skipped**, because a three-letter town name matches too much to be
+evidence of anything.
+
+### Verified live
+
+    /entities/           200  · lists the towns
+    /entities/abagana/   200  · h1 "Abagana"
+
+**The remaining Phase 5 work — periods, sources, and the body-level place links — is editorial**, and it is
+worth more done by someone who has read the article than by a wider regex.
