@@ -9012,3 +9012,68 @@ three `curl`s.
 
 **Wrapping more than you need to is the mistake**, and it is the same one as round 179's scan list covering
 the wrong packages and round 181's scope assertion covering the wrong directory — **in a third domain.**
+
+---
+
+## ROUND 202 — THE BOUNDARY RULE, REFINED TWICE BY MEASUREMENT, AND THE RULE IS NOT "SEGMENT-LEVEL"
+
+Round 201 concluded that a segment-level boundary works where a root-level one does not. This round applied that
+to all 29 async routes and **broke the 404 status again** — in a way that produced the actual rule.
+
+### First measurement: 29 boundaries, and unmatched addresses are 200 again
+
+    /zztest-nope-x/        200      <- single segment: MATCHES app/[slug]/
+    /zztest-nope-y/        200
+    /this-is-not-a-page/   200
+    /zztest/deep/nope/     404      <- two segments: matches nothing
+
+**`app/[slug]/loading.tsx` was the culprit.** A single-segment unmatched URL *matches* `[slug]`; the page then
+renders, decides the record does not exist, and calls `notFound()` — **inside the boundary, after `200 OK` has
+been sent.** Removing the one file restored the status.
+
+### Second measurement: it is not only `[slug]`
+
+    /attachment/nope/   200
+    /author/nope/       200
+
+**The same thing wherever a page decides its own not-found.** So the rule is not about the depth of the segment
+or whether it is dynamic in the URL — it is about **who decides the status**:
+
+    the ROUTER decides     the segment matches or it does not, and the status is settled before the
+                           page renders — a boundary is safe here
+    the PAGE decides       the segment matched and the page then calls notFound(), so the status is
+                           settled DURING the render — a boundary defers that decision and it is lost
+
+**A boundary is unsafe wherever a dynamic segment sits beneath it**, whether or not the directory itself is
+dynamic, because `documents/loading.tsx` wraps `documents/page.tsx` **and** `documents/[slug]/page.tsx`.
+
+### The rule, applied
+
+    REMOVED 17   admin · admin/archive · admin/archive/[id] · attachment/[slug] · author/[slug] ·
+                 documents · documents/[slug] · entities · entities/[slug] · labels · labels/[slug] ·
+                 publications · publications/[slug] · researchers · researchers/[slug] ·
+                 topics · topics/[slug]
+    KEPT    12   about · admin/claims · admin/reviews · admin/rights · admin/spotify · archive ·
+                 claims · folklore · reviews · search · signin · submit
+
+    all ten probed unmatched and unknown-slug paths      404
+    all eight probed routes that kept a boundary         200
+
+**`apps/ozikoro/app/_components/page-loading.tsx` holds the one loading state; each of the twelve re-exports
+it**, so the wording and the classes live in one place — the same reason the design is linked rather than copied.
+
+### What is left undone, and why that is correct
+
+**The dynamic routes have no boundary, so their async pages cannot reach `error.tsx`.** That is a real loss and
+it is the smaller one: **a wrong status is a defect a search engine records, and an unreachable error page is a
+page that renders Next's default instead.** Rounds 196 and 200 disagreed about this by trading one for the other
+without measuring; the measurement says the two cannot both be had by placing a file, and the status is the one
+that is checked on every run.
+
+**The way to have both is a `<Suspense>` boundary *inside* those pages, around the part that waits** — not a
+`loading.tsx` above them. **Not attempted here**, because it is a change to how twelve pages render rather than a
+file that wraps them, and this round's own history is two failures from assuming a boundary's effect.
+
+    round 200   root-level border  -> every 404 is a 200
+    round 201   one segment        -> worked, and generalised too far
+    round 202   the rule           -> who decides the status, not where the file sits
