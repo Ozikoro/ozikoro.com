@@ -142,6 +142,10 @@ services:
       DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
       OZIKORO_SITE_URL: ${OZIKORO_SITE_URL:-https://ozikoro.com}
       NODE_ENV: production
+      # Enables the detailed branch of /api/health, as scripts/build-standalone.sh documents. Left
+      # empty by default: with no token the endpoint answers the plain check, which is all the
+      # healthcheck and healthwatch need, and no token has to exist for the site to run.
+      HEALTH_TOKEN: ${HEALTH_TOKEN:-}
       # Media. The archive self-hosts 3,437 files and hotlinks 51; the same S3-compatible store the
       # dictionary uses is where the bytes go, so the variables have the same names.
       S3_ENDPOINT: ${S3_ENDPOINT}
@@ -217,6 +221,90 @@ services:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
 
+  # ---------------------------------------------------------------------------
+  # Backups — the one service whose absence is discovered on the worst day
+  #
+  # THE LOCAL BACKUP TOOL CANNOT DO THIS JOB, BY ITS OWN DESIGN. `takeBackup` in
+  # packages/ozikoro/src/ops/backup.ts refuses outright when DATABASE_URL is set:
+  #
+  #   "DATABASE_URL is set, so this is a server Postgres, not a local PGlite cluster.
+  #    Copying the cluster directory would produce a backup that does not restore.
+  #    Use pg_dump."
+  #
+  # That guard is right, and it means production backups are pg_dump or they are nothing. This service
+  # is the pg_dump. It runs the same postgres image as the database rather than adding a second
+  # client's version skew, and it writes to a volume that is not the database's own — a backup on the
+  # same disk as the thing it backs up is not a backup.
+  #
+  # `--format=custom` rather than a plain SQL dump: it compresses, and it restores selectively with
+  # pg_restore, which is what makes a partial recovery possible rather than all-or-nothing.
+  #
+  # Retention is 14 days by find -mtime, deliberately simple and legible. Nothing prunes by name, so
+  # a dump that fails to appear cannot be mistaken for one that was rotated away.
+  # ---------------------------------------------------------------------------
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - backupdata:/backups
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -eu
+        echo "backup: starting; dumps land in /backups"
+        while true; do
+          stamp=$$(date -u +%Y-%m-%dT%H-%M-%SZ)
+          out="/backups/ozituma-$$stamp.dump"
+          if pg_dump -h postgres -U ozituma -d ozituma --format=custom --file="$$out"; then
+            # A dump is only a backup if it can be read back. pg_restore --list parses the archive
+            # header and the table of contents; a truncated file fails here rather than at restore time.
+            if pg_restore --list "$$out" > /dev/null 2>&1; then
+              size=$$(wc -c < "$$out")
+              echo "backup: ok $$out ($$size bytes, restored-header verified)"
+            else
+              echo "backup: FAILED verification for $$out — leaving it in place for inspection"
+            fi
+          else
+            echo "backup: pg_dump FAILED at $$stamp"
+          fi
+          find /backups -name 'ozituma-*.dump' -mtime +14 -delete
+          sleep 86400
+        done
+
+  # ---------------------------------------------------------------------------
+  # Health watch — one request per site per interval, logged
+  #
+  # Not a metrics stack. The archive runs on one host and the question worth answering automatically is
+  # the plain one: is each of the three sites answering. The compose healthchecks already restart a
+  # container that stops responding, and this records that it did.
+  # ---------------------------------------------------------------------------
+  healthwatch:
+    image: alpine:3.20
+    restart: unless-stopped
+    depends_on:
+      - web
+      - learn
+      - ozikoro
+    entrypoint:
+      - sh
+      - -c
+      - |
+        apk add --no-cache curl > /dev/null 2>&1 || true
+        while true; do
+          for pair in "ozituma.com http://web:3000" "learn.ozituma.com http://learn:3000" "ozikoro.com http://ozikoro:3000"; do
+            name=$${pair%% *}; url=$${pair#* }
+            code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$$url/api/health" || echo 000)
+            echo "healthwatch: $$name -> $$code"
+          done
+          sleep 300
+        done
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -242,3 +330,4 @@ services:
 volumes:
   caddydata:
   caddyconfig:
+  backupdata:
