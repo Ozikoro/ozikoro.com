@@ -25,6 +25,15 @@
 import type { KnowledgeItem } from '@ozituma/core';
 import type { Db } from '@ozituma/db/client';
 
+/**
+ * How much of an article becomes retrieval text.
+ *
+ * Chosen to sit well inside `selectKnowledge`'s default character budget so several items can be selected
+ * rather than one long item ending the loop. Six of these still fit, which is more than `DEFAULT_MAX_ITEMS`
+ * usually needs.
+ */
+const EXCERPT_CHARACTERS = 600;
+
 export interface ArchiveKnowledgeOptions {
   /** Cap on how many articles to load, newest first. */
   limit?: number;
@@ -80,11 +89,20 @@ export async function archiveKnowledgeItems(
   }
 
   const limit = Math.max(1, Math.min(options.limit ?? 1000, 5000));
+  // `topic` is the article's most-used label — a recorded association, not a guess. It matters because
+  // scoring ranks on topic as well as text: round 184's first measurement retrieved one item out of a
+  // thousand, and this is what the ranking had least of.
   const rows = await db.rows(
-    `select id, title, standfirst, body_html, canonical_url, legacy_url
-       from ozikoro_article
-      where status = 'published' and is_page = false
-      order by published_at desc nulls last, id
+    `select a.id, a.title, a.standfirst, a.body_html, a.canonical_url, a.legacy_url,
+            (select l.name
+               from ozikoro_article_label al
+               join ozikoro_label l on l.id = al.label_id
+              where al.article_id = a.id
+              order by l.usage_count desc nulls last, l.name
+              limit 1) as topic
+       from ozikoro_article a
+      where a.status = 'published' and a.is_page = false
+      order by a.published_at desc nulls last, a.id
       limit $1`,
     [limit]
   );
@@ -94,7 +112,20 @@ export async function archiveKnowledgeItems(
     const title = typeof row.title === 'string' ? row.title.trim() : '';
     const standfirst = typeof row.standfirst === 'string' ? row.standfirst.trim() : '';
     const body = plainText(typeof row.body_html === 'string' ? row.body_html : null);
-    const text = [title, standfirst, body].filter((part) => part.length > 0).join('\n\n');
+    // BOUNDED, and this is not tidiness.
+    //
+    // `selectKnowledge` walks its scored items and STOPS as soon as one would exceed `maxCharacters`
+    // (default 4000). A single whole article body is longer than that, so the first item broke the loop
+    // and the caller got nothing: measured in round 185, "Tell me about Igbo clans" retrieved 0 items and
+    // fell to `trust: "ai_assisted"` — an UNGROUNDED answer — while the pipeline was working correctly.
+    //
+    // Round 184 blamed the ranking and set `topic` to fix it. That helped nothing, because the cause was
+    // the character budget and the fix was a bound. **A measurement that names the wrong cause produces a
+    // confident, wrong improvement.**
+    const text = [title, standfirst, body]
+      .filter((part) => part.length > 0)
+      .join('\n\n')
+      .slice(0, EXCERPT_CHARACTERS);
     const source =
       (typeof row.canonical_url === 'string' && row.canonical_url.trim()) ||
       (typeof row.legacy_url === 'string' && row.legacy_url.trim()) ||
@@ -104,6 +135,8 @@ export async function archiveKnowledgeItems(
     // the honest response; inventing either would be the failure this file exists to avoid.
     if (text.length === 0 || source.length === 0) continue;
 
+    const topic = typeof row.topic === 'string' ? row.topic.trim() : '';
+
     items.push({
       id: articleKnowledgeId(Number(row.id)),
       kind: 'culture',
@@ -111,6 +144,7 @@ export async function archiveKnowledgeItems(
       status: 'published',
       text,
       source,
+      ...(topic.length > 0 ? { topic } : {}),
     });
   }
   return items;

@@ -8013,3 +8013,71 @@ point: a demonstrated chain is not a good assistant.
     prompts in register     the archive's voice, not a course's
     a surface to ask        a page or an endpoint
     the language decision   round 183's three options, still the owner's
+
+---
+
+## ROUND 185 — I BLAMED THE RANKING, AND THE CAUSE WAS A CHARACTER BUDGET
+
+Round 184 measured the archive adapter and recorded an honest limitation: *"one item retrieved out of 1,000
+considered, because scoring ranks on topic and headword and these items carry only text and source."* It set
+`topic` to fix that. **The diagnosis was wrong and the fix did nothing.**
+
+### What the measurement actually said
+
+`selectKnowledge` walks its scored items and **stops at the first one that would exceed its character
+budget**:
+
+    DEFAULT_MAX_CHARACTERS = 6_000
+
+**I was handing it whole article bodies.** The average is far longer than 6,000 characters, so the first —
+highest-scoring — item always broke the loop, and the caller received whatever had accumulated: **one item,
+or none.**
+
+    "What is the New Yam Festival about?"    retrieved 1
+    "Tell me about Igbo clans"               retrieved 0    ->  trust "ai_assisted", an UNGROUNDED answer
+    "What is the Ozo title?"                 retrieved 1
+
+**That zero is the important one.** The pipeline was working exactly as designed; the adapter was feeding it
+something it could not select. **And the failure mode is an ungrounded answer**, which is the specific thing
+the `trustForGrounding` label exists to warn about.
+
+### The fix was a bound, not a ranking
+
+    text = title · standfirst · body, sliced to 600 characters
+    DEFAULT_MAX_ITEMS is 12 and the budget is 6_000, so ten excerpts fit
+
+Re-measured on the same four questions:
+
+    "What is the New Yam Festival about?"    retrieved 4   trust "verified"
+    "Tell me about Igbo clans"               retrieved 4   trust "verified"
+    "What is the Ozo title?"                 retrieved 4   trust "verified"
+    "How do Igbo people name their children?" retrieved 4  trust "verified"
+
+**4 · 4 · 4 · 4, where it had been 1 · 0 · 1.** Every question is now grounded.
+
+### `topic` was kept, and this is why
+
+**It made no measurable difference to these four questions and it is not wrong.** 980 of 1,000 items carry
+their most-used label, the field is real, and `scoreItem` gives `+5` when the query names a topic. **Keeping
+a correct field that the query does not yet use is not the same as keeping a fix that did not work** — the
+distinction matters because round 184's entry would otherwise have to be deleted rather than corrected.
+
+### The lesson, which is about measurement rather than code
+
+    round 184   observed 1 retrieved, blamed the ranking, changed the ranking
+    round 185   observed 1 retrieved, read the selector, found the budget
+
+**Both rounds had the same number in front of them.** Round 184 moved from *a symptom* to *a plausible
+cause* without testing the cause, and its own write-up says so — *"the ranking is thin"* — which was a
+conclusion the measurement could not support.
+
+> **A measurement that names the wrong cause produces a confident, wrong improvement.** And the tell was
+> present in round 184's own output: **a question that retrieves NOTHING is not a ranking problem.** A thin
+> ranking returns poor items; it does not return zero.
+
+### Where item 9 now stands
+
+    built and proven   adapter · retrieval · grounding trust · citation in the block
+    measured           4 of 4 questions grounded, 980 of 1,000 items carrying a topic
+    remaining          a committed test · prompts in the archive's register · a surface to ask
+                       the languageCode decision (round 183's three options)
