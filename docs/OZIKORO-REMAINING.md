@@ -9983,3 +9983,66 @@ project may not invent.
 publication would make every one of these routes render something, and it would also be the exact thing the
 brief forbids — *"do not mark a publication peer-reviewed unless the actual expert-review transition has
 occurred."*
+
+---
+
+## ROUND 228 — PHASES 5 AND 6 ARE ZERO, AND THAT IS THE HONEST MEASURE OF WHAT REMAINS
+
+Phases 5, 6 and 7 surveyed the same way as 3 and 4. The result separates the remaining work cleanly into
+**code that exists**, **code that does not**, and **content that no code can supply**.
+
+### Phase 5 — knowledge graph and enrichment: nothing is attached
+
+    ozikoro_entity                0      the graph has no nodes
+    ozikoro_entity_label          0
+    ozikoro_entity_relation       0      and no edges
+    ozikoro_article_entity        0
+    ozikoro_article_source        0      no article records its source
+    articles with a period        0
+    articles with a place         0
+
+**This is the phase the audit called *"populate entities; attach articles to places/periods/sources"*, and none
+of it has happened.** The schema and the public routes (`/entities`, `/entities/[slug]`) are built and the
+1,057 articles are present — **and not one of them is connected to a place, a period or a source.**
+
+**It is also the phase that cannot be done by writing code.** Attaching a period to a history means reading it
+and deciding; attaching a source means knowing where it came from. **Both are editorial acts, and the brief's
+rule against inventing a record, a source or a period is precisely the rule that stops an agent from doing them
+at scale.**
+
+### Phase 6 — archaeology, rights, oral history: every table empty
+
+    ozikoro_excavation 0 · ozikoro_object 0 · ozikoro_oral_history 0
+    ozikoro_dating 0 · ozikoro_media_rights 0 · ozikoro_evidence 0
+
+**All six, zero.** The audit said this phase was *"schema built; records/decisions absent"* and that is exactly
+right. **`ozikoro_media_rights` at 0 is the one that carries a licence risk rather than a gap**: 3,437 media
+files are held and served and not one has a recorded rights decision.
+
+### Phase 7 — AI and Ozituma: the content exists and the retrieval is built
+
+    ozikoro_article        1057      the corpus a grounded answer draws on
+    clan (published)        188      the dictionary link, verified working since round 144
+    /api/ask                        built this session: 4 of 4 answerable questions grounded,
+                                    the unanswerable one refused
+
+**Phase 7 is the furthest along of the three**, and its remaining work is the two owner decisions already
+recorded — the `languageCode` every article must declare (round 183) and the register its system prompt is
+written in (round 190) — plus a page in the approved design.
+
+### The whole plan, measured
+
+    phase  built                                      missing
+    1      design synchronisation, 51 screens         —
+    2      12 public routes                           /project/[slug], /cultural-event (no records)
+    3      roles table, 53 grants, gate, workspace     SECURITY DEFINER function · members
+    4      nine-state machine, 6 tables, 7 routes      a publication
+    5      schema, /entities routes                    EVERY entity, source, period and place
+    6      schema, editorial rights handling           EVERY excavation, object, right and consent
+    7      /api/ask, gateway, retrieval, 1057 articles the language decision · the prompt · a page
+    8      compose, Dockerfile, runbook for 2 sites   an ozikoro service · storage · backups · monitoring
+    9      —                                          the release gate itself
+
+**Three of the nine phases are done. Four are built and empty. Two are unbuilt.** And the pattern across all of
+them is that **what is missing is overwhelmingly content, not code** — which is what the audit predicted in its
+own words and what this survey now measures rather than asserts.
