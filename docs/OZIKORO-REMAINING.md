@@ -7587,3 +7587,49 @@ quietly checking nine.
 
 **The prose is still hand-written and still drifts.** What changed is that its countable half now has to
 answer for itself.
+
+---
+
+## ROUND 177 — THE BLOCK NOW CHECKS THAT NOTHING HAS FALLEN OUT OF IT
+
+Round 174 observed that *"the unnumbered claims are the ones a script cannot check, and they are where the
+last five corrections were."* That is true of a claim's **value** and false of its **presence** — and presence
+is where the sharpest failures have been.
+
+### What was added
+
+Six decisions the block must keep naming, checked as a set:
+
+    ok  the eleven addresses              ok  where coordinates come from
+    ok  the redirect row                  ok  registration and legal
+    ok  media rights                      ok  the favicon
+
+    checked: 19   wrong: 0   pattern-found-nothing: 0
+
+**Thirteen countable claims and six required decisions.** The file now fails if a decision stops being
+mentioned, which is the failure mode round 174 described: *a gap that stops being mentioned because a round
+rewrote the paragraph around it.*
+
+### Mutation-tested
+
+Making one decision's pattern unable to match — exactly what a struck paragraph looks like:
+
+    exit with a decision missing :  1     MISSING  the favicon — the block no longer mentions it
+    exit after restore           :  0
+
+**And the two failure modes are distinguished in the output**, which matters for the reader: a *count* that
+cannot be found says **"the patterns are wrong"** and exits 2, because a number that cannot be found is a
+broken check; a *decision* that cannot be found says **"the block no longer mentions it"** and exits 1,
+because a sentence that cannot be found is a missing sentence. **Conflating those would have made every
+pattern bug look like a documentation failure, and the reverse.**
+
+### What verify-all now checks about itself
+
+    step 1   no committed credentials          step 21  the handover still matches
+    step 3   no test residue                            13 countable claims re-derived
+    step 4   every capability granted                   6 decisions still named
+    step 5   links inside article bodies                both mutation-tested
+
+**Five of those are checks on the project's own claims rather than on its behaviour**, and every one has
+caught something: residue published as researchers, a capability granted to nobody, dead links inside prose,
+a credential in the working tree, and — the day it was written — four of its own patterns.

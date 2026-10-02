@@ -135,6 +135,36 @@ claim "waived in-body links"   "[0-9]+ waived in-body"                "$WAIVEDLI
 claim "subject links"          "[0-9,]+ subject links"                "$SUBJECTLINKS"
 claim "clans with a region"    "[0-9,]+ of [0-9,]+ *published clans"  "$CLANREGION"
 
+# ---------------------------------------------------------------------------
+# PRESENCE — the decisions that must not fall out of the block.
+#
+# Round 174 found eight corrections to the block, and the countable ones are now checked above. What a
+# count cannot catch is a WHOLE ITEM going missing: a decision struck from the owner list, or a gap that
+# stops being mentioned because a round rewrote the paragraph around it. Presence is countable even when
+# the claim is not, so each of these must still appear.
+#
+# Same guard: a pattern that matches nothing is reported as a broken pattern, not a missing decision.
+# ---------------------------------------------------------------------------
+mention() {
+  local label="$1" pattern="$2"
+  checked=$((checked + 1))
+  if printf '%s' "$BLOCK_ONE_LINE" | grep -qiE "$pattern"; then
+    printf '  ok    %-34s present\n' "$label"
+  else
+    printf '  MISSING %-33s the block no longer mentions it\n' "$label"
+    failed=$((failed + 1))
+  fi
+}
+
+echo ""
+echo "  Decisions the block must keep naming"
+mention "the eleven addresses"      "eleven account addresses|eleven addresses"
+mention "the redirect row"          "ozikoro_redirect|/home/ row"
+mention "media rights"              "media rights"
+mention "where coordinates come from" "coordinates come from"
+mention "registration and legal"    "join.*forgot|registration is open|privacy notice"
+mention "the favicon"               "favicon"
+
 echo ""
 echo "  checked: $checked   wrong: $failed   pattern-found-nothing: $missing"
 if [ "$missing" -gt 0 ]; then
