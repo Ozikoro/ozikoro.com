@@ -8406,3 +8406,56 @@ and building.** The check was right and the test was wrong.
     measured  4 of 4 answerable questions grounded, 1 of 1 unanswerable questions refused
     left      the languageCode decision (owner) · the archive's system prompt (editorial)
               a route or page to ask · and whether core's trust label should change
+
+---
+
+## ROUND 192 — THE GAP IS ESTATE-WIDE, AND CORE'S OWN TEST PINS THE BEHAVIOUR
+
+Round 191 found `trustForGrounding` calls an irrelevant retrieval `verified`. That is shared code, so the
+question was whether the dictionary's tutor has it too. It does, and in two places rather than one.
+
+### What the tutor does
+
+    apps/learn/app/api/learn/tutor/route.ts:250    trustLabel: 'verified',      <- HARDCODED in the fallback
+    apps/learn/app/api/learn/tutor/route.ts:251    grounded: !retrieval.empty,
+    apps/learn/app/api/learn/tutor/route.ts:333    ? trustForGrounding(retrieval)
+
+**Line 251 is round 191's gap in the tutor's own words**: *"grounded"* is defined as *"something came back."*
+And **line 250 does not ask at all** — in the no-provider path it writes `'verified'` as a literal, so a
+learner shown passages with a "verified" label got that label from a constant rather than from retrieval.
+
+### And core's test asserts the current meaning
+
+    packages/core/src/ai/guardrails.test.ts:96    trustForGrounding(empty result)      -> 'ai_assisted'
+    packages/core/src/ai/guardrails.test.ts:100   trustForGrounding([published item])  -> 'verified'
+
+**The pair is the whole truth the function claims**: nothing came back, or something did. **There is no test
+for *"something came back that has nothing to do with the question"*, because the function cannot see the
+question** — `trustForGrounding(result)` takes only the result.
+
+### So this is a decision, and it is not mine to take alone
+
+    the label's contract        "verified" currently means "a record was retrieved"
+    how both consumers read it  "this answer is grounded"
+    the difference              measure zero when the retriever is perfect, and unbounded when it is not
+
+**Changing it would touch two live applications and a shared test**, and there are at least three shapes:
+
+    a relevance floor in    selectKnowledge would rank and filter; every caller benefits; §8.1's
+      selectKnowledge       "grounded on published content" would then mean what it says
+    terms in the label      trustForGrounding(result, terms) — the smallest change, and it makes the
+                            function's name honest about what it needs to decide
+    each caller decides     what `answerabilityOf` does now, at the cost of a second definition of
+                            relevance in a second package — **round 191 already wrote one, and round
+                            181 is the record of what a second definition costs**
+
+**The third is what exists today and the first is the right answer.** It is left as a decision because it
+changes the meaning of a label two applications report to users, and because the smallest honest fix — the
+second — would still leave `selectKnowledge` returning irrelevant items to anyone who does not pass terms.
+
+### What the archive does in the meantime
+
+`answerabilityOf(result, terms)` refuses rather than mislabels, and its test asserts the gap before it
+asserts the guard **so that the guard cannot hide it.** The archive is the one consumer that will not claim
+grounding it does not have — **which is the right place for the conservative behaviour to start, and the
+wrong place for it to stop.**
