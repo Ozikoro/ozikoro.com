@@ -9521,3 +9521,53 @@ and a users-table export for the accounts.
 copy is already out of date by the time the new platform serves it.** The cutover therefore needs a **final
 delta sync in a read-only window** — articles and pages first (they are already complete and cheap to
 re-check), media second, users last — rather than one migration performed once.
+
+---
+
+## ROUND 214 — THE REVIEW SURFACE, AND THE 404s THAT WERE NOT 404s
+
+Two things the owner asked for: re-scan WordPress and take **everything** up to today, and then provide a URL to
+check the build **before** anything is deployed. This is the second, and a correction that changes the first.
+
+### The correction: the missing media were never missing
+
+Round 212 recorded that the upload paths *"no longer serve those files"* because
+`https://ozikoro.com/wp-content/uploads/…` returned **404** for a file we already hold and for one we do not. **That
+was wrong, and the cause was the URLs, not the server.**
+
+    raw   https://ozikoro.com/wp-content/uploads/2026/09/Igbo Folk Idioms in Caribbean Phrase.pdf
+    enc   https://ozikoro.com/wp-content/uploads/2026/09/Igbo%20Folk%20Idioms%20in%20Caribbean%20Phrase.pdf
+    fetch 200 · 191005 bytes · application/pdf
+
+**The paths contain unencoded spaces.** `curl` and most clients truncate at the first space, so a request for a
+real file arrives as a request for a prefix of its name and WordPress answers 404. **The files are all there and
+always were**, including the 51 that round 212 said could not be re-fetched and would need cPanel.
+
+**So the largest apparent gap in the migration is not a gap.** The 94 newer records and the 51 unfetched files are
+all retrievable with one correct request per file.
+
+### The re-scan, running
+
+    npm -w @ozikoro/platform run import:wordpress -- --refresh --binaries
+
+`--refresh` re-fetches every endpoint rather than using the local cache; `--binaries` downloads every media file.
+**Before:** 3,488 media records, 3,437 files, extracted 1 October. **After:** whatever the site holds today, which
+was 3,582 records when measured.
+
+### The review surface
+
+The build is served locally and **nothing is deployed**:
+
+    http://127.0.0.1:3100/                     the site itself
+    http://127.0.0.1:3100/design/index.html    the design walkthrough — links every one of the 51 screens
+    http://127.0.0.1:3100/sitemap.xml          every indexable URL: 14,667
+    http://127.0.0.1:3100/robots.txt           what the crawler is told
+
+All four answer **200**, and the five routes built this session answer 200 at `/careers/`, `/towns/`,
+`/town/abam/`, `/cite/` and `/ledger/`.
+
+**It is a development server**, which matters for what a reviewer can conclude: it is the real application
+rendering real records, and it is not a production build. **A production build is what should be reviewed before
+deployment**, and that is Phase 9's job — `npm run build` for `apps/ozikoro`, then `next start`, then the same
+walkthrough against that. Reviewing the development server tells the truth about content and layout and tells
+nothing about production performance or the error boundaries that only production exercises.
