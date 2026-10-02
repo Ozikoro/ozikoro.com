@@ -52,7 +52,15 @@ console.log('\n--- what arrived from WordPress ---');
 
 if (ARCHIVE_PRESENT) {
   assert('the archive holds the migrated articles', stats.articles >= 1000, `${stats.articles} records`);
-  assert('every article has an author', stats.contributors === 11, `${stats.contributors} contributors`);
+  /*
+   * AT LEAST the migration's eleven, because the table now holds two provenance classes.
+   *
+   * This counted exactly 11 until the Blogger source was ingested; its seven guest authors bring their own
+   * contributor records, so the total is 19 and an equality here would fail for a reason that has nothing to
+   * do with the migration. The `>= 11` keeps the claim that matters — the WordPress import brought its
+   * authors across — and the ingested class is asserted separately below.
+   */
+  assert('the migration brought its authors', stats.contributors >= 11, `${stats.contributors} contributors`);
   assert('the media records arrived', stats.media >= 3400, `${stats.media} records`);
   assert('the serials arrived', stats.topics === 14, `${stats.topics} topics`);
   assert('the labels arrived', stats.labels >= 11000, `${stats.labels} labels`);
@@ -103,7 +111,24 @@ const gaps = await db.one<Record<string, number>>(`
     count(*) filter (where body_html = '') as no_body,
     count(*) filter (where search_vector is null) as no_search,
     count(*) filter (where status <> 'published') as not_published
-  from ozikoro_article where is_page = false
+  from ozikoro_article
+  /*
+   * SCOPED TO THE MIGRATION, WHICH IS WHAT THIS SECTION IS ABOUT.
+   *
+   * The heading above reads "what arrived from WordPress", and every assertion under it is a claim about
+   * that migration: nothing lost its body, its address, its author, or its published status. Those are
+   * invariants of a MIGRATION — a live page must not go offline on the day it moves.
+   *
+   * They are not invariants of INGESTION. The Blogger source is new external material, and it is
+   * deliberately in review rather than published with no legacy_url, because it has been through no
+   * editorial process here and it never had an address on the archive being migrated from. Running the
+   * migration's rules over it would force publishing unverified community history to make a test pass,
+   * which is the wrong direction for the test to push.
+   *
+   * NOTE ON THIS COMMENT ITSELF: it sits inside a backtick-delimited SQL template literal, so it may not
+   * contain a backtick. An earlier version quoted the column names and ended the string.
+   */
+  where is_page = false and wp_post_id is not null
 `);
 /*
  * One source record has no title. Asserted as exactly one, by name, rather than as zero: the
@@ -135,10 +160,59 @@ assert(
   `${gaps?.not_published} not published`
 );
 
+/*
+ * --- the second provenance class, asserted rather than excluded ---
+ *
+ * Excluding the ingested records from the migration's checks would leave them unchecked, and a suite that
+ * quietly skips its strongest assertions is worse than one that cannot run them. So they are asserted here
+ * on their own terms: every ingested record is attributed, in review, searchable, and carries the address of
+ * its original rather than a fabricated archive path.
+ */
+console.log('\n--- what was ingested from the Blogger source ---');
+const ingested = await db.one<Record<string, number>>(`
+  select
+    count(*) as total,
+    count(*) filter (where author_id is null) as no_author,
+    count(*) filter (where status <> 'review') as not_review,
+    count(*) filter (where legacy_url is not null) as has_legacy,
+    count(*) filter (where canonical_url is null) as no_canonical,
+    count(*) filter (where search_vector is null) as no_search,
+    count(*) filter (where body_html = '') as no_body
+  from ozikoro_article where is_page = false and wp_post_id is null
+`);
+if (Number(ingested?.total) === 0) {
+  console.log('  SKIPPED — no ingested records are present.');
+} else {
+  assert('every ingested record is attributed', Number(ingested?.no_author) === 0, String(ingested?.no_author));
+  assert(
+    'every ingested record is in review, not published',
+    Number(ingested?.not_review) === 0,
+    `${ingested?.not_review} not in review`
+  );
+  assert(
+    'no ingested record claims an address on the archive it came from',
+    Number(ingested?.has_legacy) === 0,
+    `${ingested?.has_legacy} carry a legacy_url`
+  );
+  assert(
+    'every ingested record keeps the address of its original',
+    Number(ingested?.no_canonical) === 0,
+    String(ingested?.no_canonical)
+  );
+  assert('every ingested record is searchable', Number(ingested?.no_search) === 0, String(ingested?.no_search));
+  assert('no ingested record lost its body', Number(ingested?.no_body) === 0, String(ingested?.no_body));
+  console.log(`  (${ingested?.total} ingested records checked on their own terms)`);
+}
+
 console.log('\n--- addresses ---');
 
+/*
+ * Scoped to the migration, for the reason given above: a legacy_url is the address a record held on the
+ * archive being migrated FROM, so only migrated records can have one. The ingested records are asserted to
+ * have none, which is the same claim from the other side.
+ */
 const legacy = await db.rows<{ slug: string; legacy_url: string }>(
-  `select slug, legacy_url from ozikoro_article where is_page = false limit 5000`
+  `select slug, legacy_url from ozikoro_article where is_page = false and wp_post_id is not null limit 5000`
 );
 const mismatched = legacy.filter((r) => r.legacy_url !== `/${r.slug}/`);
 assert(

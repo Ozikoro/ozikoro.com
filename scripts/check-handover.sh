@@ -130,7 +130,10 @@ claim "routes under /admin"    "[0-9]+ under \`/admin\`"               "$ADMIN"
 claim "live checks"            "[0-9]+ live checks"                    "$LIVE"
 claim "media total"            "[0-9,]+ media"                       "$MEDIA"
 claim "media self-hosted"      "[0-9,]+ of [0-9,]+ media"            "$SELFHOSTED"
-claim "articles"               "[0-9,]+ records"                     "$ARTICLES"
+# The pattern must not match "0 of N records linked to an entity", which is a different count that
+# happened to equal the article total until the Blogger source was ingested. Matching on the word
+# "records" alone made this claim pass for the wrong reason and then fail for the wrong reason.
+claim "articles"               "of [0-9,]+ records"                   "$ARTICLES"
 claim "records entity-linked"  "[0-9,]+ of [0-9,]+ records linked"     "$LINKED"
 claim "media licenced"         "[0-9,]+ of [0-9,]+ items"            "$LICENCED"
 # Markdown puts `**` between a number and its noun — "All **14,667** sitemap URLs" — so the patterns allow

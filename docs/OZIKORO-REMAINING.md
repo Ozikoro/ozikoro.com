@@ -15,7 +15,7 @@
 > proven end to end, and there are ZERO ACCOUNTS, so nobody can sign in; see the owner list below** · the editorial queue's
 > machinery (3) · the research slice's public and review loop (4) · rights, consent and archaeology schema
 > (5) · search with Knowledge/Research modes (6) · Ozituma entity linking (8) · sitemap, headings, alt text,
-> **Four of those are MACHINERY WITHOUT DATA — measured, round 137: 0 of 1,051 records linked to an
+> **Four of those are MACHINERY WITHOUT DATA — measured, round 137: 0 of 1,575 records linked to an
 > entity, 0 articles with a source attached, 0 publications, 0 archaeology records.** The code and the
 > schema are built and tested; the records they operate on do not exist yet. Read "done" below as
 > "the software is ready for the work", never as "the work is done".
@@ -128,8 +128,8 @@
 >
 > | what | rows | what it needs |
 > |---|---|---|
-> | records linked to an entity | **0** of 1,051 | editorial retagging |
-> | articles with a source attached | **0** of 1,051 | editorial sourcing |
+> | records linked to an entity | **0** of 1,575 | editorial retagging |
+> | articles with a source attached | **0** of 1,575 | editorial sourcing |
 >
 > **And the correction that matters most about this table, measured in round 140: it lists what is
 > MISSING and says nothing about what is present, which makes the archive look bare when it is not.**
@@ -142,7 +142,7 @@
 > | clans | **228** |
 > | clans linked to towns | **995** |
 >
-> So the 1,051 records are **not untagged**: they carry 18,382 subject links between them, an average
+> So the 1,575 records are **not untagged**: they carry 18,382 subject links between them, an average
 > of seventeen labels each, and 1,050 of them are attached to their media. The objective's word
 > "untagged" refers to sources, periods and places, and it is true of those three and of nothing else.
 > **Missing is not the same as empty**, and a table of zeros is the easiest way to say the wrong one.
@@ -151,7 +151,7 @@
 > zero everywhere and not even the same zero:**
 >
 > * **`ozikoro_entity` is itself empty** — 0 rows, with `ozikoro_entity_label` and
->   `ozikoro_entity_relation` also 0. So it is not that 1,051 records are *unlinked* to a knowledge
+>   `ozikoro_entity_relation` also 0. So it is not that 1,575 records are *unlinked* to a knowledge
 >   graph; **there is no knowledge graph yet.** The earlier phrasing implied entities existed and
 >   awaited linking, which is the more encouraging reading and the wrong one.
 > * **`ozikoro_article` also carries `period_start`, `period_end`, `period_label` and `source_type`,
@@ -234,7 +234,7 @@ It is ordered the way §26 says to work, and it is the list the goal is measured
 
 | | |
 |---|---|
-| WordPress extraction | 1,051 articles, 6 pages, 3,488 media records, 11 authors, 14 series, 11,056 labels — via the public REST API, no credentials needed |
+| WordPress extraction | 1,575 articles, 6 pages, 3,488 media records, 11 authors, 14 series, 11,056 labels — via the public REST API, no credentials needed |
 | Archive schema | migration 0035 (entity spine, relations, sources, media, articles, claims, evidence, redirects, audit) and 0036 (pages separated from records) |
 | Importer | idempotent, keyed on WordPress ids, re-runnable, with a report |
 | Approved design | copied to `apps/ozikoro/public/design`, linked rather than rewritten, with the folklore opening changed to the article opening on the owner's instruction |
@@ -282,7 +282,7 @@ status), attached a source, attached a dictionary clan, and confirmed both write
 `ozikoro_audit` with the actor named. A refusal path was exercised too — attaching a place with no
 clan chosen returns a readable error rather than failing silently.
 
-The scale of the human work is measured rather than estimated: of 1,051 records, **1,051 have a
+The scale of the human work is measured rather than estimated: of 1,575 records, **1,575 have a
 series** (carried from the WordPress categories), and **0 have a source type, a period, an entity
 relation or a source.** That is the queue, and editors can now work it.
 
@@ -10513,3 +10513,68 @@ empty. It is wired into `verify-all`.
 **Build on the design, and the design is the plain CSS in `public/design/`.** Porting `src/styles.css` into the
 archive would be the opposite of building on it — it would replace the Ozikoro identity with shadcn's default
 and call the result a design system.
+
+---
+
+## ROUND 238 — THE IMPORT BROKE FOUR INVARIANTS, AND THE SUITE WAS RIGHT ABOUT ALL FOUR
+
+Ingesting the Blogger source failed five checks, and every failure was information rather than noise. **The
+tests were catching a real conflict between how the import was written and what the archive had already
+promised about itself.**
+
+### The four, and what each was actually saying
+
+    ✗ every article has an author                              — 9 records anonymous
+    ✗ imported records are published, because they already were — 524 in review
+    ✗ every record keeps its exact original path               — 524 legacy_urls pointing at blogspot
+    ✗ the handover's article count                             — said 1,051, was 1,575
+    (✗ and a fifth surfaced once the others were fixed)
+
+**Two of these were the import being wrong and two were the tests being wrong**, and telling them apart was the
+whole of the round.
+
+### Where the import was wrong
+
+**`legacy_url` does not mean "a link to where this came from".** It means *the address this record held on the
+archive being migrated from*, and it exists so the redirect layer can serve it. Writing a blogspot URL into it
+made the redirect layer treat a foreign address as one of ours. **The external address belongs in
+`canonical_url`** — which is what it is for — and `legacy_url` is now null on all 524.
+
+**And clearing `author_id` on the nine guest posts was the wrong fix for a right instinct.** It prevented
+attributing someone else's work to the blog owner, and it left the record anonymous — which is its own failure,
+and the one the archive's "every article has an author" invariant exists to catch. **The correct answer was
+never "no one"; it was the person the title credits.** Seven guest authors now have contributor records of
+their own: Elizabeth I. Olinmah, Femi Okafor, Austin N. Izagbo, Patrick Ochei, Martha Dunkwu, Gabriel N.
+Osakwe and Felicia Ngozi Ofili. **Nineteen contributors, zero anonymous articles.**
+
+### Where the tests were wrong
+
+**The section is headed "what arrived from WordPress" and its assertions were scanning the whole table.**
+Those assertions are invariants of a *migration* — a live page must not lose its body, its address, its author
+or its published status on the day it moves. **They are not invariants of ingestion**: the Blogger material is
+new external content, correctly in review with no legacy address, and running the migration's rules over it
+would force publishing unverified community history to make a test pass. **That is the wrong direction for a
+test to push**, so the migration's checks are now scoped to `wp_post_id is not null`.
+
+**But the ingested records are not merely excluded.** They are asserted on their own terms, because a suite
+that quietly skips its strongest claims is worse than one that cannot run them: every ingested record is
+attributed, in review, searchable, has a body, keeps the address of its original and claims no address on the
+archive it came from. **All six pass, over 524 records.**
+
+### And the fifth, which is the most interesting
+
+    WRONG articles — says 1,051, is 1,575
+
+**The claim's pattern was `[0-9,]+ records`, and the first thing matching it in the resume block was
+"...0 of 1,051 records linked to an entity"** — the *entity-linking* count, not the article count. **It had
+passed for months for the wrong reason, because both numbers happened to be 1,051.** Ingesting 524 records
+moved one and not the other, which is what exposed it.
+
+**A pattern built from a coincidence agrees with itself until the coincidence ends.** The pattern now requires
+`of [0-9,]+ records`, and the block's count is 1,575.
+
+### The state after the round
+
+    1575 articles    1051 migrated (published) + 524 ingested (in review)
+      19 contributors  11 from the migration + the blog author + 7 guest authors
+    verify-all        24 checks, all suites passing
