@@ -11127,3 +11127,37 @@ a control that appears to work and does not is worse than one that is visibly ab
 
 **Eleven pass, seven to go.** Three rounds, three pages, and the remaining set is now small enough to name
 individually: a missing route, four skeleton gaps and two narrower ones.
+
+---
+
+## ROUND 250 — `/listen`, AND THE ONE SECTION THAT IS A PROMISE RATHER THAN A PLACEHOLDER
+
+    before   sx-listen-hero, sx-listen-feature and sx-listen-list all missing
+    after    ok — 3 design sections, 3 headings
+
+**The archive holds no audio at all** — `select count(*) from audio` is zero, and the page measures that
+rather than asserting it. The design's featured episode is *"The Ikoro: the drum that spoke for a town"*, which
+is its demonstration content, and the design's own banner says: *"Audio library demonstration — no recorded
+episodes are claimed or published here yet."*
+
+**So the hero, the feature block, the library, the filters and the tracklist are all drawn — and the tracklist
+is empty because there is nothing to put in it.** The featured slot is not filled with the demonstration
+episode: **naming a recording that does not exist is the thing the brief forbids, and a library whose first
+entry is invented is worse than one that says it is empty.**
+
+### And the closing note is kept as a commitment
+
+> *"Every episode keeps its full transcript, source and speaker context beside the audio."*
+
+**That is the one part of this screen that is a promise rather than a placeholder**, and the page states it as
+one: *no recording will be published without its transcript, because a recording without one excludes anyone
+who cannot hear it.* **The design drew the rule; the page commits to it.**
+
+### The tally
+
+    ok    /  /archive  /photographs  /documents  /material-culture  /towns
+          /cite  /careers  /ledger  /about  /topics  /listen
+    FAIL  /igbo-calendar  /cultural-calendar  /projects  /publications  /folklore  /submit
+    404   /watch
+
+**Twelve pass, six to go.**

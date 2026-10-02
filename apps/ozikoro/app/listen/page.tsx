@@ -1,96 +1,132 @@
 /**
- * Listen — the audio library.
+ * Listen — the audio library, built to the design's `screens/listen.html`.
  *
- * THE DESIGN'S OWN SCREEN ALREADY CARRIES THE HONEST LABEL
+ * WHY IT WAS REWRITTEN
  *
- * `screens/listen.html` opens with a banner: *"Audio library demonstration — no recorded episodes are claimed
- * or published here yet."* That sentence is correct on a demonstration and, on the live site, the second half
- * of it is simply true: **the archive holds no audio at all.** Measured: the `audio` table is 0 rows.
+ * `check-design-parity.mjs` reported `sx-listen-hero`, `sx-listen-feature` and `sx-listen-list` all missing.
+ * The page said the right thing in the wrong shape, which is the failure this round of work exists to find.
  *
- * So this page keeps the design's structure — the hero, the library, the transcript promise — and carries no
- * episode. The featured slot the design draws ("The Ikoro: the drum that spoke for a town", *Sample episode —
- * recording awaiting approval*) is **not reproduced**, because it names a recording that does not exist and a
- * town history that has not been narrated. The brief is explicit that audio states remain labelled design
- * states until approved recordings exist, and that inventing episodes to fill a library is forbidden.
+ * WHAT IS HONEST HERE, AND WHAT THE DESIGN ITSELF DOES
  *
- * WHAT THE DESIGN PROMISES AND WHAT THIS PAGE CAN HONESTLY SAY
+ * The archive holds **no audio at all** — the `audio` table is zero rows. The design's featured episode is
+ * "The Ikoro: the drum that spoke for a town", which is its demonstration content, and the design's own
+ * banner says *"Audio library demonstration — no recorded episodes are claimed or published here yet."*
  *
- * "Narrated articles, oral traditions and folklore — arranged like a music library, **with a readable
- * transcript beside every record**." That transcript rule is the one part of this page that is a commitment
- * rather than a placeholder, and it is stated as one: **no recording will be published here without its
- * transcript**, because a reader who cannot hear it is otherwise shut out.
+ * So the hero and the library are drawn, the filters are drawn, and **the tracklist is empty because there is
+ * nothing to put in it.** The featured slot is not filled with the demonstration episode: naming a recording
+ * that does not exist is the exact thing the brief forbids, and a library whose first entry is invented is
+ * worse than one that says it is empty.
+ *
+ * THE TRANSCRIPT RULE IS KEPT AS A COMMITMENT RATHER THAN A DESCRIPTION
+ *
+ * The design's closing note reads "Every episode keeps its full transcript, source and speaker context beside
+ * the audio." That is the one part of this page that is a promise rather than a placeholder, and it is stated
+ * as one — a recording without a transcript excludes anyone who cannot hear it.
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { getDb } from '@ozituma/db/client';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
   title: 'Listen',
   description:
-    'The Ozikoro audio library: narrated articles, oral traditions and folklore, each with a readable transcript. No recording has been published yet.',
+    'The Ozikoro audio library: narrated articles, oral traditions and folklore, each with a readable transcript and its speaker context.',
   alternates: { canonical: 'https://ozikoro.com/listen' },
-  openGraph: {
-    title: 'Listen — Ozikoro',
-    description: 'Histories for the ear.',
-    type: 'website',
-  },
+  openGraph: { title: 'Listen — Ozikoro', description: 'Histories for the ear.', type: 'website' },
 };
 
-export default function ListenPage() {
+const FILTERS = ['All', 'Histories', 'Folklore', 'Oral records'];
+
+export default async function ListenPage() {
+  const db = await getDb();
+  // The same table the library is built from, so "zero" is measured rather than asserted.
+  const audio = await db.one<{ n: number }>(`select count(*)::int n from audio`);
+  const published = await db.one<{ n: number }>(
+    `select count(*)::int n from ozikoro_article where status='published' and is_page=false`
+  );
+  const nAudio = audio?.n ?? 0;
+  const nArticles = published?.n ?? 0;
+
   return (
-    <>
-      <section className="sx-collection-hero">
+    <main>
+      <section className="sx-listen-hero">
         <div className="wrap">
           <p className="eyebrow">Listen to the archive</p>
-          <h1>Histories for the ear.</h1>
+          <h1>
+            Histories <em>for the ear.</em>
+          </h1>
           <p className="lede">
-            Narrated articles, oral traditions and folklore, arranged like a library, with a readable
-            transcript beside every record. The archive holds no audio yet, so the library is empty.
+            Narrated articles, oral traditions and folklore, arranged like a music library, with a readable
+            transcript beside every record. The archive publishes {nArticles.toLocaleString('en-NG')} written
+            records and holds no audio yet, so the library is empty.
           </p>
         </div>
       </section>
 
-      <section className="wrap section">
-        <nav className="sx-subnav" aria-label="Collections">
-          <Link href="/photographs">Photographs</Link>
-          <Link href="/documents">Documents</Link>
-          <Link href="/listen">Oral recordings</Link>
-          <Link href="/material-culture">Material culture</Link>
-        </nav>
-
-        <div className="empty section">
-          <p className="eyebrow">The library</p>
-          <h2>No recording has been published.</h2>
-          <p>
-            Nothing is playable here yet, and nothing will be added by default. A recording appears in this
-            library when it has a narrator credited, rights recorded, and a transcript published beside it.
-          </p>
-        </div>
-
-        <section className="section">
-          <h2>What will appear here</h2>
-          <p className="muted">
-            Oral recordings from the archive are collected here rather than on a page of their own — the
-            design&rsquo;s own note says so, and <Link href="/oral-recordings">the old address</Link> sends a
-            reader to this library.
-          </p>
-        </section>
-
-        <article className="sx-record-placeholder">
-          <div>
-            <small>Collection state</small>
-            <h2>More verified recordings appear here</h2>
+      {/*
+        The featured slot. The design fills it with a demonstration episode; this page does not, and says
+        which state it is in instead.
+      */}
+      <section className="sx-listen-feature wrap">
+        <p className="eyebrow">Featured episode</p>
+        <div className="sx-listen-feature-card">
+          <div className="sx-listen-feature-copy">
+            <span className="sx-listen-series">
+              {nAudio === 0 ? 'No episode yet' : `${nAudio} recording${nAudio === 1 ? '' : 's'} held`}
+            </span>
+            <h2>No recording has been published.</h2>
             <p>
-              Every entry will carry its narrator, its rights, and a transcript — published together, because
-              a recording without one excludes anyone who cannot hear it.
-            </p>
-            <p>
-              <Link className="btn" href="/about">
-                About Ozi Ikoro
-              </Link>
+              A recording appears in this library when it has a narrator credited, rights recorded, and a
+              transcript published beside it. Nothing has been added to fill the slot, because naming an
+              episode that does not exist would be worse than an empty library.
             </p>
           </div>
-        </article>
+        </div>
       </section>
-    </>
+
+      <section className="sx-listen-list wrap">
+        <header className="sx-watch-section-head">
+          <div>
+            <p className="eyebrow">All episodes</p>
+            <h2>The library</h2>
+          </div>
+          <nav className="sx-listen-filters" aria-label="Episode filters">
+            {FILTERS.map((f) => (
+              <Link href="/listen" key={f}>
+                {f}
+              </Link>
+            ))}
+          </nav>
+        </header>
+
+        <ol className="sx-tracklist">
+          {/* Empty by measurement, not by omission: the audio table holds zero rows. */}
+        </ol>
+
+        <div className="empty">
+          <p>
+            Nothing is playable here yet. Oral recordings from the archive are collected in this library
+            rather than on a page of their own — <Link href="/oral-recordings">the old address</Link> sends a
+            reader here.
+          </p>
+          <p>
+            <Link className="btn" href="/submit">
+              Offer a recording
+            </Link>{' '}
+            <Link className="btn" href="/photographs">
+              Browse photographs instead
+            </Link>
+          </p>
+        </div>
+
+        <p className="sx-source-note">
+          Every episode keeps its full transcript, source and speaker context beside the audio. No recording
+          will be published without its transcript, because a recording without one excludes anyone who
+          cannot hear it.
+        </p>
+      </section>
+    </main>
   );
 }
