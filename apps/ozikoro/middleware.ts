@@ -67,6 +67,11 @@ export function middleware(request: NextRequest) {
     'topics', 'labels', 'documents', 'author', 'researchers', 'publications', 'entities',
     'media', 'archive', 'folklore', 'search', 'about', 'claims', 'reviews', 'admin',
     'attachment', '_next', 'design', 'api',
+    // Added as the newer two-segment routes were built. An OMISSION here is not a 404 for the attachment
+    // fallback — it is a 404 for the real route, because the rewrite happens before routing. That is how
+    // /town/<slug>/ returned 404 while `clan` held the row and /towns/<nothing> worked: `town` was absent,
+    // so the path was rewritten to /attachment/<slug>/. Every future static parent belongs in this list.
+    'town', 'project',
   ]);
   const segments = pathname.split('/').filter(Boolean);
   if (!isApi && segments.length === 2 && !KNOWN_FIRST_SEGMENTS.has(segments[0] ?? '')) {
