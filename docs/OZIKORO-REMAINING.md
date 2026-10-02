@@ -11902,3 +11902,65 @@ missing page cannot hide behind the new tolerance.
 
     before   BROKEN LINKS: 1   (307 /submit)
     after    Every internal link resolved (120 pages)
+
+---
+
+## ROUND 265 — THE PARITY CHECK HAD A TWELVE-SCREEN BLIND SPOT, AND I REPORTED ITS PASS AS A RESULT
+
+**The owner looked at `/archive` and said the work is "scattered" and that much has been omitted. Both are
+right, and the second is worse than it looks.**
+
+### `/archive` was the proof
+
+    THE DESIGN — archive-index.html
+      <div class="wrap">  eyebrow "The history archive" · h1 "Histories" · lede · search form
+      <div class="wrap sidebar-layout section">
+        <form class="rail">  SIX <fieldset> filters — ethnic group, clan, place, period, source type, …
+        <section>  .spread · .chips · .empty · nav.row
+
+    MY /archive
+      h1 "Histories"  ·  h2 "Records"  ·  no rail, no fieldsets, no chips, no sidebar layout
+
+**The one thing it got right was the h1.**
+
+### And the check called it "ok"
+
+    ok  /archive   0 design sections, 1 headings
+
+**Because `archive-index.html` uses no `sx-*` classes**, and the check collected `sx-*` classes from
+`<section>` elements and nothing else. **Zero sections is what a screen with no `sx-` classes yields, and zero
+was compared against zero.** The same was true of eleven other screens:
+
+    404 · academy · archive-index · dashboard-account · dashboard-moderation
+    dashboard-review · dashboard-states · dashboard-workflow · oral-recordings
+    publication · researcher-profile · type-test
+
+**So my claim two rounds ago — "design parity is complete. Every compared route carries its design" — was made
+by an instrument that had never read a quarter of the design.**
+
+### The fix, and the corrected verdict
+
+**The check now collects the structural classes a screen actually uses** — anything on a `section`, `div`,
+`form`, `nav` or `aside` that names a layout or component pattern — rather than only one naming convention.
+
+    before the fix   0 of 18 routes failing
+    after the fix   12 of 18 routes failing
+
+**Ten of those twelve were reported as passing while they were not.** That is the fourteenth instrument fault in
+this run and the largest, because it did not produce a wrong number on one page — **it produced a wrong verdict
+on the whole set, and I repeated that verdict to the owner as a result.**
+
+### And 26 screens still have no route at all
+
+**Twenty-five of the design's fifty-one screens have a route; twenty-six do not.** The parity check compares
+only routes it has been told about, so none of those appeared in any verdict either. They are:
+
+    academy · cultural-event · donate · investors · journeys · project · sponsors ·
+    watch-video · folklore-reader · type-test · dashboard-account · dashboard-admin ·
+    dashboard-editor · dashboard-independent-researcher · dashboard-knowledge-holder ·
+    dashboard-moderation · dashboard-reader · dashboard-researcher · dashboard-review ·
+    dashboard-reviewer · dashboard-states · dashboard-student · dashboard-teacher ·
+    dashboard-workflow · publication · 404
+
+**"Copy every single thing" means building those**, and the check now has to be made to require a route for
+every screen rather than only checking the ones it is handed — or the next report will be wrong in the same way.

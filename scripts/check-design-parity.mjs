@@ -170,11 +170,32 @@ const NO_SCREEN = {
   '/oral-recordings': 'the design routes this to Listen and draws no screen of its own',
 };
 
-/** Section classes and h1/h2 text, from either a design screen or a rendered page. */
+/*
+ * STRUCTURAL CLASSES AND HEADINGS, AND THE BLIND SPOT THIS USED TO HAVE (found in round 265).
+ *
+ * This collected only `sx-*` classes from `<section>` elements, and **twelve of the fifty-one design
+ * screens use none** — `archive-index`, `researcher-profile`, `publication`, the dashboard set, `academy`,
+ * `type-test` and the 404. **The check therefore reported "every compared route carries its design" while
+ * never having read a quarter of the design.**
+ *
+ * The page the owner pointed at is the proof: `archive-index.html` is a `wrap` + `sidebar-layout` with a
+ * `rail` of six `fieldset` filters and a `chips` row, and `/archive` had the right h1 and none of it. The
+ * check called it "ok — 0 design sections, 1 headings", because zero sections is what a screen with no
+ * `sx-` classes yields, and zero was compared against zero.
+ *
+ * **A pattern that only recognises one naming convention reports agreement wherever it does not apply** —
+ * the same failure this run has recorded repeatedly, in the instrument this time.
+ *
+ * So the collection is the structural classes the design actually uses: anything applied to a `<section>`,
+ * plus the layout wrappers that carry a screen's shape. Decorative one-offs are excluded so the comparison
+ * stays about structure rather than drift.
+ */
+const STRUCTURAL = /^(sx-|wrap|sidebar-layout|rail|chips|spread|steps|dropzone|provenance|card|empty|record|table|grid|row|stack|split|people|paths|faq|timeline|doors|cats|strip|filterbar|toolbar|notice|hero)/;
+
 function structure(html) {
-  const sections = [...html.matchAll(/<section[^>]*class="([^"]*)"/g)]
+  const sections = [...html.matchAll(/<(?:section|div|form|nav|aside)[^>]*class="([^"]*)"/g)]
     .flatMap((m) => m[1].split(/\s+/))
-    .filter((c) => c.startsWith('sx-'))
+    .filter((c) => STRUCTURAL.test(c))
     .filter((c, i, a) => a.indexOf(c) === i);
   const headings = [...html.matchAll(/<h([12])[^>]*>([\s\S]*?)<\/h\1>/g)].map((m) => ({
     level: Number(m[1]),
