@@ -9408,3 +9408,46 @@ field the adapter refuses to invent, and the decision stays visible where it bel
 **The last one is the reason this is recorded as built and not as finished.** The route is correct and it is
 not yet safe to expose, and those are different claims — the same distinction round 194 drew when it shipped
 an error boundary whose rendering it had not verified.
+
+---
+
+## ROUND 210 — THE ASK ENDPOINT IS RATE LIMITED, USING THE LIMITER THE ARCHIVE ALREADY HAD
+
+Round 209 recorded the route as *built* rather than *finished* because nothing authenticated it and every
+request runs a query and a retrieval. **The archive already had the answer**: `apps/ozikoro/lib/rate-limit.ts`
+exists, with a test, and five routes use it.
+
+### What was added, and there is nothing new in it
+
+    import { clientKey, rateLimit } from '@/lib/rate-limit';
+    const LIMIT = { limit: 30, windowSeconds: 300 };
+    const limited = rateLimit(`ask:${clientKey(request)}`, LIMIT);
+    if (!limited.allowed) return 429 with Retry-After
+
+**The same call shape as `api/spotify/callback`**, deliberately: a second way to count requests in one
+application is how two ceilings come to disagree.
+
+**Counted before the query and after the parameter checks**, so a refused request costs nothing — the limiter
+protects the database rather than the response, and a malformed request does not consume a reader's quota.
+
+### Measured
+
+    33 valid requests        30 x 200 · 3 x 429        exactly the ceiling, no off-by-one
+    the refusal              HTTP/1.1 429 Too Many Requests · retry-after: 289
+    three requests with no lang   400 · 400 · 400      and they are NOT counted, so the quota survives
+
+### The caveat, repeated at the call site because this endpoint is public
+
+**The limiter is in-process.** Several instances behind a load balancer each allow the full thirty, so the real
+ceiling is multiplied by the instance count. `lib/rate-limit.ts` says so and names the fix — a table with a
+per-key counter in the shape of `plan_limit` — and it is repeated in the route because **the five existing
+callers are administrator-only and this one is not.**
+
+### What is still not done
+
+    no generation, by design      the archive's voice is the owner's (round 190)
+    no page in the design         a surface with the approved design's markup
+
+**And the assistant itself still needs the two owner decisions** — the language a `KnowledgeItem` declares
+(round 183) and the register its system prompt is written in (round 190). **What exists now is the half that
+needs neither, and it is safe to expose.**

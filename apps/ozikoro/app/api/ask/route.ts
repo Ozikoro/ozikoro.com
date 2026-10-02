@@ -26,9 +26,28 @@ import { NextResponse } from 'next/server';
 import { getDb } from '@ozituma/db/client';
 import { selectKnowledge, queryTerms } from '@ozituma/core';
 import { archiveKnowledgeItems, answerabilityOf, groundedPassages } from '@ozikoro/platform';
+import { clientKey, rateLimit } from '@/lib/rate-limit';
 
 /** Long enough for a question, short enough that a URL cannot be used to make work. */
 const MAX_QUESTION = 300;
+
+/**
+ * Thirty questions per five minutes, per client.
+ *
+ * WHAT THIS PROTECTS, and it is the reason this route was recorded as built rather than finished in round 209:
+ * every request runs a database query over 1,000 articles and a retrieval across them, **and nothing
+ * authenticates it.** Load is the whole risk — the same reasoning `lib/rate-limit.ts` gives for the OAuth
+ * endpoints, and it is the same limiter rather than a second one.
+ *
+ * Thirty is generous for a person reading results and bounded for a script: the window is five minutes, so a
+ * single client can make at most 360 requests an hour.
+ *
+ * THE LIMITER'S OWN CAVEAT APPLIES HERE TOO: it is in-process, so several instances behind a load balancer
+ * each allow the full quota and the real ceiling is multiplied by the instance count. That is written in
+ * `lib/rate-limit.ts` and is worth repeating at the call site, because this endpoint is public where those
+ * are administrator-only.
+ */
+const LIMIT = { limit: 30, windowSeconds: 300 };
 
 export async function GET(request: Request): Promise<NextResponse> {
   const url = new URL(request.url);
@@ -57,6 +76,16 @@ export async function GET(request: Request): Promise<NextResponse> {
           'this cannot be assumed.',
       },
       { status: 400 }
+    );
+  }
+
+  // Counted before any work: a refused request must not cost a query, or the limiter is protecting the
+  // response rather than the database.
+  const limited = rateLimit(`ask:${clientKey(request)}`, LIMIT);
+  if (!limited.allowed) {
+    return NextResponse.json(
+      { error: 'Too many questions. Try again shortly.' },
+      { status: 429, headers: { 'Retry-After': String(limited.retryAfterSeconds) } }
     );
   }
 
