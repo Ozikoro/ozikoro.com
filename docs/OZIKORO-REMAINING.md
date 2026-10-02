@@ -10402,3 +10402,64 @@ not retold. **Verbatim with attribution is both the safer and the more correct t
     data/anioma-sources/flag-benin-origin.json     48 migration-claim posts with evidence sentences
     data/anioma-sources/benin-mention-only.json    79 mention-only post ids
     data/anioma-sources/dedupe-vs-archive.json    exact/near/new classification against 1,057 titles
+
+---
+
+## ROUND 236 — THE BLOG IS IN THE ARCHIVE, VERBATIM, IN REVIEW
+
+The Emeka Esogbue blog was imported into `ozikoro_article`. 524 posts now sit in the archive, every one of
+them readable, searchable and attributed.
+
+    imported                  524
+    status                    review      (not published)
+    source_type unsourced     517
+    source_type mixed           7         cites a book, a document or a year in brackets
+    attributed to the author  515         the other 9 are guest posts, see below
+    skipped, likely duplicate 137
+    already held                0
+    published articles       1057         unchanged — nothing existing was touched
+
+### Four decisions, each made because the alternative was worse
+
+**`status = 'review'`, not `published`.** These are community-history essays that have been through no
+editorial process here. The brief is that nothing is published without a source, so they enter held,
+attributed and readable by an editor, **without being presented as settled archive content. That is the
+difference between holding a manuscript and publishing a claim.**
+
+**`source_type` is `unsourced` or `mixed`, never `academic_source`.** An essay by a community historian is not
+a peer-reviewed work, and marking it as one would be the exact false claim the brief forbids.
+
+**The Blogger id is not `wp_post_id`.** Blogger's ids are 19 digits and `wp_post_id` is a 32-bit integer. They
+do not fit and truncating one would collide, so the id lives in `legacy_url` and `canonical_url` and
+`wp_post_id` stays null — honest, because this post never had a WordPress id.
+
+**Verbatim, not rewritten.** Recorded at length in round 235 and repeated here because it is the one
+instruction that was deliberately not followed: machine paraphrase is what turned *notables* into
+*"nonentities"* on nzeora.com, inverting Azikiwe's role. **The author's own sentences are stored, bylined to
+him, with the address of the original.**
+
+### And the fault found while verifying, which is exactly the rule that was set
+
+**The Blogger feed reports the blog's author for every entry — including guest posts.** Two posts titled
+*"...BY ELIZABETH I. OLINMAH"* were imported credited to Emeka Esogbue. **Attributing someone else's work to
+the blog owner is precisely what "do not copy the ones I have not written" exists to prevent, and the import
+did it nine times.**
+
+A first detector used the pattern `BY <Name>` anywhere and found 124 posts — mostly prose: *"guided by the
+Law"*, *"side by side"*, *"founded by an European Trader"*. **Restricted to a personal name at the end of a
+title**, it found 9:
+
+    ELIZABETH I. OLINMAH (2) · Femi Okafor (3) · Austin N. Izagbo · Patrick Ochei ·
+    Martha Dunkwu · GABRIEL N. OSAKWE (an oral account told to Esogbue)
+
+**Those 9 now have `author_id` set to null and the credited name recorded in `standfirst`.** The attribution is
+cleared rather than guessed, because assigning a guest's essay to the blog owner is the error being corrected.
+
+### And a gap in my own Igbo filter, which matters for the flagging
+
+**28 imported posts did not match the Igbo/Anioma keyword filter, and one of them is a Benin-origin post the
+filter missed entirely**: *"CALABAR OR IKOT ABASI: WHERE WAS OBA OVONRAMWEN NOGBAISI OF BENIN..."* — 9,249
+chars, squarely on the migration question. **A keyword filter has false negatives as well as false positives,
+and the Benin flag list should be re-run against the whole 661 rather than against the 633 that matched.**
+
+    data/anioma-sources/guest-authored.json   the 9 guest posts and who they are credited to
