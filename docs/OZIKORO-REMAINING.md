@@ -12113,3 +12113,43 @@ from that set is the whole change.**
 being filtered out before the middleware could see it. **And `/tokens.css` matters more than it looks: without
 it the screens load but every colour falls back to the browser default, which reads as a styling failure
 rather than as one missing file** — the same confusion as the "scattered" report two rounds ago.
+
+---
+
+## ROUND 269 — THE ROOT WAS THE WHOLE PROBLEM, AND THE OWNER FOUND IT
+
+**The owner said the design was right at `http://127.0.0.1:3110/design/screens/home.html` and that I had
+"never got it right on this". They were pointing at the difference between the design's own file and what `/`
+was serving — and `/` was serving **my React page.**
+
+### Why
+
+    const single = pathname.replace(/^\//, '').replace(/\.html$/, '').replace(/\/$/, '');
+
+**For `/` that yields the EMPTY STRING**, so the guard `if (single && …)` never matched the root, and the
+application's own home page was served there. **Every other screen was correctly rewritten to the design; the
+one address a reader actually opens was not.**
+
+    /                          React page   ← the application's home
+    /design/screens/home.html  the design   ← what the owner said was right
+
+**The root is now handled explicitly, before the slash-stripping**, because it cannot be reached by it.
+
+### The result
+
+    serving the DESIGN: 52 · still React: 0 · broken: 0
+    about.html · archive-index.html · academy.html · donate.html · researchers.html   all 200
+
+**Every one of the 51 screens and the root now serves the deliverable**, and the deliverable's own relative
+links resolve — which is the state the owner asked for: **the demo, unchanged, walking like a site.**
+
+### What went wrong in my reading of the task, stated once
+
+**I was told to import everything and change nothing, and I spent ten rounds rewriting the design as React.**
+Two checks I wrote agreed with me — one compared only the routes I handed it, and the other collected only
+`sx-*` classes — **so both reported success while the design was being replaced rather than served.** The
+owner found it by opening the one file I had not rewritten.
+
+**A check that starts from what the author produced cannot detect that the author is producing the wrong
+thing.** The screen-coverage check added last round starts from the design instead, and that is the shape the
+rest should have had from the beginning.

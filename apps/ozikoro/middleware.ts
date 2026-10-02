@@ -110,6 +110,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(new URL(`/design/styles/${pathname.slice('/styles/'.length)}`, request.url));
   }
 
+  /*
+   * THE ROOT IS THE DESIGN'S HOME, AND THAT WAS THE WHOLE PROBLEM.
+   *
+   * `const single = pathname.replace(/^\//, '')…` yields the EMPTY STRING for `/`, so the guard below never
+   * matched the root and **the application's own home page was served there instead of the design's.** The
+   * owner saw a React page at `/` and the design at `/design/screens/home.html`, and said plainly that only
+   * the second was right. They were right, and this is why.
+   *
+   * The root is handled explicitly before the slash-stripping, because it cannot be reached by it.
+   */
+  if (pathname === '/') {
+    return NextResponse.rewrite(new URL('/design/screens/home.html', request.url));
+  }
+
   // A design screen at the address a reader would type, and the walkthrough at `/index`.
   const single = pathname.replace(/^\//, '').replace(/\.html$/, '').replace(/\/$/, '');
   if (single && !single.includes('/')) {
