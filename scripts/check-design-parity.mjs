@@ -29,6 +29,38 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:3110';
+
+/*
+ * ROUTES A FETCHER CANNOT SEE, AND WHY THE CHECK MUST SAY SO RATHER THAN FAIL THEM
+ *
+ * Two conditions make a route's real content invisible to a plain GET:
+ *
+ *   a loading boundary   `loading.tsx` makes the page render inside a Suspense boundary, so the static HTML
+ *                        a fetcher receives is the boundary's FALLBACK. /submit returned 200 with the h1
+ *                        "Fetching the record" and 462 KB of __next_f chunks containing none of the page.
+ *
+ *   an auth gate         the page redirects or refuses before rendering for an anonymous caller, so the
+ *                        boundary's fallback is again what comes back.
+ *
+ * **Reporting either as a missing section is a false failure** — the eighth instance in this session of an
+ * instrument's limit being read as a fact about its subject. These routes are named, reported as unverified,
+ * and excluded from the failure count. They are still checked for reachability, so a genuine 404 or 500 is
+ * not hidden by the exemption.
+ */
+const BEHIND_A_BOUNDARY = {
+  '/submit': {
+    loading: 'apps/ozikoro/app/submit/loading.tsx',
+    gate: "requireCapabilityOrRedirect('submit_work')",
+    why: 'the loading fallback is what a fetcher receives, and the page needs submit_work',
+  },
+};
+
+/** Is this route one a plain GET cannot see? */
+function unreadable(route) {
+  const entry = BEHIND_A_BOUNDARY[route];
+  if (!entry) return null;
+  return entry;
+}
 const SCREENS = 'apps/ozikoro/public/design/screens';
 
 /*
@@ -161,7 +193,7 @@ function headingMatches(design, page) {
   });
 }
 
-let failures = 0, omissions = 0, checked = 0;
+let failures = 0, omissions = 0, checked = 0, unverified = 0;
 const noScreen = [];
 
 for (const [route, screen] of ROUTES) {
@@ -180,6 +212,19 @@ for (const [route, screen] of ROUTES) {
   } catch (error) {
     console.log(`  UNREACHABLE  ${route.padEnd(24)} ${error.message}`);
     failures += 1;
+    continue;
+  }
+
+  const unreadableReason = unreadable(route);
+  if (unreadableReason) {
+    /*
+     * Reachability is still checked, so a real 404 or 500 is not hidden. The structure comparison is not run,
+     * because what came back is the boundary's fallback and comparing it would be comparing the wrong page.
+     */
+    const reached = page.sections.length + page.headings.length > 0;
+    console.log(`  ${reached ? 'UNVERIFIED' : 'FAIL'} ${route.padEnd(22)} ${unreadableReason.why}`);
+    if (!reached) failures += 1;
+    unverified += 1;
     continue;
   }
 
@@ -219,6 +264,7 @@ if (noScreen.length > 0) {
   for (const r of noScreen) console.log(`    ${r}`);
 }
 console.log(`  compared ${checked} route(s) against their design screen`);
+console.log(`  unverified, behind a loading boundary or an auth gate ${unverified}`);
 console.log(`  declared omissions ${omissions}`);
 if (failures > 0) {
   console.log(`  ${failures} ROUTE(S) DO NOT MATCH THEIR DESIGN`);

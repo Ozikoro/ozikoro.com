@@ -11350,3 +11350,39 @@ distinction is recorded rather than glossed.**
 ### The probe was removed
 
     account removed 1 · residue 0 · accounts remaining 0 · check:residue clean
+
+---
+
+## ROUND 255 — THE INSTRUMENT, CORRECTED AGAIN, AND THIS TIME ABOUT ITS OWN BLINDNESS
+
+### The two conditions that make a route unreadable
+
+    a loading boundary   `loading.tsx` renders the page inside a Suspense boundary, so the static HTML a
+                         fetcher receives is the boundary's FALLBACK
+    an auth gate         the page redirects before rendering for an anonymous caller, and the fallback is
+                         again what comes back
+
+**`/submit` has both.** It returned 200 with the h1 *"Fetching the record"* and 462 KB of `__next_f` chunks
+containing none of the page. **The check reported that as `.sx-correction` missing, which was a false failure
+of exactly the kind this file has recorded seven times before: an instrument's limit read as a fact about its
+subject.**
+
+### What the check does now
+
+    UNVERIFIED /submit   the loading fallback is what a fetcher receives, and the page needs submit_work
+
+**Reachability is still checked**, so a genuine 404 or 500 is not hidden by the exemption — the route is
+fetched, and only the structure comparison is skipped, because comparing a fallback would be comparing the
+wrong page. Each entry in `BEHIND_A_BOUNDARY` names the boundary, the gate and the reason, so the exemption is
+a statement about the route rather than a suppression.
+
+### The tally, which is now honest about what it has and has not examined
+
+    ok          /  /archive  /photographs  /documents  /listen  /material-culture  /towns  /cite
+                /careers  /ledger  /about  /topics  /projects  /watch
+    UNVERIFIED  /submit
+    FAIL        /igbo-calendar  /cultural-calendar  /publications  /folklore
+
+**Fourteen verified, one unverified, four failing.** The distinction between *verified* and *not examined* is
+the one this check has been getting wrong, and it is the same distinction the archive suite draws when it
+announces what it skipped rather than passing vacuously.
