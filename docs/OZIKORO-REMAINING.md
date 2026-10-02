@@ -8583,3 +8583,87 @@ file has used repeatedly (rounds 62, 116, 172, 194); **until now nothing checked
 removed what the build had made of it.**
 
 Clearing `apps/ozikoro/.next/types/app/zztest-throws` fixed it, and the cache regenerates on the next build.
+
+---
+
+## ROUND 195 — THE PRODUCTION BUILD RAN, AND THE ERROR BOUNDARY STILL DID NOT RENDER
+
+Round 194 could not verify `error.tsx` because development never invokes it. This round did the thing round
+194 named: **a production build, in production mode, with a route that throws.**
+
+    npm -w @ozikoro/site run build                 exit 0
+    └ ƒ /zztest-throws   175 B   102 kB            THE ROUTE IS IN THE BUILD
+    GET /zztest-throws/   status 500               IT THROWS, IN PRODUCTION
+    "This page could not be loaded"                NOT RENDERED
+    "Error"  (the eyebrow)                         NOT RENDERED
+    "Try again"                                    NOT RENDERED
+    "No record at this address"                    RENDERED — the 404 page
+    "zztest deliberate failure"                    correctly withheld
+
+**And the boundary is compiled in**: `grep -rlo "This page could not be loaded" apps/ozikoro/.next` finds it in
+`webpack/server-production/1.pack`.
+
+### What that leaves
+
+**A dynamic route that throws returns 500 and its body is `not-found.tsx`, while `error.tsx` is present,
+compiled, and never drawn.** Three readings, and this round does not distinguish them:
+
+    the boundary is not being     `error.tsx` catches client-side render errors in its subtree; a
+      invoked for a SERVER        throw during server rendering of a dynamic route may go to
+      render throw                Next's own error path instead
+    the 404 body is Next's        a router that receives a failed RSC payload can fall back to the
+      fallback, not this app's    not-found boundary, and this archive's 404 is what that draws
+    something else                unexplained
+
+**I cannot tell those apart from the evidence gathered**, and the honest statement is that **`error.tsx` is
+committed, compiled, and unproven.** It is not known to help and it is not known to be inert.
+
+### What would settle it, and it is not more of the same
+
+**Reading Next.js's own documentation for which error boundary handles a server-render throw in a dynamic
+route**, then either moving the file (`global-error.tsx`, or a segment-level boundary) or removing it. **The
+measurement has been taken twice in two modes and disagreed with the expectation both times**, which is the
+point at which the expectation and not the measurement is what needs checking.
+
+### And the seventh-instance pattern, completed
+
+    round 194   development never runs error.tsx        -> "cannot be verified this way"
+    round 195   production runs it and does not draw it -> and the reason is still not known
+
+**Two modes, two measurements, and neither produced a boundary.** Round 194 called the first "a measurement of
+something else"; round 195 shows the second was a measurement of the right thing, **and the code under test
+still did not do what the file assumes.** That is a better place to be than an unverified commit, and it is
+where this round stops.
+
+### The hook refused the commit twice in two rounds, for the same stale artefact
+
+Committing this round was refused, exactly as round 194's was:
+
+    round 194   .next/types/app/zztest-throws/page.ts   Cannot find module '…/zztest-throws/page.js'
+    round 195   .next/types/validator.ts(320)           Cannot find module '…/zztest-throws/page.js'
+
+**Deleting a temporary route does not delete the types Next generated for it**, and `validator.ts` — which
+this round had not seen before — holds a reference too.
+
+    WHAT WAS WRONG              I cleared `types/app/zztest-throws` and left `types/validator.ts`
+    WHAT FIXED IT               rm -rf apps/ozikoro/.next/types   (regenerated on next build)
+    WHAT IS STILL IN .next      .next/trace and .next/cache/webpack/*.pack — caches, not typechecked
+
+### This is now a hazard with a procedure, not a surprise
+
+**Every temporary route in this file's history — rounds 62, 116, 172, 194, 195 — has been removed by deleting
+the route**, and from round 194 that is not enough. **The cleanup is two steps and the second one is the one
+that gets forgotten**, which is precisely the shape round 187 answered with a mechanism:
+
+    remove the route
+    rm -rf apps/ozikoro/.next/types       then typecheck, which is what the hook runs anyway
+
+**The hook is what makes this safe**: it caught both occasions within a minute of the mistake, named the file,
+and refused the commit. **A procedure that is forgotten is still caught, which is the whole argument for having
+turned the rule into a program two rounds before it was needed.**
+
+### And the boundary question is still open
+
+    the file exists, typechecks and is COMPILED into server-production
+    a dynamic route that throws returns 500 and renders not-found.tsx instead
+    which boundary handles a server-render throw is the thing to read, not to measure again
