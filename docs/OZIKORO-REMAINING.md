@@ -7836,3 +7836,42 @@ wrong, and its own passing output was identical to the output it gives when the 
 
 **The partial-miss case that has passed quietly since round 104 now fails loudly**, and the checker that
 gates 53 capability grants can no longer be short by one without saying so.
+
+---
+
+## ROUND 182 — THE BLOCK MUST ADDRESS ALL TEN ITEMS, AND NOW FAILS IF ONE IS DROPPED
+
+Round 177 added six decisions the block must keep naming. The same argument applies to the objective's ten
+items, and more sharply: **a block that quietly stops discussing an item reads as a block where that item is
+finished.**
+
+    ok  1 media into storage    ok  6 universal search
+    ok  2 auth and the claim path   ok  7 maps and timeline
+    ok  3 editorial queue       ok  8 Ozituma integration
+    ok  4 research              ok  9 the AI assistant
+    ok  5 archaeology           ok 10 the last mile
+
+    checked: 29   wrong: 0   pattern-found-nothing: 0
+
+**Thirteen countable claims, six decisions and ten items.** Mutation-tested: making item 5's pattern unable
+to match exits 1 naming it; restoring returns 0.
+
+### What the check is and is not
+
+**It is** a guard against an item disappearing from the handover while the work on it continues.
+**It is not** a claim that any item is finished — every pattern matches a phrase the block uses when
+*discussing* the item, including when it says the item is blocked or empty. Item 4's pattern matches
+"publication", and the block says there are zero publications.
+
+**That distinction is the point.** A documentation check that asserted completion would be the exact failure
+this project has spent twenty rounds avoiding: **a green line read as evidence of work rather than as evidence
+of a sentence.**
+
+### Why the count is worth having
+
+    before round 175   nine claims, checked by hand, in a later round than the change
+    now                twenty-nine assertions, all mutation-tested, on every run
+
+**And the check has now been wrong twice in ways only a mutation found** — round 175's four pattern failures
+and round 181's three bugs. **Every one of those seven was invisible from reading the code**, which is the
+argument for the mutation being part of building the check rather than an extra step after it.

@@ -166,6 +166,22 @@ mention "registration and legal"    "join.*forgot|registration is open|privacy n
 mention "the favicon"               "favicon"
 
 echo ""
+echo "  The ten items of the objective"
+# A block that silently drops an item is the failure this whole file exists to prevent: a reader would
+# take an unmentioned item for a finished one. Each pattern below is a phrase the block uses when it
+# discusses that item, so a rewrite that removes the subject fails here.
+mention "1  media into storage"     "media into storage|object storage|self-host|served from our own"
+mention "2  auth and the claim path" "claim path|byline claim|sign in|authentication"
+mention "3  editorial queue"        "editorial|untagged|entity link|domain layer"
+mention "4  research"               "publication|researcher|review workflow"
+mention "5  archaeology"            "archaeolog|oral history"
+mention "6  universal search"       "search"
+mention "7  maps and timeline"      "map|timeline|coordinate"
+mention "8  Ozituma integration"    "Ozituma|dictionary"
+mention "9  the AI assistant"       "AI|assistant|grounding|gateway"
+mention "10 the last mile"          "deployment|deploy|notification|nonce|backup"
+
+echo ""
 echo "  checked: $checked   wrong: $failed   pattern-found-nothing: $missing"
 if [ "$missing" -gt 0 ]; then
   echo "  $missing CLAIM(S) COULD NOT BE FOUND — the patterns are wrong, not the block. Not a pass." >&2
