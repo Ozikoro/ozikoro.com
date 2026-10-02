@@ -9826,3 +9826,52 @@ which is not there costs exactly as much as one that misses a defect which is.
 **`/cultural-event`** — a page for one event, and there are none. **`/project/[slug]`** — a page for one project,
 and there is no project table. Both would be routes with nothing to render, and both are what Phase 4's
 project-record work and a verified event supply will make real.
+
+---
+
+## ROUND 223 — PHASE 3 SURVEY: THE ROLE LAYER IS BUILT, AND THE ONE THING MISSING IS THE ONE THING THE BRIEF NAMES
+
+Phase 3 asks for accounts and nine role dashboards, and the brief is specific about how roles must work: *"User
+roles must live in a dedicated roles table with server-side checks (**security-definer role function**). Never
+read roles from client storage, and never store roles on a profile table."*
+
+**Most of that is already built**, and has been since before this session:
+
+    ozikoro_role_capability     53 rows    the role -> capability map
+    ozikoro_member_role         the account -> role assignment
+    ozikoro_member              membership state
+    packages/ozikoro/src/members.ts
+      capabilitiesFor(db, id)   resolves from the DATABASE, never from the client
+      can(db, id, capability)
+      requireCapability(...)    the one function every gated action calls
+      grantRole · revokeRole · setMemberStatus
+    packages/ozikoro/src/ops/capability-check.ts
+                                verifies every requireCapability CALL SITE names a capability
+                                some role actually holds — 8 call sites, all held by at least one role
+
+**So the dedicated roles table exists and client storage is never consulted.**
+
+### What is missing, and it is exactly the parenthetical
+
+    grep -rn 'create (or replace )?function' packages/db/migrations/    -> nothing
+    grep -rn 'security definer'               packages/db/migrations/   -> nothing
+
+**There is no SQL function anywhere in the migrations, and therefore no `SECURITY DEFINER` function.** The
+brief names one; the estate enforces in TypeScript instead.
+
+### Why the difference matters, stated without overstating it
+
+    what the estate has    enforcement in application code, consistently applied, and verified
+                           statically: capability-check fails the suite if a call site names a
+                           capability no role holds
+    what it lacks          enforcement the DATABASE performs, which application code cannot skip
+
+**A static check is not a runtime guarantee.** A new route that queries the archive directly and never calls
+`requireCapability` would pass `capability-check` — because the check looks for *call sites*, and a missing call
+site is not a call site. **A `SECURITY DEFINER` function would move the decision into Postgres**, so a query
+that should have been refused is refused by the database rather than by whoever remembered to ask.
+
+**This is recorded rather than built because it is a schema change to a shared database**, and because the
+brief's own instruction is that this is Phase 3 work with the dashboards — not a thing to add sideways at the
+end of a round. **It is also the first Phase 3 item that is genuinely missing rather than already present**,
+which is worth knowing before the dashboards are built on top of it.
