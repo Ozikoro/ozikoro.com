@@ -8881,3 +8881,78 @@ digest is the identifier the server log has too.
 *Promise*, and without a Suspense boundary above it **the shell render fails before any HTML is produced**, so
 an error boundary is never reached however well it is written. **Adding the three in the wrong order would
 have produced two files that could not run**, and the record says which one the order depends on.
+
+---
+
+## ROUND 200 — THE `loading.tsx` I ADDED IN ROUND 196 BROKE THE 404 STATUS, AND IT IS REVERTED
+
+Round 196 read the docs and concluded that a `loading.tsx` was the Suspense boundary `error.tsx` needed. **It
+was — and it also turned every unmatched address from 404 into 200.** The live check caught it, and this round
+removed it.
+
+### The measurement
+
+    apps/ozikoro/app/loading.tsx PRESENT
+      /zztest-nope-1/   200
+      /zztest-nope-2/   200
+      /this-is-not-a-page/   200
+      scripts/check-not-found.sh   "A missing address returned 200, not 404. That is the real failure."
+
+    apps/ozikoro/app/loading.tsx REMOVED
+      /zztest-nope-3/   404
+      /zztest-nope-4/   404
+      /zztest-nope-5/   404          and the designed 404 still renders: "No record at this address"
+
+**One file, one deletion, and the status flips.** That is as clean a causal test as this file has recorded.
+
+### Why the two are the same mechanism
+
+`app/loading.tsx` wraps the root segment's children **in a Suspense boundary**, which is exactly what round 196
+wanted. **The 404 is also a child of the root segment** — so Next begins streaming the shell and commits
+`200 OK` **before it knows the route did not match**, and the not-found content arrives inside a streamed
+boundary. **The boundary that makes an error catchable is the boundary that makes the status unknowable in
+time.**
+
+### The trade, and which side this project takes
+
+    with loading.tsx      error.tsx reachable for 16 async routes  ·  404 becomes 200
+    without               correct 404 status                       ·  error.tsx unreachable
+
+**A verified, checked property was traded for an unverified one.** The 404 status is enforced by
+`check-not-found`, is a search-engine property, and is the thing the resume block has called *"the one live
+defect"* since round 112. **The error boundary's reachability was never demonstrated** — rounds 194 and 195
+failed to observe it, and this round does not know that it would have worked either.
+
+**So the revert is not a retreat; it declines to pay for something unmeasured with something measured.**
+
+### And `apps/web` got the same file in round 198, so it is reverted too
+
+**The evidence is about the mechanism, not about one application.** `apps/web` has a `not-found.tsx` from round
+199 and a `loading.tsx` from round 198, and by the mechanism above its 404s would return 200 as well. **It is
+reverted on the same reasoning rather than waiting to observe it**, because the mechanism is understood and the
+observation would only cost the same round again.
+
+    apps/ozikoro   loading 0 · error 1 · not-found 1
+    apps/web       loading 0 · error 1 · not-found 1
+
+**The 404 pages and the error pages from rounds 194 and 199 remain. Only the boundary that breaks the status is
+gone**, in both applications.
+
+### The fix that keeps both, named rather than attempted
+
+**A `loading.tsx` inside each route directory rather than at the root.** A per-segment boundary wraps that
+segment's page — not the not-found rendering — so the status is decided before the boundary is entered, and an
+error in that route's async page is still catchable.
+
+**It is not attempted here** because it means a file per route across two applications, each needing the
+measurement above, and the last time this round assumed a boundary's effect without measuring it the 404 status
+went to 200. **The next round should add it to one route, measure the status, and only then do the rest.**
+
+### What this round is, in this file's terms
+
+    round 196   read the docs, found the mechanism, applied it    ->  correct reasoning, unmeasured effect
+    round 200   measured the effect, found the regression         ->  and the live check found it first
+
+**`check-not-found` is one of five checks that only run against a running server** — and it is the reason this
+was caught in the same session rather than in production. **A suite that only runs offline would have shipped
+it.** That is the strongest argument in this file for keeping the live checks live.
