@@ -1,0 +1,95 @@
+{
+ "34213": {
+  "action": "correct_then_import",
+  "title": "Meet The Brilliant Age Who Battled For African Autonomy During The 1900s",
+  "fixes": [
+   {
+    "was": "was one of the nonentities in the autonomy battle",
+    "should_be": "was one of the leading figures in Nigeria's independence struggle",
+    "why": "'nonentities' INVERTS the record: Azikiwe was NCNC president, Premier of Eastern Nigeria, first Senate President, Governor-General 1960, first President 1963-66",
+    "source": "https://www.ascleiden.nl/content/library-weekly/nnamdi-azikiwe"
+   },
+   {
+    "was": "was conceived in Zungeru ... on the 16 of November",
+    "should_be": "was born in Zungeru (now Niger State) on 16 November 1904",
+    "why": "machine substitution: 'conceived' for 'born'; year omitted",
+    "source": "https://www.ascleiden.nl/content/library-weekly/nnamdi-azikiwe"
+   },
+   {
+    "was": "the Transoceanic and Bedouin bondage",
+    "should_be": "the transatlantic and Arab slave trades",
+    "why": "no source uses 'Transoceanic' or 'Bedouin bondage'; established terms are transatlantic and Arab/East African slave trade",
+    "source": "https://dash.harvard.edu/server/api/core/bitstreams/e68c5388-6c26-4546-a369-805b0b0da231/content"
+   },
+   {
+    "was": "the \"father of Nigerian Patriotism\"",
+    "should_be": "\"Zik of Africa\"",
+    "why": "the quoted title could not be verified in any authoritative source",
+    "source": "https://www.ascleiden.nl/content/library-weekly/nnamdi-azikiwe"
+   }
+  ]
+ },
+ "34771": {
+  "action": "import_with_sources",
+  "title": "When And Where Did Our Species Originate?",
+  "fixes": []
+ },
+ "34901": {
+  "action": "import_with_sources",
+  "title": "The Ancient Kingdom of Kush and Its Relationship with Egypt",
+  "fixes": [
+   {
+    "was": "Meroe fell to the Kingdom of Aksum",
+    "should_be": "Aksum captured and sacked Meroe c. 330 CE, though Kush's final collapse is attributed mainly to climate, internal rebellion and the Noba",
+    "why": "partly_supported: sources call the Aksumite presence short-lived and not the decisive cause",
+    "source": "https://en.wikipedia.org/wiki/Kingdom_of_Aksum"
+   }
+  ]
+ },
+ "34897": {
+  "action": "import_with_sources",
+  "title": "Intrepid Black Female Warriors Throughout History",
+  "fixes": []
+ },
+ "34890": {
+  "action": "import_with_sources",
+  "title": "Story Of Ota Benga...",
+  "fixes": [
+   {
+    "was": "The Boy Stolen From Congo",
+    "should_be": "man (aged about 23-26) taken from Congo",
+    "why": "the zoo's own sign gave his age as 23; 'boy' is inaccurate",
+    "source": "https://encyclopediavirginia.org/entries/benga-ota-ca-1883-1916/"
+   }
+  ]
+ },
+ "34884": {
+  "action": "correct_then_import",
+  "title": "The Atrocities Of Leopold...",
+  "fixes": [
+   {
+    "was": "Enslaved And Killed Millions",
+    "should_be": "forced a regime of coerced labour, with population loss estimated between 1.2 and 10 million",
+    "why": "sources document coerced forced labour, not chattel slavery; and disease was the main direct cause of death, with the toll contested",
+    "source": "https://en.wikipedia.org/wiki/Atrocities_in_the_Congo_Free_State"
+   }
+  ]
+ },
+ "34880": {
+  "action": "import_with_sources",
+  "title": "Sarah Rector...",
+  "fixes": [
+   {
+    "was": "declared a white man's ward",
+    "should_be": "placed under the legal guardianship of a court-appointed white man (T.J. Porter) while both parents were alive",
+    "why": "partly_supported: guardianship, not a formal declaration",
+    "source": "https://web.archive.org/web/20181010223544/https://pendergastkc.org/article/biography/sarah-rector"
+   }
+  ]
+ },
+ "34876": {
+  "action": "import_with_sources",
+  "title": "The Role Of African Soldiers In World Wars",
+  "fixes": []
+ }
+}

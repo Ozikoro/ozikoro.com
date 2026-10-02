@@ -10225,3 +10225,82 @@ is an unevidenced one. **Those are different claims and this file has been caref
 
 **Nothing has been imported**, and the position from round 231 is unchanged: the archive may not hold a claim
 without a source, and 93% of this material has none.
+
+---
+
+## ROUND 234 — VERIFYING NZEORA'S CLAIMS ONE BY ONE, AND THE TWO KINDS OF "FIX"
+
+Asked to verify every post mentioning Africa or Black people against web sources and correct what is
+inaccurate. The scope is **231 posts and 882,403 characters (~176,000 words)**, of which **1,606 sentences carry
+a checkable claim.** A first tranche of eight posts was verified through parallel agents, each required to
+retrieve a real URL and forbidden from inventing a citation.
+
+### The result is better than the sourcing audit implied
+
+    import with sources        6
+    correct, then import       2
+    do not import              0
+
+**Round 231's finding — that 93% of this material cites nothing — was true and it was not the whole story.** A
+post with no citation is an unevidenced post, not a false one, and **when the claims are actually checked
+against sources, most of them hold.** The sourcing was missing; the history was largely not.
+
+Verified as supported and importable with their sources: human origins in Africa and Jebel Irhoud (Nature
+2017, Smithsonian); the Kingdom of Kush and the Twenty-fifth Dynasty; Njinga of Ndongo and Matamba, the
+Dahomey Agojie and Amanirenas (Strabo XVII.1.53-54); Ota Benga at the Bronx Zoo (Encyclopedia Virginia); Sarah
+Rector's allotment and 1913 oil strike (Kansas City Public Library); African soldiers in both World Wars and
+the Thiaroye massacre of 1 December 1944 (ILO chapter; RTS Senegal).
+
+### And the two kinds of correction, which are not the same thing
+
+**Corrections made, each against a retrieved source:**
+
+    "was one of the NONENTITIES in the autonomy battle"
+      -> "one of the leading figures in Nigeria's independence struggle"
+      The substitution INVERTS the record: Azikiwe was NCNC president, Premier of Eastern Nigeria,
+      first Senate President, Governor-General 1960 and first President 1963-66.
+
+    "was CONCEIVED in Zungeru ... on the 16 of November"
+      -> "was born in Zungeru (now Niger State) on 16 November 1904"
+
+    "the TRANSOCEANIC and BEDOUIN bondage"
+      -> "the transatlantic and Arab slave trades"
+      No source uses the substituted terms; these are the established ones.
+
+    "Enslaved And Killed Millions" (Leopold's Congo)
+      -> coerced forced labour, with population loss estimated between 1.2 and 10 million
+      The sources document forced labour, not chattel slavery, and record disease as the main direct
+      cause of death with the toll explicitly contested.
+
+    "declared a white man's ward" (Sarah Rector)
+      -> placed under the legal guardianship of a court-appointed white man while both parents lived
+
+    "The Boy Stolen From Congo" (Ota Benga)
+      -> a man of about 23-26; the zoo's own sign gave his age as 23
+
+    "Meroe fell to the Kingdom of Aksum"
+      -> Aksum captured and sacked Meroe c. 330 CE; the kingdom's final collapse is attributed mainly
+         to climate, internal rebellion and the Noba
+
+**These are corrections toward what the sources say, and every one carries a URL.**
+
+**What was NOT done:** no historical interpretation was rewritten, and where sources genuinely disagree the
+range is carried rather than a figure chosen — the Congo death toll stays "1.2 to 10 million" because that is
+what the evidence supports, and narrowing it would be inventing precision the record does not have.
+
+### The machine-corruption finding
+
+**Twenty-one of the 222 in-scope posts contain meaning-distorting synonym substitution** — `conceived` for
+born, `transoceanic` for transatlantic, `Bedouin bondage` for the Arab slave trade, and once `nonentities` for
+notables, which reverses the sentence. **This is a text-generation artefact, and it is the single most
+dangerous thing in the corpus**, because a reader cannot tell a spun word from an author's choice.
+
+### Artifact
+
+    data/nzeora-wp/verify-scope.json          222 posts, 1,606 checkable sentences
+    data/nzeora-wp/verified-corrections.json    8 posts verified, 8 sourced fixes
+
+**Eight of 222 verified so far**, and the method scales: each post's claims go to an agent that must retrieve
+a real source, must say "unverifiable" rather than guess, and is told that a fabricated citation is the worst
+possible outcome. **The remaining 214 are the work still to do, and it is tractable rather than open-ended** —
+at this rate roughly 28 more tranches.
