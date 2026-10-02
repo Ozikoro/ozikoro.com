@@ -85,6 +85,7 @@
     "check:body-links": "node scripts/check-body-links.mjs",
     "check:assets": "bash scripts/check-assets.sh",
     "verify:live": "bash scripts/verify-live.sh",
+    "serve:review": "bash scripts/serve-review.sh",
     "check:secrets": "bash scripts/check-secrets.sh",
     "account:create": "node scripts/create-account.ts",
     "account:reset": "node scripts/reset-password.ts",
