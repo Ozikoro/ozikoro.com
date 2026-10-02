@@ -361,3 +361,48 @@ export function fillTopics(html: string, entries: RealAzEntry[]): string {
   }
   return out.slice(0, first) + blocks + out.slice(end);
 }
+
+/** A town as the archive holds it. */
+export type RealTown = { name: string; href: string; region: string | null; image: string | null; records: number };
+
+/**
+ * One town card, in the design's markup.
+ *
+ * **The design's card leads with a photograph; a town with none is drawn without one** rather than given a
+ * stand-in, because the card's text carries the whole meaning and an unrelated picture would be worse than an
+ * absent one. The `<small>` is the state the clan record gives, and the count is the archive's.
+ */
+export function renderTown(t: RealTown): string {
+  const img = t.image ? `<img src="${esc(t.image)}" alt="" loading="lazy">` : '';
+  const where = t.region ?? 'Region not recorded';
+  const records = t.records > 0 ? `${t.records} record${t.records === 1 ? '' : 's'}` : 'No records yet';
+  return `<a href="${esc(t.href)}">${img}<span><small>${esc(where)}</small><strong>${esc(t.name)}</strong><em>${records} <span aria-hidden="true">→</span></em></span></a>`;
+}
+
+/** Fill `towns.html`'s grid with the archive's 188 published towns and clans. */
+export function fillTowns(html: string, towns: RealTown[]): string {
+  let out = dropExampleFlag(html);
+  const rendered = towns.map(renderTown).join('\n          ');
+  out = replaceContainer(out, '<div class="sx-town-grid"', rendered);
+  return out;
+}
+
+/** One collection card. */
+export type RealCollection = { label: string; name: string; href: string; cta: string; image: string | null; glyph: string | null };
+
+/** One collection card, in the design's `a` markup inside `.sx-collection-showcase`. */
+export function renderCollection(c: RealCollection): string {
+  // The design uses a photograph on some cards and a glyph on others; whichever the archive can supply.
+  const visual = c.image
+    ? `<img src="${esc(c.image)}" alt="" loading="lazy">`
+    : `<span class="sx-collection-glyph" aria-hidden="true">${esc(c.glyph ?? '≡')}</span>`;
+  return `<a href="${esc(c.href)}">${visual}<span><small>${esc(c.label)}</small><strong>${esc(c.name)}</strong><em>${esc(c.cta)} <span aria-hidden="true">→</span></em></span></a>`;
+}
+
+/** Fill `collections.html`'s showcase. */
+export function fillCollections(html: string, collections: RealCollection[]): string {
+  let out = dropExampleFlag(html);
+  const rendered = collections.map(renderCollection).join('\n        ');
+  out = replaceContainer(out, '<div class="sx-collection-showcase"', rendered);
+  return out;
+}

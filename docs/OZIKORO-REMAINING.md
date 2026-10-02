@@ -12301,3 +12301,43 @@ would be vaguer, and filling it with a permission nobody granted would be a lie.
 
 **A relative symlink, git-ignored**, so the 3,437 files are not duplicated into the repository. **The design
 files remain byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 274 — NINE SCREENS FILLED FROM THE ARCHIVE
+
+    /               5 most recent records · real topics · links now stay on this site
+    /archive-index  24 records · the 14 real category counts · ?topic=folklores → 17
+    /watch          23 real films · real ids · real posters · from real articles
+    /photographs    24 real images · served from /media/
+    /folklore       17 records the archive files under Folklores
+    /listen         12 published records · no recording claimed
+    /topics         14 categories + 188 towns, in the design's A–Z shape
+    /towns          188 published towns and clans
+    /collections    the four collections, with the archive's own counts
+
+**Verified after every one: 63 design files byte-identical · 0 differing · 0 missing.**
+
+### The three that say what the archive does not hold
+
+    /towns         a town with no connected record reads "No records yet", not "0 records"
+    /collections   "Oral recordings — No recording held yet"
+    /listen        the length column says "Read", not a duration nobody measured
+
+**The archive holds 13 video records and no audio.** A listen page that claimed episodes, or a collections card
+that borrowed another collection's number, would have been the plainest kind of invention. **Each says what it
+has.**
+
+### Four faults, each found by a check rather than by reading
+
+    replaceContainer      inserted content INSIDE the opening tag when given a class prefix
+    /listen container     is an `ol.sx-tracklist` with `li` wrappers, not a div — the wrong
+                          selector left the design's six examples in place
+    duplicate tag span    the home renderer emitted the topic tag twice, which would have shifted
+                          every row because `.index` is positioned rather than flowed
+    /towns region         a clan with no region says so rather than showing an empty chip
+
+### What the checks caught that reading would not
+
+**In every case the code looked right and the render did not.** The lesson this run keeps producing:
+**print the rendered element beside the design's, and the fault appears in one line.**

@@ -21,8 +21,10 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
 import {
-  fillArchiveIndex, fillFolklore, fillHome, fillListen, fillPhotographs, fillTopics, fillWatch,
-  type RealAzEntry, type RealEntry, type RealFilm, type RealPhotograph, type RealStory, type RealTrack,
+  fillArchiveIndex, fillCollections, fillFolklore, fillHome, fillListen, fillPhotographs,
+  fillTopics, fillTowns, fillWatch,
+  type RealAzEntry, type RealCollection, type RealEntry, type RealFilm, type RealPhotograph,
+  type RealStory, type RealTown, type RealTrack,
 } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +32,9 @@ export const dynamic = 'force-dynamic';
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
 
 /** Screens this route fills. Anything else is served untouched. */
-const FILLED = new Set(['archive-index', 'watch', 'home', 'photographs', 'folklore', 'listen', 'topics']);
+const FILLED = new Set([
+  'archive-index', 'watch', 'home', 'photographs', 'folklore', 'listen', 'topics', 'towns', 'collections',
+]);
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
@@ -109,6 +113,65 @@ export async function GET(
         total: total?.n ?? 0,
       });
     }
+    if (name === 'towns') {
+      /*
+       * THE 188 PUBLISHED TOWNS AND CLANS.
+       *
+       * A town with no linked record says so in place of a count — **`No records yet` rather than `0 records`
+       * or, worse, a number that flatters the page.** A photograph is used only where the record has one from
+       * a linked article; the rest are drawn without an image rather than given a stand-in.
+       */
+      const db = await getDb();
+      const rows = await db.rows<{ slug: string; name: string; region: string | null; n: number; img: string | null }>(
+        `select c.slug, c.name, c.region,
+                (select count(*)::int from ozikoro_article_entity ae where ae.entity_id = e.id) as n,
+                (select '/media/' || m.storage_key
+                   from ozikoro_article a
+                   join ozikoro_media m on m.id = a.featured_media_id
+                  where a.status = 'published' and a.is_page = false
+                    and a.id in (select ae2.article_id from ozikoro_article_entity ae2 where ae2.entity_id = e.id)
+                  limit 1) as img
+           from clan c left join ozikoro_entity e on e.clan_id = c.id
+          where c.published = true
+          order by c.name`
+      );
+      const towns: RealTown[] = rows.map((r) => ({
+        name: r.name, href: `/town/${r.slug}/`, region: r.region, image: r.img, records: Number(r.n) || 0,
+      }));
+      if (towns.length > 0) html = fillTowns(html, towns);
+    }
+
+    if (name === 'collections') {
+      /*
+       * THE FOUR COLLECTIONS, WITH THE ARCHIVE'S OWN SIZES.
+       *
+       * **The counts are what the archive holds**, and the oral-recordings card says plainly that it holds no
+       * recording — 13 video records and no audio — rather than borrowing a number from another collection.
+       */
+      const db = await getDb();
+      const counts = await db.one<{ images: number; videos: number; docs: number }>(
+        `select count(*) filter (where kind = 'image')::int images,
+                count(*) filter (where kind = 'video')::int videos,
+                count(*) filter (where kind = 'document')::int docs
+           from ozikoro_media`
+      );
+      const hero = await db.one<{ img: string | null }>(
+        `select '/media/' || storage_key as img from ozikoro_media
+          where kind = 'image' and storage_key is not null order by id limit 1`
+      );
+      const collections: RealCollection[] = [
+        { label: 'Visual archive', name: 'Photographs', href: '/photographs',
+          cta: `${(counts?.images ?? 0).toLocaleString('en-GB')} image records`, image: hero?.img ?? null, glyph: null },
+        { label: 'Written archive', name: 'Documents & maps', href: '/documents',
+          cta: `${(counts?.docs ?? 0).toLocaleString('en-GB')} document records`, image: null, glyph: '≡' },
+        { label: 'Recorded archive', name: 'Oral recordings', href: '/listen',
+          cta: 'No recording held yet', image: null, glyph: '◉' },
+        { label: 'Material archive', name: 'Material culture', href: '/material-culture',
+          cta: `${(counts?.videos ?? 0).toLocaleString('en-GB')} video records`, image: null, glyph: '◈' },
+      ];
+      html = fillCollections(html, collections);
+    }
+
     if (name === 'folklore') {
       // The 17 records the archive files under Folklores, with a photograph from the record where it has one.
       const db = await getDb();
