@@ -231,10 +231,57 @@ export function queryTerms(question: string, limit = 8): string[] {
     .slice(0, limit);
 }
 
+/*
+ * WORDS THAT CARRY NO SIGNAL ABOUT WHAT A QUESTION IS ASKING.
+ *
+ * WHY THIS LIST MATTERS MORE THAN IT LOOKS (measured in round 262)
+ *
+ * `answerabilityOf` refuses an answer when no passage contains any of the question's terms — and that gate is
+ * the only thing standing between a reader and a model answering from its own knowledge. The check is
+ * `terms.some(...)`, so **one surviving common word defeats it entirely.**
+ *
+ * Measured before this fix:
+ *
+ *   "Explain quantum chromodynamics"  -> ["Explain", "quantum", "chromodynamics"]
+ *        "Explain" appears in 95 published articles, and neither of the other two in any.
+ *        The gate matched on the question's own VERB and the archive claimed grounding for a question
+ *        about particle physics.
+ *
+ *   "Tell me about Igbo clans"        -> ["Tell", "me", "clans"]
+ *        "Tell" appears in 311 articles.
+ *
+ *   "What is Nwaezinmadu?"            -> ["is", "Nwaezinmadu"]
+ *        "is" was not in this list at all, and appears in essentially every article.
+ *
+ * **So the list was missing the most basic function words and every question verb**, which meant a question
+ * phrased in ordinary English almost always found a spurious match. The verbs are here because they describe
+ * the ACT of asking rather than the subject: a question containing "explain" is not a question about
+ * explaining.
+ */
 const STOP_WORDS = new Set([
-  'the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'her', 'was', 'one', 'our',
-  'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see',
-  'two', 'way', 'who', 'boy', 'did', 'its', 'let', 'put', 'say', 'she', 'too', 'use',
-  'what', 'when', 'where', 'which', 'while', 'with', 'this', 'that', 'these', 'those',
-  'does', 'mean', 'means', 'please', 'igbo', 'word', 'say', 'about', 'from', 'into',
+  // articles, pronouns, prepositions, conjunctions
+  'the', 'a', 'an', 'and', 'or', 'but', 'if', 'then', 'than', 'so', 'as', 'at', 'by', 'for', 'from',
+  'in', 'into', 'of', 'on', 'onto', 'to', 'up', 'with', 'within', 'without', 'over', 'under', 'between',
+  'about', 'after', 'before', 'during', 'against', 'among', 'around', 'through', 'toward', 'towards',
+  'you', 'your', 'yours', 'me', 'my', 'mine', 'we', 'our', 'ours', 'us', 'he', 'him', 'his', 'she',
+  'her', 'hers', 'it', 'its', 'they', 'them', 'their', 'theirs', 'i', 'this', 'that', 'these', 'those',
+  // the verb 'to be', in every form a question uses
+  'is', 'are', 'was', 'were', 'be', 'been', 'being', 'am',
+  // auxiliaries and modals
+  'do', 'does', 'did', 'done', 'have', 'has', 'had', 'can', 'could', 'will', 'would', 'shall', 'should',
+  'may', 'might', 'must',
+  // question words
+  'what', 'when', 'where', 'which', 'who', 'whom', 'whose', 'why', 'how',
+  // THE VERBS OF ASKING — the round 262 finding. A question containing these is not a question ABOUT them.
+  'explain', 'explains', 'explained', 'tell', 'tells', 'told', 'describe', 'describes', 'described',
+  'give', 'gives', 'given', 'know', 'knows', 'known', 'show', 'shows', 'shown', 'list', 'lists',
+  'find', 'finds', 'help', 'helps', 'need', 'needs', 'want', 'wants', 'like', 'look', 'looks',
+  // the vocabulary of asking itself
+  'mean', 'means', 'meaning', 'please', 'say', 'says', 'said', 'ask', 'asks', 'asked', 'question',
+  'answer', 'answers', 'information', 'info', 'details', 'detail', 'anything', 'something', 'everything',
+  // the archive's own subject, which a question about it will always contain
+  'igbo', 'word', 'words', 'language', 'archive', 'ozikoro', 'history', 'histories',
+  // leftovers that were here and still belong
+  'all', 'any', 'one', 'two', 'new', 'now', 'old', 'out', 'day', 'get', 'let', 'put', 'see', 'too', 'use',
+  'way', 'boy', 'not', 'while', 'also', 'just', 'only', 'very', 'more', 'most', 'much', 'many', 'some',
 ]);

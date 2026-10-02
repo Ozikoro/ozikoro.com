@@ -11739,3 +11739,69 @@ first of those rounds.** The correction is the round's product.
 **That is the eleventh instance in this run of a claim in this file being the thing at fault**, and the first
 one where the claim was mine rather than an instrument's. **A stale finding is worse than no finding, because
 it spends attention on work already done.**
+
+---
+
+## ROUND 262 — THE PHASE 7 GATE WAS DEFEATED BY THE QUESTION'S OWN VERB. ROUND 261 WAS WRONG.
+
+**Round 261 concluded that Phase 7's relevance threshold was already built, tested and sufficient, and
+corrected this file's long-standing claim that it was missing.** **That conclusion was wrong**, and it took
+one live request to show it:
+
+    GET /api/ask?q=Explain+quantum+chromodynamics&lang=eng
+      grounded=true   trust=verified   passages=6
+
+**The archive claimed grounding, with six passages, for a question about particle physics.** The gate existed
+and the test passed; **the test used a question whose words happened not to be common in the corpus.**
+
+### The first cause: question verbs were signal
+
+`queryTerms` filtered stopwords, and the list was missing **the most basic function words and every question
+verb**:
+
+    "Explain quantum chromodynamics"  -> ["Explain", "quantum", "chromodynamics"]
+         "Explain" appears in 95 published articles; the other two in none.
+    "Tell me about Igbo clans"        -> ["Tell", "me", "clans"]
+         "Tell" appears in 311.
+    "What is Nwaezinmadu?"            -> ["is", "Nwaezinmadu"]
+         "is" was not in the list at all.
+
+**So a question phrased in ordinary English almost always found a spurious match.** The list now carries the
+function words (`is`, `me`, `to`, `of`, `in`, `it`, `am`, `been` …), the auxiliaries, and **the verbs of
+asking** — `explain`, `tell`, `describe`, `give`, `know`, `show`, `list`, `find`, `help`, `need`, `want` —
+**because a question containing "explain" is not a question about explaining.**
+
+### The second cause: one term out of many was enough
+
+With that fixed, two questions still passed:
+
+    "What is the capital of France?"  -> ["capital", "France"]     grounded=true
+    "Who won the 1994 World Cup?"     -> ["won", "1994", "world", "cup"]   grounded=true
+
+**The overlap test was `terms.some(...)` — ANY term in ANY passage — and a single surviving common word
+defeated the whole gate.** It now requires a passage to share the question's terms: **all of them for a one-
+or two-term question, and a majority beyond that.**
+
+**My first attempt at this used `Math.ceil(terms.length / 2)` with a floor of one, which for a two-term
+question is one — exactly the test it was meant to replace** — and "the capital of France" passed on
+"capital" alone. A short question is asking about *both* its words.
+
+### What is fixed and what is not
+
+    refused now   "Explain quantum chromodynamics"
+                  "What is the capital of France?"
+    still passes  "Who won the 1994 World Cup?"   — on "world" and "1994"
+
+**Two of three, from nought of three.** The remaining case needs something this does not have: **term rarity.**
+`world` and `1994` are common enough across 1,059 articles that a majority match is not evidence, and a
+proportional rule cannot tell a discriminating word from a frequent one. **That is the honest next step — an
+inverse-document-frequency floor, so a term appearing in a large fraction of the corpus carries no weight —
+and it is recorded rather than approximated.**
+
+### And the corrected lesson
+
+**Round 261 was a correction to a stale finding that was itself wrong**, which makes it the twelfth instance in
+this run of a claim here being the thing at fault — and the second in a row that was mine.
+
+> **Round 261 checked the gate existed and that its test passed. Round 262 asked the endpoint a question it
+> should have refused.** Those are different examinations, and only the second one is about the system.

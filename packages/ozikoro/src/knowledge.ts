@@ -187,18 +187,52 @@ export function answerabilityOf(result: RetrievalResult, terms: readonly string[
   // the scoring is how a second, differently-wrong definition gets written — so this asks the simplest
   // question that settles it: *does a passage contain a word the question used?*
   if (result.items.length > 0 && terms.length > 0) {
-    const overlap = result.items.some((item) => {
+    /*
+     * A PROPORTION OF THE QUESTION'S TERMS, NOT ONE OF THEM (measured in round 262).
+     *
+     * This asked whether ANY term appeared in ANY passage — `terms.some(...)` — and **one surviving common
+     * word defeated the whole gate.** Measured with the stopword list fixed and this still in place:
+     *
+     *   "What is the capital of France?"  -> terms ["capital", "France"]
+     *        "capital" appears in articles about capitals; grounded=True, passages=6, trust=verified.
+     *   "Who won the 1994 World Cup?"     -> grounded=True, passages=6, trust=verified.
+     *
+     * **The archive claimed grounding for questions about France and the World Cup.** A single term is not
+     * evidence that a passage answers a question; it is evidence that the word occurs somewhere in a
+     * thousand articles.
+     *
+     * So the question must be answered by a passage that shares MOST of its terms. Half, rounded up, with a
+     * floor of one so a single-term question still works. **A passage matching "capital" alone is not about
+     * France; a passage matching both is at least about both.**
+     */
+    /*
+     * A SHORT QUESTION MUST MATCH ALL OF ITS TERMS.
+     *
+     * The first version of this used `Math.ceil(terms.length / 2)` with a floor of one, and **for a two-term
+     * question that is one** — which is exactly the `terms.some(...)` it was meant to replace. Measured with
+     * it in place: "What is the capital of France?" still returned grounded=True with six passages, because
+     * "capital" alone matched.
+     *
+     * **A question reduced to two words is asking about both of them.** "The capital of France" is not
+     * answered by a passage that mentions a capital, and "the 1994 World Cup" is not answered by one that
+     * mentions 1994. So one and two terms require all of them, and longer questions require a majority —
+     * because a long question legitimately ranges over more words than any one passage will repeat.
+     */
+    const needed = terms.length <= 2 ? terms.length : Math.ceil(terms.length / 2);
+    const bestMatch = result.items.reduce((best, item) => {
       const haystack = item.text.toLowerCase();
-      return terms.some((term) => term.length > 1 && haystack.includes(term.toLowerCase()));
-    });
+      const hits = terms.filter((term) => term.length > 1 && haystack.includes(term.toLowerCase())).length;
+      return Math.max(best, hits);
+    }, 0);
+    const overlap = bestMatch >= needed;
     if (!overlap) {
       return {
         canAnswer: false,
         trust: 'ai_assisted',
         reason:
-          'Nothing in the archive matches the words of this question. The passages that came back were ' +
-          'returned by position rather than by relevance, and an answer built on them would not be ' +
-          'grounded in a record here.',
+          'Nothing in the archive matches the words of this question. The passages that came back share ' +
+          'too little of it to be about the same subject — they were returned by position rather than by ' +
+          'relevance — and an answer built on them would not be grounded in a record here.',
       };
     }
   }
