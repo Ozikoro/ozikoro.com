@@ -49,3 +49,5 @@ export * from './search.ts';
 export * from './entities.ts';
 export * from './seo.ts';
 export * from './redirects.ts';
+
+export * from './knowledge.ts';

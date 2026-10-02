@@ -7947,3 +7947,69 @@ an unrelated word.
 169's `grep -c` and round 181's unanchored `/test-/`: a pattern written loosely enough to match something
 that is not the thing. **It was caught by reading the value rather than the count** — the count alone would
 have said "1 language column found."
+
+---
+
+## ROUND 184 — THE ARCHIVE FEEDS THE RETRIEVAL PIPELINE, AND THE CHAIN IS PROVEN END TO END
+
+Round 183 stopped at `languageCode` and recorded the decision. This round built the nine-tenths that does
+not need one — by making the decision **impossible to skip** rather than waiting for it.
+
+### The adapter
+
+`packages/ozikoro/src/knowledge.ts`, exported from the package. **`languageCode` is a required parameter,
+validated as ISO 639-3**, so the module cannot invent one and a caller cannot forget to say. Every other
+field maps from a recorded column:
+
+    id        ozikoro-article-<id>
+    kind      'culture'
+    status    'published' — pinned in the WHERE clause, because the filter belongs where rows are chosen
+    text      title · standfirst · body, with markup stripped by a deliberate plainText()
+    source    canonical_url, falling back to legacy_url
+
+**`source` is what makes the citation honest**: the assistant can name where a passage came from because
+the archive already recorded the address, and nothing here invents one. Items with no text or no source are
+skipped rather than filled — as measured, none are.
+
+### The proof, against real data
+
+    refuses an empty language code                        yes
+    refuses a non-ISO code ('igbo')                       yes
+    items loaded                                          1000  (the default cap)
+    every item has a source · text · status published      yes
+    selected items considered                             1000
+    retrieved for "What is the New Yam Festival about?"   1
+    trustForGrounding                                     "verified"
+    formatKnowledgeBlock                                  2012 characters, and it CARRIES A URL
+
+**Retrieve, ground, label and cite, over the real archive, in one call chain.** That is item 9's plumbing
+demonstrated rather than asserted — and the block's own claim that *"selectKnowledge is pointed at the
+dictionary's knowledge and not the archive's"* is no longer true.
+
+### And my first attempt at proving it was wrong in a way the type checker exists to catch
+
+    selectKnowledge(items, { question: '…', limit: 4 })     ->  RETRIEVED=0, EMPTY=true
+
+`RetrievalQuery` has no `question` and no `limit`; it has **`languageCode` — required — plus `terms` and
+`maxItems`**, and the hard gate is `item.languageCode === query.languageCode`. My query set neither, so
+nothing matched and the adapter looked broken when the probe was.
+
+**I wrote the probe in plain JavaScript.** `npm run typecheck` would have refused those two field names,
+and I bypassed it — which is the same shape as rounds 169, 181 and 183: **a check that could not fail
+correctly, reported as a finding about the code.** The corrected call, with `queryTerms()` and
+`languageCode`, returns one item at `trust: "verified"`.
+
+### The honest limitation
+
+**One item retrieved out of 1,000 considered for a reasonable question.** The scoring ranks on `topic`,
+`headword` and term overlap, and these items carry only `text` and `source` — `topic` is derivable from the
+article's labels and is not set here. **The pipeline works; the ranking is thin**, and saying so is the
+point: a demonstrated chain is not a good assistant.
+
+### Not done, and named
+
+    a committed test        the proof above was a probe, run once, and not left behind
+    topic from labels       mechanical, and it is what ranking has least of
+    prompts in register     the archive's voice, not a course's
+    a surface to ask        a page or an endpoint
+    the language decision   round 183's three options, still the owner's
