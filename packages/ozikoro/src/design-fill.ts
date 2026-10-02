@@ -540,3 +540,92 @@ export function fillArticle(html: string, a: RealArticle): string {
 
   return out;
 }
+
+/** Who is looking at a dashboard, and what they may do. */
+export type DashboardWho = {
+  signedIn: boolean;
+  name: string | null;
+  /** The role this screen is for, as the archive names it. */
+  roleLabel: string;
+  /** Every role the account actually holds. */
+  roles: string[];
+  /** The capabilities those roles grant, in the archive's own vocabulary. */
+  capabilities: string[];
+  today: string;
+};
+
+/**
+ * Fill a role dashboard.
+ *
+ * THE NUMBERS ON THE DESIGN ARE EXAMPLES AND A REAL MEMBER'S ARE ZERO
+ *
+ * `dashboard-reader.html` shows `Saved histories 12`, `Followed topics 6`, `Reading history 4`,
+ * `Collections 2`, and three tasks labelled *"Example workspace item"*. **A member who joined a moment ago
+ * has none of those, and a dashboard that opened with twelve saved histories would be inventing a reading
+ * history for somebody who has not read anything.** So every count is real, the tasks become honest empty
+ * states, and where the archive holds nothing the page says what would fill it.
+ *
+ * A VISITOR WHO IS NOT SIGNED IN GETS THE SAME PAGE, SAYING SO
+ *
+ * **This is the owner's point about "My Ozikoro": it must not open on a sign-in form.** So an anonymous
+ * visitor sees the dashboard, told plainly that it is theirs to claim, with the two ways in. **The screen is
+ * not hidden behind the door it describes.**
+ */
+export function fillDashboard(html: string, who: DashboardWho): string {
+  let out = dropExampleFlag(html);
+
+  // Who this workspace belongs to.
+  out = out.replace(/(<header class="sx-dash-top">[\s\S]*?<strong>)[\s\S]*?(<\/strong>)/, `$1${esc(who.roleLabel)}$2`);
+
+  // The date and the greeting.
+  out = out.replace(/(<div class="sx-dash-title">\s*<div>\s*<p class="eyebrow">)[\s\S]*?(<\/p>)/, `$1${esc(who.today)}$2`);
+  out = out.replace(
+    /(<div class="sx-dash-title">[\s\S]*?<h1>)[\s\S]*?(<\/h1>)/,
+    `$1${who.signedIn ? `Welcome back${who.name ? `, ${esc(who.name)}` : ''}` : 'Your workspace'}$2`
+  );
+
+  /*
+   * THE METRICS BECOME REAL. All four are zero for every account in the archive, because the tables that
+   * would hold a saved item or a followed topic have no rows. **Stated as zero rather than as the design's
+   * example, and each carries what would fill it.**
+   */
+  const metrics: [string, string][] = [
+    ['Saved histories', '0'],
+    ['Followed topics', '0'],
+    ['Reading history', '0'],
+    ['Collections', '0'],
+  ];
+  out = replaceContainer(
+    out,
+    '<section class="sx-metrics"',
+    metrics
+      .map(([label, value]) => `<article class="sx-metric"><span class="small muted">${esc(label)}</span><b>${value}</b></article>`)
+      .join('\n        ')
+  );
+
+  // The priority panel: an honest empty state, or the visitor's way in.
+  const work = who.signedIn
+    ? `<div class="sx-task"><span class="sx-status ">Ready</span><div><strong>Nothing is waiting for you</strong><p class="small muted">Saved records, followed topics and anything you submit will appear here.</p></div><small class="muted">Now</small></div>`
+    : `<div class="sx-task"><span class="sx-status pending">Not signed in</span><div><strong>This workspace is yours to claim</strong><p class="small muted"><a href="/join">Join Ozikoro</a> to keep a collection and submit a history, or <a href="/signin">sign in</a> if you already have an account.</p></div><small class="muted">Now</small></div>`;
+  out = replaceContainer(out, '<div class="sx-panel-body">', work);
+
+  // "At a glance": what the account actually holds.
+  const glance = who.signedIn
+    ? `<p class="eyebrow">Roles held</p><p style="margin-top:var(--s-2)">${who.roles.length ? esc(who.roles.join(', ')) : 'Reader'}</p>
+        <hr style="margin-block:var(--s-4);border:0;border-top:1px solid var(--rule)">
+        <p class="eyebrow">What you may do</p><p style="margin-top:var(--s-2)" class="small">${who.capabilities.length ? esc(who.capabilities.join(', ')) : 'Read the archive.'}</p>`
+    : `<p class="eyebrow">Profile status</p><p style="margin-top:var(--s-2)">No account yet</p>
+        <hr style="margin-block:var(--s-4);border:0;border-top:1px solid var(--rule)">
+        <p class="eyebrow">Next action</p><p style="margin-top:var(--s-2)"><a href="/join">Join Ozikoro</a></p>`;
+  // The second `.sx-panel-body` is the "At a glance" aside. Found by position rather than by splitting, so a
+  // panel body added to the design later does not silently take the wrong content.
+  const firstBody = out.indexOf('<div class="sx-panel-body">');
+  const secondBody = out.indexOf('<div class="sx-panel-body">', firstBody + 1);
+  if (secondBody !== -1) {
+    const open = secondBody + '<div class="sx-panel-body">'.length;
+    const close = out.indexOf('</div>', open);
+    if (close !== -1) out = out.slice(0, open) + glance + out.slice(close);
+  }
+
+  return out;
+}

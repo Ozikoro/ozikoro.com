@@ -12537,3 +12537,46 @@ all agree.
 university.** So the join form has no institution field, and the page says plainly what a new member can do
 before they hand over an address: read, keep a collection, and submit work for review. **Everything above that
 is granted by an administrator.**
+
+---
+
+## ROUND 279 — THE FOURTEEN ROLE DASHBOARDS, AND WHY THEIR NUMBERS HAD TO BECOME ZEROS
+
+**Fourteen screens were still showing the design's example content.** They are all wired now:
+
+    dashboard-reader  student  teacher  researcher  independent-researcher
+    knowledge-holder  editor   reviewer  admin
+    dashboard-account  moderation  review  states  workflow
+
+    14 of 14 · 200 · filled
+
+### The design's metrics are examples, and a real member has none of them
+
+    design:  Saved histories 12 · Followed topics 6 · Reading history 4 · Collections 2
+    now:     Saved histories  0 · Followed topics 0 · Reading history 0 · Collections 0
+
+**Every count is the account's own, and every one is zero because the tables that would hold a saved item or
+a followed topic have no rows.** The design also carries three tasks labelled *"Example workspace item"*;
+those are one honest empty state now, saying what would fill them.
+
+**A dashboard that opened with twelve saved histories would be inventing a reading history for somebody who
+has not read anything** — and it would look more finished than the archive is, which is the failure mode the
+brief calls out.
+
+### A visitor who is not signed in gets the page, not a sign-in form
+
+**This is the owner's point restated as behaviour.** An anonymous visitor sees the dashboard, told plainly
+that the workspace is theirs to claim, with both ways in on the page:
+
+    Not signed in · This workspace is yours to claim · [Join Ozikoro] · [sign in]
+    Profile status: No account yet      Next action: Join Ozikoro
+
+**The screen is not hidden behind the door it describes.**
+
+### What the page says about the account, when there is one
+
+**Roles held** and **what you may do** are read from `ozikoro_member_role` and `ozikoro_capabilities()`, so the
+dashboard, the API checks and the table agree by construction. **A member with no roles reads "Read the
+archive", which is exactly what the `reader` grant means.**
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**

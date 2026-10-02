@@ -20,11 +20,12 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
+import { getCurrentAccount } from '@/lib/session';
 import {
-  fillArchiveIndex, fillCollections, fillFolklore, fillHome, fillListen, fillPhotographs,
-  fillTopics, fillTowns, fillWatch,
-  type RealAzEntry, type RealCollection, type RealEntry, type RealFilm, type RealPhotograph,
-  type RealStory, type RealTown, type RealTrack,
+  fillArchiveIndex, fillCollections, fillDashboard, fillFolklore, fillHome, fillListen,
+  fillPhotographs, fillTopics, fillTowns, fillWatch,
+  type DashboardWho, type RealAzEntry, type RealCollection, type RealEntry, type RealFilm,
+  type RealPhotograph, type RealStory, type RealTown, type RealTrack,
 } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
@@ -32,8 +33,34 @@ export const dynamic = 'force-dynamic';
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
 
 /** Screens this route fills. Anything else is served untouched. */
+const DASHBOARDS = [
+  'dashboard-reader', 'dashboard-student', 'dashboard-teacher', 'dashboard-researcher',
+  'dashboard-independent-researcher', 'dashboard-knowledge-holder', 'dashboard-editor',
+  'dashboard-reviewer', 'dashboard-admin', 'dashboard-account', 'dashboard-moderation',
+  'dashboard-review', 'dashboard-states', 'dashboard-workflow',
+];
+
+/** The screen name to the role it speaks for, and the label the design prints. */
+const DASHBOARD_ROLE: Record<string, { role: string; label: string }> = {
+  'dashboard-reader': { role: 'reader', label: 'Reader' },
+  'dashboard-student': { role: 'student', label: 'Student' },
+  'dashboard-teacher': { role: 'teacher', label: 'Teacher' },
+  'dashboard-researcher': { role: 'researcher', label: 'Researcher' },
+  'dashboard-independent-researcher': { role: 'independent_researcher', label: 'Independent researcher' },
+  'dashboard-knowledge-holder': { role: 'community_knowledge_holder', label: 'Community knowledge holder' },
+  'dashboard-editor': { role: 'editor', label: 'Editor' },
+  'dashboard-reviewer': { role: 'expert_reviewer', label: 'Expert reviewer' },
+  'dashboard-admin': { role: 'admin', label: 'Administrator' },
+  'dashboard-account': { role: 'reader', label: 'Account & profile' },
+  'dashboard-moderation': { role: 'moderator', label: 'Moderation queue' },
+  'dashboard-review': { role: 'expert_reviewer', label: 'Evidence review' },
+  'dashboard-states': { role: 'reader', label: 'Every state has a next step' },
+  'dashboard-workflow': { role: 'editor', label: 'Publishing workflow' },
+};
+
 const FILLED = new Set([
   'archive-index', 'watch', 'home', 'photographs', 'folklore', 'listen', 'topics', 'towns', 'collections',
+  ...DASHBOARDS,
 ]);
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
@@ -113,6 +140,49 @@ export async function GET(
         total: total?.n ?? 0,
       });
     }
+    if (DASHBOARDS.includes(name)) {
+      /*
+       * A ROLE DASHBOARD, FILLED WITH WHAT THE ACCOUNT ACTUALLY HOLDS.
+       *
+       * **The design's metrics are examples — "Saved histories 12" — and a member who joined a minute ago has
+       * none of them.** So every count is real, the work panel becomes an honest empty state, and the
+       * capabilities shown are the ones the account's roles genuinely grant.
+       *
+       * **A visitor who is not signed in gets the page too**, told plainly that the workspace is theirs to
+       * claim. That is the owner's point about "My Ozikoro": **it must not open on a sign-in form, because a
+       * sign-in form is no use to somebody who has not joined.**
+       */
+      const current = await getCurrentAccount();
+      const db = await getDb();
+      let who: DashboardWho = {
+        signedIn: false,
+        name: null,
+        roleLabel: DASHBOARD_ROLE[name]?.label ?? 'Reader',
+        roles: [],
+        capabilities: [],
+        today: new Date().toLocaleDateString('en-GB', {
+          weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+        }),
+      };
+      if (current) {
+        const account = current.account;
+        const roles = await db.rows<{ role: string }>(
+          `select role from ozikoro_member_role where account_id = $1 order by role`, [account.id]
+        );
+        const caps = await db.rows<{ capability: string }>(
+          `select capability from ozikoro_capabilities($1) order by capability`, [account.id]
+        );
+        who = {
+          ...who,
+          signedIn: true,
+          name: account.displayName ?? null,
+          roles: roles.map((r) => r.role),
+          capabilities: caps.map((c) => c.capability),
+        };
+      }
+      html = fillDashboard(html, who);
+    }
+
     if (name === 'towns') {
       /*
        * THE 188 PUBLISHED TOWNS AND CLANS.
