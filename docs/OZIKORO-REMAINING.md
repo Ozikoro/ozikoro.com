@@ -35,6 +35,21 @@
 > author or entity, the 3 waived in-body links, and any typo. Eliminated by measurement:
 > `force-dynamic` (116), the async layout (107), `await headers()` (118). Only the throw correlates (119).
 > No one-line fix: the good path needs *no route to match*, and a page cannot rewrite.
+
+> **AND THE PARAGRAPH ABOVE ALREADY CONTAINED THE RULE ROUNDS 196-202 SPENT SIX ROUNDS FINDING.**
+> *"It defers instead … only when a matched dynamic route calls `notFound()`"* — **and it names the affected
+> routes: every nonexistent article, label, topic, document, author or entity.** Round 196 added a Suspense
+> boundary at `app/`, which turned every 404 into a 200. Round 201 added one to `labels/`, which is on that
+> list. Round 202 measured both failures and derived *"a boundary is unsafe wherever a dynamic segment sits
+> beneath it"* — **the same distinction, in different words: the ROUTER decides the status where the segment
+> matches or does not, and the PAGE decides it where a matched route calls `notFound()`.** 17 boundaries were
+> then removed and 12 kept on static routes only.
+>
+> **The answer was in this document before the work started**, and the rounds that broke things did not read
+> it. That is the fifth time a correction has been to something already written here (rounds 136, 137, 151,
+> 157, 174) and the first where the missing step was in the **handover** rather than in the change. **A change
+> that touches routing, status or the not-found path reads this paragraph first**, and it says so here so the
+> next one does.
 >
 > **Blocked on the owner — nothing here will be invented:**
 > **THE ELEVEN ACCOUNT ADDRESSES — the most consequential gap in this file.** The `account` table is
