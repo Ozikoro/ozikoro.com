@@ -6,7 +6,7 @@
 > **What is live.** 38 reader-facing routes and 7 under `/admin` — 45 page routes. Migrated records answer
 > at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
 > media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
-> steps** via `./scripts/verify-all.sh` and **5 live checks** via `./scripts/verify-live.sh`.
+> steps** via `./scripts/verify-all.sh` and **6 live checks** via `./scripts/verify-live.sh`.
 >
 > **Verified by exhaustive request, not sampling.** All **14,669** sitemap URLs were requested and every
 > page that answered returned 200 (round 70). The 120-page link walk is clean; 62 referenced assets load.
