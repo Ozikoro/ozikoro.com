@@ -12341,3 +12341,49 @@ has.**
 
 **In every case the code looked right and the render did not.** The lesson this run keeps producing:
 **print the rendered element beside the design's, and the fault appears in one line.**
+
+---
+
+## ROUND 275 — THE IMAGES INSIDE THE ARTICLES, WHICH WAS THE POINT ALL ALONG
+
+### The reading page is the design now
+
+`app/[slug]/route.ts` serves `article.html` filled with the record. **It is a route handler rather than a page
+because the deliverable is a complete HTML document with its own masthead and footer, and a Next page renders
+inside the application's layout — which would wrap the design in chrome that is not the design.**
+
+    /akwa-ocha-the-white-that-carries-the-mark/   design, 2 images, 2 from /media/, 0 from the live site
+    /owa-an-ika-igbo-kingdom-built-from-many-lineages/   design, 5 images, 5 own, 0 live
+    /ute-okpu-an-ika-igbo-clan-and-its-nrì-roots/        design, 5 images, 5 own, 0 live
+
+**Preserved from the page it replaced:** a category address colliding with an article's own is redirected to
+`/topics/<slug>/` — round 74 found 27 in-body links doing exactly that across 91 articles — and a slug that is
+neither an article nor a topic is a 404.
+
+### The in-body images, which is what the owner asked for
+
+    in-body images across the archive            2,871, in 1,027 articles
+    matched exactly to a media record            2,708
+    matched after stripping a -WxH resize        80
+    no match, left exactly as they were          83
+
+**Every one of the 2,871 pointed at `https://ozikoro.com/wp-content/uploads/…`.** The archive holds the same
+files; `ozikoro_media.source_url` is the address the file had on WordPress and `storage_key` is where this
+archive keeps it, **so the two columns are the mapping.** `srcset` is rewritten as well, because a `<img>` that
+has one is what the browser actually loads.
+
+**A URL with no match is left alone.** Most of the 83 are images that were never on ozikoro.com at all — from
+Google and the BBC — **and rewriting those to a local path would be inventing a source, not importing one.**
+
+### And one defect the images would have hidden
+
+    /media/ozikoro/11228-owa.jpg   served as  application/octet-stream
+
+**The file came from object storage, which reports `application/octet-stream` for anything uploaded without an
+explicit ContentType, and that value was preferred over the extension.** The images still arrived and the page
+looked right — **but a browser given `octet-stream` for an `<img>` may download it rather than draw it.** The
+extension now wins over a generic stored type, while a specific one is still respected. All three verified:
+`image/jpeg`, `image/webp`, `image/jpeg`.
+
+**That is the fifteenth fault this run that a rendered page could not have revealed**, and it is the kind only a
+header comparison finds.

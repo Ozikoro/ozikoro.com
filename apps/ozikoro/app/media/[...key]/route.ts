@@ -69,7 +69,20 @@ export async function GET(
     const object = await getStorage().get(key);
     if (object) {
       return new NextResponse(new Uint8Array(object.body), {
-        headers: { 'Content-Type': object.contentType || contentType, ...cacheHeaders },
+        // THE EXTENSION WINS OVER A GENERIC STORED TYPE.
+        //
+        // Object storage reports `application/octet-stream` for anything uploaded without an explicit
+        // ContentType, and that value was being preferred over the extension. **The images still arrived, so
+        // the page looked right — but a browser given `octet-stream` for an `<img>` may download it instead of
+        // drawing it, which is why the difference is worth fixing even though it is invisible in a fetch.**
+        // A specific stored type is still respected; only the generic one defers to the extension.
+        headers: {
+          'Content-Type':
+            object.contentType && object.contentType !== 'application/octet-stream'
+              ? object.contentType
+              : contentType,
+          ...cacheHeaders,
+        },
       });
     }
   } catch (error) {

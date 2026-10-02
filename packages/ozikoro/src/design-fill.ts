@@ -406,3 +406,127 @@ export function fillCollections(html: string, collections: RealCollection[]): st
   out = replaceContainer(out, '<div class="sx-collection-showcase"', rendered);
   return out;
 }
+
+/** One article, as the reader page needs it. */
+export type RealArticle = {
+  title: string;
+  topic: string | null;
+  author: string | null;
+  published: string | null;
+  updated: string | null;
+  image: string | null;
+  imageAlt: string;
+  caption: string | null;
+  rights: string;
+  body: string;
+  related: { title: string; href: string; topic: string | null; image: string | null }[];
+  /** Maps an original media URL to the file this archive serves. Absent means leave the URL alone. */
+  resolveImage?: (url: string) => string | null;
+};
+
+/**
+ * Point the article's own images at this archive.
+ *
+ * WHY THIS IS THE PART THAT MATTERS
+ *
+ * A record's body carries its photographs inline — **2,871 of them across 1,027 articles** — and every one
+ * pointed at `https://ozikoro.com/wp-content/uploads/…`, the live WordPress install. The archive holds those
+ * same files; they are matched by `source_url` and served from `/media/`. **Without this the articles render
+ * with broken images, which is the one thing the owner asked for: articles must have their images as they had
+ * them on ozikoro.com.**
+ *
+ * `srcset` is rewritten too, because a `<img>` that has one is what the browser actually loads. **A URL with
+ * no match is left exactly as it was** — a third of the misses are images that were never on ozikoro.com at
+ * all, from Google or the BBC, and replacing those would be inventing a source.
+ */
+export function rewriteBodyImages(body: string, resolve: (url: string) => string | null): string {
+  const fix = (url: string) => resolve(url) ?? url;
+  return body
+    .replace(/(<img[^>]*?\ssrc=")([^"]+)(")/g, (_m, a, url, c) => a + fix(url) + c)
+    .replace(/(\ssrcset=")([^"]+)(")/g, (_m, a, set, c) =>
+      a +
+      set
+        .split(',')
+        .map((part: string) => {
+          const trimmed = part.trim();
+          const sp = trimmed.indexOf(' ');
+          if (sp === -1) return fix(trimmed);
+          return fix(trimmed.slice(0, sp)) + trimmed.slice(sp);
+        })
+        .join(', ') +
+      c
+    );
+}
+
+const dateFmt = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) : null;
+
+/**
+ * Fill `article.html` — the reading page, and the one screen where an article's own image belongs.
+ *
+ * WHAT IS REPLACED
+ *
+ *   `.sx-article-title .eyebrow`   the record's topic, with the state the archive actually holds
+ *   `.sx-article-title h1`         the title
+ *   `.sx-article-byline`           the named author, or the archive itself where none is recorded
+ *   `figure.sx-article-image img`  the record's own featured image, served from `/media/`
+ *   `figure.sx-article-image figcaption`  the rights state — **never a permission nobody granted**
+ *   the `Published` / `Last updated` pairs  the record's real dates
+ *   `.sx-page`                     the record's own body
+ *   `.sx-related-list`             other records from the same topic
+ *
+ * **The design's figcaption says "Design placeholder from Ozikoro · final article image and rights must be
+ * verified".** That sentence is true of the design and false of a real record, so it is replaced by the
+ * archive's own state: the credit where one is recorded, and the licence state where none is.
+ */
+export function fillArticle(html: string, a: RealArticle): string {
+  let out = dropExampleFlag(html);
+
+  // The eyebrow: the record's topic and the archive's own description of its standing.
+  out = out.replace(
+    /(<div class="sx-article-title">\s*<p class="eyebrow">)[\s\S]*?(<\/p>)/,
+    `$1${esc(a.topic ? `${a.topic} · Published history` : 'Published history')}$2`
+  );
+  // The title.
+  out = out.replace(/(<div class="sx-article-title">[\s\S]*?<h1>)[\s\S]*?(<\/h1>)/, `$1${esc(a.title)}$2`);
+  // The byline.
+  out = out.replace(
+    /(<p class="sx-article-byline">)[\s\S]*?(<\/p>)/,
+    `$1By <strong>${esc(a.author ?? 'Ozikoro')}</strong>$2`
+  );
+
+  // The image, its alternative text, and the honest caption.
+  if (a.image) {
+    out = out.replace(
+      /(<figure class="sx-article-image">\s*<img src=")[^"]*(" alt=")[^"]*(")/,
+      `$1${esc(a.image)}$2${esc(a.imageAlt)}$3`
+    );
+    out = out.replace(/<figcaption>[\s\S]*?<\/figcaption>/, `<figcaption>${esc(a.caption ?? a.rights)}</figcaption>`);
+  } else {
+    // A record with no image carries no figure rather than an empty one.
+    out = out.replace(/<figure class="sx-article-image">[\s\S]*?<\/figure>/, '');
+  }
+
+  // The dates the design prints.
+  const pub = dateFmt(a.published);
+  const upd = dateFmt(a.updated);
+  if (pub) out = out.replace(/(<dt>Published<\/dt><dd>)[\s\S]*?(<\/dd>)/, `$1${esc(pub)}$2`);
+  out = out.replace(/(<dt>Last updated<\/dt><dd>)[\s\S]*?(<\/dd>)/, `$1${esc(upd ?? pub ?? '—')}$2`);
+
+  // The body, in the design's own reading column, with its own images served from this archive.
+  const body = a.resolveImage ? rewriteBodyImages(a.body, a.resolveImage) : a.body;
+  out = replaceContainer(out, '<div class="sx-page">', body);
+
+  // Related reading, from the same topic.
+  if (a.related.length > 0) {
+    const items = a.related
+      .map(
+        (r) =>
+          `<a href="${esc(r.href)}">${r.image ? `<img src="${esc(r.image)}" alt="" loading="lazy">` : ''}<small>${esc(r.topic ?? 'From the archive')}</small><strong>${esc(r.title)}</strong></a>`
+      )
+      .join('\n            ');
+    out = replaceContainer(out, '<div class="sx-related-list"', items);
+  }
+
+  return out;
+}
