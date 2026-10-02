@@ -201,3 +201,62 @@ export function fillHome(html: string, entries: { title: string; href: string; t
   out = replaceContainer(out, '<div class="sx-archive-index"', rendered);
   return out;
 }
+
+/** A photograph as the archive holds it. */
+export type RealPhotograph = {
+  id: number;
+  title: string;
+  alt: string;
+  src: string;
+  creator: string | null;
+  credit: string | null;
+  licence: string | null;
+  captured: string | null;
+};
+
+/**
+ * One photograph, in the design's own `<article>` markup.
+ *
+ * THE RIGHTS SENTENCE IS THE DESIGN'S OWN SLOT, FILLED HONESTLY
+ *
+ * The design writes `Sample record · source context required` in the `<small>` and `Access and reuse terms
+ * appear here` in the `<p>`. **Those are slots, not decoration, and the archive has something true to put in
+ * them: 3,488 media items carry a rights record whose basis is `unknown` and whose consent is `not_sought`,
+ * and not one has a licence.** So the sentence states that rather than being replaced with a permission
+ * nobody granted. **An image with no licence is shown with no licence stated.**
+ */
+export function renderPhotograph(ph: RealPhotograph): string {
+  const parts: string[] = [];
+  if (ph.creator) parts.push(`Photographer ${ph.creator}`);
+  if (ph.captured) parts.push(ph.captured);
+  if (ph.credit) parts.push(ph.credit);
+  const context = parts.length ? parts.join(' · ') : 'Source context not recorded';
+
+  const terms = ph.licence
+    ? `Licence ${ph.licence}`
+    : 'No licence recorded · reuse not granted';
+
+  return `<article>
+          <img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy">
+          <div>
+            <small>${esc(context)}</small>
+            <h2>${esc(ph.title)}</h2>
+            <p>Reference <code>OZ-M-${ph.id}</code> · ${esc(terms)}</p>
+            <a href="/photographs">Open record <span aria-hidden="true">→</span></a>
+          </div>
+        </article>`;
+}
+
+/**
+ * Fill `photographs.html`'s gallery.
+ *
+ * The design holds one example article and one placeholder that says no further item was invented for the
+ * demonstration. **Both are replaced by real photographs from the archive**, each served from this site at
+ * `/media/…` rather than hot-linked from the WordPress install the design's example points at.
+ */
+export function fillPhotographs(html: string, photographs: RealPhotograph[]): string {
+  let out = dropExampleFlag(html);
+  const rendered = photographs.map(renderPhotograph).join('\n        ');
+  out = replaceContainer(out, '<div class="sx-record-gallery">', rendered);
+  return out;
+}

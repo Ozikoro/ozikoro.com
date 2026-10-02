@@ -133,3 +133,4 @@ Thumbs.db
 # It is ignored because it is history rather than source, and because its object files are not something the
 # parent repository should carry twice.
 design/calm-comfort-construct/.git-upstream/
+apps/ozikoro/public/media

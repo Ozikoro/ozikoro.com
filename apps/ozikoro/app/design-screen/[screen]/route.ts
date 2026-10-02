@@ -20,14 +20,17 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArchiveIndex, fillHome, fillWatch, type RealEntry, type RealFilm } from '@ozikoro/platform';
+import {
+  fillArchiveIndex, fillHome, fillPhotographs, fillWatch,
+  type RealEntry, type RealFilm, type RealPhotograph,
+} from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
 
 /** Screens this route fills. Anything else is served untouched. */
-const FILLED = new Set(['archive-index', 'watch', 'home']);
+const FILLED = new Set(['archive-index', 'watch', 'home', 'photographs']);
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
@@ -106,6 +109,37 @@ export async function GET(
         total: total?.n ?? 0,
       });
     }
+    if (name === 'photographs') {
+      /*
+       * THE PHOTOGRAPHS, SERVED FROM THIS ARCHIVE RATHER THAN HOT-LINKED.
+       *
+       * The design's example image points at `https://ozikoro.com/wp-content/uploads/…`, which is the live
+       * WordPress install. These point at `/media/…` on this site, where the archive's own 3,437 files are
+       * served, so the page does not depend on the system it is replacing.
+       */
+      const db = await getDb();
+      const rows = await db.rows<{
+        id: number; title: string | null; alt_text: string | null; storage_key: string | null;
+        creator: string | null; credit: string | null; licence: string | null; captured_at: Date | null;
+      }>(
+        `select id, title, alt_text, storage_key, creator, credit, licence, captured_at
+           from ozikoro_media
+          where kind = 'image' and storage_key is not null
+          order by id limit 24`
+      );
+      const photos: RealPhotograph[] = rows.map((r) => ({
+        id: r.id,
+        title: r.title?.trim() || `Photograph ${r.id}`,
+        alt: r.alt_text?.trim() || r.title?.trim() || 'Archive photograph',
+        src: `/media/${r.storage_key}`,
+        creator: r.creator,
+        credit: r.credit,
+        licence: r.licence,
+        captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : null,
+      }));
+      if (photos.length > 0) html = fillPhotographs(html, photos);
+    }
+
     if (name === 'home') {
       // The five most recent published records, with their topic as the design's `<span class="tag">`.
       const db = await getDb();

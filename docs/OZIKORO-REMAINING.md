@@ -12264,3 +12264,40 @@ titles are taken from there. **A reader on the new site was being sent to the ol
 outside and once inside, because I wrote the markup from memory of the pattern rather than from the element.
 **The stylesheet positions `.index` against the entry rather than flowing it, so the duplicated tag would have
 shifted every row.** Caught by printing the rendered entry beside the design's.
+
+---
+
+## ROUND 273 — THE PHOTOGRAPHS, SERVED FROM THIS ARCHIVE RATHER THAN THE ONE IT REPLACES
+
+### The design was hot-linking the live WordPress site
+
+    design's example:  <img src="https://ozikoro.com/wp-content/uploads/2026/02/Northcote_…-680x541.jpg">
+    now:               <img src="/media/11234-ute-king.webp">
+
+**Every image the design shows pointed at `ozikoro.com/wp-content/uploads/…`.** The archive holds 3,437 of
+those files itself, at `data/media/ozikoro-wp/`, and they are now served from `/media/` on this site. **A page
+that depends on the system it is replacing cannot be the page that replaces it.**
+
+    photographs rendered      24
+    images from /media/       24
+    still hot-linking live     0
+    images verified loading   200 with real bytes (23 KB, 88 KB, 116 KB)
+
+### The rights sentence is the design's own slot, filled with what is true
+
+The design writes `Sample record · source context required` in the `<small>` and `Access and reuse terms
+appear here` in the `<p>`. **Those are slots, and the archive has something true to put in the terms one:
+3,488 media items carry a rights record whose basis is `unknown` and whose consent is `not_sought`, and not
+one has a licence.** So the page now reads:
+
+    Reference OZ-M-3 · No licence recorded · reuse not granted
+
+**An image with no licence is shown with no licence stated.** The alternative — leaving "terms appear here" —
+would be vaguer, and filling it with a permission nobody granted would be a lie.
+
+### The media link
+
+    apps/ozikoro/public/media -> ../../../data/media/ozikoro-wp
+
+**A relative symlink, git-ignored**, so the 3,437 files are not duplicated into the repository. **The design
+files remain byte-identical: 63 · 0 differing · 0 missing.**
