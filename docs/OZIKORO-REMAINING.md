@@ -8348,3 +8348,61 @@ literally writing one string and choosing a version number**, and everything dow
 
 **Two of the three are the owner's, and neither is code.** That is a different shape from *"item 9 is not
 started; needs a provider credential"* — which is what this file said before round 148.
+
+---
+
+## ROUND 191 — THE SHARED TRUST LABEL SAYS "VERIFIED" FOR AN ANSWER NOTHING MATCHES
+
+Round 190 established that item 9's machinery exists and its remaining work is a voice and a surface. Building
+the mechanical half of the surface found a gap in the shared pipeline that matters more than either.
+
+### `trustForGrounding` asks whether anything came back, not whether anything is relevant
+
+    export function trustForGrounding(result: RetrievalResult): TrustLabel {
+      return result.empty ? 'ai_assisted' : 'verified';
+    }
+
+And `selectKnowledge` **does not filter on relevance**: it scores every item, sorts, and takes the top N —
+while `scoreItem` gives every `culture` item **+1 for its kind alone**. So a question that matches nothing
+still returns four items, `result.empty` is false, and the trust label says **`verified`**.
+
+**Measured, and now asserted as a test:**
+
+    a question built from non-words ('qzxwv plmbk trzzn')
+      retrieved items                          4
+      result.empty                             false
+      trustForGrounding                        "verified"     <- and nothing matched
+      answerabilityOf                          REFUSED
+
+**The archive would have claimed grounding for an answer with nothing to do with the question.** That is the
+specific failure the objective's *"never invent a citation"* is about, arriving through the pipeline that
+exists to prevent it.
+
+### So the relevance check lives here rather than in core
+
+`answerabilityOf(result, terms)` requires that **at least one retrieved passage contains a word the question
+used** before it will allow an answer. It is a heuristic and is written as one — case-insensitive substring,
+not `toSearchForm`, because reimplementing the shared scoring is how a second, differently-wrong definition
+gets written (round 181's three bugs were exactly that).
+
+**The refusal is a sentence rather than a status**, because it is shown to a reader and written to a log:
+
+> *"Nothing in the archive matches the words of this question. The passages that came back were returned by
+> position rather than by relevance, and an answer built on them would not be grounded in a record here."*
+
+### And my first test of it failed, correctly
+
+The first version asked about *"quantum chromodynamics lattice gauge renormalisation"* and expected no match.
+It failed — **because `lattice` and `gauge` are ordinary English words that appear in an archive about craft
+and building.** The check was right and the test was wrong.
+
+> **Terms have to be impossible, not merely unlikely** — and the corrected test now asserts **both** facts:
+> that retrieval returns items for a question nothing matches, **and** that the archive refuses them. The
+> first assertion is placed before the second deliberately, so the guard cannot hide the gap it covers.
+
+### Item 9, with the mechanical half now done
+
+    built     archive adapter · retrieval · grounding trust · citation · THE REFUSAL
+    measured  4 of 4 answerable questions grounded, 1 of 1 unanswerable questions refused
+    left      the languageCode decision (owner) · the archive's system prompt (editorial)
+              a route or page to ask · and whether core's trust label should change

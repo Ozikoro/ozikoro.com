@@ -23,7 +23,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { getDb, closeDb } from '@ozituma/db/client';
-import { archiveKnowledgeItems, articleKnowledgeId } from './knowledge.ts';
+import { archiveKnowledgeItems, articleKnowledgeId, answerabilityOf, groundedPassages } from './knowledge.ts';
+import { selectKnowledge, queryTerms, trustForGrounding } from '@ozituma/core';
 
 /** The validation runs before any query, so a fake database proves the refusal without one. */
 const noDatabase = null as never;
@@ -81,6 +82,82 @@ test('loads published articles, each with a source and bounded text', async () =
     const budget = 6_000;
     const fits = Math.floor(budget / Math.max(...items.map((i) => i.text.length)));
     assert.ok(fits >= 6, `only ${fits} items fit the budget; the excerpt bound has regressed`);
+  } finally {
+    await closeDb();
+  }
+});
+
+/**
+ * The refusal is the point of this module, so it is tested in both directions.
+ *
+ * `answerabilityOf` decides whether the archive may answer at all. Round 185 measured what happens when the
+ * retriever finds nothing: the trust label drops to `ai_assisted`, which is the archive saying *the model
+ * would be answering from its own knowledge*. **The objective forbids exactly that**, so the decision has to
+ * be a refusal rather than a prompt the model might ignore.
+ */
+test('refuses to answer a question the archive holds nothing for', async () => {
+  const db = await getDb();
+  try {
+    const items = await archiveKnowledgeItems(db, 'ibo');
+
+    // Non-words, so no passage can contain one by accident. The first version of this test used
+    // 'quantum chromodynamics lattice gauge renormalisation' and FAILED — because `lattice` and `gauge`
+    // are ordinary English words that do appear in an archive about craft and building. The check was
+    // right and the test was wrong: **terms have to be impossible, not merely unlikely.**
+    const nonsense = 'qzxwv plmbk trzzn';
+    const terms = queryTerms(nonsense);
+
+    const retrieved = selectKnowledge(items, { languageCode: 'ibo', terms, maxItems: 4 });
+
+    // THE FINDING, asserted first so the guard below cannot hide it: retrieval returns items even when
+    // nothing matches, because `scoreItem` gives every `culture` item +1 for its kind and the selector
+    // takes the top N by score without a relevance floor.
+    assert.ok(
+      retrieved.items.length > 0,
+      'selectKnowledge returns items for a question nothing matches — this is the gap answerabilityOf covers'
+    );
+    assert.equal(retrieved.empty, false);
+    assert.equal(
+      trustForGrounding(retrieved),
+      'verified',
+      'and the shared trust label calls it verified, because it only asks whether anything came back'
+    );
+
+    // AND THE GUARD: the archive refuses, because the passages do not contain the question's words.
+    const decision = answerabilityOf(retrieved, terms);
+    assert.equal(decision.canAnswer, false, 'a question nothing matches must be refused');
+    if (decision.canAnswer) return;
+    assert.equal(decision.trust, 'ai_assisted');
+    assert.match(decision.reason, /words of this question|model/, 'the refusal says WHY');
+    assert.ok(decision.reason.length > 40, 'the refusal is a sentence a reader can be shown');
+  } finally {
+    await closeDb();
+  }
+});
+
+test('answers a question the archive does hold, and every passage is citable', async () => {
+  const db = await getDb();
+  try {
+    const items = await archiveKnowledgeItems(db, 'ibo');
+    const found = selectKnowledge(items, {
+      languageCode: 'ibo',
+      terms: queryTerms('What is the New Yam Festival about?'),
+      maxItems: 4,
+    });
+    const decision = answerabilityOf(found, queryTerms('What is the New Yam Festival about?'));
+
+    assert.equal(decision.canAnswer, true, 'the archive holds material on this');
+    if (!decision.canAnswer) return;
+    assert.equal(decision.trust, 'verified');
+    assert.ok(decision.passages > 0 && decision.characters > 0);
+
+    const passages = groundedPassages(found);
+    assert.equal(passages.length, found.items.length);
+    for (const passage of passages) {
+      assert.ok(passage.source.length > 0, `${passage.id} is citable`);
+      assert.match(passage.source, /^https?:\/\//);
+      assert.ok(passage.text.length > 0);
+    }
   } finally {
     await closeDb();
   }

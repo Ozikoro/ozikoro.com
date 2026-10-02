@@ -22,7 +22,8 @@
  *
  * The site's own reader-facing pages do not use this and are unaffected — see `apps/ozikoro/app/[slug]`.
  */
-import type { KnowledgeItem } from '@ozituma/core';
+import type { KnowledgeItem, RetrievalResult } from '@ozituma/core';
+import { trustForGrounding } from '@ozituma/core';
 import type { Db } from '@ozituma/db/client';
 
 /**
@@ -148,4 +149,92 @@ export async function archiveKnowledgeItems(
     });
   }
   return items;
+}
+
+/**
+ * What the archive can honestly say about a question (objective item 9).
+ *
+ * WHY THIS EXISTS SEPARATELY FROM THE PROMPT
+ *
+ * The objective's constraint is *"never invent a record, a source, a rights statement, a citation or a
+ * statistic."* For a generated answer, the moment that rule is either kept or broken is the moment the
+ * archive decides **whether it has anything to answer from** — and that decision is mechanical, so it
+ * belongs in code rather than in a system prompt that a model may or may not follow.
+ *
+ * `trustForGrounding` already distinguishes the two cases: `result.empty` means the retriever found nothing,
+ * and anything a model produced then would come from its own knowledge rather than from this archive. So
+ * the answer is **no**, and the reason is stated rather than left to a prompt.
+ *
+ * **Nothing here is voice.** The wording a reader sees is the page's business; this decides only whether
+ * an answer may be given at all, and every path that says no says why.
+ */
+export type Answerability =
+  | { canAnswer: true; trust: 'verified'; passages: number; characters: number }
+  | { canAnswer: false; trust: 'ai_assisted'; reason: string };
+
+export function answerabilityOf(result: RetrievalResult, terms: readonly string[] = []): Answerability {
+  const trust = trustForGrounding(result);
+
+  // RELEVANCE, WHICH `empty` DOES NOT TELL YOU (measured in round 191).
+  //
+  // `selectKnowledge` does not filter on relevance. It scores every item, sorts, and takes the top N — and
+  // `scoreItem` gives every `culture` item +1 for its kind alone. So a question about quantum chromodynamics
+  // retrieves four Igbo heritage articles, `result.empty` is false, and `trustForGrounding` calls it
+  // "verified": **the archive would claim grounding for an answer that has nothing to do with the
+  // question.** Asking for a term that appears in the text is the check `empty` cannot make.
+  //
+  // Matched case-insensitively against the stored text. `toSearchForm` is not exported and reimplementing
+  // the scoring is how a second, differently-wrong definition gets written — so this asks the simplest
+  // question that settles it: *does a passage contain a word the question used?*
+  if (result.items.length > 0 && terms.length > 0) {
+    const overlap = result.items.some((item) => {
+      const haystack = item.text.toLowerCase();
+      return terms.some((term) => term.length > 1 && haystack.includes(term.toLowerCase()));
+    });
+    if (!overlap) {
+      return {
+        canAnswer: false,
+        trust: 'ai_assisted',
+        reason:
+          'Nothing in the archive matches the words of this question. The passages that came back were ' +
+          'returned by position rather than by relevance, and an answer built on them would not be ' +
+          'grounded in a record here.',
+      };
+    }
+  }
+
+  if (result.empty || trust !== 'verified') {
+    return {
+      canAnswer: false,
+      trust: 'ai_assisted',
+      // Named plainly, because this string is what an operator sees in a log and what a reader is told.
+      reason:
+        'The archive holds nothing that answers this. An answer produced now would come from the model ' +
+        'rather than from a record here, and this archive does not do that.',
+    };
+  }
+
+  return {
+    canAnswer: true,
+    trust: 'verified',
+    passages: result.items.length,
+    characters: result.items.reduce((total, item) => total + item.text.length, 0),
+  };
+}
+
+/**
+ * The passages an answer may be built from, each with the address it came from.
+ *
+ * **Every passage carries a source or it is not returned.** `archiveKnowledgeItems` already skips items with
+ * no `source`, so this is belt-and-braces at the point where a citation would otherwise be printed as
+ * nothing — and it is the same "re-assert on the way out" the retrieval module uses for its published gate.
+ */
+export function groundedPassages(result: RetrievalResult): Array<{ id: string; text: string; source: string }> {
+  const passages: Array<{ id: string; text: string; source: string }> = [];
+  for (const item of result.items) {
+    const source = (item.source ?? '').trim();
+    if (source.length === 0 || item.text.trim().length === 0) continue;
+    passages.push({ id: item.id, text: item.text, source });
+  }
+  return passages;
 }
