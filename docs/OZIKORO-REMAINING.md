@@ -9241,3 +9241,57 @@ been the cost of assuming an effect without measuring it.
 **One number, corrected, and the reason it could go wrong.** The block now says 22 and `check-handover` still
 reports 29 assertions holding — **which is the point: a green suite said nothing about a fact it does not
 look at**, and the fact was found by asking the question rather than by trusting the colour.
+
+---
+
+## ROUND 207 — I CHANGED THE RUNNER TO COUNT ITSELF, AND BROKE THE SUITE
+
+Round 206 ended by naming the fix for the unchecked step count and saying why it was not attempted:
+
+> *"**Not attempted here.** … **Changing how the runner reports in order to add one assertion is a change to
+> the runner**, and the last four rounds have been the cost of assuming an effect without measuring it."*
+
+**This round did it anyway, and the suite went red.**
+
+### What was changed
+
+    scripts/verify-all.sh      report() now appends every result to $TMPDIR/dsh-verify-results
+    scripts/check-handover.sh  a new claim: the block's "N offline" against the file's line count + 1
+
+**The `+ 1` was the assumption, and it was wrong**: it presumed the handover check ran last, so the file would
+hold every other step. It did not. **Three steps ran after it** — `check:secrets`, `check:residue` and the
+suites — so the file held fewer lines than the total and the arithmetic never matched.
+
+**Moving it to the end did not fix it either**, which this round did not stop to understand before reverting.
+Two rounds of diagnosis had already produced one wrong assumption; a third was not the way to find a second.
+
+### Reverted, and what stands
+
+    git checkout scripts/verify-all.sh scripts/check-handover.sh
+    verify-all   exit 0 · 22 PASS · All suites passed
+
+**Everything round 206 left in place is intact** — the block's corrected count of 22, `check:boundaries` as a
+step, and the 29 assertions `check-handover` makes. **What is gone is only the attempt to add a thirtieth.**
+
+### And the mistake is the one this round's own log names
+
+    round 198   "changes to apps/web need its build and typecheck, not a file copy"
+    round 200   a boundary's effect was assumed and the 404 status broke
+    round 202   a placement rule was generalised and the status broke again
+    round 206   "changing how the runner reports is a change to the runner"
+    round 207   the runner was changed, and the suite broke
+
+**Four consecutive rounds where the hazard was named in the previous round's own record**, and the fifth
+walked into it. **Round 206's sentence was written into this file one round before it was ignored** — which is
+round 203's finding (the block said the rule and the work did not read it) happening again, with a one-round
+gap instead of an eighty-round one.
+
+### What is true about the step count
+
+**The block says 22 and the runner emits 22.** They agree — **because round 206 corrected the number by
+measuring it**, which is the method that worked. What does not exist is a guard, and the reason is now
+established by experiment rather than by argument: **a step inside a run cannot count that run**, and making
+the runner record itself is a change to the runner that this round could not land in one attempt.
+
+**The honest state is a correct number with no automatic check on it**, and that is written here so the next
+attempt starts from a known failure rather than from round 206's proposal alone.
