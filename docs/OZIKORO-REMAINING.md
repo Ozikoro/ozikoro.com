@@ -8260,3 +8260,40 @@ round 186's grep printed the failure, round 188's clone printed nothing at all.
 **Each round's fix revealed the next round's gap**, and every gap was found by asking *"is this actually
 true?"* rather than by reasoning from the previous round's conclusion — which is the same move as round 174's
 *ask the document a question it should be able to answer.*
+
+---
+
+## ROUND 189 — THE HOOK NOW REFUSES A CREDENTIAL TOO, AND `bash -n` CAUGHT ME BREAKING IT
+
+Round 187's hook ran typecheck, which is the check that failed in round 186. **The worst commit-time mistake
+is not a type error, though — it is a secret, because it is the one thing a later commit cannot undo.**
+`check:secrets` needs no database and takes four seconds, so it belongs on every commit rather than in the
+suite somebody runs when they remember.
+
+    clean tree                      exit 0    typecheck clean · no credentials
+    a staged AKIA-shaped string     exit 1    COMMIT REFUSED — a credential check failed
+                                              "1 secret check(s) FAILED"
+    after cleanup                   exit 0
+
+### And the first version of this change was broken, which is worth recording
+
+The edit was made with a Python string replacement whose escaping produced an unterminated quote. The hook
+became a file that **fails on every commit** — the exact opposite of its purpose — and the symptom was
+`unexpected EOF while looking for matching '"'`.
+
+**`bash -n scripts/hooks/pre-commit` refused it**, which is why every hook edit here is followed by that
+command: a broken pre-commit hook is worse than no hook, because it blocks work and looks like a rule.
+
+**And the mutation test lied in the meantime.** With the file broken, the credential mutation still exited
+`1` — the number I wanted — for entirely the wrong reason. **An exit code is only evidence once the thing
+producing it is known to work**, which is round 181's lesson about the assertion and round 186's about the
+grep, in a third costume.
+
+### Two checks, both cheap, both on every commit
+
+    typecheck      ~1 min   the failure round 186 shipped
+    check:secrets  ~4 s     the failure that cannot be fixed later
+
+**The heavier suites stay in `npm run verify`.** The line is not *"what is important"* but *"what can run in
+under a minute without a database"* — a hook slow enough to be bypassed is a hook that gets bypassed, and
+`--no-verify` exists for anyone who wants to.

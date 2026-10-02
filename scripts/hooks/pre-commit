@@ -1,35 +1,58 @@
 #!/usr/bin/env bash
 #
-# Refuse a commit that does not typecheck.
+# Refuse a commit that does not typecheck, or that would add a credential.
 #
-# WHY THIS EXISTS (round 187)
+# WHY THIS EXISTS (rounds 186-189)
 #
 # Round 186 committed a test that used `item.source.length` where `KnowledgeItem.source` is optional.
 # `verify-all.sh` reported FAIL typecheck and "1 suite(s) FAILED", I ran that command, the grep printed the
-# failure in the output I was reading, and I committed anyway — then had to commit a second time to fix it.
+# failure in the output I was reading, and I committed anyway.
 #
 # The lesson was already written in docs/OZIKORO-REMAINING.md from rounds 31, 70 and 86: never read a
 # checker's exit code after a pipe. **A rule that has failed three times is not a rule; it is a hope.** This
-# is the same rule expressed as something that cannot be forgotten, because it runs whether or not anybody
-# remembers it.
+# is the same rule expressed as something that cannot be forgotten.
 #
-# It runs TYPECHECK ONLY, deliberately: it is fast, it needs no database, it holds no lock, and it is the
-# exact check that failed. The heavier suites belong in `npm run verify`, which a person chooses to run.
+# Round 188 found this hook existed only on the machine that wrote it, because `core.hooksPath` is local
+# configuration and git does not clone hooks. `npm run setup` and the README's Quick start now install it.
+#
+# Round 189 added the credential check. A secret in the history is the one mistake a later commit cannot
+# fix, and `check:secrets` needs no database and takes about four seconds.
+#
+# Both checks run on every commit, because a guard that is only sometimes run is not a guard.
 set -uo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel)" || exit 1
 cd "$REPO_ROOT" || exit 1
 
+fail() {
+  echo ""
+  echo "  COMMIT REFUSED — $1"
+  echo ""
+  shift
+  for line in "$@"; do echo "    $line"; done
+  echo ""
+}
+
+# --- typecheck ---------------------------------------------------------------------------------------
 echo "  pre-commit: typecheck (npm run typecheck)"
 if ! npm run --silent typecheck > /tmp/dsh-pre-commit-typecheck.log 2>&1; then
-  echo ""
-  echo "  COMMIT REFUSED — typecheck failed. Nothing has been committed."
-  echo ""
-  grep -E "error TS" /tmp/dsh-pre-commit-typecheck.log | head -10 | sed 's/^/    /'
-  echo ""
+  fail "typecheck failed. Nothing has been committed." \
+    "$(grep -E 'error TS' /tmp/dsh-pre-commit-typecheck.log | head -5)"
   echo "  Full output: /tmp/dsh-pre-commit-typecheck.log"
   echo "  To commit anyway (and you should not): git commit --no-verify"
   echo ""
   exit 1
 fi
 echo "  pre-commit: typecheck clean"
+
+# --- credentials -------------------------------------------------------------------------------------
+echo "  pre-commit: no committed credentials (npm run check:secrets)"
+if ! npm run --silent check:secrets > /tmp/dsh-pre-commit-secrets.log 2>&1; then
+  fail "a credential check failed. Nothing has been committed." \
+    "$(grep -E 'FAIL|ABSENT' /tmp/dsh-pre-commit-secrets.log | head -5)"
+  echo "  Full output: /tmp/dsh-pre-commit-secrets.log"
+  echo "  A secret in the history is not fixable by a later commit. Rotate it before anything else."
+  echo ""
+  exit 1
+fi
+echo "  pre-commit: no credentials"
