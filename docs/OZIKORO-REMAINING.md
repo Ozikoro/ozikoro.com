@@ -8297,3 +8297,54 @@ grep, in a third costume.
 **The heavier suites stay in `npm run verify`.** The line is not *"what is important"* but *"what can run in
 under a minute without a database"* — a hook slow enough to be bypassed is a hook that gets bypassed, and
 `--no-verify` exists for anyone who wants to.
+
+---
+
+## ROUND 190 — THE PROMPT SYSTEM EXISTS TOO, AND I WAS ABOUT TO BUILD A SECOND ONE
+
+Round 189 ended by naming item 9's remaining work as *"prompts in the archive's register."* Going to write
+them found that `packages/core/src/ai/prompts.ts` already contains the whole system, and that item 9's
+remaining work is **one template, not a prompt layer.**
+
+### What is already there
+
+    PromptTemplate      { id, version, system, maxOutputTokens, temperature }
+    TUTOR_PROMPTS       explain · correct · translate · explain_pasted, each versioned
+    renderPrompt()      {placeholder} substitution
+    promptRef()         "tutor.explain@1" — and `version` is STORED ON EACH AI MESSAGE,
+                        so a result can be traced to the prompt that produced it
+    wrapLearnerText()   wraps untrusted text
+    detectInjectionAttempts()  and a finding type for what it saw
+    VERIFIED_CONTENT_INSTRUCTION
+                        "Use the VERIFIED CONTENT block as your primary source. It is curated,
+                         reviewed material. Prefer it over your own knowledge in every case."
+
+**Grounding instruction, injection defence, prompt versioning and a template registry — all built, all
+shared, in the package `apps/ozikoro` already depends on.** Had I written a prompt builder for the archive,
+it would have been a second one, with its own injection gaps and no version trail: **round 162's mistake,
+where `create-account.ts` was built beside a `role.ts` that already existed.**
+
+### What is genuinely missing, and why it is not mechanical
+
+**The existing templates are a *tutor* addressing a *learner at level {level} studying {lesson}*.** The
+archive is not a course. Its register, in the objective's words, is a university press — and **the system
+prompt is the text that tells a model how to speak for this archive**, which is a voice decision rather than
+a wiring one.
+
+     reusable, unchanged    PromptTemplate · versioning · renderPrompt · injection defence ·
+                            the VERIFIED CONTENT rule · formatKnowledgeBlock · trustForGrounding
+     new, and editorial     the BASE system text for the archive: what it is, who it addresses,
+                            how it cites, and what it refuses to answer from
+     mechanical afterwards  registering it beside TUTOR_PROMPTS, and a surface to ask
+
+**A template is `{ id, version, system, maxOutputTokens, temperature }` — so writing the archive's voice is
+literally writing one string and choosing a version number**, and everything downstream already works.
+
+### Item 9's remaining work, now stated as three things
+
+    1  the languageCode decision, with its evidence                 round 183 — the owner's
+    2  the archive's system prompt, in its own register             editorial — the owner's
+    3  a surface to ask, and registering the template               mechanical — and the smallest
+
+**Two of the three are the owner's, and neither is code.** That is a different shape from *"item 9 is not
+started; needs a provider credential"* — which is what this file said before round 148.
