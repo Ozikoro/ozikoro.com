@@ -11006,3 +11006,51 @@ cover the headings inside the declared section.
 **And a route with no screen is not a parity question** — `/search`, `/signin` and `/reviews` are correctly
 listed as having no design to be held to, and that list should be explicit in the file rather than inferred
 from a missing file.
+
+---
+
+## ROUND 247 — THE INSTRUMENT CORRECTED, AND `/about` REBUILT TO THE DESIGN
+
+### The two instrument gaps, closed
+
+**A declared omission now exempts its section's headings.** The homepage was reported as failing on the watch
+section's h2 — the same fact as the declared section omission, counted twice. `/` now passes.
+
+**Routes with no design screen are named rather than inferred.** An earlier version derived the list from a
+missing file, which meant a screen renamed or deleted upstream would silently move a route *out* of the
+comparison instead of failing it. `NO_SCREEN` now states each one and why: `/search`, `/signin` and `/reviews`
+have no screen; `/researchers` is not the design's `researcher-profile`; `/oral-recordings` is routed to Listen
+and has none.
+
+### `/about`, the widest gap, rebuilt
+
+    before   5 design sections missing, 12 headings missing
+    after    ok — 5 design sections, 12 headings
+
+**All nine sections** — `sx-subhero`, `sx-mission`, the two `sx-about-split` blocks, `sx-platforms`,
+`sx-timeline`, `sx-principles`, `sx-people`, `sx-dark`, the contact block and the legal block — with the
+design's own h1: *"We keep history where people can find it."*
+
+**And here the design's prose IS the content.** It is not a wireframe with lorem ipsum: it carries the
+institution's actual wording about the Ikoro drum and what *Ozi* means, about what the platform publishes, and
+about how a record earns its place. **Reproducing that is not copying a prototype value — the prototype value
+is the text.**
+
+**The four people are real and verifiably published, which is the brief's explicit rule for this page.** All
+four — Idenze Ezeme, Kosisochukwu Nzeribe, Chukwunwike Ossai, Chuka Odike — are contributor records here, and
+the page queries the database for each one's published count and prints it. **The design's own people section
+says "Portrait to be supplied" and uses monogram tiles**, so a monogram is the correct state rather than a
+placeholder for a portrait nobody has, and none was invented.
+
+**Two things the design itself declines to invent, and the page keeps that honesty:** the contact block ends
+*"Official email, address and phone to be supplied — not invented here"*, and the legal block says terms and
+the privacy notice *"must be supplied by Ozi Ikoro Limited"*. Both are reproduced as stated rather than filled.
+
+### The tally
+
+    ok    /  /archive  /photographs  /material-culture  /towns  /cite  /careers  /ledger  /about
+    FAIL  /documents  /listen  /igbo-calendar  /cultural-calendar  /projects
+          /publications  /topics  /folklore  /submit
+    404   /watch
+
+**Nine pass, ten to go.** `/about` was the widest and took one round; the rest are narrower.

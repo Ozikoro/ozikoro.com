@@ -99,6 +99,33 @@ const EXPECTED_OMISSIONS = {
   },
 };
 
+/*
+ * HEADINGS THAT BELONG TO A DECLARED-ABSENT SECTION.
+ *
+ * The first version of this check reported the homepage as failing on the watch section's h2 — the same
+ * fact as the declared section omission, counted twice. A section that is deliberately absent takes its
+ * headings with it, so they are listed here against the route they belong to rather than left to trip the
+ * heading comparison.
+ */
+const OMITTED_SECTION_HEADINGS = {
+  '/': ['see the archive. hear its voices.'],
+};
+
+/*
+ * ROUTES WITH NO DESIGN SCREEN, NAMED RATHER THAN INFERRED.
+ *
+ * These are not parity questions — the design does not draw them, so there is no design to be held to. An
+ * earlier version derived the list from a missing file, which meant a screen renamed or deleted upstream
+ * would silently move a route out of the comparison instead of failing it. Naming them makes that loud.
+ */
+const NO_SCREEN = {
+  '/search': 'the design has no search screen',
+  '/signin': 'the design has no sign-in screen',
+  '/reviews': 'the design has no review-queue screen',
+  '/researchers': 'the design draws researcher-profile, one researcher; an index of them is not that page',
+  '/oral-recordings': 'the design routes this to Listen and draws no screen of its own',
+};
+
 /** Section classes and h1/h2 text, from either a design screen or a rendered page. */
 function structure(html) {
   const sections = [...html.matchAll(/<section[^>]*class="([^"]*)"/g)]
@@ -134,7 +161,10 @@ const noScreen = [];
 
 for (const [route, screen] of ROUTES) {
   const screenPath = join(SCREENS, `${screen}.html`);
-  if (!existsSync(screenPath)) { noScreen.push(`${route} (no screens/${screen}.html)`); continue; }
+  if (!existsSync(screenPath)) {
+    noScreen.push(`${route} — expected screens/${screen}.html, which does not exist`);
+    continue;
+  }
 
   const design = structure(await readFile(screenPath, 'utf8'));
   let page;
@@ -153,10 +183,13 @@ for (const [route, screen] of ROUTES) {
   const declared = EXPECTED_OMISSIONS[route] ?? {};
   const undeclared = missing.filter((s) => !(s in declared));
   const pageText = page.headings.map((p) => p.text);
+  const omittedHeadings = OMITTED_SECTION_HEADINGS[route] ?? [];
   const missedHeadings = design.headings
     .filter((h) => !headingMatches(h.text, pageText))
     // A placeholder's absence is the correct state, not a defect. See PLACEHOLDER above.
-    .filter((h) => !PLACEHOLDER.test(h.text));
+    .filter((h) => !PLACEHOLDER.test(h.text))
+    // A heading inside a declared-absent section goes with the section.
+    .filter((h) => !omittedHeadings.some((o) => norm(h.text).startsWith(norm(o)) || norm(o).startsWith(norm(h.text))));
   const placeholders = design.headings
     .filter((h) => !headingMatches(h.text, pageText) && PLACEHOLDER.test(h.text));
 
