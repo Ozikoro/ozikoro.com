@@ -10643,3 +10643,52 @@ hold precisely because it is attributed and argued rather than asserted anonymou
 **A crawler's reach is not the site's extent, and this file has now recorded that three times.** The check that
 would have caught it is one line: try the paths a site of that era would use, rather than trusting the homepage
 to link them.
+
+---
+
+## ROUND 240 — THE RULE WAS ABOUT DUPLICATION, NOT AUTHORSHIP, AND THE VOICE IS NOW WRITTEN DOWN
+
+Two corrections from the owner, and both were mine to get wrong.
+
+### "Do not copy the ones I have not written" meant: do not duplicate what ozikoro.com already holds
+
+Round 235 read it as a question of authorship and built an elaborate classification around who wrote what.
+**That was not the instruction.** It means: **if the archive already has it, do not import it again.**
+
+**The correction changes which sources are usable.** ibusa.net's 34 signed articles are all by the owner, and
+**every one of them is new** — checked by content, not by title. The first attempt compared titles and reported
+17 duplicates; that was wrong, and the way it was wrong is worth keeping:
+
+    "Ibusa Marriage"          title words {ibusa, marriage}
+    any archive title containing both words    -> overlap 1.00, reported as a duplicate
+
+**Short titles make word-overlap meaningless, and a 1.00 score from two words is not evidence of anything.**
+Re-run against the article bodies with 8-word shingles, **all 34 score 0.00 against all 1,580 archive
+records** — they were written separately for that site, so they share no eight-word run with anything here.
+
+    ibusa.net signed articles      34
+    already on ozikoro.com          0
+    genuinely new                  34
+
+### And the voice is now a document rather than a memory
+
+The owner's instruction is to **read, understand, deep think, search for more information, and then write in
+his voice — not to paraphrase.** The sample he wrote is `docs/articles/igbo-izugbe.md`, and its behaviour is
+now described in `docs/style/idenze-ezeme-voice.md`: the concrete opening, the plain noun-phrase headings, the
+"It is not X. It is Y." pivot, the precise numbers, the aphoristic close, the refusal of colonial framing.
+
+**The file also records what rewriting is not.** On nzeora.com, machine substitution turned *notables* into
+*"nonentities"*, inverting Azikiwe's role, and *transatlantic* into *"transoceanic"*. **A synonym spinner
+produces confident prose about things that are not true; this voice is precise because it is grounded.** The
+difference between the two operations is evidential, not stylistic, and saying so is the point of the file.
+
+### The scope filter
+
+The instruction is history, culture and origins only — **no news reportage, no gossip, no political
+commentary, no profiles of living people.** Applied to the 661 Blogger posts: **382 keep, 279 drop.** The
+filter is deliberately blunt for now and needs a second pass: it lets through two social-policy papers and an
+ECOWAS commentary piece, which are not history.
+
+**Two articles are being written to the sample as a working test of the voice** — one on Akwa-Ocha, the
+Anioma cloth, and one on Nwaezinmadu, the principle of good conduct. **The voice file and the written pieces
+are the deliverable; the remaining rewrites follow once the owner has judged whether the voice is right.**
