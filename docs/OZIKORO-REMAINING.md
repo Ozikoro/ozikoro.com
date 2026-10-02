@@ -8725,3 +8725,67 @@ browser, which rounds 194 and 195 did not have and this one does not either.
 
 **What can be said is narrower and true**: the Suspense boundary that the documented mechanism requires was
 absent for all sixteen async routes, and it is no longer absent.
+
+---
+
+## ROUND 197 — THE DICTIONARY HAS NONE OF THE THREE BOUNDARIES, ACROSS 49 ASYNC PAGES
+
+Round 196 supplied the Suspense boundary the archive's error page needed. The obvious next question — the one
+that has found something every time it has been asked — is whether the other Next.js application has the same
+gap.
+
+    apps/web      (the dictionary, 53 routes, live)
+      error.tsx          0
+      global-error.tsx   0
+      loading.tsx        0
+      not-found.tsx      0
+      async pages       49
+      Suspense usage     0
+
+    apps/ozikoro  (the archive)
+      error.tsx          1
+      global-error.tsx   0
+      loading.tsx        1
+      not-found.tsx      1
+      async pages       30
+      Suspense usage     1
+
+**The dictionary has none of the three boundaries**, and by round 196's mechanism that means:
+
+    no loading.tsx     ->  no Suspense boundary around any of 49 async segments
+    therefore          ->  a throw in any of them fails the shell, no HTML reaches the client,
+                           and an error boundary — if one existed — would never be reached
+    no error.tsx       ->  and there is not one to reach anyway
+    no not-found.tsx   ->  a mistyped dictionary URL draws the framework's page, not the site's
+
+**So the archive, after three rounds of this work, is better equipped than the dictionary that has been live
+longer.** That is the finding, and it is not a comfortable one: **the site with the most traffic has the least
+protection against the failure that loses a reader.**
+
+### Why this is recorded rather than fixed here
+
+**`apps/web` is a live application with its own design language**, and rounds 165 and 178 established what
+changing it costs: a build and a typecheck of the whole app, not a file copy. Three new files written in
+another site's conventions, in the last of this round's context, is exactly the change that produces a
+half-finished page on a working site.
+
+**What is recorded instead is the exact shape of the gap and the reason it matters**, so the work is a
+decision with a size rather than a discovery:
+
+    apps/web/app/loading.tsx     the Suspense boundary — and by round 196 it is the one that makes
+                                 the other two reachable, so it comes first
+    apps/web/app/error.tsx       the archive's file is a template; the wording and colours are not
+    apps/web/app/not-found.tsx   53 routes, so a mistyped URL is a common arrival
+
+**And the order is not arbitrary**: without the first, the second cannot be reached.
+
+### The pattern, which is now the most consistent thing in this file
+
+    round 178   the mail module existed in one app and not the other
+    round 179   a scan list covered one package and not the one just depended on
+    round 192   a grounding gap in shared code, present in both consumers
+    round 196   a boundary missing from the archive
+    round 197   and missing from the dictionary three times over
+
+**Every one was found by asking *"and where else?"*** — which is round 162's question, asked of the code
+rather than of the directory the work happened to be in. **It has now found something six times.**
