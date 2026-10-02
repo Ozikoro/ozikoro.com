@@ -118,14 +118,20 @@ WAIVEDLINKS=$(grep -cE "^  '/" scripts/check-body-links.mjs | tr -d ' ')
 
 echo ""
 echo "  Resume block against the system"
-claim "page routes"            "$PAGES page routes"                    "$PAGES"
-claim "reader-facing routes"   "23 reader-facing routes"               "$((PAGES - ADMIN))"
-claim "routes under /admin"    "7 under \`/admin\`"                     "$ADMIN"
+# Every pattern below describes the BLOCK'S WORDING, never the derived value. Three were still hardcoded
+# values — 23 reader-facing routes, 7 under /admin, 0 of 1,051 records linked — and a pattern built from
+# the answer can only ever agree with itself: when /careers moved the count, the page-routes claim
+# reported 'pattern found nothing' instead of 'says 30, is 31'. Round 175 fixed four; these are the rest. — round 175 fixed four claims
+# this way and missed this one, so when /careers made the count stale the check reported "pattern found
+# nothing" instead of "says 30, is 31". A pattern built from the answer can only ever agree with itself.
+claim "page routes"            "[0-9]+ page routes"                   "$PAGES"
+claim "reader-facing routes"   "[0-9]+ reader-facing routes"          "$((PAGES - ADMIN))"
+claim "routes under /admin"    "[0-9]+ under \`/admin\`"               "$ADMIN"
 claim "live checks"            "[0-9]+ live checks"                    "$LIVE"
 claim "media total"            "[0-9,]+ media"                       "$MEDIA"
 claim "media self-hosted"      "[0-9,]+ of [0-9,]+ media"            "$SELFHOSTED"
 claim "articles"               "[0-9,]+ records"                     "$ARTICLES"
-claim "records entity-linked"  "0 of 1,051 records linked"             "$LINKED"
+claim "records entity-linked"  "[0-9,]+ of [0-9,]+ records linked"     "$LINKED"
 claim "media licenced"         "[0-9,]+ of [0-9,]+ items"            "$LICENCED"
 # Markdown puts `**` between a number and its noun — "All **14,667** sitemap URLs" — so the patterns allow
 # for it. Round 175's lesson, in the third costume: a pattern that cannot express the serialisation reports
