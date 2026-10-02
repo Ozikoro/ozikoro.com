@@ -9678,3 +9678,50 @@ call and a set difference, and it should be the first thing the next round does.
 
 **Three separate small problems, not one large one** — and none of them is the "874 MB across 3488 files"
 sentence, which describes the full-size download list and is consistent with items.
+
+---
+
+## ROUND 217 — THE MEDIA DIFF, ATTEMPTED TWICE, AND WHAT IT DOES AND DOES NOT SHOW
+
+Round 216 named this as the first action: diff the live media ids against ours and list the 94. It took two
+attempts and a tooling discovery, and it is **still not finished.**
+
+### The tooling, which cost the first attempt
+
+Python's `urllib` failed four times with `SSL: CERTIFICATE_VERIFY_FAILED` — **the interpreter's certificate
+store, not the site.** Every `curl` call in this session has reached `ozikoro.com` without complaint, and the
+extractor's own `fetch` does too. **A failing client is not a failing server**, and the first attempt reported
+"stopped at page 1" as though it were a fact about the archive. It was a fact about Python on this machine.
+
+### What the second attempt returned
+
+    ours                          3488 items
+    live ids walked               1698
+    MISSING (live, not ours)         0
+    EXTRA (ours, not live)        1790
+
+**Two of those numbers are real and two are artefacts.**
+
+**Real:** the walk retrieved 1,698 ids, and **every one of them is already in our data.** Not one live item in
+that range is missing from the archive.
+
+**Artefacts:** 1,698 is not the live total — `X-WP-Total` says 3,582 — so the walk stopped early, and the
+"1790 extra" is simply the 3,488 minus what the walk happened to reach. **Neither number says anything about
+coverage.** The page sequence ended on a short page, which is how the loop exits: **a short page means the
+end of what the endpoint will serve, not the end of what exists.** WordPress caps deep pagination on some
+configurations, and this is the second time this round has mistaken a client's limit for the server's content.
+
+### What is established and what is not
+
+    established   3488 items held, each with a distinct id, no duplicates
+                  every one of the first 1698 live ids is held
+                  94 items exist live that we do not have — from the totals, not from this diff
+    NOT established   which 94 they are
+
+**The 94 is arithmetic** — 3,582 minus 3,488 — and round 216 confirmed the two numbers count the same thing.
+**The enumeration needs a paging strategy that gets past 1,698**: `orderby=id&order=desc` from the end, or
+date-windowed queries, or the `media` endpoint's `after`/`before` parameters, rather than page numbers that
+stop.
+
+**Recorded rather than forced**, because the next attempt should not repeat the two mistakes this round made:
+trusting a client error as a server fact, and trusting a short page as the end of the data.
