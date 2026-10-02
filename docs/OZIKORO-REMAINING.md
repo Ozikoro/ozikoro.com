@@ -9632,3 +9632,49 @@ missing; the two numbers count different things and nothing has yet counted both
 
 **That is the next measurement to take, and it is cheap**: ask the API for the item count and count the items in
 `media.json`, then compare items to items.
+
+---
+
+## ROUND 216 — ROUND 215'S CORRECTION WAS WRONG. THE RECORDS ARE ITEMS, AND 94 REALLY ARE MISSING.
+
+Round 215 ended by asserting that the counts "were never comparable" — that the API's 3,582 counts media *items*
+while our 3,488 counts *files*, because `normaliseMedia` walks `media_details.sizes`. **That was a hypothesis
+stated as a finding, and one measurement disproves it.**
+
+    media.json records                   3488
+    distinct wpId                        3488      one id per record, no duplicates
+    generated size FILES inside them   106409      nested under each record
+    live API X-WP-Total                  3582
+
+**The 3,488 records are media ITEMS**, each holding its own generated sizes in a nested map. The sizes are not
+flattened into the record list and never were. So:
+
+    items held   3488
+    items live   3582
+    difference     94      and it is items against items
+
+**Round 212 was right** when it said 94 media records were added after our snapshot. **Round 215 was wrong**, and
+it was wrong in the way this file has recorded before: a plausible mechanism — sizes inflating the count —
+asserted before anything measured it. The check that would have settled it took one command.
+
+**And note which round caught it.** Round 215's correction came from reading `normaliseMedia` and reasoning about
+what it *must* produce; round 216's came from **counting the records and printing their keys**. Reasoning about
+what a function does is not the same as observing what its output is, and the difference is the whole of this
+round.
+
+### The next measurement, attempted and not yet taken
+
+The obvious follow-up is to diff the live ids against ours and list the 94. It was attempted this round and
+**failed on a network error before fetching a page** — `URLError` on page one, nothing retrieved. It is a single
+call and a set difference, and it should be the first thing the next round does.
+
+### The corrected position on media, in one place
+
+    records held                 3488   confirmed items
+    files on disk                3437   of the full-size file for each held item
+    files failing to download      51   two causes: spaces (fixed by encoding) and
+                                        non-ASCII names WordPress sanitised on upload
+    items on the live site       3582   94 more than we hold, not yet enumerated
+
+**Three separate small problems, not one large one** — and none of them is the "874 MB across 3488 files"
+sentence, which describes the full-size download list and is consistent with items.
