@@ -5,7 +5,7 @@
 >
 > **What is live.** 23 reader-facing routes and 7 under `/admin` — 30 page routes. Migrated records answer
 > at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
-> media served from our own storage with **zero hotlinks**; typecheck clean; **20 offline verification
+> media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
 > steps** via `./scripts/verify-all.sh` and **5 live checks** via `./scripts/verify-live.sh`.
 >
 > **Verified by exhaustive request, not sampling.** All **14,667** sitemap URLs were requested and every
@@ -9191,3 +9191,53 @@ the future rather than a description of the present** — it would catch a page 
 the block's paragraph says why there is no one-line fix. **What this round adds is that nobody can now
 reintroduce the mistake without a check failing** — which is the most this project can do about a trade it
 cannot split.
+
+---
+
+## ROUND 206 — THE BLOCK SAID "20 OFFLINE" AND THERE ARE 22, AND THE HANDOVER CHECK COULD NOT SEE IT
+
+Round 205 added a check and a step. This round asked whether the numbers in the block still matched — the
+question round 174 established as the closing move — and found one that did not.
+
+    the block said   "typecheck clean; **20 offline verification steps**"
+    the runner emits 22 PASS lines
+    check-handover   29 assertions, 0 wrong, "Every countable claim in the resume block holds."
+
+**The count was two rounds stale and every guard was green**, because **`check-handover` does not check the
+step count at all.**
+
+### Why the obvious claim is the one missing
+
+**`check-handover` runs as a step inside `verify-all.sh`**, so the runner's total is not final while it is
+running. A claim of the form *"the block says N and the runner emits N"* **cannot be evaluated from inside the
+run it is describing** — which is exactly why the most countable fact about the suite is the one that was never
+counted.
+
+    the block's other counts   routes · media · articles · subject links · sitemap URLs · clans with a region
+                               — all derived from `find`, the database or a script, and all checked
+    this one                   derived from the RUN ITSELF, and unchecked
+
+### Counting the source would be the wrong fix
+
+`grep -c '^run "' scripts/verify-all.sh` returns **17**, and the runner emits **22**. The five-step difference is
+the suites loop, which invokes `run` once per suite. **Round 98 recorded exactly this**: a count of the source
+is not a count of the behaviour, and it is the mistake that makes a check agree with itself while disagreeing
+with reality.
+
+### The fix that would work, named and not half-built
+
+**Have the runner record what it did.** `verify-all.sh` can append each result to a file as it goes; when
+`check-handover` runs — it is the last step — it counts the lines already written, adds its own, and compares
+that against the block. **The count then describes the run rather than the source, and it is available from
+inside the run because the run has been recording itself.**
+
+**Not attempted here.** Round 181 wrote a check that could not fail — three separate reasons, all invisible from
+reading it — and the lesson was that a new check is a claim needing a mutation before it is believed. **Changing
+how the runner reports in order to add one assertion is a change to the runner**, and the last four rounds have
+been the cost of assuming an effect without measuring it.
+
+### What this round is worth
+
+**One number, corrected, and the reason it could go wrong.** The block now says 22 and `check-handover` still
+reports 29 assertions holding — **which is the point: a green suite said nothing about a fact it does not
+look at**, and the fact was found by asking the question rather than by trusting the colour.
