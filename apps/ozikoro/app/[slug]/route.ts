@@ -116,6 +116,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     rights,
     body: row.body_html ?? '<p>This record has no written body yet.</p>',
     path: `/${clean}/`,
+    // The frame's "Historical context" line. The archive's own summary, or a plain statement that it holds none.
+    context: row.standfirst?.trim() ||
+      'The archive holds this record without a separate summary. Its own words are above, and its sources, where it states them, are below.',
     reference: `OZ-H-${String(row.id).padStart(4, '0')}`,
     // EACH RELATED IMAGE GOES THROUGH `mediaPath` TOO. The row carries a `storage_key`, which is a disk path
     // — `ozikoro/11231-umunede-king.jpeg` — and a page needs `/media/…`. **The featured image was fixed and
@@ -144,6 +147,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
       seoHead(
         {
           path: `/${clean}/`,
+    // The frame's "Historical context" line. The archive's own summary, or a plain statement that it holds none.
           title: article.title,
           description: row.standfirst ?? null,
           kind: 'article',

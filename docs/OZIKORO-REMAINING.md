@@ -13069,3 +13069,63 @@ does not exist, and a search engine, or a person reading the structured data, wo
 
 **The absence is the accurate statement, and `copyrightNotice` is what makes it a statement rather than an
 omission.**
+
+---
+
+## ROUND 288 — I CHANGED THE DESIGN, AND THE OWNER WAS RIGHT TO STOP ME
+
+**The owner reported that the reading frame had been wiped out — "In this history / Opening / Written record /
+Historical context / Sources" — and that the citation had been moved from the foot of the article to the top.
+Both were true, and both were mine.**
+
+### What I had done
+
+    the design's frame      <p id="opening"> · <h2 id="record"> · <h2 id="context">
+                            <section id="sources"> · <section id="citation"> at the FOOT
+
+    what I replaced it with the article's own headings as the list, and the citation PREPENDED
+
+**I had rewritten the design's sidebar into the article's section list and moved its citation to the top.**
+Neither is filling a template — **both are design decisions, and the instruction was explicit that the design is
+not touched.** The correct move is the opposite: **the article's content fits the design's frame.**
+
+### What it does now
+
+**Every heading, id, class and section of the design's frame stays exactly where it was written**, and only the
+**text inside** the slots is replaced — which is what filling a template means:
+
+    #opening      the record's first paragraph with text in it   (the design's .dropcap)
+    #record       everything else the record says
+    #context      the archive's own summary, or a plain statement that it holds none
+    #sources      the record's references, where it states them
+    .cite-block   the citation, AT THE FOOT, where the design put it
+
+    In this history        Opening · Written record · Historical context · Sources
+    Reading tools          Listen · View sources · Copy citation · Related reading
+
+**That is the design's own list, unchanged.**
+
+### Verified across four records
+
+    ute-okpu-an-ika-igbo-clan-and-its-nri-roots    items 4/4  dead 0  citation at foot  lead 310 chars
+    umunede-an-ika-igbo-kingdom-in-western-igboland 4/4      0       true              310
+    akwa-ocha-the-white-cloth-of-anioma-pride-…     4/4      0       true              485
+    iwa-gi-the-new-yam-festival-and-the-soul-of-…   4/4      0       true              430
+
+### Three faults inside the fix, each found by looking at the render
+
+**1. The drop cap was EMPTY.** WordPress writes `<p>&nbsp;</p>` as a spacer and one sat at the top of the record,
+so the lead was a non-breaking space. `ndi-igbo-meet-the-igbo-people` also opens with an `<h1>` rather than a
+paragraph. **The lead is now the first paragraph with text in it, and everything before it is kept**, because a
+heading that opened the record is part of the record.
+
+**2. `max-width:100%;height:auto` was applied to EVERY element with a style attribute** — paragraphs and spans
+included — where it means nothing. **Image-sizing declarations belong on images**, and they are on images now:
+
+    FIT on a <p>: false     FIT on an <img>: 5
+
+**3. A range check passed a `<p>` containing the word "sources".** The extraction for the sources anchor matched
+any element whose text merely *began* with the word. It is anchored to a heading or a paragraph that starts with
+one of the words, which is what a references section is.
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**

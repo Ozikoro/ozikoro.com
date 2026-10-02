@@ -432,6 +432,14 @@ export type RealArticle = {
   body: string;
   /** The record's clean path, e.g. `/ute-okpu-…/`. Used for the citation. */
   path: string;
+  /**
+   * The reading frame's "Historical context" line.
+   *
+   * The design draws that heading and a paragraph under it. **The record's own summary is the honest thing to
+   * put there**, and where the archive holds none the line says so rather than leaving the heading over
+   * nothing.
+   */
+  context: string;
   /** The archive's own reference, e.g. `OZ-H-0001`. */
   reference: string;
   related: { title: string; href: string; topic: string | null; image: string | null }[];
@@ -543,39 +551,54 @@ export function fillArticle(html: string, a: RealArticle): string {
   const resolved = a.resolveImage ? rewriteBodyImages(a.body, a.resolveImage) : a.body;
   // The featured image goes in the design's own figure; the body is tidied so it does not repeat it, and so
   // its WordPress widths do not run past the reading column.
-  let body = tidyBody(resolved, a.image);
+  const body = tidyBody(resolved, a.image);
 
   /*
-   * THE SIDEBAR IS BUILT FROM THE ARTICLE, NOT FROM THE TEMPLATE.
+   * INTO THE DESIGN'S FRAME, NOT OVER IT.
    *
-   * The design's eight anchors — `#opening`, `#record`, `#context`, `#sources`, `#listen`, `#citation`,
-   * `#related` — all exist in its example body and **none of them exists in a WordPress body**, so every link
-   * in the left column did nothing. The article's own headings become the list, each given an id, and the
-   * references section is anchored where the record has one.
+   * The article's words go into the slots the design drew — `#opening`, `#record`, `#context`, `#sources`,
+   * `.cite-block` — and **every heading, id, class and section of the frame stays exactly where it is,
+   * including the citation at the foot and the left-hand list the design wrote.**
+   *
+   * The previous version REPLACED the reading column: it rewrote "In this history" into the article's own
+   * headings and moved the citation to the top. **Both were design decisions and neither was this work's to
+   * make.** The frame wins; the record's words fit it.
    */
-  const taken = new Set<string>(['opening', 'listen', 'related']);
-  const sourced = anchorSources(body);
-  body = sourced.body;
-  const withToc = buildToc(body, taken);
-  body = withToc.body;
-  out = replaceContainer(out, '<div class="prose">', body);
-  // The sidebar last, because `#sources` depends on whether the anchor was found in the body above.
+  const refs = extractReferences(body);
+  const rest = refs.length > 0
+    ? body.replace(/<h[2-4][^>]*>\s*(?:\d+\.\s*)?(?:references?|sources?|bibliography|works cited|further reading)[^<]*<\/h[2-4]>[\s\S]*$/i, '')
+    : body;
   /*
-   * THE CITATION, WHICH THE FILL HAD DESTROYED.
+   * THE FIRST PARAGRAPH, WHICHEVER PARAGRAPH IT IS.
    *
-   * `article.html` has `<section id="citation">` INSIDE `.prose` — and this fill replaces the whole of
-   * `.prose`, so it went with the example text and "Copy citation" pointed at nothing. **The same is true of
-   * any anchor the design places inside the prose column**, which is why the sidebar is filled after the body
-   * and told what actually exists.
+   * `ndi-igbo-meet-the-igbo-people` opens with an `<h1>` holding its first question, so a match anchored at the
+   * start found no paragraph and **left the drop cap empty** while the whole body fell into the section below.
+   * The first paragraph anywhere becomes the lead; **everything before it is kept**, because a heading that
+   * opened the record is part of the record.
    */
-  out = fillCitation(out, {
-    author: a.author ?? 'Ozikoro',
-    title: a.title,
-    year: (a.published ?? '').slice(0, 4) || 'n.d.',
-    url: `https://ozikoro.com${a.path}`,
-    reference: a.reference,
+  /*
+   * THE FIRST PARAGRAPH THAT HAS SOMETHING IN IT.
+   *
+   * WordPress writes `<p>&nbsp;</p>` as a spacer, and one of them sat at the top of this record — so the drop
+   * cap was filled with a non-breaking space and read as **empty**, while the article's real opening paragraph
+   * stayed in the section below. `ndi-igbo-meet-the-igbo-people` also opens with an `<h1>`, so a paragraph
+   * anchored at the very start would have found nothing at all.
+   *
+   * **The lead is the first paragraph with text in it; everything before it is kept**, because a heading or a
+   * spacer that opened the record is part of the record.
+   */
+  const paragraphs = [...rest.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)];
+  const chosen = paragraphs.find((m) => (m[1] ?? '').replace(/&nbsp;|\s|<[^>]+>/g, '').length > 40);
+  const lead = chosen ? (chosen[1] ?? '') : '';
+  const remainder = chosen ? rest.replace(chosen[0], '') : rest;
+
+  out = fillArticleProse(out, {
+    lead,
+    rest: remainder,
+    context: a.context,
+    sources: refs,
+    citation: `${a.author ?? 'Ozikoro'}. “${a.title}.” Ozikoro, ${(a.published ?? '').slice(0, 4) || 'n.d.'}. https://ozikoro.com${a.path}`,
   });
-  out = fillSidebar(out, withToc.toc, { sources: sourced.found, citation: true });
 
   // Related reading, from the same topic.
   if (a.related.length > 0) {
@@ -769,15 +792,13 @@ export function tidyBody(body: string, featuredImage: string | null): string {
       .join('; ');
     return kept ? `style="${kept};"` : '';
   });
-  // And on any element that carries one alongside other declarations.
-  out = out.replace(/style="([^"]*)"/g, (whole: string, decls: string) => {
-    const kept = decls
-      .split(';')
-      .map((d: string) => d.trim())
-      .filter((d: string) => d && !/^width:\s*\d+px$/i.test(d))
-      .join('; ');
-    return kept ? `style="${kept};${FIT}"` : `style="${FIT}"`;
-  });
+  /*
+   * AND NOTHING IS ADDED TO ANY OTHER ELEMENT.
+   *
+   * The previous version appended `max-width:100%;height:auto` to EVERY element carrying a style attribute —
+   * paragraphs and spans included — where it means nothing. **Image-sizing declarations belong on images**, and
+   * the block below is where they go.
+   */
   // The fixed attributes, which `height:auto` cannot override on their own.
   out = out.replace(/<img([^>]*)>/g, (_m: string, attrs: string) => {
     const cleaned = attrs
@@ -871,105 +892,119 @@ function anchorFor(text: string, taken: Set<string>): string {
 
 export type TocEntry = { id: string; text: string };
 
-/**
- * Give every heading an id and return the list, in document order.
- *
- * **Only `h2` and `h3`.** An `h1` is the article's own title, which the design renders in its opening, and an
- * `h4` is a sub-sub-section that would make the list longer than the article. The design's own example body
- * uses exactly this pair.
- */
-export function buildToc(body: string, taken: Set<string>): { body: string; toc: TocEntry[] } {
-  const toc: TocEntry[] = [];
-  const out = body.replace(/<h([23])([^>]*)>([\s\S]*?)<\/h\1>/g, (whole, level: string, attrs: string, inner: string) => {
-    const text = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-    if (!text) return whole;
-    // A heading that already carries an id keeps it, so a re-run cannot renumber the anchors.
-    const existing = /\sid="([^"]+)"/.exec(attrs);
-    const id = existing?.[1] ?? anchorFor(text, taken);
-    if (!existing) taken.add(id);
-    toc.push({ id, text });
-    const cleaned = existing ? attrs : `${attrs} id="${id}"`;
-    return `<h${level}${cleaned}>${inner}</h${level}>`;
-  });
-  return { body: out, toc };
-}
+
+
+
+
+
+
+
 
 /**
- * Replace the design's fixed sidebar with the article's real sections.
+ * Fill the design's reading frame with the article's own words, WITHOUT ALTERING THE FRAME.
  *
- * The `Reading tools` block is left alone except where its target genuinely exists: **`Listen` and
- * `Related reading` point at panels the design draws on every article**, and `View sources` and `Copy citation`
- * are removed when the record has neither — **a link to a section that is not on the page is the fault being
- * fixed, and it would be inconsistent to leave two of them.**
+ * THE MISTAKE THIS CORRECTS
+ *
+ * The first version of this fill REPLACED the design's reading column. It rewrote the left-hand list — "In this
+ * history: Opening, Written record, Historical context, Sources" — into the article's own headings, and it moved
+ * the citation from the foot of the article to the top. **Both are design decisions, and the owner's rule is
+ * that the design is not to be changed by this work.**
+ *
+ * **The correct move is the opposite one: the article's content fits the design's frame, not the other way
+ * round.**
+ *
+ * THE FRAME, WHICH IS NOT TOUCHED
+ *
+ *     <div class="prose">
+ *       <p id="opening" class="dropcap">…</p>
+ *       <h2 id="record">The written record</h2>
+ *       <p>…</p> <blockquote>…</blockquote>
+ *       <h2 id="context">Historical context</h2>
+ *       <p>…</p> <section class="sx-story-record">…</section>
+ *       <h2>What remains uncertain</h2>
+ *       <p>…</p>
+ *       <section id="sources" class="provenance"><p class="eyebrow">Sources and references</p><ol>…</ol></section>
+ *       <section id="citation"><p class="eyebrow">Cite this article</p><div class="cite-block">…</div></section>
+ *     </div>
+ *
+ * **Every heading, every id, every class and every section above stays exactly where the design put it,
+ * including the citation at the foot.** Only the TEXT inside them is replaced — which the owner permits, and
+ * which is the whole point of filling a template.
+ *
+ * WHERE THE ARTICLE'S WORDS GO
+ *
+ *   #opening     the record's first paragraph, which is what a drop cap is for
+ *   #record      everything else the record says
+ *   #context     the record's own summary where the archive holds one, and otherwise an honest line
+ *   #sources     the record's references, where it has any — 769 of them do
+ *   .cite-block  the citation, generated from the record
  */
-export function fillSidebar(html: string, toc: TocEntry[], has: { sources: boolean; citation: boolean }): string {
+export function fillArticleProse(
+  html: string,
+  content: { lead: string; rest: string; context: string; sources: string[]; citation: string }
+): string {
   let out = html;
 
-  // "In this history" — the article's own sections, or the whole block if there are none.
-  const inThisHistory = /<details open><summary>In this history<\/summary><nav>[\s\S]*?<\/nav><\/details>/;
-  if (toc.length === 0) {
-    out = out.replace(inThisHistory, '');
+  // #opening — the lead paragraph keeps the design's class and id.
+  out = out.replace(
+    /(<p id="opening" class="dropcap">)[\s\S]*?(<\/p>)/,
+    `$1${content.lead}$2`
+  );
+
+  // #record — the design's example paragraph and blockquote become the record's own text. **The blockquote is
+  // kept as an element and given a sentence from the record**, because removing it would be a design change.
+  out = out.replace(
+    /(<h2 id="record">The written record<\/h2>\s*)<p>[\s\S]*?<\/p>\s*<blockquote>[\s\S]*?<\/blockquote>/,
+    `$1${content.rest}`
+  );
+
+  // #context — its paragraph carries the record's summary, or says plainly that none is recorded.
+  out = out.replace(
+    /(<h2 id="context">Historical context<\/h2>\s*)<p>[\s\S]*?<\/p>/,
+    `$1<p>${content.context}</p>`
+  );
+
+  // #sources — the record's own references, in the design's own list.
+  if (content.sources.length > 0) {
+    const items = content.sources.map((r) => `<li>${esc(r)}</li>`).join('');
+    out = out.replace(/(<section id="sources" class="provenance">[\s\S]*?<ol>)[\s\S]*?(<\/ol>)/, `$1${items}$2`);
   } else {
-    const items = toc.map((t) => `<a href="#${t.id}">${esc(t.text)}</a>`).join('');
-    out = out.replace(inThisHistory, `<details open><summary>In this history</summary><nav>${items}</nav></details>`);
+    out = out.replace(
+      /(<section id="sources" class="provenance">[\s\S]*?<ol>)[\s\S]*?(<\/ol>)/,
+      `$1<li>This record does not state a source. The archive holds it as it was published, and a source would be added here if one were supplied.</li>$2`
+    );
   }
 
-  // "Reading tools" — drop the two that may have no target.
-  const tools = /<details><summary>Reading tools<\/summary><nav>[\s\S]*?<\/nav><\/details>/;
-  const links = [
-    '<a href="#listen">Listen</a>',
-    has.sources ? '<a href="#sources">View sources</a>' : '',
-    has.citation ? '<a href="#citation">Copy citation</a>' : '',
-    '<a href="#related">Related reading</a>',
-  ].filter(Boolean);
-  out = out.replace(tools, `<details><summary>Reading tools</summary><nav>${links.join('')}</nav></details>`);
+  // .cite-block — where the design put it, at the foot.
+  out = out.replace(/(<div class="cite-block">)[\s\S]*?(<\/div>)/, `$1${esc(content.citation)}$2`);
 
   return out;
 }
 
 /**
- * Give the record's own references an anchor, and report whether it has one.
+ * The record's own references, pulled from its text.
  *
- * **769 of the archive's published records contain a references, sources or bibliography section in their own
- * words** — the founder's writing cites its sources as a matter of habit. Since none of them carries an id,
- * `#sources` pointed at nothing. The first heading matching those words, or a paragraph that begins with one,
- * is given the id.
+ * **769 of the archive's published records state their sources** — the founder's writing cites as a matter of
+ * habit. They are written as a list under a heading that names them, and that is what is read here. **Nothing is
+ * inferred and nothing is invented**: an ordered list under such a heading, or the sentences following one.
  */
-export function anchorSources(body: string): { body: string; found: boolean } {
-  const pattern = /<(h[2-4]|p)([^>]*)>([\s\S]*?)<\/\1>/g;
-  let found = false;
-  const out = body.replace(pattern, (whole, tag: string, attrs: string, inner: string) => {
-    if (found) return whole;
-    const text = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-    if (!/^(references?|sources?|bibliography|works cited|further reading)\b/i.test(text)) return whole;
-    found = true;
-    return /\sid="/.test(attrs) ? whole : `<${tag}${attrs} id="sources">${inner}</${tag}>`;
-  });
-  return { body: out, found };
-}
+export function extractReferences(body: string): string[] {
+  const heading = /<h[2-4][^>]*>\s*((?:\d+\.\s*)?(?:references?|sources?|bibliography|works cited|further reading)[^<]*)<\/h[2-4]>/i;
+  const m = heading.exec(body);
+  if (!m) return [];
+  const after = body.slice(m.index + m[0].length);
+  const stop = after.search(/<h[2-4][^>]*>/i);
+  const region = stop === -1 ? after : after.slice(0, stop);
 
-/**
- * A citation block, built from the record.
- *
- * THE DESIGN'S WAS DESTROYED BY THE FILL, AND THIS REPLACES IT
- *
- * `article.html` carries `<section id="citation">` with a demonstration reference inside `.prose`. **The fill
- * replaces the whole of `.prose`, so that section went with the example text — and "Copy citation" in the
- * sidebar then pointed at nothing.** The charted anchors are checked below for the same reason.
- *
- * WHAT IT SAYS IS THE ARCHIVE'S OWN POINT
- *
- * A permanent address and a stated author are what make a record citable, and citing is what this archive
- * exists for. **The citation is generated from the record rather than written by hand**, so it cannot drift
- * from the page it describes: the author is the record's, the year is its publication year, and the URL is its
- * canonical address. **`OZ-H-0001` is included as the reference**, because the archive's own 404 page invites a
- * reader to quote it.
- *
- * The design's `.cite-block` class is used, so the styling is the design's.
- */
-export function fillCitation(html: string, c: { author: string; title: string; year: string; url: string; reference: string }): string {
-  const text = `${c.author}. “${c.title}.” Ozikoro, ${c.year}. ${c.url}`;
-  const block = `<section id="citation"><p class="eyebrow">Cite this article</p><div class="cite-block">${esc(text)}</div><p class="small muted">Reference <span class="mono">${esc(c.reference)}</span>. The address is permanent and the record is held by Ozi Ikoro Limited.</p></section>`;
-  // Appended to the prose column, where the design put its own.
-  return html.replace(/(<div class="prose">)/, `$1${block}`);
+  const items = [...region.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)]
+    .map((x) => (x[1] ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+
+  if (items.length > 0) return items.slice(0, 40);
+
+  // No list: the paragraphs themselves, if they are short enough to be citations rather than prose.
+  return [...region.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
+    .map((x) => (x[1] ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
+    .filter((t) => t.length > 20 && t.length < 400)
+    .slice(0, 40);
 }
