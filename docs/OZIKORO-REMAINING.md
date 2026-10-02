@@ -7929,3 +7929,21 @@ field rather than an assumption**, and it is also the only one that requires a n
 data source and some prompts"*; the data source has a required field that the archive cannot supply, and
 filling it from the subject of the articles would have been the same mistake as calling a recorded region
 editorial — **in the opposite direction.**
+
+### And the check that produced that finding printed one wrong line
+
+    columns on ozikoro_article matching lang/locale/script:  seo_description
+
+**`seo_description` contains the string `script` inside "de·script·ion"**, and the query used
+`column_name like '%script%'`. There is no language column on the article table; the hit was a substring of
+an unrelated word.
+
+**The conclusion is unaffected** — `seo_description` is a meta description, not a language, and no
+`ozikoro_*` language table exists either. But the line above it was wrong when printed.
+
+    round 183   `like '%script%'` matching "deSCRIPTion"     -> a language column that does not exist
+
+**A wildcard at both ends of a pattern is a claim that any substring will do.** The same shape as round
+169's `grep -c` and round 181's unanchored `/test-/`: a pattern written loosely enough to match something
+that is not the thing. **It was caught by reading the value rather than the count** — the count alone would
+have said "1 language column found."
