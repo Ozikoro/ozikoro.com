@@ -11447,3 +11447,34 @@ a permanent excuse, and a parity checker that reported a loading shell as a miss
 **The habit that caught every one of them was reading the instrument's own output before believing its
 verdict.** That is what the last nine rounds have been about, and it is the part of this work most worth
 keeping.
+
+---
+
+## ROUND 257 — TWO MORE ROUTES TO THE DESIGN, AND THE LAST TWO ARE THE CALENDARS
+
+    /publications   was: wrap section, h1 "Research", chips        now: ok
+    /folklore       was: wrap section, h1 from a topic             now: ok
+
+**`/publications`** now carries `sx-publications-hero` with the design's *"Publications"* h1 and its lede,
+and the discipline chips became the design's `sx-publication-toolbar` with the *Submit research* affordance.
+
+**`/folklore`** was two sections short: `sx-folk-intro` and `sx-folk-index`. Its h1 came from a topic record
+rather than the design's *"Folklores"*, and the collection heading the design draws — *"Choose a story"* — was
+absent. The page's own two notes are kept, because both are the archive's rules rather than decoration: oral
+tradition is given equal standing and marked as a different kind of evidence rather than a lesser one, and a
+folktale is a record of what a community tells rather than a claim that the events happened.
+
+**A placeholder was added to the checker.** The design's publications screen carries an example publication,
+*"Market Week and Ritual Office: Reading Testimony Against the Administrative…"*, which the brief forbids
+reproducing — **a demonstration must not become an official publication.** It is now matched by the placeholder
+pattern, so its absence is reported as *earned* rather than missing.
+
+### The tally
+
+    ok          /  /archive  /photographs  /documents  /listen  /material-culture  /towns  /cite
+                /careers  /ledger  /about  /topics  /projects  /watch  /publications  /folklore
+    UNVERIFIED  /submit
+    FAIL        /igbo-calendar  /cultural-calendar
+
+**Sixteen verified, one unverified, two failing** — and both remaining are calendars, which share a structure
+and are the last of the design parity work.

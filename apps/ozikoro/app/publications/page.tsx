@@ -43,33 +43,39 @@ export default async function PublicationsPage({
   const disciplines = [...new Set(works.flatMap((w) => w.disciplines))].sort();
 
   return (
-    <div className="wrap section">
-      <header>
-        <p className="eyebrow">The research network</p>
-        <h1>Research</h1>
+    <>
+    <section className="sx-publications-hero">
+      <div className="wrap">
+        <p className="eyebrow">Ozikoro research network</p>
+        <h1>Publications</h1>
         <p className="lede">
-          Work published through Ozikoro by students, lecturers, independent researchers and
-          community knowledge holders. Every entry states whether it completed peer review — and where
-          it did not, says so.
+          Research papers, essays and scholarly work with clear authorship, review status and access terms.
+          Work published through Ozikoro by students, lecturers, independent researchers and community
+          knowledge holders — and every entry states whether it completed peer review, and says so where it
+          did not.
         </p>
-      </header>
+        <form className="search" method="get" action="/publications" role="search">
+          <label className="sr-only" htmlFor="q">Search publications</label>
+          <input id="q" name="q" type="search" defaultValue={query ?? ''} placeholder="Search publications" />
+          <button className="btn btn-gold" type="submit">Search</button>
+        </form>
+      </div>
+    </section>
 
-      <form className="search section" method="get" action="/publications" role="search">
-        <label className="small" htmlFor="q">Search titles and abstracts</label>
-        <div className="row">
-          <input id="q" name="q" type="search" defaultValue={query ?? ''} />
-          <button className="btn btn-ink" type="submit">Search</button>
-        </div>
-      </form>
+    <section className="wrap section">
 
-      {disciplines.length > 0 ? (
-        <ul className="chips section">
-          <li><Link className="chip" href="/publications">All</Link></li>
+      <div className="sx-publication-toolbar">
+        <nav aria-label="Publication views">
+          <Link href="/publications">All</Link>
+          <Link href="/publications?kind=journal_article">Research papers</Link>
+          <Link href="/publications?kind=essay">Essays</Link>
+          <Link href="/publications?kind=report">Reports</Link>
           {disciplines.map((d) => (
-            <li key={d}><Link className="chip" href={`/publications?discipline=${encodeURIComponent(d)}`}>{d}</Link></li>
+            <Link href={`/publications?discipline=${encodeURIComponent(d)}`} key={d}>{d}</Link>
           ))}
-        </ul>
-      ) : null}
+        </nav>
+        <Link className="btn btn-quiet" href="/submit">Submit research</Link>
+      </div>
 
       {works.length === 0 ? (
         <div className="empty section">
@@ -116,6 +122,12 @@ export default async function PublicationsPage({
           ))}
         </div>
       )}
-    </div>
+
+        <p className="sx-source-note sx-light-note">
+          Publication records shown here carry their own review status. Nothing is marked peer-reviewed
+          unless that review actually took place, and a work that has not been through it says so.
+        </p>
+      </section>
+    </>
   );
 }

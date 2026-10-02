@@ -51,9 +51,11 @@ export default async function FolklorePage() {
   ]);
 
   return (
-    <div className="wrap section">
-      <header>
-        <p className="eyebrow">Oral tradition</p>
+    <>
+      <section className="sx-folk-intro">
+        <div className="wrap">
+          <div className="sx-folk-heading">
+        <p className="eyebrow">Oral traditions</p>
         <h1>{topic?.name ?? 'Folklores'}</h1>
         <p className="lede">
           Tales, myths, customs and the things people were told. These are recorded as oral
@@ -61,7 +63,25 @@ export default async function FolklorePage() {
           as a different kind of evidence rather than a lesser one.
         </p>
         {total > 0 ? <p className="small muted">{total.toLocaleString('en-GB')} records</p> : null}
-      </header>
+        </div>
+        <div className="row">
+          <Link className="btn btn-gold" href="/listen">Listen instead</Link>
+          <Link className="btn btn-quiet" href="/archive">Browse the histories</Link>
+        </div>
+        </div>
+      </section>
+
+      <section className="sx-folk-index">
+        <div className="wrap">
+          <header className="sx-index-head">
+            <div>
+              <p className="eyebrow">The collection</p>
+              <h2>Choose a story</h2>
+            </div>
+            <p>
+              Each entry has equal place in this collection. Open one to read it as a continuous story.
+            </p>
+          </header>
 
       {/*
         Said plainly, because it is the archive's own rule and the brief requires it: oral tradition
@@ -90,7 +110,7 @@ export default async function FolklorePage() {
           </p>
         </div>
       ) : (
-        <div className="stack-lg section">
+        <div className="sx-folk-grid">
           {/* The heading level the design implies but does not draw: it jumps from the
               h1 straight to the h3 titles of its entries. The stylesheets style headings
               by element, so re-levelling the entries would change the approved design. */}
@@ -100,6 +120,8 @@ export default async function FolklorePage() {
           ))}
         </div>
       )}
-    </div>
+        </div>
+      </section>
+    </>
   );
 }

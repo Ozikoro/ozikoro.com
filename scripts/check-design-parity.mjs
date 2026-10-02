@@ -121,7 +121,14 @@ const ROUTES = [
  * matched is treated as structure and its absence is loud, which is the safe direction — a new placeholder
  * shows up as a failure and gets triaged, rather than being silently tolerated.
  */
-const PLACEHOLDER = /(sample record|string games photograph|ikoro drum photograph|more verified records|oz-|example|appears here|demonstration|sample episode|the ikoro: the drum|town histories series|restricted publication|approved summary|no verified vacancies)/i;
+/*
+ * The design's own demonstration content, whose absence is the CORRECT state rather than a defect.
+ *
+ * `market week and ritual office` is the design's example publication: the brief forbids treating a
+ * demonstration as an official publication, so a page that reproduced it would have done the wrong
+ * thing. Anything not matched here is treated as structure and its absence is loud.
+ */
+const PLACEHOLDER = /(sample record|string games photograph|ikoro drum photograph|more verified records|oz-|example|appears here|demonstration|sample episode|no verified vacancies|the ikoro: the drum|town histories series|restricted publication|approved summary|market week and ritual office)/i;
 
 /*
  * NOTHING IS DECLARED OMITTED.
