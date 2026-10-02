@@ -9295,3 +9295,71 @@ the runner record itself is a change to the runner that this round could not lan
 
 **The honest state is a correct number with no automatic check on it**, and that is written here so the next
 attempt starts from a known failure rather than from round 206's proposal alone.
+
+---
+
+## ROUND 208 — WHERE THE LAST FIFTEEN ROUNDS WENT, AND WHAT IS ACTUALLY TRUE
+
+Rounds 194 to 207 were almost entirely about React and Next.js boundaries. This entry is the accounting,
+written because the last five of those rounds produced three failures and the record should say so plainly
+rather than let the successful ones carry it.
+
+### The system, measured
+
+    verify-all          exit 0    22 PASS    All suites passed
+    check-handover      29 claims, 0 wrong, 0 pattern-found-nothing
+    ozikoro tests       70 pass, 0 fail
+    working tree        only `learn/` modifications, which are not this session's
+
+**Nothing is broken.** Every commit in the sequence passed the hook, and the two regressions were found and
+reverted inside their own rounds.
+
+### What the fifteen rounds actually produced
+
+    real, verified improvements
+      apps/ozikoro/app/loading.tsx on 12 static routes      a Suspense boundary where it is safe
+      apps/ozikoro/app/error.tsx · not-found.tsx            designed pages for failure and absence
+      apps/web/app/error.tsx · not-found.tsx                the same, minimal, in its own vocabulary
+      packages/ozikoro/src/knowledge.ts                     item 9's adapter, grounding and refusal
+      scripts/check-boundaries.sh                           step 22, mutation-tested
+      scripts/hooks/pre-commit                              refuses a bad typecheck or a credential
+
+    reverted after breaking something
+      apps/ozikoro/app/loading.tsx at the root              every 404 became a 200   (round 200)
+      apps/web/app/loading.tsx                              the same evidence        (round 200)
+      the runner recording its own results                   the count was wrong     (round 207)
+
+    withdrawn
+      round 202's "Suspense inside the page"                the same boundary, same side of the decision
+
+**Six changes stand, three were reverted, one was withdrawn.** The reverts were correct and each was found by
+measuring — which is the process working, not failing.
+
+### But the ratio is the honest finding
+
+**Three of the last five rounds ended by undoing or retracting the previous one.** And every one of those
+mistakes had its hazard written in this file *before* it was made:
+
+    198   "changes to apps/web need its build and typecheck"     ->  200 reverted a boundary there
+    200   "a boundary's effect must be measured"                 ->  201 generalised without measuring
+    202   "no one-line fix"                                      ->  204 withdrew its own proposal
+    206   "changing how the runner reports is a change to the runner" -> 207 changed it
+
+**Four consecutive rounds where the previous round's own warning was ignored.** That is not a knowledge
+problem; the file knew. **It is a habit problem, and the only remedies that have worked in this project are
+mechanical** — the commit hook (round 187) and `check:boundaries` (round 205). Both exist because a rule had
+already failed more than once.
+
+### What that implies for the remaining rounds
+
+**The objective's remaining items are not like this.** Items 3, 4, 5 and 7 need content or coordinates that no
+amount of code can supply; items 2 and 9 need decisions. **Boundary work is attractive because it is always
+available and always measurable — and it is now the least valuable thing in the file.**
+
+    measured and green    the suite, the handover, the tests, the boundaries
+    waiting on the owner  the eleven addresses · the language decision · the archive's voice ·
+                          coordinates · media rights · registration and privacy
+    waiting on people     1,051 records to tag · 0 publications · 0 archaeology records
+
+**The next round should do one of those, or nothing.** Three failures in five rounds is the signal that this
+line of work has stopped paying.
