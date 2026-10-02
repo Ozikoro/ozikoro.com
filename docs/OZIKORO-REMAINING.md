@@ -10839,3 +10839,52 @@ matching.** *"festival"* does not contain *"festivals"*; a title is not the arti
 **The earlier rounds' mistakes were the same error against a server — a paging limit read as the end of the
 data, a crawler's reach read as a site's extent, a stale process read as a routing failure. The pattern is
 algorithms asserting more than they can see, and it has now appeared seven times in this session.**
+
+---
+
+## ROUND 244 — THE SECURITY-DEFINER FUNCTION, WHICH WAS PHASE 3'S ONE REAL GAP
+
+The brief names the mechanism for role checking: a dedicated roles table, server-side checks, **and a
+security-definer role function**. Three of the four existed. There was no SQL function anywhere in the
+migrations — `grep 'create function' packages/db/migrations/` returned nothing — so capability resolution lived
+in TypeScript, in `capabilitiesFor`.
+
+**That worked, and `capability-check` verified it, and it was not the same thing.** A static check looks for
+call sites; **a missing call site is not a call site.** A route that queried the archive directly and never
+asked about a capability would pass that check. Moving the rule into the database means there is no second copy
+to drift from.
+
+### Migration 0043
+
+    ozikoro_capabilities(account_id)          returns setof text    the whole set
+    ozikoro_has_capability(account_id, cap)   returns boolean       the guard
+
+Both `STABLE` — they read and write nothing — and both `SECURITY DEFINER` with **`SET search_path = public,
+pg_temp`**. That last clause is not decoration: a security-definer function runs as its owner, so if the
+search path is left to the caller a schema earlier in the path can shadow `ozikoro_member_role` with its own
+table, and the function reads the attacker's rows while holding its owner's privileges. `pg_temp` is named
+last, after `public`, so a temporary table cannot shadow a real one either.
+
+`capabilitiesFor` now calls the function and holds no rule of its own.
+
+### Verified by agreement, for every combination
+
+    cases 21, role grants exercised 9, mismatches 0
+
+Every archive role on a plain account, an account with no granted role, the account-level admin and owner
+paths, and every platform role alone — each asked both ways, the TypeScript and the SQL, and compared as sets.
+The boolean form was checked against the set form for five capabilities on every case.
+
+**And the properties were read from `pg_proc`, not from the definition text.** An earlier version of the check
+parsed `pg_get_functiondef` and reported `search_path` as *unset* — because that function does not render the
+SET clause at all. `proconfig` is where Postgres records it, and it had been correct the whole time.
+**The check was wrong and the function was right, which is the fourth time this session that the instrument
+was the fault.**
+
+### And the two role systems, which the first probe conflated
+
+`account.role` is the platform enum — contributor, editor, owner, admin, learner, linguist, native_reviewer,
+content_editor — and governs the whole estate. `ozikoro_member_role.role` is the archive's own ten. **The first
+probe used archive role names as account roles and Postgres refused them**, which is the schema saying the two
+are distinct. The test now exercises both axes deliberately: nine archive roles crossed with a plain account,
+then every platform role on its own, to show that no platform role grants archive capability by itself.

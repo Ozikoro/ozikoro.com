@@ -80,6 +80,7 @@
     "verify:all": "bash scripts/verify-all.sh",
     "check:residue": "npm -w @ozikoro/platform run check:residue",
     "check:capabilities": "npm -w @ozikoro/platform run check:capabilities",
+    "check:capability-fn": "node scripts/check-capability-fn.mjs",
     "check:links": "bash scripts/check-links.sh",
     "check:sitemap": "bash scripts/check-sitemap.sh",
     "check:body-links": "node scripts/check-body-links.mjs",

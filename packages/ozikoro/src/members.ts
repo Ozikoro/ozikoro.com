@@ -174,21 +174,34 @@ export async function ensureMember(db: Db, accountId: number): Promise<OzikoroMe
  * would be a second lock on a door they already hold the key to.
  */
 export async function capabilitiesFor(db: Db, accountId: number): Promise<Set<string>> {
+  /*
+   * THE DATABASE DECIDES, AND THE APPLICATION ASKS.
+   *
+   * This function used to hold the rule itself — a query joining ozikoro_role_capability to
+   * ozikoro_member_role with an account-level admin branch. It was correct, and `capability-check` verified
+   * that every call site named a capability some role holds. **But a static check looks for call sites, and a
+   * missing call site is not one**: a route that queried the archive directly and never asked would pass it.
+   *
+   * The rule now lives in `ozikoro_capabilities`, a SECURITY DEFINER function in migration 0043, so Postgres
+   * answers the question and any query can ask it. This wrapper exists to keep the call sites unchanged and
+   * to give the set a stable shape; it deliberately contains no rule of its own, because a second copy is a
+   * thing that can drift.
+   *
+   * `scripts/check-capability-fn.mjs` asserts the function and this wrapper agree for all twenty-one
+   * combinations of platform role and archive role, so the migration from TypeScript to SQL was verified
+   * rather than assumed.
+   */
   const rows = await db.rows<{ capability: string }>(
-    `select distinct c.capability
-       from ozikoro_role_capability c
-      where c.role = 'reader'
-         or c.role in (select role from ozikoro_member_role where account_id = $1)
-         or (c.role = 'admin' and exists (
-               select 1 from account a where a.id = $1 and a.role in ('admin','owner')
-             ))`,
+    `select ozikoro_capabilities($1) as capability`,
     [accountId]
   );
-  const capabilities = new Set(rows.map((r) => r.capability));
-  capabilities.add('read'); // Every signed-in account may read.
-  return capabilities;
+  return new Set(rows.map((r) => r.capability));
 }
 
+/*
+ * `can` and `requireCapability` follow, unchanged in shape. They go through `capabilitiesFor`, so they
+ * inherit the database's answer without needing to know where it came from.
+ */
 export async function can(db: Db, accountId: number, capability: string): Promise<boolean> {
   const capabilities = await capabilitiesFor(db, accountId);
   return capabilities.has(capability);
