@@ -491,7 +491,8 @@ const dateFmt = (iso: string | null) =>
  * archive's own state: the credit where one is recorded, and the licence state where none is.
  */
 export function fillArticle(html: string, a: RealArticle): string {
-  let out = dropExampleFlag(html);
+  // The design's sibling links are relative and this page is not served from their directory.
+  let out = absolutiseLinks(dropExampleFlag(html));
 
   // The eyebrow: the record's topic and the archive's own description of its standing.
   out = out.replace(
@@ -751,4 +752,37 @@ export function tidyBody(body: string, featuredImage: string | null): string {
   });
 
   return out;
+}
+
+/**
+ * Point the design's own relative links at absolute addresses.
+ *
+ * THE BUG THIS FIXES, WHICH WAS MINE
+ *
+ * The deliverable's screens link each other RELATIVELY — `archive-index.html`, `folklore.html`, `home.html` —
+ * because every screen sits in one directory. **Served from that directory they resolve; served from an
+ * article's address they do not.**
+ *
+ *     at /design/screens/article.html     archive-index.html -> /design/screens/archive-index.html
+ *     at /ute-okpu-an-ika-igbo-clan-…/    archive-index.html -> /ute-okpu-…/archive-index.html   404
+ *
+ * **So the "← All histories" link at the foot of every article led to "This address does not resolve to an
+ * entry", which is exactly what the owner reported.** Every other relative link on the page was broken the
+ * same way — Folklores, Watch, Explore, Archive, My Ozikoro, About, the footer's four columns.
+ *
+ * THE DESIGN IS NOT EDITED. This runs on the SERVED output only; the file on disk keeps its relative links
+ * and is still correct when opened from the deliverable's own directory — which is the property the handoff
+ * needs.
+ *
+ * `home.html` becomes `/`, because that is where the home screen is served. A fragment and a query are kept,
+ * so `about.html#contact` still lands on the contact section.
+ */
+export function absolutiseLinks(html: string): string {
+  return html.replace(
+    /href="(?!https?:|mailto:|tel:|#|\/)([A-Za-z0-9._-]+)\.html(#[^"]*)?(\?[^"]*)?"/g,
+    (_m, name: string, hash?: string, query?: string) => {
+      const path = name === 'home' || name === 'index' ? '/' : `/${name}`;
+      return `href="${path}${hash ?? ''}${query ?? ''}"`;
+    }
+  );
 }

@@ -12795,3 +12795,50 @@ matched `max-width: 600px` inside `sizes` and called it a fixed width.
 the second time it has happened while checking this very fix.**
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 284 — "ALL HISTORIES" LED TO A 404, AND THE FAULT WAS MINE
+
+**The owner clicked "← All histories" at the foot of an article and got "This address does not resolve to an
+entry." The link was right. The page it was on was the problem.**
+
+### Why
+
+**The deliverable's screens link each other RELATIVELY** — `archive-index.html`, `folklore.html`, `home.html` —
+**because every screen sits in one directory. Served from that directory they resolve. Served from an article's
+address they do not:**
+
+    at /design/screens/article.html    archive-index.html -> /design/screens/archive-index.html      200
+    at /ute-okpu-an-ika-igbo-clan-…/   archive-index.html -> /ute-okpu-…/archive-index.html          404
+
+**The design's file is correct and always was. My article route serves that file from a slug address, and a
+relative link cannot survive the move.**
+
+**And it was not one link.** "← All histories", Folklores, Watch, Explore, Archive, My Ozikoro, About, and
+every link in the footer's four columns — **all of them were relative, so every one of them 404'd from an
+article page.** A reader arriving from search would have found a page with no working navigation at all.
+
+### The fix, which does not touch the design
+
+**`absolutiseLinks` rewrites the served output**, turning `href="X.html"` into `href="/X"` and `home.html` into
+`/`. **It runs on the response, not on the file.** The file on disk keeps its relative links and is still
+correct when opened from the deliverable's own directory — **which is the property the handoff format needs,
+and the reason the fix belongs at this layer rather than in the markup.**
+
+    relative .html links left on an article page:  0
+    All histories -> /archive-index   200
+    Folklores     -> /folklore        200
+    Watch         -> /watch           200
+    Explore       -> /collections     200
+    My Ozikoro    -> /dashboard-reader 200
+    About         -> /about           200
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+### Why it took the owner to find it
+
+**Every check I had looked at the article's own content** — its title, its images, its body, whether the
+featured image repeated. **Not one of them followed a link out of the page.** The link checker walks from the
+site root and never arrives at an article by that route, so the broken links were outside everything being
+watched.
