@@ -10101,3 +10101,63 @@ load-bearing rather than conventional.
     /robots.txt                      200
 
     stylesheets linked on a page     5, and the design classes are present — the page IS styled
+
+---
+
+## ROUND 231 — NZEORA.COM EXTRACTED, AND THE SOURCING RULE THE ARCHIVE LIVES BY IS WHY IT IS NOT IMPORTED
+
+Asked to extract everything on nzeora.com about Africa, verify the sources, and not import fake history. **All of
+it is extracted. None of it is imported**, and the reason is measurable rather than a matter of taste.
+
+### What the site is
+
+    WordPress 7.1.2, the same platform as ozikoro.com
+    posts 421 · pages 12 · categories 7 · tags 8,321 · media 10,099
+
+    category spread   History & Stories 376 · Opinions 71 · Cultures & Traditions 50 ·
+                      Art & Photography 30 · Fashion & Lifestyle 9 · Uncategorized 6
+
+**It is not solely a history site.** The two most recent posts before the cut are *"Wireless Earbuds – such as
+Apple AirPods Pro (2nd generation)"* and *"Smartwatches – like Apple Watch Series 9"* — consumer-electronics
+content with no sources.
+
+### What was extracted
+
+    data/nzeora-wp/posts.json        421 records, 3.1 MB, full rendered content
+    data/nzeora-wp/pages.json         12 records
+    data/nzeora-wp/categories.json     7 records
+    data/nzeora-wp/africa-review.json 179 Africa-related posts with their sourcing class
+
+**Matching the API's X-WP-Total exactly.** Read-only from their site; nothing entered the ozikoro database.
+
+### And the sourcing, which is the whole question
+
+    179 posts mention Africa in the title or the body.
+
+    cite no external source at all       166   (93%)
+    cite social media only                 4   Twitter, Facebook, Pinterest, t.co
+    cite an encyclopedia only              2   Wikipedia
+    cite news or scholarly material        4   The Guardian, CNN, a Würzburg repository
+    mixed or unclear                       3   including a Wikimedia SEARCH RESULTS page
+
+**Of the 21 distinct links across the 13 posts that cite anything at all**, the set includes
+`urbandictionary.com/define.php?term=blackwashing`, `pinterest.com/pin/…`, `twitter.com/hashtag/ManuDibango`,
+`web.facebook.com/ChukaObiwuruNduneseokwu`, `commons.wikimedia.org/w/index.php?search=alligator+bait`, and
+`www.wikipedia.org` — the encyclopedia's homepage, cited as a source for a claim. Three links are dead,
+including `54history.com`, cited as a source.
+
+### Why nothing was imported
+
+**The archive's conduct contract is that every claim carries a source, and 166 of these 179 posts carry none.**
+Importing them would put unsourced historical claims into a register whose entire claim on a reader is that it
+does not do that. **That is not a judgment about whether the content is true — it is the observation that it is
+not evidenced**, which is a different and checkable statement.
+
+**And "fake history" is not a verdict this agent should deliver.** Deciding which of 179 pieces of historical
+writing are false requires knowing the history; asserting it anyway and calling the result verification would be
+the exact failure the brief forbids. **What has been produced instead is the evidence a human reviewer needs**:
+for every Africa-related post, its length, its categories, whether it cites anything, and what it cites.
+
+**The honest next step is editorial, not technical**: someone with the subject knowledge reads
+`africa-review.json` and decides, and any post that is imported arrives with its sources attached and its
+uncertainty visible — which is what the archive does for everything else it holds.
