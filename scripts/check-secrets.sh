@@ -89,7 +89,10 @@ fi
 #
 # A drifted example is how a deployment fails at two in the morning; an entry nobody reads is how the next
 # person sets a variable that does nothing.
-READ=$(grep -rhoE 'process\.env\.[A-Z][A-Z0-9_]+' apps/ozikoro packages/ozikoro packages/db \
+# `packages/core` is in the list because round 178 moved the SMTP client into it and Ozikoro now
+# imports from that package. Before that the scope was right: a package the app did not use could not
+# carry a variable the app needed. **A check's scope is a claim about the code, and the code changed.**
+READ=$(grep -rhoE 'process\.env\.[A-Z][A-Z0-9_]+' apps/ozikoro packages/ozikoro packages/db packages/core \
   --include='*.ts' --include='*.tsx' --include='*.mjs' 2>/dev/null | sed 's/process\.env\.//' | sort -u \
   | grep -vE '^(NEXT_|VERCEL|NODE_ENV$|PORT$)' || true)
 DOC=$(grep -oE '^[A-Z][A-Z0-9_]*=' apps/ozikoro/.env.example 2>/dev/null | sed 's/=$//' | sort -u || true)

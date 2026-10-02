@@ -7672,3 +7672,53 @@ the HTML, and the reading is what failed twice.
 The claim notification (round 154) needed a template, a wire and a transport. **The transport now lives in a
 package Ozikoro already depends on**, so the remaining two parts are a template and a call at
 `requestContributorClaim` — and the only thing still ahead of them is the accounts ordering.
+
+---
+
+## ROUND 179 — ROUND 178 INVALIDATED A CHECK'S SCOPE, AND THE CHECK SAID NOTHING
+
+The env-drift check scanned `apps/ozikoro packages/ozikoro packages/db`. Round 178 moved the SMTP client
+into `packages/core` and gave Ozikoro its first import from that package — **and the scan was not
+extended.** So the check was still passing while a whole package's variables had become the application's
+business.
+
+    packages/core reads (NOT previously scanned):
+      NDEBE_SYLLABLE_TABLE · OZITUMA_EHLO_NAME · OZITUMA_SMTP_ALLOW_PLAINTEXT
+    documented for Ozikoro before this round:  none of the three
+
+### Fixed, and the scope change is the finding
+
+    scan now covers        apps/ozikoro · packages/ozikoro · packages/db · packages/core
+    .env.example says      39 variables, up from 36
+    all eight secret checks pass
+
+**A check's scope is a claim about the code**, and round 178 changed the code. The check's own comment now
+says so, because the next person to move a module between packages will make the same scope stale in the
+same silent way.
+
+### Mutation-tested
+
+Removing one of the newly documented variables:
+
+    exit with a variable undocumented :  1     READ BY THE APP, ABSENT FROM .env.example: OZITUMA_EHLO_NAME
+    exit after restore                :  0
+
+### And the three variables are documented with reasons, not just names
+
+    OZITUMA_EHLO_NAME              the name the SMTP client announces; cosmetic, shows in a mail header
+    OZITUMA_SMTP_ALLOW_PLAINTEXT   allow AUTH over an unencrypted socket — off, and it should stay off
+    NDEBE_SYLLABLE_TABLE           the dictionary's courses; this app has no use for it, can stay empty
+
+**The last one is documented although Ozikoro will never use it**, because the honest statement is *"the
+package this application depends on reads it"* and not *"this application reads it."* The drift check asks
+the former now, which is the question that matches the dependency.
+
+### The second check round 178 invalidated, in two rounds
+
+    round 178   moved a module and made a dependency real
+    round 179   found the drift check's scope had been a claim about the old shape
+
+**Neither round's subject was the check.** Both were about mail, and the check was a bystander that had
+quietly stopped covering the thing it exists to cover — which is the same failure round 122 found when a
+lesson did not travel between two checkers, one level up: **here the lesson had travelled, and the
+*territory* had not.**
