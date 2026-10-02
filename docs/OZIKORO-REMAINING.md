@@ -9451,3 +9451,73 @@ callers are administrator-only and this one is not.**
 **And the assistant itself still needs the two owner decisions** — the language a `KnowledgeItem` declares
 (round 183) and the register its system prompt is written in (round 190). **What exists now is the half that
 needs neither, and it is safe to expose.**
+
+---
+
+## ROUND 212 — IS EVERYTHING ON THE LIVE WORDPRESS SITE WITH US? MEASURED, AND THE ANSWER IS NOT YET
+
+The owner's release gate is explicit: finish the build, **be sure every piece of content on the WordPress site
+currently hosting ozikoro.com is with us**, then move to the new platform. This is that check, run against the
+**live API** rather than against our own snapshot.
+
+### The live site is still up, still public, and still being published to
+
+    https://ozikoro.com/                    200   "Ozi Ikòrò ~ World of Indigenous Cultures, Histories & Traditions"
+    /wp-json/wp/v2/posts                    200
+    /wp-json/wp/v2/media                    200
+
+**The WordPress install is live.** It is not a frozen source we copied once; it is the production site,
+answering on the same host, and it has received content **since our extraction on 1 October 2026 16:40 UTC**.
+
+### The comparison, endpoint by endpoint
+
+    endpoint      live total   our manifest   verdict
+    posts              1051           1051     complete
+    pages                 6              6     complete
+    media              3582           3488     94 SHORT
+    users                11             11     the API's limit, not ours
+    categories           14             14     complete
+    tags              11056          11056     complete
+
+**Every article, every page, every author, every category and every tag is with us.** The archive is not
+missing a single post.
+
+### The two media gaps, which are different problems
+
+**94 records newer than our snapshot.** The live site holds 3,582 media items; we extracted 3,488. **94 were
+added after 1 October.** Their metadata is not in our database at all.
+
+**51 files we never downloaded.** Of the 3,488 rows we do hold, **3,437 have a file on disk — 50 images and 1
+video are missing.** The rows exist; the bytes do not. A sample, by their real WordPress addresses:
+`2026/01/Cappa_-_കാപ്പ.jpg`, `2026/01/Ancient_City_Gates_of_Kano_Ƙofar_Gadon_Ƙaya.jpg`,
+`2025/11/Umueri-community-celebrates-‘okika-mmuo-Festival-.jpg`.
+
+**And the upload paths no longer serve those files**: `https://ozikoro.com/wp-content/uploads/…` returns
+**404** for a file we already hold *and* for one of the missing ones. The API still lists them; the web
+server does not serve them at that path. **So the 51 cannot simply be re-fetched by URL** — they need either
+the corrected path or the filesystem, which is what the cPanel access is for.
+
+### What the users figure honestly means
+
+`users` is 11 on both sides, and **that is the API's ceiling, not the site's population.** The extraction's own
+`manifest.json` says so: *"The users endpoint lists only users with published posts, so these are the authors,
+not every registered subscriber."* **Any registered subscriber, editor or administrator without a published
+post is absent**, and no amount of re-querying the public API will find them.
+
+### So the release gate is not yet met, and what would meet it
+
+    with us, verified   1051 articles · 6 pages · 14 categories · 11056 tags · 11 authors · 18382 article-label
+                        links · 1050 article-media links · 3437 of 3488 media files
+    NOT with us         94 media added since 1 October
+                        51 media files never downloaded, and their URLs now 404
+                        every registered user who has never published a post
+
+**Closing the first two needs the server, and closing the third certainly does.** The API cannot supply them:
+one is newer than our snapshot, one is not being served, and one is not public by design. **The cPanel access
+named in the original request is the instrument** — a filesystem copy of `wp-content/uploads` for the media,
+and a users-table export for the accounts.
+
+**And the site is still being written to**, which is the part a single migration cannot survive: **whatever we
+copy is already out of date by the time the new platform serves it.** The cutover therefore needs a **final
+delta sync in a read-only window** — articles and pages first (they are already complete and cheap to
+re-check), media second, users last — rather than one migration performed once.
