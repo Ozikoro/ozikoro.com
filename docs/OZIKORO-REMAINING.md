@@ -11054,3 +11054,44 @@ the privacy notice *"must be supplied by Ozi Ikoro Limited"*. Both are reproduce
     404   /watch
 
 **Nine pass, ten to go.** `/about` was the widest and took one round; the rest are narrower.
+
+---
+
+## ROUND 248 — `/documents` REBUILT, AND THE LIBRARY IS NOT WHAT THE WORD SUGGESTS
+
+    before   2 design sections missing — sx-document-hero and both sx-library-section blocks,
+             with the h1 "Published work, ready to read." absent
+    after    ok — 2 design sections, 3 headings
+
+### What the library actually holds
+
+**Twelve media records are filed as documents. Only two are PDFs.** The other ten are `text/html` captures of
+web pages — Alamy stock-photograph listings and a British Museum object page — filed as attachments by the
+site this archive was migrated from.
+
+**A captured web page is not a document, so they are counted and not presented as one.** The grid shows the two
+PDFs; the ten captures are excluded, with the number and the reason stated on the page, because a reader
+counting the archive's holdings should be able to see the difference between a document and a scraped page.
+
+**And `ozikoro_publication` holds zero rows**, so the researcher-publications section states that plainly rather
+than rendering an empty list.
+
+### The design is honest in the same place, and the page keeps faith with it
+
+The design's own source note reads: *"Download buttons currently provide clearly labelled demonstration PDFs.
+Approved publication [records will replace them]"*. **The two PDFs here are exactly those demonstration files**,
+so each card says so — *"Demonstration file held by the archive, not an approved publication"* — and the page
+declines to mark anything peer-reviewed, because no review has taken place.
+
+**That is the brief's rule and the design's own wording agreeing**, which is the easiest case to get right and
+the one most tempting to fill.
+
+### The tally
+
+    ok    /  /archive  /photographs  /documents  /material-culture  /towns
+          /cite  /careers  /ledger  /about
+    FAIL  /listen  /igbo-calendar  /cultural-calendar  /projects
+          /publications  /topics  /folklore  /submit
+    404   /watch
+
+**Ten pass, eight to go, and `/watch` is still a missing route.**
