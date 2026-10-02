@@ -52,3 +52,4 @@ export * from './redirects.ts';
 
 export * from './knowledge.ts';
 export * from './design-fill.ts';
+export * from './seo-head.ts';

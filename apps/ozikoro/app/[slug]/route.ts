@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, seoHead, withSeoHead, type RealArticle } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,12 +42,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   }
 
   const row = await db.one<{
-    id: number; title: string; body_html: string | null; topic: string | null;
+    id: number; title: string; body_html: string | null; topic: string | null; standfirst: string | null;
     author: string | null; published_at: Date | null; modified_at: Date | null;
     image: string | null; image_alt: string | null; image_credit: string | null;
     image_licence: string | null; rights_note: string | null;
   }>(
-    `select a.id, a.title, a.body_html, t.name as topic,
+    `select a.id, a.title, a.body_html, a.standfirst, t.name as topic,
             c.display_name as author, a.published_at, a.modified_at,
             (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as image,
             (select m.alt_text from ozikoro_media m where m.id = a.featured_media_id) as image_alt,
@@ -129,7 +129,38 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   let html: string;
   try {
-    html = fillArticle(await readFile(SCREEN, 'utf8'), article);
+    const filled = fillArticle(await readFile(SCREEN, 'utf8'), article);
+    /*
+     * THE HEAD IS REPLACED, NOT APPENDED TO.
+     *
+     * The design's article page carries the walkthrough's own `<title>` and description — **so every one of
+     * 1,051 records was telling a search engine it was called "Nwagu Aneke", the example title**, with no
+     * canonical, no Open Graph and no structured data beside it. Invisible in a browser; fatal in an index.
+     */
+    html = withSeoHead(
+      filled,
+      seoHead(
+        {
+          path: `/${clean}/`,
+          title: article.title,
+          description: row.standfirst ?? null,
+          kind: 'article',
+          published: article.published,
+          updated: article.updated,
+          author: article.author,
+          image: article.image ? `${'https://ozikoro.com'}${article.image}` : null,
+          imageAlt: article.imageAlt,
+          reference: `OZ-H-${String(row.id).padStart(4, '0')}`,
+          trail: [
+            { name: 'Ozikoro', path: '/' },
+            { name: 'Histories', path: '/archive-index/' },
+            { name: article.title, path: `/${clean}/` },
+          ],
+          topics: row.topic ? [row.topic] : [],
+        },
+        ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+      )
+    );
   } catch (error) {
     console.error('article fill failed:', error);
     return new Response('Not found', { status: 404 });

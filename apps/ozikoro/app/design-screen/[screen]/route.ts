@@ -20,6 +20,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
+import { seoHead, withSeoHead } from '@ozikoro/platform';
 import { mediaPath } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import {
@@ -32,6 +33,39 @@ import {
 export const dynamic = 'force-dynamic';
 
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
+
+/** What each screen should be called, and described as, in a search result. */
+const SCREEN_SEO: Record<string, { title: string; description: string; kind?: 'article' | 'page' | 'place' | 'list' | 'profile' }> = {
+  home: { title: 'Ozikoro — Igbo and African history, archives and scholarship', description: 'Town and clan histories, archive photographs and documents, and the work of African researchers. Published by Ozi Ikoro Limited.', kind: 'page' },
+  'archive-index': { title: 'Histories — the Ozikoro archive', description: 'Every history in the archive, filed by ethnic group, clan, place, period and source type. Cite any record by its permanent address.', kind: 'list' },
+  topics: { title: 'Topics A–Z — Ozikoro', description: 'A flat index across the archive: categories, places and media, from Anthropology to Video.', kind: 'list' },
+  towns: { title: 'Towns and clans — Ozikoro', description: 'The towns, clans and communities the archive holds records for, with their region and their connected histories.', kind: 'list' },
+  photographs: { title: 'Photographs — Ozikoro', description: 'Historic photographs held in the archive, each shown with its source and its reuse terms.', kind: 'list' },
+  documents: { title: 'Documents — Ozikoro', description: 'Downloadable documents held in the archive, with their provenance and rights recorded.', kind: 'list' },
+  watch: { title: 'Watch — Ozikoro', description: 'Films and recordings from the archive, each credited to the article and publisher it came from.', kind: 'list' },
+  listen: { title: 'Listen — Ozikoro', description: 'The listening library. Records are read aloud from their written form; no recording is claimed that does not exist.', kind: 'list' },
+  folklore: { title: 'Folklores — Ozikoro', description: 'Stories, customs and memories kept as a library of oral tradition, given the same standing as written sources.', kind: 'list' },
+  collections: { title: 'Collections — Ozikoro', description: 'Photographs, documents, recordings and material culture, with the size of each collection stated as it is.', kind: 'list' },
+  about: { title: 'About Ozi Ikoro Limited', description: 'Who keeps the archive, how material is held, and who may read it.', kind: 'page' },
+  cite: { title: 'How to cite Ozikoro', description: 'Ready-made citation formats by record type, with a permanent address for every history.', kind: 'page' },
+  careers: { title: 'Careers — Ozikoro', description: 'Roles at Ozi Ikoro Limited and how the application journey works.', kind: 'page' },
+  donate: { title: 'Donate — Ozikoro', description: 'Support the preservation of African histories and public access to them.', kind: 'page' },
+  sponsors: { title: 'Sponsor a programme — Ozikoro', description: 'Partnership with institutions, sponsors and media.', kind: 'page' },
+  investors: { title: 'Investors — Ozikoro', description: 'The infrastructure behind the archive and what investment supports.', kind: 'page' },
+  academy: { title: 'Academy — Ozikoro', description: 'Learning the languages the archive is written in, with Ozituma Learn.', kind: 'page' },
+  ledger: { title: 'Public ledger — Ozikoro', description: 'Donors, contributors, researchers, translators and volunteers, and where funds go.', kind: 'page' },
+  projects: { title: 'Projects — Ozikoro', description: 'Programmes the archive has embarked on.', kind: 'list' },
+  publications: { title: 'Publications — Ozikoro', description: 'Research papers, essays and reports, each stating whether it completed peer review.', kind: 'list' },
+  igbo_calendar: { title: 'Igbo calendar — Ozikoro', description: 'The four-day market cycle, date lookup and month view.', kind: 'page' },
+  'igbo-calendar': { title: 'Igbo calendar — Ozikoro', description: 'The four-day market cycle, date lookup and month view, with the anchor stated as a demonstration.', kind: 'page' },
+  'cultural-calendar': { title: 'African cultural calendar — Ozikoro', description: 'Events by date, with organiser, place and verification status recorded per event.', kind: 'list' },
+  journeys: { title: 'Journeys & Places — Ozikoro', description: 'Discovery by place and time across the archive.', kind: 'list' },
+  'material-culture': { title: 'Material culture — Ozikoro', description: 'Objects, makers and communities held in the archive.', kind: 'list' },
+  'oral-recordings': { title: 'Oral recordings — Ozikoro', description: 'Voices, consent and transcripts, given equal standing with written sources.', kind: 'list' },
+  researchers: { title: 'Researchers — Ozikoro', description: 'The people who contribute to the archive, with no institution required.', kind: 'list' },
+  'type-test': { title: 'Typography — Ozikoro', description: 'The type test: dotted vowels, tone marks, and the marked dotted vowels that usually break.', kind: 'page' },
+  notfound: { title: 'This address does not resolve to an entry — Ozikoro', description: 'Either the entry has not been written yet, or the address has changed.', kind: 'page' },
+};
 
 /** Screens this route fills. Anything else is served untouched. */
 const DASHBOARDS = [
@@ -401,6 +435,39 @@ export async function GET(
     // Degrade to the design rather than to an error page, and say so in the log.
     console.error(`design fill failed for ${name}:`, error);
   }
+
+  /*
+   * EVERY SCREEN GETS A REAL HEAD, NOT THE WALKTHROUGH'S.
+   *
+   * The deliverable's screens each carry the design's own `<title>` — "Nwagu Aneke", "Ozikoro article reader"
+   * and so on — because they were written for a walkthrough. **Served as the site, all fifty-one announced
+   * themselves as the same demonstration.** `SCREEN_SEO` gives each the title and description it should have,
+   * and anything not listed falls back to a generic one rather than to the design's example.
+   */
+  const meta = SCREEN_SEO[name] ?? {
+    title: `${name.replace(/-/g, ' ')} — Ozikoro`,
+    description: 'A page in the Ozikoro archive of Igbo and African histories, culture and scholarship.',
+  };
+  const trail = [
+    { name: 'Ozikoro', path: '/' },
+    ...(name === 'home' ? [] : [{ name: meta.title.split(' — ')[0] ?? name, path: `/${name}/` }]),
+  ];
+  html = withSeoHead(
+    html,
+    seoHead(
+      {
+        path: name === 'home' ? '/' : `/${name}/`,
+        title: meta.title,
+        description: meta.description,
+        kind: meta.kind ?? 'page',
+        image: null,
+        trail,
+        // A dashboard, a search page and the form behind the auth gate are not for indexing.
+        noindex: name.startsWith('dashboard') || name === 'search' || name === 'upload' || name === 'signin',
+      },
+      ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+    )
+  );
 
   return new Response(html, {
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },

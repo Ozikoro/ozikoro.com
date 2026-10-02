@@ -12842,3 +12842,75 @@ and the reason the fix belongs at this layer rather than in the markup.**
 featured image repeated. **Not one of them followed a link out of the page.** The link checker walks from the
 site root and never arrives at an article by that route, so the broken links were outside everything being
 watched.
+
+---
+
+## ROUND 285 — EVERY PAGE WAS TELLING GOOGLE IT WAS CALLED "NWAGU ANEKE"
+
+**The owner asked me to study the Yoast SEO Premium plugin they hold and bring that thinking to this site, and
+to push it to ozituma.com as well. The first finding was not about what to add.**
+
+### What the pages were saying
+
+    <title>Nwagu Aneke — Ozikoro article reader</title>
+    <meta name="description" content="A book-like Ozikoro article reading and listening experience…">
+    canonical: none   Open Graph: none   JSON-LD: none   citation_*: none
+
+**The deliverable's screens are complete HTML documents with their own `<head>`, written for a design
+walkthrough.** Served as the site, **every one of 1,051 records announced itself as the demonstration article**
+— the example title from `article.html`, with the example description beside it and nothing else at all. **Every
+screen had the same problem, and the whole head was 747 bytes.**
+
+**That is invisible in a browser and fatal in an index.** A page whose title is another page's title is, to a
+crawler, a duplicate of it.
+
+### What now replaces it
+
+**The design's `<head>` is discarded and a generated one is written in its place** — the same layer, and the same
+reason, as the link rewriting: **the served document is not the walkthrough.** The stylesheet links and font
+preconnects are re-declared so nothing the design needs is lost.
+
+    title        the record's own
+    description  its standfirst, trimmed at a word boundary
+    canonical    the permanent address
+    robots       index, follow, max-image-preview:large, max-snippet:-1
+    Open Graph   title, description, url, type, image, published, modified, author, and each topic as a tag
+    Twitter      summary_large_image when the record has an image
+
+    head bytes   747  ->  4,698
+
+### The graph, in one `@graph`
+
+    Organization      Ozi Ikoro Limited, with ozituma.com and learn.ozituma.com in `sameAs`
+    WebSite           with the SearchAction that makes a sitelinks searchbox possible
+    Person            the named author
+    Article           the record, `isPartOf` the site, `publisher` the organization, `about` its topics
+    BreadcrumbList    Ozikoro / Histories / the record
+
+**Every value comes from the record or is omitted. Nothing is invented** — a record with no author has no
+`Person` node and no `citation_author`, because an empty one is worse than none.
+
+### And the part Yoast does not do, which matters most here
+
+**Highwire `citation_*` tags, which Google Scholar reads and nothing else does.**
+
+    citation_title                   Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots
+    citation_author                  Idenze Ezeme
+    citation_publication_date        2026-09-29
+    citation_public_url              https://ozikoro.com/ute-okpu-…/
+    citation_publisher               Ozi Ikoro Limited
+    citation_language                en
+    citation_technical_report_number OZ-H-0001
+
+**Yoast emits none of these. An archive whose register is "library and university press, never a blog" is
+invisible to Scholar without them** — and the entire citation apparatus, the permanent addresses, the reference
+numbers, the recorded authors and dates, exists in order to be cited. **These tags are the only route into the
+index that matters for this material, and they cost nothing.**
+
+### Applied to every screen, not only articles
+
+`SCREEN_SEO` gives each of the fifty-one screens its own title and description. **The dashboards, the search page,
+the upload form and sign-in are `noindex, follow`** — a private workspace and a form behind an auth gate have no
+business in an index.
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**
