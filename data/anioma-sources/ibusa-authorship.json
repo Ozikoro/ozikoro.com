@@ -1,0 +1,74 @@
+{
+ "source": "https://www.ibusa.net/",
+ "fetched": 46,
+ "note": "Every page carries a byline in a standard form at the foot: \"By Emeka Esogbue / Website: www.Ibusa.net\". Authorship here is therefore READ rather than inferred, which is what the \"do not copy the ones I have not written\" rule needs.",
+ "signed_by_esogbue": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  7,
+  9,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30,
+  31,
+  33,
+  37,
+  38,
+  40,
+  42,
+  43,
+  45
+ ],
+ "signed_by_others": [
+  {
+   "n": 18,
+   "by": "Felix Igbekoyi",
+   "title": "Umuodafe, Ibusa Family Land"
+  },
+  {
+   "n": 34,
+   "by": "CHRISTOPHER OJI",
+   "title": "Fear Grips Ibusa"
+  }
+ ],
+ "undetermined": [
+  8,
+  10,
+  32,
+  35,
+  36,
+  39,
+  41,
+  44,
+  46
+ ],
+ "nothing_to_copy": [
+  6
+ ],
+ "counts": {
+  "his": 34,
+  "not_his": 2,
+  "undetermined": 9,
+  "empty": 1,
+  "his_words": 39297
+ }
+}

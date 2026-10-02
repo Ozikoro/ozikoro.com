@@ -10578,3 +10578,68 @@ moved one and not the other, which is what exposed it.
     1575 articles    1051 migrated (published) + 524 ingested (in review)
       19 contributors  11 from the migration + the blog author + 7 guest authors
     verify-all        24 checks, all suites passing
+
+---
+
+## ROUND 239 — IBUSA.NET HAS 46 ARTICLES. MY EARLIER "NOTHING TO COPY" WAS WRONG.
+
+Round 235 reported ibusa.net as *"a splash page with one internal link and no articles"* and concluded there was
+nothing to extract. **That was wrong, and the way it was wrong is worth recording**: the homepage is a
+FrontPage-era frame page whose navigation the crawler could not follow, so the absence of internal links was
+read as the absence of content. **The owner supplied the paths and all 46 return 200.**
+
+    46 pages fetched, 0 failures, 49,548 words
+
+### Authorship is READ here, not inferred — which is what the rule needs
+
+Every usable page carries the same signature at its foot:
+
+    By Emeka Esogbue
+    Website : www.Ibusa.net
+    Thank you for visiting Ibusa.net
+
+**So this source does not have the Blogger problem.** There, the feed reported the blog owner for every entry and
+nine guest posts had to be found by reading their titles. **Here the byline is explicit on each page**, and the
+classification is a read rather than a guess:
+
+    signed by Emeka Esogbue            34   (39,297 words)
+    signed by someone else              2   #18 Umuodafe, Ibusa Family Land — Felix Igbekoyi
+                                             #34 Fear Grips Ibusa — CHRISTOPHER OJI
+    no byline of any kind              10   #8, #10, #32, #35, #39, #41, #44, #46, #36, and #6
+    nothing to copy                     1   #6 Igbuzor on the Map is a 15-word placeholder
+
+**The 34 go in. The 2 by other authors do not. The 10 with no byline are recorded as undetermined and are
+NOT copied**, because the rule is that content whose authorship cannot be established is left — and an unsigned
+community page is exactly that. **If any of those 10 are the owner's, he can say so and they join the 34.**
+
+### And this source is directly on the Benin question, in the author's own words
+
+    #26 The Igbo and Edo Socio-Cultural Influence on Ibusa
+        "It is a town situated between the Igbo and Edo."
+        "It is also a town lying in the midst of people claiming to have both Igbo and Edo blood in them."
+    #11 The Enuani People
+        "As a language, it is one of the major Igbo dialects inherited from the Igbo of the southeast
+         but with loaned words from Edo."
+        "The languages of Anioma are derived from Igbo, Yoruba, Edo, Igala etc."
+    #5  Founder of Ibusa — the page whose text ends arguing the origin is "from a known and definite
+        region of Igboland", not from Israel or Ethiopia.
+
+**These are the author's positions on the contested question, and they are more nuanced than either pole**:
+Edo influence acknowledged as loanwords and bloodlines, Igbo descent asserted as the base. **They are exactly
+what the flag list is for — material where the question is discussed — and they are material the archive may
+hold precisely because it is attributed and argued rather than asserted anonymously.**
+
+### Files
+
+    data/anioma-sources/ibusa-authorship.json   the classification, with the reason
+    data/anioma-sources/ibusa/34.html …         the 34 signed pages, full HTML
+
+### The lesson, which is the third of its kind this session
+
+    round 235   ibusa.net: "one internal link, no articles"          WRONG — the nav could not be crawled
+    round 217   media: "the endpoint stopped at 1,698"               WRONG — a client limit
+    round 198   uploads: "the files 404"                             WRONG — unencoded spaces
+
+**A crawler's reach is not the site's extent, and this file has now recorded that three times.** The check that
+would have caught it is one line: try the paths a site of that era would use, rather than trusting the homepage
+to link them.
