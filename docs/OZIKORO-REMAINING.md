@@ -9092,3 +9092,53 @@ file that wraps them, and this round's own history is two failures from assuming
     round 200   root-level border  -> every 404 is a 200
     round 201   one segment        -> worked, and generalised too far
     round 202   the rule           -> who decides the status, not where the file sits
+
+---
+
+## ROUND 204 — ROUND 202'S SUGGESTED FIX DOES NOT WORK, AND THE BLOCK ALREADY SAID SO
+
+Round 202 ended by naming the way to have both properties: *"a `<Suspense>` boundary **inside** those pages,
+around the part that waits — not a `loading.tsx` above them."* **That does not work, and the paragraph it
+would have been recorded beside already says why.**
+
+### The block's sentence, from round 119
+
+> *"No one-line fix: the good path needs **no route to match**, and a page cannot rewrite."*
+
+**And the mechanism it records is that streaming has already begun.** A `<Suspense>` inside the page is still a
+Suspense boundary **above the `notFound()` call** — the call happens inside the child that the boundary wraps —
+so the status is committed before the decision, exactly as with a `loading.tsx` above it. **Moving the boundary
+down a level changes which file it lives in and not which side of the decision it sits on.**
+
+### Why there is no version of it that works
+
+    React streams a shell and commits 200 OK as soon as it begins sending
+    notFound() renders the 404 page INTO that stream
+    a boundary anywhere above the call defers the call until after the status is sent
+
+**So the two properties are not in tension because of where a file is placed.** They are in tension because
+**a page that decides its own status cannot have decided it before the response started** — and a Suspense
+boundary is precisely a decision to start the response early.
+
+### The only structural fix, and why it is not available here
+
+**Let the router decide.** The status is correct on the good path *because no route matches* — so if the set of
+valid addresses were enumerable, every unknown one would be an unmatched route and Next would set 404 itself.
+**`app/[slug]` exists exactly because the set is not enumerable**: it holds **1,051 articles**.
+
+    router decides     the segment matches or does not        -> status correct, and Next's 404 path
+    page decides       10 pages call notFound()               -> designed 404, deferred, status 200
+
+**Ten pages decide for themselves** — the article, label, topic, document, attachment, author, entity and
+publication routes among them.
+
+### What this changes
+
+    round 202   recorded a way to have both                     -> withdrawn
+    round 204   it is the same boundary on the other side of the same decision
+
+**The state is unchanged and correct**: twelve static routes carry a loading boundary, and the seventeen
+dynamic ones carry none, so their 404s keep their status and their async pages cannot reach `error.tsx`. **That
+is the better half of a trade that cannot be split**, and both the defect and the boundary rule now sit in the
+same paragraph so the next round begins from it rather than rediscovering it — which is what round 203 said
+this paragraph is for.
