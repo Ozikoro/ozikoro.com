@@ -12,3 +12,7 @@ export * from './gamification.ts';
 export * from './ai/index.ts';
 export * from './review-workflow.ts';
 export * from './analytics.ts';
+
+// The SMTP client, moved here in round 178 so more than one application can send mail. It imports only
+// node builtins, so sharing it is a file move rather than a refactor — see the note in the file.
+export * from './mail.ts';

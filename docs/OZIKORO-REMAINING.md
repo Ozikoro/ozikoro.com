@@ -7633,3 +7633,42 @@ pattern bug look like a documentation failure, and the reverse.**
 **Five of those are checks on the project's own claims rather than on its behaviour**, and every one has
 caught something: residue published as researchers, a capability granted to nobody, dead links inside prose,
 a credential in the working tree, and — the day it was written — four of its own patterns.
+
+---
+
+## ROUND 178 — THE MAIL MODULE IS SHARED, AND IT TOOK ONE ATTEMPT
+
+Round 165 sized this and round 164 established it was mechanical; this round did it.
+
+    move    apps/web/lib/mail.ts  ->  packages/core/src/mail.ts         (git mv, no edits)
+    add     export * from './mail.ts' to packages/core/src/index.ts
+    update  FOUR imports in apps/web:  '@/lib/mail'  ->  '@ozituma/core'
+
+    @ozituma/core    0 errors
+    @ozituma/web     0 errors
+    @ozikoro/site    0 errors
+    verify-all       All suites passed
+
+**No dangling references to the old path, and `apps/ozikoro` can now import it** — which also makes
+`@ozituma/core` used for the first time in this application, after being a declared and unreferenced
+dependency since round 148.
+
+### Why this one went in first time when the last two-line change did not
+
+    round 142   a two-line change to a label page       three attempts, one assertion refusing an edit
+    round 172   a two-line change to the same page      one attempt, and a verification that could not see it
+    round 178   a five-part change across two packages  one attempt, verified by three typechecks
+
+**The difference is not the size; it is that this one had a check that would say so.** `typecheck` exists for
+both packages, both were clean beforehand, and both were clean afterwards — so a mistake had a way to
+announce itself. Rounds 142 and 172 changed a *page*, where the only verification was fetching it and reading
+the HTML, and the reading is what failed twice.
+
+> **A change is as safe as the check that can tell you it went wrong**, which is why the two-line edits were
+> the riskier of the three.
+
+### What it unblocks, in one line
+
+The claim notification (round 154) needed a template, a wire and a transport. **The transport now lives in a
+package Ozikoro already depends on**, so the remaining two parts are a template and a call at
+`requestContributorClaim` — and the only thing still ahead of them is the accounts ordering.

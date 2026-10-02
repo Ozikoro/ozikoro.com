@@ -19,7 +19,7 @@ import {
   resetPasswordWithToken,
 } from '@ozituma/db/passwords';
 import { getCurrentAccount, sessionCookie, sessionMaxAgeSeconds } from '@/lib/session';
-import { sendMail, siteAddress } from '@/lib/mail';
+import { sendMail, siteAddress } from '@ozituma/core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

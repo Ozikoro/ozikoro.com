@@ -11,7 +11,7 @@ import { RESET_TTL_MINUTES, listOpenResetRequests } from '@ozituma/db/passwords'
 import { getCurrentAccount } from '@/lib/session';
 import { Head } from '../ui';
 import { isAdmin } from '@ozituma/db/accounts';
-import { mailStatus } from '@/lib/mail';
+import { mailStatus } from '@ozituma/core';
 
 export const dynamic = 'force-dynamic';
 

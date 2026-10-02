@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { RESET_TTL_MINUTES } from '@ozituma/db/passwords';
-import { mailStatus, siteAddress } from '@/lib/mail';
+import { mailStatus, siteAddress } from '@ozituma/core';
 
 export const dynamic = 'force-dynamic';
 

@@ -26,7 +26,7 @@ import { getDb } from '@ozituma/db/client';
 import { getAccountById, isAdmin } from '@ozituma/db/accounts';
 import { RESET_TTL_MINUTES, markResetDelivered, requestPasswordReset } from '@ozituma/db/passwords';
 import { getCurrentAccount } from '@/lib/session';
-import { mailStatus, sendMail, siteAddress } from '@/lib/mail';
+import { mailStatus, sendMail, siteAddress } from '@ozituma/core';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
