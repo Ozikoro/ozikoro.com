@@ -162,6 +162,24 @@ const OMITTED_SECTION_HEADINGS = {
  * earlier version derived the list from a missing file, which meant a screen renamed or deleted upstream
  * would silently move a route out of the comparison instead of failing it. Naming them makes that loud.
  */
+/*
+ * ELEMENTS THAT RENDER ONLY IN A STATE, AND THE URL THAT PRODUCES IT.
+ *
+ * Some of the design's structure is conditional by nature. `archive-index.html` draws a `.chips` row of active
+ * filters and an `.empty` section for a search that found nothing — and neither exists on the page until the
+ * reader does something. **Comparing the unfiltered page and calling them missing would be wrong; exempting
+ * them by name would be a blind spot**, which is the fault this file was just corrected for.
+ *
+ * So the state is produced and the element is looked for THERE. A route with entries here is still FAILING if
+ * the element is absent from the triggered page, so the tolerance cannot hide a real omission.
+ *
+ * `route -> { selector: urlThatShouldRenderIt }`
+ */
+const CONDITIONAL = {
+  // Keys are the class names as `missing` holds them — without the leading dot.
+  '/archive': { chips: '/archive?topic=origins', empty: '/archive?place=zzzzz-no-such-place' },
+};
+
 const NO_SCREEN = {
   '/search': 'the design has no search screen',
   '/signin': 'the design has no sign-in screen',
@@ -274,8 +292,28 @@ for (const [route, screen] of ROUTES) {
   const ok = undeclared.length === 0 && missedHeadings.length === 0;
   console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${route.padEnd(22)} ${design.sections.length} design sections, ${design.headings.length} headings`);
   for (const s of missing) {
-    if (s in declared) { console.log(`         omitted  .${s}  — ${declared[s]}`); omissions += 1; }
-    else console.log(`         MISSING  .${s}`);
+    if (s in declared) { console.log(`         omitted  .${s}  — ${declared[s]}`); omissions += 1; continue; }
+
+    // Conditional structure: produce the state and look for it there rather than exempting it.
+    const trigger = CONDITIONAL[route]?.[s];
+    if (trigger) {
+      let triggered = null;
+      try {
+        const res = await fetch(`${BASE}${trigger}`, { signal: AbortSignal.timeout(60000), redirect: 'follow' });
+        triggered = await res.text();
+      } catch {
+        triggered = null;
+      }
+      if (triggered && new RegExp(`class="[^"]*\\b${s.replace('.', '')}\\b`).test(triggered)) {
+        console.log(`         ok       .${s.replace('.', '')}  — present at ${trigger}`);
+        continue;
+      }
+      console.log(`         MISSING  .${s.replace('.', '')}  — absent even at ${trigger}, which should render it`);
+      undeclared.push(s);
+      continue;
+    }
+
+    console.log(`         MISSING  .${s}`);
   }
   for (const h of missedHeadings) {
     console.log(`         MISSING  h${h.level}: "${h.text.slice(0, 68)}"`);

@@ -11964,3 +11964,48 @@ only routes it has been told about, so none of those appeared in any verdict eit
 
 **"Copy every single thing" means building those**, and the check now has to be made to require a route for
 every screen rather than only checking the ones it is handed — or the next report will be wrong in the same way.
+
+---
+
+## ROUND 266 — `/archive` REBUILT TO THE DESIGN, AND THE CHECK NOW VERIFIES CONDITIONAL STRUCTURE
+
+### The rail the owner pointed at
+
+`archive-index.html` carries **six filter groups**, and `/archive` had one topic list:
+
+    ethnic group        REAL      from clan.ethnic_group — Igbo, Ijaw, Efik, Idoma, …
+    sub-group or clan   REAL      from clan.kind — kingdom, clan, confederation, town, section, other
+    town or place       PARTIAL   the field exists; it does not narrow the listing yet
+    time period         NONE      no record has a period; the design's five bands are drawn and say so
+    source type         NONE      no record has a source; 0 of 1,053 carries one
+    completeness        REAL      all entries 1,053 · fully sourced 0 · partial 1,053
+
+**Two of the six the archive cannot fill, and the page says so in each rather than omitting them or inventing
+a spread of counts.** An empty filter that explains itself is a feature; **a filter with invented numbers is a
+lie with a progress bar.**
+
+**Also added:** the design's `.spread` header (*Filters* / *Clear all*), the `.chips` row of active filters, and
+the `.grid-4` records container.
+
+    before   MISSING  .spread  .chips  .empty  .grid-4
+    after    ok       .spread  .chips  .grid-4
+             MISSING  .empty   — and the reason is a real gap, below
+
+### The check now PRODUCES conditional states instead of exempting them
+
+**`.chips` renders only when a filter is applied and `.empty` only when nothing matches.** Comparing the
+unfiltered page would call both missing; **exempting them by name would be a blind spot — which is the fault
+this file was corrected for one round earlier.**
+
+So each conditional element names the URL that should produce it, and the check fetches that URL:
+
+    ok       .chips  — present at /archive?topic=origins
+    MISSING  .empty  — absent even at /archive?place=zzzzz-no-such-place, which should render it
+
+**The second line is the check working.** `.empty` does not appear because **the `place` field is captured and
+never used to narrow the query** — so a search for a place that does not exist still returns the full listing,
+and the empty state is unreachable. **A filter that does not filter is worse than no filter: it tells a reader
+their search was applied.**
+
+**That is the honest state and it is recorded as a defect rather than tuned around.** Fixing it means giving
+`listArticles` a place predicate, which is the next step.
