@@ -65,6 +65,9 @@ run "the handover still matches" npm run check:handover
 run "no committed credentials" npm run check:secrets
 run "no test residue" npm run check:residue
 run "every capability is granted" npm run check:capabilities
+# The archive renders the design's own CSS, not a generator's scaffold. Installing Tailwind and
+# importing src/styles.css would silently swap the institution palette for a generic slate.
+run "the approved design is the one rendered" npm run check:design
 # Links written inside article prose. Different in kind from the other two link checks: these were typed
 # by the original authors against a site that no longer exists, and no walk reaches them unless it opens
 # the article containing them. Round 74 found 40 dead targets this way. Three are waived in the tool, and

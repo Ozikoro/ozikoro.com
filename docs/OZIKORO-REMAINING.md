@@ -10463,3 +10463,53 @@ chars, squarely on the migration question. **A keyword filter has false negative
 and the Benin flag list should be re-run against the whole 661 rather than against the 633 that matched.**
 
     data/anioma-sources/guest-authored.json   the 9 guest posts and who they are credited to
+
+---
+
+## ROUND 237 — WHICH OF THE REPOSITORY'S TWO STYLE SYSTEMS IS THE DESIGN, ANSWERED WITH EVIDENCE
+
+Round 236 imported all 143 files of idenze/calm-comfort-construct. The repository contains **two mutually
+exclusive style systems**, and the choice between them decides whether the archive renders the institution's
+identity or a generator's default.
+
+    public/design/tokens.css    --paper #f7f1e3 · --ink #1d1a16 · --accent #0d5c45, described in the
+                                file itself as "ikoro wood / iron oxide", with Noto Serif/Sans chosen
+                                for full Latin Extended Additional coverage so that ị ọ ụ ṅ and the
+                                combining tone marks render without a fallback hop
+
+    src/styles.css              --primary oklch(0.208 0.042 265.755) — the Lovable/shadcn SCAFFOLD
+                                theme. Generic slate. No Ozikoro colour, type or identity in it.
+
+**Only the first is the design.** `src/styles.css` is what the generator emitted before any of the
+institution's work was done, and it is the file a "modernise by adding Tailwind" change would import.
+
+### And the archive already renders the right one
+
+    main.css line 1            @import url("../tokens.css");
+    apps/ozikoro layout        links /design/styles/main.css and /a11y.css
+    Tailwind in apps/ozikoro   NOT a dependency
+    design classes in use      52 distinct, across the pages — wrap in 42 files, eyebrow in 38, lede in 33
+
+**So the design system is not a thing to port: it is already the one being rendered.** Round 236's finding
+that the 63 handoff files were byte-identical already meant the screens were right; this round shows the
+**styling** was right too, and that the remaining files are the generator's scaffolding.
+
+### Which makes the arrangement fragile in one specific way
+
+**Nothing currently stops a later change from installing Tailwind and importing `src/styles.css` as an
+improvement.** Every page would still look plausible and the institution's palette would be gone — the class of
+regression that survives review because the result looks like a website.
+
+**`scripts/check-design-system.sh` now fails if that happens**, asserting five things: the layout links the
+design's stylesheets, `main.css` still imports `tokens.css`, the Ozikoro palette is still in the tokens,
+Tailwind is not a dependency of the archive, and the design's classes remain in use across the pages.
+
+**Mutation-tested, because a check that cannot fail is worthless**: removing the stylesheet link fails it,
+adding `tailwindcss` to `apps/ozikoro` fails it, and restoring both returns it to green with `git diff --stat`
+empty. It is wired into `verify-all`.
+
+### The answer to the question this round was asked to settle
+
+**Build on the design, and the design is the plain CSS in `public/design/`.** Porting `src/styles.css` into the
+archive would be the opposite of building on it — it would replace the Ozikoro identity with shadcn's default
+and call the result a design system.

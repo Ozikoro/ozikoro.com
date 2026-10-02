@@ -91,7 +91,8 @@
     "account:reset": "node scripts/reset-password.ts",
     "check:handover": "bash scripts/check-handover.sh",
     "hooks:install": "git config core.hooksPath scripts/hooks && chmod +x scripts/hooks/* && echo \"  hooks installed (core.hooksPath=scripts/hooks)\"",
-    "check:boundaries": "bash scripts/check-boundaries.sh"
+    "check:boundaries": "bash scripts/check-boundaries.sh",
+    "check:design": "bash scripts/check-design-system.sh"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
