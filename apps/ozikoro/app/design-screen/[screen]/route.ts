@@ -21,8 +21,8 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
 import {
-  fillArchiveIndex, fillHome, fillPhotographs, fillWatch,
-  type RealEntry, type RealFilm, type RealPhotograph,
+  fillArchiveIndex, fillFolklore, fillHome, fillListen, fillPhotographs, fillTopics, fillWatch,
+  type RealAzEntry, type RealEntry, type RealFilm, type RealPhotograph, type RealStory, type RealTrack,
 } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,7 @@ export const dynamic = 'force-dynamic';
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
 
 /** Screens this route fills. Anything else is served untouched. */
-const FILLED = new Set(['archive-index', 'watch', 'home', 'photographs']);
+const FILLED = new Set(['archive-index', 'watch', 'home', 'photographs', 'folklore', 'listen', 'topics']);
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
@@ -109,6 +109,65 @@ export async function GET(
         total: total?.n ?? 0,
       });
     }
+    if (name === 'folklore') {
+      // The 17 records the archive files under Folklores, with a photograph from the record where it has one.
+      const db = await getDb();
+      const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
+        `select a.slug, a.title, t.name as topic,
+                (select '/media/' || m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
+           from ozikoro_article a
+           join ozikoro_topic t on t.id = a.topic_id
+          where a.status = 'published' and a.is_page = false and t.slug = 'folklores'
+          order by a.title limit 24`
+      );
+      if (rows.length > 0) {
+        html = fillFolklore(html, rows.map((r) => ({
+          title: r.title, href: `/${r.slug}/`, topic: r.topic, image: r.img, alt: r.title,
+        })));
+      }
+    }
+
+    if (name === 'listen') {
+      /*
+       * THE ARCHIVE HOLDS NO AUDIO. It holds 13 video records and no recording, so nothing here is presented
+       * as one: each row is the written record, and the length column says `Read` rather than a duration
+       * nobody measured. **A listen page that claimed episodes would be the plainest kind of invention.**
+       */
+      const db = await getDb();
+      const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
+        `select a.slug, a.title, t.name as topic,
+                (select '/media/' || m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
+           from ozikoro_article a
+           left join ozikoro_topic t on t.id = a.topic_id
+          where a.status = 'published' and a.is_page = false
+          order by a.published_at desc nulls last limit 12`
+      );
+      const tracks: RealTrack[] = rows.map((r) => ({
+        title: r.title, href: `/${r.slug}/`, series: r.topic ?? 'The archive', image: r.img, length: 'Read',
+      }));
+      if (tracks.length > 0) html = fillListen(html, tracks);
+    }
+
+    if (name === 'topics') {
+      // The archive's fourteen categories and its 188 towns, in the design's A–Z shape.
+      const db = await getDb();
+      const [cats, towns] = await Promise.all([
+        db.rows<{ slug: string; name: string; n: number }>(
+          `select t.slug, t.name, count(a.id)::int n from ozikoro_topic t
+             left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
+            group by t.slug, t.name order by t.name`
+        ),
+        db.rows<{ slug: string; name: string }>(
+          `select slug, name from clan where published = true order by name`
+        ),
+      ]);
+      const entries: RealAzEntry[] = [
+        ...cats.map((c) => ({ name: c.name.trim(), href: `/archive-index?topic=${c.slug}`, kind: 'Category' as const })),
+        ...towns.map((t) => ({ name: t.name, href: `/town/${t.slug}/`, kind: 'Place' as const })),
+      ];
+      if (entries.length > 0) html = fillTopics(html, entries);
+    }
+
     if (name === 'photographs') {
       /*
        * THE PHOTOGRAPHS, SERVED FROM THIS ARCHIVE RATHER THAN HOT-LINKED.

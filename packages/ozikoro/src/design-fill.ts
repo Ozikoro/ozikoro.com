@@ -164,7 +164,11 @@ export function fillWatch(html: string, films: RealFilm[]): string {
 function replaceContainer(html: string, openTag: string, inner: string): string {
   const start = html.indexOf(openTag);
   if (start === -1) return html;
-  const open = start + openTag.length;
+  // `openTag` may be a PREFIX — `<div class="sx-listen-list` with further classes after it. The content must
+  // begin after the opening tag's `>`, not after the prefix, or it is injected inside the tag itself.
+  const gt = html.indexOf('>', start);
+  if (gt === -1) return html;
+  const open = gt + 1;
   const closing = `</${openTag.match(/^<(\w+)/)?.[1] ?? 'div'}>`;
   const tagName = openTag.match(/^<(\w+)/)?.[1] ?? 'div';
   let depth = 1, i = open;
@@ -259,4 +263,101 @@ export function fillPhotographs(html: string, photographs: RealPhotograph[]): st
   const rendered = photographs.map(renderPhotograph).join('\n        ');
   out = replaceContainer(out, '<div class="sx-record-gallery">', rendered);
   return out;
+}
+
+/** A story in the folklore index. */
+export type RealStory = { title: string; href: string; topic: string | null; image: string | null; alt: string };
+
+/** One story card, in the design's `a.sx-folk-story` markup. */
+export function renderFolkStory(index: number, st: RealStory): string {
+  const n = String(index).padStart(2, '0');
+  const img = st.image
+    ? `<img src="${esc(st.image)}" alt="${esc(st.alt)}" loading="lazy">`
+    : '';
+  return `<a class="sx-folk-story" href="${esc(st.href)}">${img}<span class="sx-folk-no">${n}</span><span><strong>${esc(st.title)}</strong><small>${esc(st.topic ?? 'Oral tradition')}</small><em>Read or listen <span aria-hidden="true">→</span></em></span></a>`;
+}
+
+/**
+ * Fill `folklore.html`'s story grid.
+ *
+ * The archive holds 17 records filed under Folklores, so the grid is filled from those and **the count is the
+ * archive's rather than the design's four examples.** The design's own note about oral tradition's standing is
+ * left exactly where it is.
+ */
+export function fillFolklore(html: string, stories: RealStory[]): string {
+  let out = dropExampleFlag(html);
+  const rendered = stories.map((st, i) => renderFolkStory(i + 1, st)).join('\n          ');
+  out = replaceContainer(out, '<div class="sx-folk-grid">', rendered);
+  return out;
+}
+
+/** A recording in the listen library. */
+export type RealTrack = { title: string; href: string; series: string; image: string | null; length: string | null };
+
+/** One track row, in the design's `a.sx-track` markup. */
+export function renderTrack(index: number, t: RealTrack): string {
+  const n = String(index).padStart(2, '0');
+  const img = t.image ? `<img src="${esc(t.image)}" alt="" loading="lazy">` : '';
+  // The design wraps each track in an `<li>` inside `<ol class="sx-tracklist">`, so the row and its wrapper
+  // are emitted together. Dropping the `<li>` would leave the list's own counters with nothing to number.
+  return `<li><a class="sx-track" href="${esc(t.href)}"><span class="sx-track-no">${n}</span>${img}<span class="sx-track-main"><strong>${esc(t.title)}</strong><small>${esc(t.series)}</small></span><span class="sx-track-len">${esc(t.length ?? 'Read')}</span><span class="sx-track-play" aria-hidden="true">▶</span></a></li>`;
+}
+
+/**
+ * Fill `listen.html`'s track list.
+ *
+ * **A recording is not invented here.** The design's example rows claim a length ("Sample") and a play control.
+ * The archive holds 13 video records and **no audio**, so nothing is presented as a recording: each row links
+ * to the written record it belongs to, and the length column says `Read` rather than a duration nobody
+ * measured. **The moment a real recording exists, this is the function that changes.**
+ */
+export function fillListen(html: string, tracks: RealTrack[]): string {
+  let out = dropExampleFlag(html);
+  const rendered = tracks.map((t, i) => renderTrack(i + 1, t)).join('\n          ');
+  // `<ol class="sx-tracklist">`, not a div — the container is the list the design numbers.
+  out = replaceContainer(out, '<ol class="sx-tracklist"', rendered);
+  return out;
+}
+
+/** One A–Z entry: a category or a place. */
+export type RealAzEntry = { name: string; href: string; kind: 'Category' | 'Place' };
+
+/**
+ * Fill `topics.html`'s A–Z index.
+ *
+ * The design's index mixes the two kinds — `<small>Category</small>` and `<small>Place</small>` — **and both
+ * are real here: the archive's fourteen categories and its 188 towns.** The letters are regrouped from the
+ * entries themselves, so a letter with nothing under it does not appear.
+ */
+export function fillTopics(html: string, entries: RealAzEntry[]): string {
+  let out = dropExampleFlag(html);
+  const byLetter = new Map<string, RealAzEntry[]>();
+  for (const e of entries) {
+    const first = (e.name.trim()[0] ?? '#').toUpperCase();
+    const letter = /[A-Z]/.test(first) ? first : '#';
+    if (!byLetter.has(letter)) byLetter.set(letter, []);
+    byLetter.get(letter)!.push(e);
+  }
+  const blocks = [...byLetter.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([letter, list]) => {
+      const items = list
+        .map((e) => `<li><a href="${esc(e.href)}">${esc(e.name)}</a><small>${e.kind}</small></li>`)
+        .join('');
+      return `<section class="sx-az-letter" id="${letter === '#' ? 'num' : letter.toLowerCase()}"><h2>${esc(letter)}</h2><ul>${items}</ul></section>`;
+    })
+    .join('\n          ');
+
+  // Replace the run of A–Z sections with the real one.
+  const first = out.indexOf('<section class="sx-az-letter"');
+  if (first === -1) return out;
+  let end = first;
+  let cursor = first;
+  while (cursor !== -1) {
+    const close = out.indexOf('</section>', cursor);
+    if (close === -1) break;
+    end = close + '</section>'.length;
+    cursor = out.indexOf('<section class="sx-az-letter"', end);
+  }
+  return out.slice(0, first) + blocks + out.slice(end);
 }
