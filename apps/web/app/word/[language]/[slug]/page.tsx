@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
 import type { Metadata } from 'next';
+import { EntrySchema } from '@/components/entry-schema';
 import { getDb } from '@ozituma/db/client';
 import { getWord, relatedWords, searchWords } from '@ozituma/db/repository';
 import {
@@ -337,6 +338,28 @@ export default async function WordPage({ params, searchParams }: WordPageProps) 
      * and a dead gap down the right, which is what "scattered" was.
      */
     <div className="wrap wrap-narrow">
+      {/*
+        THE DICTIONARY'S OWN STRUCTURED DATA.
+
+        `DefinedTerm` in a `DefinedTermSet` — schema.org's types for exactly this. **The Ozikoro archive emits
+        `Article` and this emits `DefinedTerm`, because an entry is not an article and the two sites should
+        share a vocabulary without pretending to be the same kind of thing.**
+
+        No JSON-LD existed anywhere in this app before this. A dictionary with 12,000 entries was telling a
+        search engine only its title and description.
+      */}
+      <EntrySchema
+        entry={{
+          headword: displayHeadword(word.headword),
+          languageName:
+            getLanguage(languageCodeFromSlug(language) ?? language)?.name ?? language,
+          languageSlug: language,
+          url: `https://ozituma.com/word/${language}/${encodeURIComponent(slug)}/`,
+          glosses: word.glosses,
+          partOfSpeech: word.partOfSpeech ?? null,
+          audioUrl: null,
+        }}
+      />
       {/*
         The reference opens an entry with a link back to the dictionary index,
         above the headword and its rule. Ozituma keeps its search form too,

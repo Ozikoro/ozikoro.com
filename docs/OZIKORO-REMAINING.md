@@ -12914,3 +12914,42 @@ the upload form and sign-in are `noindex, follow`** — a private workspace and 
 business in an index.
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 285 (continued) — THE SAME TREATMENT FOR OZITUMA.COM
+
+**The dictionary already had `title`, `description`, `metadataBase` and Open Graph in its layout. What it had
+none of, anywhere in the app, was structured data.**
+
+    grep -rl "application/ld+json" apps/web     ->  nothing
+
+**A dictionary of twelve thousand entries was telling a search engine its title and description and nothing
+else** — no indication that a page is a *definition* rather than prose that happens to mention a word.
+
+### `DefinedTerm` in a `DefinedTermSet`
+
+**Schema.org has types written for exactly this**, and they are the dictionary's equivalent of the archive's
+`Article`:
+
+    Organization      Ozi Ikoro Limited, with ozikoro.com and learn.ozituma.com in `sameAs`
+    WebSite           with the SearchAction
+    DefinedTermSet    the language's dictionary, `inLanguage` the language code
+    DefinedTerm       the entry, `inDefinedTermSet` the set, `description` its first gloss,
+                      `termCode` its part of speech where recorded, `audio` where a clip exists
+
+**Each site emits its own vocabulary rather than a shared one.** They share a database and an account table, and
+their structured data should share a purpose without pretending to be the same kind of thing — **an entry is
+not an article.**
+
+**Every value comes from the entry and nothing is emitted empty**, so an entry with no part of speech has no
+`termCode` — **a property with no value is a claim that the value is empty rather than that it is unknown.**
+
+### And a fault of mine, found by the typechecker rather than by the page
+
+**The first attempt inserted the component by matching `return (` followed by a `<`, and the first match in the
+file was inside a `.map()` callback deep in the render.** It split an `<li>` in half and broke the page's JSX
+entirely. **The compiler caught it immediately; a browser would have shown a blank entry.**
+
+**A regex that finds "a return" in a file with dozens of them is not a placement strategy.** The component is
+now placed against the outer `.wrap.wrap-narrow`, which is a unique string in the file.
