@@ -7875,3 +7875,57 @@ of a sentence.**
 **And the check has now been wrong twice in ways only a mutation found** — round 175's four pattern failures
 and round 181's three bugs. **Every one of those seven was invisible from reading the code**, which is the
 argument for the mutation being part of building the check rather than an extra step after it.
+
+---
+
+## ROUND 183 — THE AI ADAPTER IS MECHANICAL EXCEPT FOR ONE FIELD, AND THAT FIELD IS A DECISION
+
+Round 167 found the retrieval pipeline exists and named item 9's gap as *"a KnowledgeItem source over the
+archive."* That is right, and it is nine-tenths mechanical. This round read the interface to write it and
+stopped at the tenth.
+
+### What the interface needs, and what the archive has
+
+    KnowledgeItem field   from the archive                              verdict
+    id                    `ozikoro-article-<id>`                        mechanical
+    kind                  'culture' — one of lexeme|grammar|culture|lesson   the right one
+    status                'published' — only published is retrievable   mechanical, and the query enforces it
+    text                  title + standfirst + body                      mechanical
+    source                canonical_url — recorded, 1,057 of 1,057      mechanical, and real provenance
+    topic                 from the article's labels                     mechanical
+    languageCode          ???                                           NOT RECORDED
+
+    columns on ozikoro_article matching lang/locale/script:  NONE
+    ozikoro_* tables matching lang:                          NONE
+
+**`languageCode` is a required field and the archive does not record one.** The dictionary's adapter reads
+`String(row.language_code)` — a column it has — and the archive has no equivalent.
+
+### Why that stopped the work rather than being filled in
+
+**The obvious fill is `'ibo'`** — the archive is Igbo heritage content and every article is about it. **That
+is exactly the reasoning round 171 had to correct**: a value that seems to follow from the subject is not the
+same as a value the record holds.
+
+**Most of these 1,051 articles are written in English about Igbo subjects.** `'ibo'` would assert the text is
+in Igbo; `'eng'` would assert the opposite and ignore the Igbo words throughout. **Neither is recorded, so
+either would be invented** — and this one is not cosmetic: retrieval ranks and filters on language, so the
+field decides what the assistant is willing to answer from.
+
+### So item 9's remaining work is now three things, one of which is a decision
+
+    build      the adapter — every field above except languageCode
+    decide     what an article's languageCode is, and on what evidence
+    build      prompts in the archive's register, and a surface to ask
+
+**The decision has three defensible answers** and they are the owner's: the archive's declared language
+(one value for all), a per-article value assigned by an editor, or detection at import time with the result
+stored so it is recorded rather than inferred at query time. **The third is the only one that produces a
+field rather than an assumption**, and it is also the only one that requires a new column.
+
+### What this round is worth
+
+**Not one line of the adapter was written, and that is the result.** Round 167 said the missing piece was *"a
+data source and some prompts"*; the data source has a required field that the archive cannot supply, and
+filling it from the subject of the articles would have been the same mistake as calling a recorded region
+editorial — **in the opposite direction.**
