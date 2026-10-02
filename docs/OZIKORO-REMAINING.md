@@ -11634,3 +11634,60 @@ route. **Both counts are now 205 and 14,735, and all 29 handover claims hold.**
 **This is the tenth time in this run that a check failed for a true reason about a state that had changed**, and
 the distinction each time was whether the change made the *assertion* wrong or the *subject* wrong. **A failure
 is information either way, and the work is telling which.**
+
+---
+
+## ROUND 260 — PHASE 6: A RIGHTS RECORD FOR EVERY FILE, STATING WHAT IS NOT KNOWN
+
+**3,437 media files were held and served with not one recorded rights decision.** `ozikoro_media_rights` held
+zero rows, and the audit called that a *licence risk* rather than a gap — correctly, **because serving a file
+is a decision whether or not anyone wrote it down.**
+
+    rights records        3488
+      publication         3488   a fact: the archive serves them
+      derivative             0   none permitted
+      commercial             0   none permitted
+      basis unknown       3488
+      consent not sought  3488
+
+### What this cannot do, and does not pretend to
+
+**It cannot establish permission.** Nobody can from inside the database: the migration carried the WordPress
+library, and WordPress records no rights fields at all. **So every record says exactly that.**
+
+### The four booleans are NOT NULL, so a value had to be chosen
+
+`allows_publication`, `allows_derivative`, `allows_commercial` and `restricted` cannot be "unassessed". **The
+choice is made in the direction that claims the least:**
+
+    allows_publication = true    a FACT, not an inference: the archive serves these files now, and a record
+                                 saying otherwise would be false about the present
+    allows_derivative  = false   no permission to reuse or adapt has been established, so none is granted
+    allows_commercial  = false   likewise
+    restricted         = false   nothing here is under an access restriction
+
+**So the register permits what is already happening and grants nothing further.** A `false` on derivative is
+not an assertion that reuse is forbidden — **it is the absence of a permission that was never given, which is
+the accurate description.**
+
+### And two fields carry the honesty
+
+    permission_basis = 'unknown'     the schema allows it, and it is the truth
+    subject_consent  = 'not_sought'  no living person's consent was sought in a migration that had no
+                                     mechanism for seeking it
+
+### An orphan work is not a licence, and this does not claim it
+
+`permission_basis` offers `'orphan_work'` and this does not use it. **An orphan work is a determination that a
+rights holder could not be found after a diligent search**, and no such search has been made for these files.
+**Recording them as orphaned would be inventing the outcome of a process nobody ran.**
+
+### And the handover's licensing claim is still exactly right
+
+> **0 of 3,488 items has an actual licence**
+
+**That is unchanged, and the distinction is the point: 3,488 items now have a recorded rights *decision*, and
+still 0 have a *licence*.** A register that says "unknown" 3,488 times is not the same as 3,488 licences, and
+conflating them would have turned a documented absence into a false assurance.
+
+**verify-all passes.**
