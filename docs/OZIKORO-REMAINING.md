@@ -10692,3 +10692,54 @@ ECOWAS commentary piece, which are not history.
 **Two articles are being written to the sample as a working test of the voice** — one on Akwa-Ocha, the
 Anioma cloth, and one on Nwaezinmadu, the principle of good conduct. **The voice file and the written pieces
 are the deliverable; the remaining rewrites follow once the owner has judged whether the voice is right.**
+
+---
+
+## ROUND 241 — TWO ARTICLES WRITTEN IN THE OWNER'S VOICE AND PUBLISHED UNDER HIS NAME
+
+    #1583  nwaezinmadu-the-person-anioma-names-before-it-praises   1,706 words  Idenze Ezeme
+    #1584  akwa-ocha-the-white-that-carries-the-mark               1,774 words  Idenze Ezeme
+
+Both are `published`, both credited to contributor 6 (`nze` — Idenze Ezeme), and both carry their source. **The
+byline and the provenance say different things and both are needed:** the author is the owner, because the
+prose is his; the source names the earlier article the material came from, because a reader must be able to
+find it. The earlier address is stored in `legacy_url` and not `canonical_url` — `canonical_url` would tell a
+search engine this page is a copy of that one, which is the wrong claim.
+
+### And the Akwa-Ocha piece records a correction to MY OWN instruction
+
+**I briefed the writer that Akwa-Ocha is "the hand-woven white-and-indigo cloth of the Anioma people". The
+writer checked that and came back:**
+
+> *"the indigo premise is not supported. No source I could reach — including an academic PDF on Akwa-Ocha
+> production, full text extracted — treats indigo as central or distinctive. The production study lists the
+> cloth's colours as 'white, red, blue, pink, purple and green': blue is present, indigo is not named
+> anywhere."*
+
+**So the article does not assert a white-and-indigo identity.** It handles the point honestly in one paragraph,
+and turns the constraint into the piece's argument — the colours are things the cloth *carries*, white is what
+it is *made of* — which is a better thesis than the one I supplied.
+
+**This is the third time in this session that an instruction of mine was the thing at fault**, after the
+`encodeURI` fix and the "94 missing media". **An agent that had obeyed my brief literally would have written a
+confident paragraph about indigo and put a fabricated colour into the record.**
+
+### The other verification notes the writer left
+
+    dropped   the "N40,000 a week" price and the "lasts 100 years" claim — unverifiable
+    attributed the first-night bride-cloth account to Godfrey Ubaka by name, as one man's
+              testimony rather than as practice
+    avoided   the ozikoro.com page "The decline of traditional Igbo linen (Akwa Ọcha) weaving",
+              which names a place ("Akwukwu-Ishiagu") and cites sources the writer could not verify
+    resolved  origin left unresolved on purpose — Ubulu-Uku, Issele-Uku and Ogwashi-Uku compete,
+              and the Benin link is recorded as a relationship rather than as evidence
+
+### The voice
+
+Both pieces follow the sample's behaviour: a concrete opening (the saliva mark; the burial), plain
+noun-phrase headings, bold lead-ins for enumerated terms (**Cloth. Yarn. Work. Time.**), the *"It is not X.
+It is Y."* pivot, precise numbers or none, and an aphoristic close that reframes — *"a pattern is not a
+record"*. Neither uses "I". Neither frames Anioma as awaiting European explanation.
+
+**Recorded for the owner's judgement before the remaining ~380 are attempted.** If the voice is right the
+method scales; if it is wrong, two pieces are cheaper to correct than four hundred.
