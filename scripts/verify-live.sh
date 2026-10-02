@@ -58,6 +58,10 @@ run_check "pages a crawler is told of" bash scripts/check-sitemap.sh "$BASE" 300
 run_check "assets a page must load"    bash scripts/check-assets.sh  "$BASE" 10
 run_check "the 404 a reader lands on" bash scripts/check-not-found.sh "$BASE"
 run_check "the auth boundary"       bash scripts/check-auth-boundary.sh "$BASE"
+# The design screens against the pages that should be rendering them. It belongs here rather than in
+# verify-all because it fetches the running site, and because a page that is the right shape for the
+# wrong reason is only visible once something is serving it.
+run_check "pages match their design" node scripts/check-design-parity.mjs "$BASE" 300
 
 echo ""
 if [ "$failed" -eq 0 ]; then

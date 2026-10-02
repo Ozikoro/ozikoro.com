@@ -60,6 +60,24 @@ for app in apps/*/app; do
       fail=$((fail + 1))
       continue
     fi
+
+    # -------------------------------------------------------------------------
+    # 3. A page that REDIRECTS must not sit under a boundary either.
+    #
+    # The same mechanism as notFound(), and it was missed until round 258. React commits `200 OK` as
+    # soon as it begins streaming the shell, so an unauthenticated request to a gated route answered
+    # **200 with the loading fallback** instead of a 307 to /signin. /claims, /reviews and /submit all
+    # did this, and the auth-boundary check found it while this one reported all three as fine.
+    #
+    # A redirect is a STATUS, and only the router can set one. So a directory containing a page that
+    # redirects must not have a `loading.tsx` above it, exactly as for notFound().
+    # -------------------------------------------------------------------------
+    redirector=$(grep -rlE 'redirect\(|permanentRedirect\(|requireCapabilityOrRedirect\(' "$dir" --include='page.tsx' 2>/dev/null | head -1)
+    if [ -n "$redirector" ]; then
+      echo "  FAIL  $app/$rel wraps a page that redirects ($redirector)"
+      fail=$((fail + 1))
+      continue
+    fi
   done < <(find "$app" -name 'loading.tsx' 2>/dev/null)
 done
 

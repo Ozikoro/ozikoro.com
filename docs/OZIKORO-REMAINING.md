@@ -11511,3 +11511,41 @@ only reason the final green line means anything.
 
 **A check that reports a loading shell as a failed page, a placeholder as absent content, or an intended
 omission as a defect, is a check whose passes cannot be trusted either.**
+
+---
+
+## ROUND 258 (continued) — THREE GATED ROUTES WERE ANSWERING 200 INSTEAD OF REFUSING
+
+**Found by the auth-boundary check while `verify-live` was being extended, and it is a real defect rather
+than a lint.**
+
+    /claims/    200 — expected a redirect to /signin
+    /reviews/   200 — expected a redirect to /signin
+    /submit/    200 — expected a redirect to /signin
+
+**An unauthenticated request to a gated route was answered `200 OK` with the loading fallback.** The redirect
+that should have been a 307 was rendered *into the stream* instead, because React commits `200` as soon as a
+Suspense boundary begins streaming its shell. **The status was `200` before the page ever decided anything.**
+
+**This is round 111's rule in its third costume.** That round removed seventeen boundaries because a
+`loading.tsx` above a dynamic segment or a `notFound()` page defers the status decision past the commit — so
+the router can no longer set it. **The rule was right and the list of cases was incomplete: a page that
+REDIRECTS has exactly the same problem, because a redirect is a status too.**
+
+    removed   apps/ozikoro/app/claims/loading.tsx
+              apps/ozikoro/app/reviews/loading.tsx
+              apps/ozikoro/app/submit/loading.tsx
+
+    after     /claims/   307 -> /signin?error=…&next=%2Fclaims%2F
+              /reviews/  307 -> /signin?error=…&next=%2Freviews%2F
+              /submit/   307 -> /signin?error=…&next=%2Fsubmit%2F
+              auth boundary: every gated route refuses and names itself as the return path
+
+**And `check-boundaries.sh` now tests for it**, so the case cannot return. **Mutation-tested: restoring one
+boundary makes it fail with exit 1, and removing it makes it pass** — which is the only thing that makes the
+green line mean anything.
+
+**The interesting part is which check found it.** `check-boundaries` reported all three as fine, because it
+looked for dynamic segments and `notFound()` and found neither. **`check-auth-boundary` found it by asking a
+different question — does an unauthenticated caller actually get refused — and that is the difference between
+checking that a rule is written and checking that it holds.**
