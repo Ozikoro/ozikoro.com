@@ -362,6 +362,27 @@ async function writeJsonl(name: string, rows: unknown[]): Promise<number> {
  * disk in a gitignored directory so the upload can be done from somewhere the bytes actually
  * exist.
  */
+/**
+ * A WordPress media URL that can actually be fetched.
+ *
+ * WHY THIS EXISTS, AND WHY IT IS NOT `encodeURI` (round 214)
+ *
+ * Filenames in this archive contain spaces and non-ASCII characters —
+ * `Igbo Folk Idioms in Caribbean Phrase.pdf`, `Cappa_-_കാപ്പ.jpg`, `..._Ƙofar_Gadon_Ƙaya.jpg`. Passed to
+ * `fetch` unencoded, a space ends the path and the server answers 404 for a file that is there.
+ *
+ * **`encodeURI` is the wrong fix and was tried first**: it encodes `%` itself, so a URL the API already
+ * returns percent-encoded becomes double-encoded — `%E0` became `%25E0`, which is a literal `%E0` in the
+ * filename and a 404. Measured: 51 files still failed with `encodeURI`, all returning 404.
+ *
+ * This encodes only what is illegal in a URL — non-ASCII as UTF-8, and the space — and leaves every other
+ * character, including `%`, exactly as the API sent it. A raw name and an already-encoded one both come out
+ * correct, which `encodeURI` cannot do for the second.
+ */
+function safeMediaUrl(url: string): string {
+  return url.replace(/[^\x20-\x7E]/g, (char) => encodeURIComponent(char)).replace(/ /g, '%20');
+}
+
 async function downloadBinaries(media: WpMediaRecord[]): Promise<{ downloaded: number; skipped: number; failed: number }> {
   let downloaded = 0;
   let skipped = 0;
@@ -382,7 +403,7 @@ async function downloadBinaries(media: WpMediaRecord[]): Promise<{ downloaded: n
         continue;
       }
 
-      const response = await fetch(item.sourceUrl, {
+      const response = await fetch(safeMediaUrl(item.sourceUrl), {
         headers: { 'User-Agent': USER_AGENT },
         signal: AbortSignal.timeout(120_000),
       });

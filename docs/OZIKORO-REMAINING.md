@@ -3,7 +3,7 @@
 > **RESUME HERE — status as of round 120.** This file is a running record, newest at the BOTTOM.
 > Read this block and the round-26 status table; the rest is history, and some of it is superseded.
 >
-> **What is live.** 28 reader-facing routes and 7 under `/admin` — 35 page routes. Migrated records answer
+> **What is live.** 29 reader-facing routes and 7 under `/admin` — 36 page routes. Migrated records answer
 > at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
 > media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
 > steps** via `./scripts/verify-all.sh` and **5 live checks** via `./scripts/verify-live.sh`.
@@ -9571,3 +9571,64 @@ rendering real records, and it is not a production build. **A production build i
 deployment**, and that is Phase 9's job — `npm run build` for `apps/ozikoro`, then `next start`, then the same
 walkthrough against that. Reviewing the development server tells the truth about content and layout and tells
 nothing about production performance or the error boundaries that only production exercises.
+
+---
+
+## ROUND 215 — THE 51 FAILED DOWNLOADS ARE TWO DIFFERENT PROBLEMS, AND ONLY ONE IS OURS
+
+Round 214 found that unencoded spaces made real files 404, and that was right for some of them. The re-scan
+then reported the same 51 failures, and the reason is not one reason.
+
+### What was actually wrong first: `encodeURI` cannot be used
+
+The extractor fetched `item.sourceUrl` raw. The obvious fix is `encodeURI`, **and it is wrong**:
+
+    in  …/2026/01/Cappa_-_%E0%B4%95%E0%B4%BE%E0%B4%AA%E0%B5%8D%E0%B4%AA.jpg
+    out …/2026/01/Cappa_-_%25E0%25B4%2595…jpg      %25 is a literal '%'
+
+`encodeURI` encodes `%` itself, so a URL the API already returns percent-encoded becomes double-encoded and
+404s. **Measured: the 51 still failed with it.** The fix that works encodes only what is illegal and leaves
+everything else alone — non-ASCII as UTF-8, and the space:
+
+    url.replace(/[^\x20-\x7E]/g, (c) => encodeURIComponent(c)).replace(/ /g, '%20')
+
+Verified against all three shapes: a raw non-ASCII name, an already-encoded one, and one with spaces all come
+out correct, which `encodeURI` cannot do for the second.
+
+### And what is not ours: WordPress sanitises filenames on upload
+
+With a correct encoder, the two classes still behave differently:
+
+    Igbo%20Folk%20Idioms%20in%20Caribbean%20Phrase.pdf       200
+    Cappa_-_%E0%B4%95%E0%B4%BE%E0%B4%AA%E0%B5%8D%E0%B4%AA.jpg   404
+    Ancient_City_Gates_of_Kano_%C6%98ofar_Gadon_%C6%98aya.jpg   404
+
+**The space file now serves. The non-ASCII files do not, at the address the API gives for them.** No encoding
+will fix that, because the address itself is wrong: **WordPress sanitises a filename when it stores the
+upload**, so `കാപ്പ` becomes something else on disk while `source_url` keeps reporting the name it originally
+arrived with.
+
+**So of the 51 failures, an unknown number are recoverable by encoding and the rest need the real stored
+filename, which the API does not give.** Finding it means the uploads listing or the filesystem — the cPanel
+access again, for a much smaller set than round 212 feared.
+
+### What round 212 got wrong, twice, in the same direction
+
+    round 212 said   the upload paths no longer serve the files        WRONG — spaces, not missing files
+    round 214 said   encoding fixes all 51                             WRONG — it fixes the space cases only
+
+**Both were claims about a mixed set read as though it were uniform.** The 51 are at least two populations —
+spaces and sanitised non-ASCII names — and each round measured one and generalised.
+
+### The counts, which are not comparable as printed
+
+    the live API's X-WP-Total for media   3582      media ITEMS
+    our manifest's counts.media           3488      media FILES
+
+`normaliseMedia` walks `media_details.sizes`, so the number this project has been calling "media" throughout is
+**files, not items** — one item yields its full-size file plus every generated size. **Round 212 compared 3,488
+files against 3,582 items and called the difference 94 missing records.** It is not established that anything is
+missing; the two numbers count different things and nothing has yet counted both the same way.
+
+**That is the next measurement to take, and it is cheap**: ask the API for the item count and count the items in
+`media.json`, then compare items to items.
