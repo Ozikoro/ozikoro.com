@@ -8123,3 +8123,42 @@ number that is a property** — six items fitting the budget — and that is the
 
 **A test that pins a seed count fails when the data changes; a test that pins an invariant fails when the
 invariant breaks.** Those are not the same event, and only the second is a bug.
+
+### Round 186 shipped a failing typecheck, and the failure was printed in my own output
+
+The test file ended a line with `assert.ok(item.source.length > 0, …)` — and **`KnowledgeItem.source` is
+optional**, so TypeScript refused it. `verify-all.sh` reported:
+
+    FAIL   typecheck
+    1 suite(s) FAILED.
+
+**I ran that command, piped it through a grep that printed `1 suite(s) FAILED.` in the output I was reading,
+and committed anyway.** The record for the round said *"68 tests pass, 0 fail"* — true of the package test,
+and beside the point: the suite that gates the repository was red, and I had it on screen.
+
+### This is the hazard this file already lists, and I walked into it
+
+    rounds 31, 70, 86   never read a checker's exit code after a pipe
+
+**The rule was written down because it had already cost three rounds.** Here the failure text was visible
+rather than swallowed — which is *worse*, because the usual excuse does not apply. The grep was doing its job;
+I read past it.
+
+### The fix, and the two things it corrected
+
+    before   assert.ok(item.source.length > 0)          typecheck: 'source' is possibly 'undefined'
+    after    const source = item.source ?? ''           narrows, then asserts on a string
+
+**Narrowing is the honest fix rather than `item.source!`.** The type says the field is optional and the
+adapter says it never is — it skips items without a source — so the test should establish the guarantee
+rather than assert it away. **A non-null assertion would have made the typecheck pass and told the next
+reader nothing.**
+
+    typecheck exit 0, 0 errors · 68 tests pass · verify-all exit 0, 21 PASS, All suites passed.
+
+### What I would have to do to make this class of mistake impossible
+
+**Read the runner's exit code from a file rather than a pipe, and let it stop the round.** Every command in
+this round that mattered did that afterwards — `> /tmp/va2.txt 2>&1; echo "exit: $?"` — and the difference is
+that the exit code is then a value I have to look at rather than a line in a stream I am skimming for
+something else.

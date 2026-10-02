@@ -62,8 +62,13 @@ test('loads published articles, each with a source and bounded text', async () =
       assert.equal(item.status, 'published', 'only published material is retrievable');
       assert.equal(item.languageCode, 'ibo', 'the code the caller gave, not one this module chose');
       assert.ok(item.text.length > 0, `${item.id} has text`);
-      assert.ok(item.source.length > 0, `${item.id} can be cited: every item carries a source`);
-      assert.match(item.source, /^https?:\/\//, `${item.id}'s source is an address`);
+      // `KnowledgeItem.source` is optional, so this narrows rather than asserting on a possibly-undefined
+      // value — which is also the honest reading: the ADAPTER guarantees a source by skipping items without
+      // one, and the type does not. Round 186 shipped this line as `item.source.length` and typecheck
+      // refused it; the fix is to narrow, not to assert non-null.
+      const source = item.source ?? '';
+      assert.ok(source.length > 0, `${item.id} can be cited: every item carries a source`);
+      assert.match(source, /^https?:\/\//, `${item.id}'s source is an address`);
       // Round 185: the whole body broke selectKnowledge's character budget and produced an ungrounded
       // answer. Six excerpts must fit inside 6,000 characters.
       assert.ok(
