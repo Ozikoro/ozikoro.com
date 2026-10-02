@@ -62,6 +62,10 @@ run_check "the auth boundary"       bash scripts/check-auth-boundary.sh "$BASE"
 # verify-all because it fetches the running site, and because a page that is the right shape for the
 # wrong reason is only visible once something is serving it.
 run_check "pages match their design" node scripts/check-design-parity.mjs "$BASE" 300
+# The assistant must answer what the archive holds and refuse what it does not. The brief puts no AI
+# answer above primary evidence, and the mechanical form of that is: an ungroundable question returns
+# no passages at all.
+run_check "the archive refuses what it cannot ground" bash scripts/check-grounding.sh "$BASE" 180
 
 echo ""
 if [ "$failed" -eq 0 ]; then

@@ -6,7 +6,7 @@
 > **What is live.** 38 reader-facing routes and 7 under `/admin` — 45 page routes. Migrated records answer
 > at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
 > media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
-> steps** via `./scripts/verify-all.sh` and **6 live checks** via `./scripts/verify-live.sh`.
+> steps** via `./scripts/verify-all.sh` and **7 live checks** via `./scripts/verify-live.sh`.
 >
 > **Verified by exhaustive request, not sampling.** All **14,735** sitemap URLs were requested and every
 > page that answered returned 200 (round 70). The 120-page link walk is clean; 62 referenced assets load.
@@ -11845,3 +11845,35 @@ cannot be grounded rather than that it has nothing.
 **Each round's method was sound and its conclusion was premature**, and the difference between them is the same
 one this file has been recording all run: **reading the code tells you what it is meant to do; exercising it
 tells you what it does; and asking what it cannot know tells you why.**
+
+---
+
+## ROUND 264 — A REGRESSION TEST FOR THE THING THAT TOOK THREE ROUNDS TO SEE
+
+`scripts/check-grounding.sh` asks the running endpoint seven questions — **four the archive holds material for,
+and three about subjects it does not** — and requires the first four to come back grounded with passages and
+the last three to come back refused with none.
+
+    PASS  grounded   What is the New Yam Festival about?     6 passages
+    PASS  grounded   Tell me about Igbo clans                6 passages
+    PASS  grounded   What is Nwaezinmadu?                    6 passages
+    PASS  grounded   Akwa-Ocha cloth                         6 passages
+    PASS  refused    Explain quantum chromodynamics          0 passages
+    PASS  refused    What is the capital of France?          0 passages
+    PASS  refused    Who won the 1994 World Cup?             0 passages
+
+### Why a unit test could not have caught this
+
+**The fault was about the CORPUS, not the code.** Which words are common across a thousand articles is not a
+property any fixture knows, and round 261's unit test passed while the endpoint answered a question about
+particle physics with six passages and `trust: verified`. **A test with hand-chosen words cannot fail on a
+question of frequency.**
+
+### And it checks the negative case, which is the one that matters
+
+**An archive that refuses everything and one that answers everything both pass a check that only tests one
+direction.** The brief's rule is that no AI answer sits above primary evidence, and the mechanical form of that
+rule is: **a question the archive cannot ground returns no passages at all.** Both directions are asserted.
+
+**Mutation-tested**: making the overlap test always pass turns all three refusals into failures and exits 1,
+and restoring it returns the check to green. **Wired into `verify-live`, which is now seven checks.**
