@@ -62,10 +62,19 @@ await mkdir(OUT_DIR, { recursive: true });
 const media = await db.rows<{ source_url: string; storage_key: string }>(
   `select source_url, storage_key from ozikoro_media where source_url is not null and storage_key is not null`
 );
+/*
+ * THE MAP MUST PRODUCE A URL, NOT A STORAGE KEY.
+ *
+ * `storage_key` is where the file sits on disk (`ozikoro/11231-umunede-king.jpeg`); what a page needs is
+ * `/media/ozikoro/11231-umunede-king.jpeg`. **The first version stored the key, so the rewrite wrote a
+ * relative path into every body** — which the browser then resolved against the article's own address and
+ * 404'd. The images were imported, served and correct, and the articles showed none of them.
+ */
+const served = (key: string) => `/media/${key}`;
 const known = new Map<string, string>();
 for (const m of media) {
-  known.set(m.source_url, m.storage_key);
-  known.set(m.source_url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, ''), m.storage_key);
+  known.set(m.source_url, served(m.storage_key));
+  known.set(m.source_url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, ''), served(m.storage_key));
 }
 
 const articles = await db.rows<{ id: number; slug: string; body_html: string }>(

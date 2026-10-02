@@ -513,9 +513,19 @@ export function fillArticle(html: string, a: RealArticle): string {
   if (pub) out = out.replace(/(<dt>Published<\/dt><dd>)[\s\S]*?(<\/dd>)/, `$1${esc(pub)}$2`);
   out = out.replace(/(<dt>Last updated<\/dt><dd>)[\s\S]*?(<\/dd>)/, `$1${esc(upd ?? pub ?? '—')}$2`);
 
-  // The body, in the design's own reading column, with its own images served from this archive.
+  /*
+   * THE BODY GOES INSIDE `.prose`, NOT INSTEAD OF `.sx-page`.
+   *
+   * `.sx-page` holds more than the text: **the design's own listen panel sits inside it, above a
+   * `<div class="prose">` that carries the reading measure, the type scale and the drop cap.** The first
+   * version replaced the whole container, which **deleted the listen panel and stripped the prose wrapper —
+   * so the article rendered with the site's default paragraph styling instead of the design's.** That is
+   * exactly what "the inside articles do not look like the demo" was.
+   *
+   * Only the prose block's contents are replaced now. The panel above it stays as the design drew it.
+   */
   const body = a.resolveImage ? rewriteBodyImages(a.body, a.resolveImage) : a.body;
-  out = replaceContainer(out, '<div class="sx-page">', body);
+  out = replaceContainer(out, '<div class="prose">', body);
 
   // Related reading, from the same topic.
   if (a.related.length > 0) {

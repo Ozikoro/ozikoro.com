@@ -12432,3 +12432,54 @@ the archive importing files it then did not serve. The second run handles both.
 be safely re-run is a migration that cannot be corrected**, and this one had to be corrected twice.
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 277 — WHY THE ARTICLES DID NOT LOOK LIKE THE DEMO. TWO FAULTS, AND THE FIRST WAS INVISIBLE.
+
+**The owner compared an imported article against the demo and said it did not look the same.** It did not, and
+there were two reasons.
+
+### 1. The images were broken, and every check said they were fine
+
+    MINE:  <img src="ozikoro/11231-umunede-king.jpeg">     ← relative; the browser resolves it against the
+                                                            article's own address and 404s
+    DEMO:  <img src="https://ozikoro.com/wp-content/…">    ← absolute
+
+**The importer's map stored `ozikoro_media.storage_key` — a disk path — where a page needs
+`/media/<key>`.** So the rewrite wrote a relative path into every body. **The files were downloaded, written to
+disk, registered in the table and served correctly at `/media/…`; the articles showed none of them.** Every
+check on the files passed.
+
+    articles holding a bare storage key   1,021
+    attributes repaired                  18,781
+    still holding a bare key                  0
+
+**Repaired by rewriting `ozikoro/…` to `/media/ozikoro/…` inside `src` and `srcset` only**, so a body that
+merely contains the word elsewhere is untouched.
+
+### 2. I replaced the design's wrapper instead of filling it
+
+    DEMO:  <div class="sx-page"><section class="sx-listen-panel">…<div class="prose">THE TEXT
+    MINE:  <div class="sx-page"> <figure…>THE TEXT
+
+**`.sx-page` holds more than the text. The design's own listen panel sits inside it, above a
+`<div class="prose">` that carries the reading measure, the type scale and the drop cap.** The fill replaced
+the whole container, **so the listen panel was deleted and the prose wrapper stripped — and the article
+rendered with the site's default paragraph styling instead of the design's.**
+
+**Only the `.prose` block's contents are replaced now.** The panel above it stays exactly as the design drew
+it.
+
+    listen panel kept   true
+    .prose wrapper      true
+    images              5 · all /media/ · 0 bare · 0 live
+    images verified     200 · image/jpeg
+
+### The lesson, which is the same one this run keeps producing
+
+**Both faults were in the *rendered page* and neither was visible in the *data*.** The media was present,
+served and correctly typed; the fill said it had replaced the body and it had. **Only opening the article and
+looking at it showed that the images pointed nowhere and the design's wrapper was gone.**
+
+**A check that verifies each part in isolation cannot see a fault that lives in how the parts are joined.**
