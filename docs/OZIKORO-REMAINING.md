@@ -8956,3 +8956,59 @@ went to 200. **The next round should add it to one route, measure the status, an
 **`check-not-found` is one of five checks that only run against a running server** — and it is the reason this
 was caught in the same session rather than in production. **A suite that only runs offline would have shipped
 it.** That is the strongest argument in this file for keeping the live checks live.
+
+---
+
+## ROUND 201 — THE PER-ROUTE BOUNDARY WORKS, AND ROUNDS 196 AND 200 ARE BOTH RESOLVED
+
+Round 200 named the fix and said to add it to **one** route and measure before doing the rest. This round did
+exactly that, and it works.
+
+    apps/ozikoro/app/labels/loading.tsx PRESENT
+      /zztest-nope-a/           404        <- the property the ROOT-level file broke
+      /zztest-nope-b/           404
+      /this-is-not-a-page/      404
+      /labels/umueri/           200        <- and the segment it wraps is unaffected
+
+**A boundary inside a route segment wraps that segment's page and nothing else.** The status of an unmatched
+address is decided before the boundary is entered, so `error.tsx` can be reachable for a route **without** the
+404 status becoming 200.
+
+    round 196   a Suspense boundary is needed for an error boundary to be reachable   -> TRUE
+    round 200   a ROOT-level one makes every 404 a 200                                -> TRUE, reverted
+    round 201   a SEGMENT-level one does the first without the second                 -> measured
+
+**Both earlier rounds were right about their own half.** The disagreement was never about the mechanism; it was
+about **where the boundary sits**, which neither round had varied.
+
+### And my count of what remains was wrong in a way worth recording
+
+A script asked how many async routes lack a boundary, checking each page's **own** directory:
+
+    async routes: 30   with a boundary: 0   without: 30
+
+**`with a boundary: 0` is false.** `apps/ozikoro/app/labels/loading.tsx` **does** cover
+`app/labels/[slug]/page.tsx` — Next nests Suspense boundaries, so an ancestor segment's `loading.tsx` wraps
+every page beneath it. **The script tested for a sibling file and the rule is about an ancestor.**
+
+**The substance is unaffected** — one route group is covered and the rest are not — but the number printed was
+not the number it claimed to be, which is round 169's `grep -c` and round 183's `%script%` in a third costume:
+**a check counting something adjacent to what it meant.**
+
+### What remains, exactly
+
+    covered     app/labels/…            by app/labels/loading.tsx   (verified this round)
+    remaining   the other route directories under app/, including home, [slug], about,
+                admin/*, archive, folklore, media, documents, search, topics, sources
+
+**The file is a template and the measurement is a procedure**: add one, restart, confirm unmatched addresses
+still 404, confirm the route still serves. **The property to check is the one round 200 broke**, and it takes
+three `curl`s.
+
+### The rule this sequence produced, which generalises past Next.js
+
+    round 200   a boundary placed as high as possible breaks what it wraps
+    round 201   a boundary placed as low as necessary breaks nothing
+
+**Wrapping more than you need to is the mistake**, and it is the same one as round 179's scan list covering
+the wrong packages and round 181's scope assertion covering the wrong directory — **in a third domain.**
