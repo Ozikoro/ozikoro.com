@@ -8789,3 +8789,50 @@ decision with a size rather than a discovery:
 
 **Every one was found by asking *"and where else?"*** — which is round 162's question, asked of the code
 rather than of the directory the work happened to be in. **It has now found something six times.**
+
+---
+
+## ROUND 198 — THE DICTIONARY'S FIRST BOUNDARY, WRITTEN WITHOUT GUESSING ITS CSS
+
+Round 197 recorded that `apps/web` has none of the three boundaries and explained why fixing it there is not a
+file copy. This round added the one that comes first, and the care was entirely in **not inventing anything
+about another site's design.**
+
+### The rule I held to
+
+**Use only classes that appear in that application's own files.** Checked before writing, not after:
+
+    wrap    seen in apps/web/app/names/page.tsx
+    muted   seen in apps/web/app/clans/page.tsx
+    shell   seen in apps/web/app/admin/layout.tsx
+
+**The spacing is an inline style**, so the file cannot be the thing that introduces a selector nothing
+defines. `apps/web/app/loading.tsx` typechecks with 0 errors.
+
+**Guessing another site's CSS vocabulary is how a half-finished page ends up on a working site** — which is
+exactly what rounds 165 and 178 warned about when they declined to touch this app.
+
+### And the file says what it is not
+
+**It does not claim to be the dictionary's loading design.** A loading state that matches that site should be
+drawn by whoever owns its design; **this is the boundary**, which is the part that was missing, and the header
+says so. **A minimal honest boundary is worth more than an elaborate guess**, and it is the piece that makes
+`error.tsx` reachable if it is ever added here.
+
+### What is verified and what is not
+
+    verified    typecheck, 0 errors
+    verified    every class used appears in this application's own markup
+    NOT verified  that it renders, or that it matches the design
+
+**Round 194's lesson applies to this file too** — a boundary's rendering needs a browser, and `curl` sees
+server HTML. **The difference is that this one is minimal by construction**, so the ways it can be wrong are
+fewer than the ways an invented layout could be.
+
+### Where the two applications now stand
+
+    apps/ozikoro   loading.tsx · error.tsx · not-found.tsx        three of three
+    apps/web       loading.tsx                                     one of three, and it is the first one
+
+**The second and third are the same shape as the first and need the same restraint**: an error page and a 404
+in the dictionary's own voice, which is its author's work and not a copy of the archive's.
