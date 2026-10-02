@@ -8081,3 +8081,45 @@ conclusion the measurement could not support.
     measured           4 of 4 questions grounded, 980 of 1,000 items carrying a topic
     remaining          a committed test · prompts in the archive's register · a surface to ask
                        the languageCode decision (round 183's three options)
+
+---
+
+## ROUND 186 — THE ADAPTER'S TESTS ARE COMMITTED, AND THE LANGUAGE REFUSAL IS ONE OF THEM
+
+Round 184's proof was a probe: run once, printed, deleted. These are the parts of it worth keeping, left in
+the repository.
+
+    ✔ a stable, readable id per article
+    ✔ refuses an empty language code rather than defaulting one
+    ✔ refuses a language name, because the archive needs an ISO 639-3 code
+    ✔ loads published articles, each with a source and bounded text
+
+    68 tests pass, 0 fail   (was 64)
+
+### What each one is for
+
+**The language refusals are the point.** An empty code, whitespace, `'igbo'`, `'IBO'` and `'en'` all have to
+be rejected, because the temptation this module exists to resist is filling the field in. `'igbo'` is the
+sharpest of the five: it is the *name* of the language, four characters, and accepting it would put a value
+into a field the pipeline compares by exact match.
+
+**The DB test asserts the properties rather than a count.** Not *"there are 1,000 items"* — that number
+belongs to the seed data — but **every item has a source, a text, `status: 'published'` and a source that is
+an address**, and `languageCode` equals the code the caller passed rather than one this module chose.
+
+**The bound is asserted as arithmetic.** `text.length <= 700` and then *"at least six items must fit a
+6,000-character budget"*, which is the actual requirement: not that an excerpt is short, but that
+`selectKnowledge` can select several. A future edit that restored whole bodies would fail the second
+assertion even if it passed the first.
+
+### Why the test asserts properties rather than the probe's numbers
+
+**Round 184's probe printed `ITEMS=1000`** and that number would have been a trap in a test: it is the
+default limit, not the archive size, and it changes the moment anyone tunes the cap. **Round 185's fix has a
+number that is a property** — six items fitting the budget — and that is the one worth pinning.
+
+    asserted as a property   every item is citable · every item is bounded · several fit the budget
+    asserted as a number     the default limit (deliberately not asserted)
+
+**A test that pins a seed count fails when the data changes; a test that pins an invariant fails when the
+invariant breaks.** Those are not the same event, and only the second is a bug.
