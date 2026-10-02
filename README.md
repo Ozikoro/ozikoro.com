@@ -46,6 +46,11 @@ whenever `DATABASE_URL` is unset, so you can be running in about a minute.
 git clone <this repo> && cd Ozikoro
 npm install
 
+# 0. Install the git hooks. This refuses a commit that does not typecheck.
+#    core.hooksPath is local configuration, so a fresh clone has NO hooks until this runs — and
+#    `npm run setup` below does it first, which is why the two routes agree.
+npm run hooks:install
+
 # 1. Create the schema (25 tables, 73 indexes, generated tsvector columns)
 npm run db:migrate
 

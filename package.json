@@ -22,7 +22,7 @@
     "verify": "npm -w @ozituma/db run verify",
     "test": "npm -w @ozituma/core test",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "setup": "npm run db:migrate && npm run seed && npm run import:igbo && npm run verify",
+    "setup": "npm run hooks:install && npm run db:migrate && npm run seed && npm run import:igbo && npm run verify",
     "docker:up": "docker compose -f docker/docker-compose.yml up -d",
     "docker:down": "docker compose -f docker/docker-compose.yml down",
     "smoke": "npm -w @ozituma/db run smoke",

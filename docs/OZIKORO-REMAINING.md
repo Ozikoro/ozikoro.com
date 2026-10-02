@@ -8211,3 +8211,52 @@ tested.
 command is listed with the others in `package.json`. **A reader who clones this repository and runs
 `npm run setup` should be told to run it** — which is the one thing this round has not checked and is worth
 checking.
+
+---
+
+## ROUND 188 — THE HOOK FROM ROUND 187 WAS ONLY ON THE MACHINE THAT WROTE IT
+
+Round 187 installed a pre-commit hook through `core.hooksPath` so that the hook is tracked with the code
+rather than lost with `.git/hooks`. It then wrote, unchecked:
+
+> *"A reader who clones this repository and runs `npm run setup` should be told to run it — which is the one
+> thing this round has not checked."*
+
+Checking it:
+
+    setup was    npm run db:migrate && npm run seed && npm run import:igbo && npm run verify
+    hooks:install mentioned in    package.json (the definition) and this file — nowhere else
+    README       a `## Quick start` with a manual step list, and no mention of hooks at all
+
+**So every fresh clone had no hook.** The guard that round 187 built to make a mistake impossible was
+present on exactly one machine — **which is the same failure as the one it was fixing, one level out**: round
+186 relied on remembering a rule, and round 187 relied on a hook that nobody would install.
+
+### Both routes now install it
+
+    setup        npm run hooks:install && npm run db:migrate && …     — FIRST, before migrations
+    README       step 0 in the Quick start, with the reason beside it
+
+**Installing before `db:migrate` matters**: the hook protects every commit from the first one, rather than
+from whenever somebody reads far enough down a manual list.
+
+### Why the README line earns its place rather than being clutter
+
+    `core.hooksPath` is LOCAL configuration.
+    A clone has no hooks until something runs `hooks:install`.
+
+**Git does not clone hooks, and nothing warns you.** Without a line saying so, the repository is silently
+unguarded for every new contributor — and silence is the failure mode this whole sequence has been about:
+round 186's grep printed the failure, round 188's clone printed nothing at all.
+
+### The pattern, four rounds running
+
+    184   measured the symptom, named the wrong cause, changed the wrong thing
+    185   read the selector, found the cause, fixed the bound
+    186   read past a failure that was on screen
+    187   turned the rule into a mechanism
+    188   and found the mechanism only existed on one machine
+
+**Each round's fix revealed the next round's gap**, and every gap was found by asking *"is this actually
+true?"* rather than by reasoning from the previous round's conclusion — which is the same move as round 174's
+*ask the document a question it should be able to answer.*
