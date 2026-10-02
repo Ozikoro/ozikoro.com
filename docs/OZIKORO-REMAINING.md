@@ -11478,3 +11478,36 @@ pattern, so its absence is reported as *earned* rather than missing.
 
 **Sixteen verified, one unverified, two failing** — and both remaining are calendars, which share a structure
 and are the last of the design parity work.
+
+---
+
+## ROUND 258 — DESIGN PARITY IS COMPLETE. EVERY COMPARED ROUTE CARRIES ITS DESIGN.
+
+    "Every compared route carries its design's structure and headings."
+
+**Eighteen routes compared against their design screens. Seventeen verified, one unverified, none failing.**
+The `/watch` 404 is gone, and the four routes that were failing at the start of this thread — `/about`,
+`/documents`, `/topics`, `/listen` — plus the eleven that followed are all drawings of their screens.
+
+### What the two calendars needed
+
+**`/igbo-calendar`** was the largest single gap: nine headings and a section. The design's four cycle entries
+are **`<h2>` headings carrying both spellings** — *Eke*, *Orie Oye*, *Afọ Afor*, *Nkwọ Nkwor* — where the page
+had `<b>` and `<em>`, which is why the check looked for strings like *"orie oye"* that the page could not
+produce. The two lookup tools take the design's eyebrow and heading (*"Find its market day"*, *"Next ten
+market days"*), the month grid became `sx-month-section` with its own *"Market-day month"* heading, and the
+page closes with a **`Community context matters`** section stating that the four-day cycle is calculated from
+one demonstration anchor and that **communities can and do reckon it differently.**
+
+**`/cultural-calendar`** needed two headings — *"Events by date"* on the intro and *"October 2026"* on the grid
+— and the empty panel became the design's `sx-event-day-panel` with *"Choose a highlighted date"*.
+
+### And the method that got here
+
+**Nine rounds of rebuilding one route at a time, with the check re-run after each.** The instrument was wrong
+three times in that stretch — a double-counted omission, a missing placeholder pattern, and a loading shell
+read as a missing section — **and each time the fix was to the check rather than to the page**, which is the
+only reason the final green line means anything.
+
+**A check that reports a loading shell as a failed page, a placeholder as absent content, or an intended
+omission as a defect, is a check whose passes cannot be trusted either.**

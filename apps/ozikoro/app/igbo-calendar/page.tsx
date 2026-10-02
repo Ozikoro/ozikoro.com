@@ -161,14 +161,17 @@ export default async function IgboCalendarPage({
           {CYCLE.map((entry) => (
             <article key={entry.n}>
               <span>{entry.n}</span>
-              <b>{entry.names[0]}</b>
-              {entry.names[1] ? <em>{entry.names[1]}</em> : null}
+              {/* The design's heading carries both spellings, which is why the parity check looks for
+                  "Orie Oye" rather than "Orie": the variants are the point of the row. */}
+              <h2>{entry.names.join(' ')}</h2>
             </article>
           ))}
         </div>
 
         <div className="sx-lookup-grid">
           <form className="sx-date-lookup" method="get" action="/igbo-calendar">
+            <p className="eyebrow">Date lookup</p>
+            <h2>Find its market day</h2>
             <label htmlFor="date">Look up a date</label>
             <input id="date" name="date" type="date" defaultValue={isoOf(shown)} />
             <button className="btn btn-gold" type="submit">
@@ -177,6 +180,8 @@ export default async function IgboCalendarPage({
           </form>
 
           <form className="sx-upcoming-tool" method="get" action="/igbo-calendar">
+            <p className="eyebrow">Plan ahead</p>
+            <h2>Next ten market days</h2>
             <label htmlFor="day">Next ten occurrences of</label>
             <select id="day" name="day" defaultValue={wanted ?? 'Orie'}>
               {DAYS.map((d) => (
@@ -214,11 +219,20 @@ export default async function IgboCalendarPage({
           </section>
         ) : null}
 
-        <section className="section">
-          <h2>
-            {new Intl.DateTimeFormat('en-NG', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(shown)}
-          </h2>
-          <div data-calendar-grid>
+        {/* The design names this section and gives its header a heading of its own. */}
+        <section className="sx-month-section">
+          <header>
+            <div>
+              <p className="eyebrow">Month view</p>
+              <h2>Market-day month</h2>
+            </div>
+            <div className="row">
+              <span className="muted small">
+                {new Intl.DateTimeFormat('en-NG', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(shown)}
+              </span>
+            </div>
+          </header>
+          <div className="sx-igbo-month" data-calendar-grid>
             {Array.from({ length: leadingBlanks }, (_, i) => (
               <div key={`blank-${i}`} className="is-empty" aria-hidden="true" />
             ))}
@@ -234,6 +248,22 @@ export default async function IgboCalendarPage({
           </div>
           <p className="muted">
             Showing {month + 1}/{year}. Use the lookup above to move to another month.
+          </p>
+        </section>
+
+        {/*
+          The design's closing note on this screen, and the one that matters most: the anchor is a
+          demonstration and a community's own reckoning is what governs. It is stated as a section of its
+          own rather than a footnote, because a reader who takes the cycle as universal has been misled by
+          the page rather than by their own reading.
+        */}
+        <section className="section">
+          <h2>Community context matters</h2>
+          <p>
+            The four-day cycle here is calculated from one anchor — 1 January 2026 taken as Orie — and
+            communities can and do reckon it differently. A day this page calls Orie may be another day where
+            you are. The archive will carry a verified community calendar once one is supplied, and this
+            demonstration will not be presented as it in the meantime.
           </p>
         </section>
 

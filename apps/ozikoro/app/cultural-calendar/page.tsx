@@ -78,7 +78,8 @@ export default function CulturalCalendarPage() {
       <section className="wrap section" id="calendar">
         <div className="sx-calendar-intro">
           <div>
-            <h2>{MONTH_LABEL}</h2>
+            <p className="eyebrow">{MONTH_LABEL}</p>
+            <h2>Events by date</h2>
           </div>
           <p>
             <strong>Dates with a verified event become buttons. Every other date is plain and not clickable</strong>{' '}
@@ -135,7 +136,13 @@ export default function CulturalCalendarPage() {
 
         <div className="sx-event-layout">
           <div className="sx-cultural-calendar">
-            <div className="row" aria-hidden="true">
+            {/* The design gives the grid a header of its own carrying the month, separate from the intro's
+                "Events by date" heading above it. */}
+            <header>
+              <p className="eyebrow">The month</p>
+              <h2>{MONTH_LABEL.replace(' · demonstration month', '')}</h2>
+            </header>
+            <div className="sx-weekdays" aria-hidden="true">
               {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
                 <span key={d}>{d}</span>
               ))}
@@ -154,9 +161,10 @@ export default function CulturalCalendarPage() {
             </div>
           </div>
 
-          <aside>
-            <p className="eyebrow">Events by date</p>
-            <h3>Nothing to show for this month</h3>
+          <aside className="sx-event-day-panel">
+            <p className="eyebrow">Selected date</p>
+            <time>{MONTH_LABEL}</time>
+            <h2>Choose a highlighted date</h2>
             <p className="muted">
               Selecting a date would show its events, organiser, place and verification status. There is nothing
               to select.

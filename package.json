@@ -93,7 +93,8 @@
     "check:handover": "bash scripts/check-handover.sh",
     "hooks:install": "git config core.hooksPath scripts/hooks && chmod +x scripts/hooks/* && echo \"  hooks installed (core.hooksPath=scripts/hooks)\"",
     "check:boundaries": "bash scripts/check-boundaries.sh",
-    "check:design": "bash scripts/check-design-system.sh"
+    "check:design": "bash scripts/check-design-system.sh",
+    "check:design-parity": "node scripts/check-design-parity.mjs"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
