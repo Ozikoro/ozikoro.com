@@ -91,13 +91,18 @@ const ROUTES = [
  */
 const PLACEHOLDER = /(sample record|string games photograph|ikoro drum photograph|more verified records|oz-|example|appears here|demonstration|sample episode|the ikoro: the drum|town histories series|restricted publication|approved summary|no verified vacancies)/i;
 
-const EXPECTED_OMISSIONS = {
-  '/': {
-    'sx-home-watch':
-      'the design draws a lead film and three list items; the archive holds 13 video records and no ' +
-      'published film pages, so the section is left out rather than naming films that do not exist',
-  },
-};
+/*
+ * NOTHING IS DECLARED OMITTED.
+ *
+ * The homepage's watch section sat here for six rounds with the reason "the archive holds 13 video records and
+ * no published film pages". That stopped being true when /watch was built, and this check went on reporting
+ * the homepage as PASSING, because it had been told the omission was intended.
+ *
+ * **An omission declaration is a promise to revisit it, and nothing here enforced that promise.** The entry is
+ * removed rather than kept for the next case, and the lesson is recorded: if something has to be declared
+ * absent, record WHY and what would make it present, so the condition can be tested rather than trusted.
+ */
+const EXPECTED_OMISSIONS = {};
 
 /*
  * HEADINGS THAT BELONG TO A DECLARED-ABSENT SECTION.

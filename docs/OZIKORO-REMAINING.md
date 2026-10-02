@@ -11244,3 +11244,53 @@ revisit it, and nothing in the check enforces that promise.**
     FAIL  /igbo-calendar  /cultural-calendar  /publications  /folklore  /submit
 
 **Fourteen pass, five to go, and the 404 is gone.**
+
+---
+
+## ROUND 253 — THE PROMISE THE CHECK COULD NOT KEEP
+
+    before   /  7 design sections of 7, but sx-home-watch declared ABSENT
+    after    /  ok — 7 design sections, 7 headings · declared omissions 0
+
+**The homepage's watch section was omitted for six rounds** with a declaration that read:
+
+> *"the design draws a lead film and three list items; the archive holds 13 video records and **no published
+> film pages**, so the section is left out rather than naming films that do not exist."*
+
+**That was true when it was written.** It stopped being true the moment `/watch` was built in round 252 — and
+**the parity check went on reporting the homepage as PASSING, because it had been told the omission was
+intended.**
+
+### The section is now drawn from the real films
+
+`videos.length > 0` guards it, and it renders the design's structure with real content: the lead block with the
+design's own h2 *"See the archive. **Hear its voices.**"*, the `▶` video thumb linking to `/watch`, and three
+real recordings in the list — masquerades and kingdom films, each labelled *"Archive film"* or *"QuickTime"* by
+its actual MIME type.
+
+**And the declaration is removed from the checker rather than kept for the next case.** `EXPECTED_OMISSIONS` is
+now empty, and the comment where it stood records why:
+
+> **An omission declaration is a promise to revisit it, and nothing enforced that promise.** If something has
+> to be declared absent, record WHY and what would make it present, so the condition can be tested rather than
+> trusted.
+
+### The instrument is now honest about its own limits
+
+    declared omissions 0
+    earned   h2: "string games photograph"          — design placeholder, absent correctly
+    earned   h2: "more verified contents appear here" — design placeholder, absent correctly
+    earned   h2: "the ikoro: the drum that spoke for a town"
+    earned   h2: "ikoro drum photograph"
+
+**Four placeholders are reported as *earned* rather than missing, which is the distinction doing its job.** The
+difference between "the design has this and we do not" and "the design has this and we must not" is now visible
+in the output rather than decided silently.
+
+### The tally
+
+    ok    /  /archive  /photographs  /documents  /listen  /material-culture  /towns  /cite
+          /careers  /ledger  /about  /topics  /projects  /watch
+    FAIL  /igbo-calendar  /cultural-calendar  /publications  /folklore  /submit
+
+**Fourteen pass, five to go.**

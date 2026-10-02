@@ -36,7 +36,7 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   const db = await getDb();
 
-  const [latest, towns, topics, counts, featured] = await Promise.all([
+  const [latest, towns, topics, counts, featured, videos] = await Promise.all([
     db.rows<{ slug: string; title: string; standfirst: string | null; published_at: string | null }>(
       `select a.slug, a.title, a.standfirst, a.published_at
          from ozikoro_article a
@@ -62,6 +62,11 @@ export default async function HomePage() {
     db.one<{ slug: string; title: string; published_at: string | null }>(
       `select slug, title, published_at from ozikoro_article
         where status='published' and is_page=false order by published_at desc nulls last limit 1`
+    ),
+    // The watch section now has a route to point at, so it is drawn from the real films.
+    db.rows<{ slug: string; title: string | null; storage_key: string | null; source_url: string; mime_type: string | null }>(
+      `select slug, title, storage_key, source_url, mime_type from ozikoro_media
+        where kind='video' order by (title is null), title limit 4`
     ),
   ]);
 
@@ -158,11 +163,49 @@ export default async function HomePage() {
       </section>
 
       {/* --- sx-home-watch --------------------------------------------------
-          The design shows a lead film and three list items. The archive holds
-          13 video records and NO published film pages, so the section is not
-          drawn here rather than filled with names of films that do not exist.
-          The Watch route itself is built and says what it holds.
+          DRAWN FROM THE REAL FILMS.
+
+          This section was omitted for six rounds with a declaration that read "the archive holds 13 video
+          records and no published film pages". That was true when it was written and stopped being true the
+          moment /watch was built in round 252 — and the parity check went on reporting the homepage as
+          passing, because it had been told the omission was intended.
+
+          **A declared omission is a promise to revisit it, and nothing enforced that promise.** The lesson is
+          kept here rather than in a note: the section now draws the lead film, three further recordings and
+          the link to the library.
       */}
+      {videos.length > 0 ? (
+        <section className="sx-home-watch">
+          <div className="wrap">
+            <div className="sx-home-watch-lead reveal">
+              <a className="sx-video-thumb" href="/watch">
+                <span className="sx-video-play">▶</span>
+              </a>
+              <div>
+                <p className="eyebrow">Ozikoro Watch</p>
+                <h2>
+                  See the archive. <em>Hear its voices.</em>
+                </h2>
+                <p>
+                  Films, remembered stories and conversations — easy to watch, clearly sourced, and never set
+                  to autoplay.
+                </p>
+                <Link className="btn btn-gold" href="/watch">
+                  Open Watch
+                </Link>
+              </div>
+            </div>
+            <div className="sx-home-watch-list">
+              {videos.slice(0, 3).map((v) => (
+                <Link href="/watch" key={v.slug}>
+                  <small>{v.mime_type === 'video/quicktime' ? 'QuickTime' : 'Archive film'}</small>
+                  <strong>{v.title ?? 'Untitled recording'}</strong>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       {/* --- sx-section sx-category-stage ---------------------------------- */}
       <section className="sx-section sx-category-stage">
