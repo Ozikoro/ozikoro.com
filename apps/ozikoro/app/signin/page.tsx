@@ -112,6 +112,11 @@ export default async function Page({
         </div>
       </form>
 
+      {/* THE WAY IN, WHICH WAS MISSING. A sign-in page with no route to joining is a door with no key. */}
+      <p className="small muted" style={{ marginTop: '1.5rem' }}>
+        No account yet? <Link href={`/join?next=${encodeURIComponent(next)}`}>Join Ozikoro</Link>.
+      </p>
+
       <div className="panel panel--quiet">
         <div className="panel__body">
           <p>

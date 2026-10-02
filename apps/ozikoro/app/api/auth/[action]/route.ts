@@ -28,6 +28,7 @@ import {
   authenticateAccount,
   createSession,
   isAdmin,
+  registerAccount,
   revokeSession,
 } from '@ozituma/db/accounts';
 import { sessionCookie, sessionMaxAgeSeconds } from '@/lib/session';
@@ -72,6 +73,83 @@ export async function POST(
     const cookie = sessionCookie();
     response.headers.append('Set-Cookie', serializeCookie(cookie.name, '', { ...cookie.options, maxAge: 0 }));
     return response;
+  }
+
+  /*
+   * JOINING, WHICH IS THE OTHER HALF OF HAVING ACCOUNTS AT ALL.
+   *
+   * The owner's point: **"My Ozikoro" led straight to a sign-in form, and a sign-in form is no use to
+   * somebody who has not joined.** Registration existed in the library — `registerAccount` has been there
+   * since the dictionary — but no route exposed it, so the only people who could sign in were ones whose
+   * accounts had been created for them.
+   *
+   * WHAT IT CREATES, IN ONE PLACE
+   *
+   *   account                  the credentials, shared with ozituma.com and learn.ozituma.com
+   *   ozikoro_member           the public profile row the researcher pages read
+   *   ozikoro_member_role      the `reader` grant, which every other role is added to
+   *
+   * **`reader` is the floor and it is granted on join**, because a member with no role can do nothing and
+   * would see an empty dashboard. Every capability above reading is granted by an administrator afterwards,
+   * and `manage_roles` is what lets them.
+   */
+  if (action === 'register') {
+    if (!sameOrigin(request)) {
+      return redirectTo('/join', { error: 'That request did not come from this site.' });
+    }
+
+    const limit = rateLimit(`register:${clientKey(request)}`, { limit: 5, windowSeconds: 3600 });
+    if (!limit.allowed) {
+      return redirectTo('/join', { error: 'Too many attempts. Try again shortly.' });
+    }
+
+    const email = String(form.get('email') ?? '').trim();
+    const displayName = String(form.get('display_name') ?? '').trim();
+    const password = String(form.get('password') ?? '');
+    const passwordAgain = String(form.get('password_again') ?? '');
+    // `safeNext` falls back to `/admin`, which is right for an administrator signing in and wrong for
+    // somebody who has just joined — **they are a reader, and `/admin` would refuse them.** So the fallback
+    // is decided here rather than borrowed.
+    const requested = String(form.get('next') ?? '').trim();
+    const intent =
+      requested.startsWith('/') && !requested.startsWith('//') && !requested.includes('\\')
+        ? requested
+        : '/dashboard-reader';
+
+    if (password !== passwordAgain) {
+      return redirectTo('/join', { error: 'Those two passwords are not the same.', email, name: displayName });
+    }
+
+    try {
+      const account = await registerAccount(db, { email, displayName, password });
+      // The member profile and the floor role. `on conflict do nothing` so a re-run cannot double-grant.
+      await db.query(
+        `insert into ozikoro_member (account_id, display_name, is_public, status)
+         values ($1, $2, false, 'active') on conflict (account_id) do nothing`,
+        [account.id, displayName || null]
+      );
+      await db.query(
+        `insert into ozikoro_member_role (account_id, role, note)
+         values ($1, 'reader', 'Granted on joining.') on conflict do nothing`,
+        [account.id]
+      );
+
+      // Signed in immediately: making somebody who has just chosen a password type it again is friction
+      // with no security value, since the password was verified by the insert above.
+      const { token } = await createSession(db, account.id, {
+        userAgent: request.headers.get('user-agent'),
+      });
+      const response = redirectTo(intent);
+      const cookie = sessionCookie(sessionMaxAgeSeconds());
+      response.headers.append('Set-Cookie', serializeCookie(cookie.name, token, cookie.options));
+      return response;
+    } catch (error) {
+      const message =
+        error instanceof Error && 'code' in error
+          ? error.message
+          : 'That account could not be created.';
+      return redirectTo('/join', { error: message, email, name: displayName });
+    }
   }
 
   if (action !== 'signin') {

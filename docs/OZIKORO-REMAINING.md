@@ -12483,3 +12483,57 @@ served and correctly typed; the fill said it had replaced the body and it had. *
 looking at it showed that the images pointed nowhere and the design's wrapper was gone.**
 
 **A check that verifies each part in isolation cannot see a fault that lives in how the parts are joined.**
+
+---
+
+## ROUND 278 — "MY OZIKORO" OPENED ON A SIGN-IN FORM, AND THE WAY IN DID NOT EXIST
+
+### What was wrong
+
+**"My Ozikoro" links to `dashboard-reader.html` in six screens** — about, donate, investors, ledger, projects,
+sponsors. It was served correctly. **The problem was one level down: there was no way to become somebody who
+could read it.**
+
+`registerAccount`, `authenticateAccount`, `createSession`, `hashPassword` and `assertPasswordAcceptable` have
+all existed in `packages/db` since the dictionary. **No route exposed registration**, so the only accounts that
+could sign in were ones created by hand. **A sign-in form with no route to joining is a door with no key.**
+
+### What now exists
+
+    /join                    a registration page, linked from /signin, and /signin linked from /join
+    POST /api/auth/register  creates the account, the member profile and the reader grant in one place
+    /dashboard-reader        serves the design's reader dashboard — "Welcome back", not a login redirect
+
+    POST /api/auth/register -> 303 -> /dashboard-reader, with a session cookie
+    members created 2 · roles created 2 · both `reader`
+    test accounts removed afterwards
+
+**The redirect default was wrong at first**: the shared `safeNext` falls back to `/admin`, which is right for an
+administrator signing in and wrong for somebody who has just joined — **they are a reader, and `/admin` would
+refuse them.** The fallback is now decided in the register branch.
+
+### The owner role, and the rule that stops an admin making one
+
+**The ten roles stopped at `admin`, and `admin` holds `manage_roles` — so every administrator could create
+another administrator, and none could be removed by anyone but an equal.** With one proprietor and several
+staff that is the wrong shape: **it makes the staff collectively able to outvote the owner of the record.**
+
+Migration `0044_owner_role_and_rank.sql` adds `owner` above `admin` and gives roles a **rank**, with one rule:
+
+> **You may grant or revoke a role only if it ranks strictly below your own.**
+
+    admin -> admin    false      an admin cannot mint an admin
+    admin -> editor   true
+    owner -> admin    true
+    editor -> admin   false      you cannot promote above yourself
+
+**The owner's 22 capabilities are listed explicitly rather than implied by rank**, so that adding a capability
+to the vocabulary does not silently hand it to one person — and so the dashboards, the API checks and the table
+all agree.
+
+### Affiliation is not asked for
+
+**The brief is explicit that independent and community researchers must never be required to have a
+university.** So the join form has no institution field, and the page says plainly what a new member can do
+before they hand over an address: read, keep a collection, and submit work for review. **Everything above that
+is granted by an administrator.**
