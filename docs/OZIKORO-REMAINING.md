@@ -11294,3 +11294,59 @@ in the output rather than decided silently.
     FAIL  /igbo-calendar  /cultural-calendar  /publications  /folklore  /submit
 
 **Fourteen pass, five to go.**
+
+---
+
+## ROUND 254 — `/submit` REBUILT IN THE SOURCE, AND THE PARITY CHECK CANNOT SEE IT
+
+### The rebuild
+
+    before   .sx-correction missing; h1 "Submit research"; no step headings
+    after    the source carries wrap-narrow, the design's h1 "Publish your work",
+             the four step headings, sx-correction and the archive-material block
+             — lines 48, 51, 84, 177, 191
+
+**The design draws four steps — the file, describe it, terms and access, review and publish — plus a
+correction route and a note that archive material goes a different way.** All of it is in the page now, with
+the existing `/api/research` form preserved rather than replaced: the fields map onto the steps, and the
+licence field moved into *Terms and access* where the design puts it.
+
+**Two things are stated rather than faked.** Manuscript upload is still not wired to storage, so step one says
+so and explains that the abstract and metadata are the record until it is; and the licence field says the
+archive will not apply a licence on the depositor's behalf, which is the difference between a default and a
+choice.
+
+### And the check reports it as failing, because it cannot see the page
+
+    /submit returns 200, 37,834 bytes, h1 "Fetching the record"
+
+**That is the loading shell.** `apps/ozikoro/app/submit/loading.tsx` exists, so the real content is produced
+inside a Suspense boundary and the static HTML a fetcher receives is the boundary's fallback. **Searching the
+whole response — 462 KB and 173 `__next_f` chunks when signed in — finds none of the page's headings.**
+
+**So `check-design-parity.mjs` is blind to any route behind a loading boundary and an auth gate.** It reports
+those as failures, and it is reporting the loading state rather than the page.
+
+### And the signed-in verification is inconclusive, for a reason worth recording
+
+The gate is `requireCapabilityOrRedirect('submit_work', …)`, and `submit_work` is held by researcher, student,
+teacher and independent_researcher. **A probe account was created and granted `researcher` — confirmed by the
+database, which reports `HAS_SUBMIT=true` — but its password could not be set**, because
+`scripts/reset-password.ts` **correctly refuses** an `--actor` that does not hold admin or owner:
+
+    --actor is required and must hold admin or owner: a password change is audited and needs an actor.
+
+**That refusal is right and it blocks the test.** Verifying an auth-gated page needs an administrator, and this
+environment has no account with that role. **So the source is verified and the render is not, and that
+distinction is recorded rather than glossed.**
+
+### What the check needs next, in order of value
+
+   1. know which routes sit behind a loading boundary or an auth gate, and say so instead of failing them
+   2. for gated routes, either carry an admin session or mark the route unverified — never report a
+      loading shell as a missing section, which is a false failure of exactly the kind this file has
+      recorded seven times
+
+### The probe was removed
+
+    account removed 1 · residue 0 · accounts remaining 0 · check:residue clean
