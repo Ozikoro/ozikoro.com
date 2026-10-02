@@ -3,7 +3,7 @@
 > **RESUME HERE — status as of round 120.** This file is a running record, newest at the BOTTOM.
 > Read this block and the round-26 status table; the rest is history, and some of it is superseded.
 >
-> **What is live.** 36 reader-facing routes and 7 under `/admin` — 43 page routes. Migrated records answer
+> **What is live.** 37 reader-facing routes and 7 under `/admin` — 44 page routes. Migrated records answer
 > at their original WordPress addresses from this platform's own database and media origin; 3,437 of 3,488
 > media served from our own storage with **zero hotlinks**; typecheck clean; **22 offline verification
 > steps** via `./scripts/verify-all.sh` and **5 live checks** via `./scripts/verify-live.sh`.
