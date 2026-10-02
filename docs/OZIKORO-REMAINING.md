@@ -10161,3 +10161,67 @@ for every Africa-related post, its length, its categories, whether it cites anyt
 **The honest next step is editorial, not technical**: someone with the subject knowledge reads
 `africa-review.json` and decides, and any post that is imported arrives with its sources attached and its
 uncertainty visible — which is what the archive does for everything else it holds.
+
+---
+
+## ROUND 232 — THE NZEORA REVIEW ARTIFACT, AND WHAT CITATION-CHECKING ACTUALLY FOUND
+
+Round 231 extracted nzeora.com and declined to import it, on the measurable ground that 166 of 179 Africa
+posts cite nothing. This round widened the filter, corrected a fault in the extraction, and checked whether the
+few citations that exist actually support the claims they are attached to.
+
+### Two corrections to round 231's own numbers
+
+**The Africa filter was too narrow.** Widened to include Kush, Aksum, Nok, Swahili, Kilwa, Timbuktu, Mansa,
+Sundiata, Nzinga, Shaka, Samori and the rest, it finds **189** posts rather than 179.
+
+**And the year extractor was wrong.** It read `100,000 years ago` as the year 1002, and put 1039 and 1080 into a
+Rastafari article — the movement is twentieth century. **A regex that finds `1\d{3}` inside a comma-grouped
+number is not finding a year.** The corrected pattern excludes digits adjacent to a comma or another digit,
+which is why the artifact reports **551 year-claims** rather than the 731 the broken one produced.
+
+**Both were caught by reading the output rather than by the code failing**, which is the only way this kind of
+error surfaces.
+
+### The claims, and the four posts that cite anything
+
+    189 Africa-related posts
+    176 cite no external source at all
+      4 cite news or scholarly material — and each is worth naming:
+
+    "Before Christianity & Islam, Women's Empowerment Was A Big Deal In Africa"
+        cites 54history.com — DEAD since before this audit — plus a Würzburg university
+        repository, the single genuine scholarly citation in the whole corpus
+
+    "Black Babies Were Used As Alligator Bait By Hunters In America"
+        cites Snopes — whose page is titled "Were Black Children Used as Alligator Bait in
+        the American South?", i.e. a FACT-CHECK OF THIS POST'S OWN CENTRAL CLAIM. The verdict
+        is not in the static HTML, so it is recorded as unresolved rather than guessed.
+
+    "Dear Black People, Jesus Christ Does Not Have To Be Black"
+        cites a Guardian article about the most significant historical figure. It does not
+        support the claim it is attached to.
+
+    "78-Member Team of Nigerian Doctors Successfully Separate Conjoined Twins"
+        cites CNN, 8 January 2020. **This one is sourced.**
+
+### What this establishes and what it does not
+
+**Established:** of 189 Africa-related posts, **one is cited to a source that supports it.** The rest either cite
+nothing, cite a dead link, cite material that does not bear on the claim, or cite a fact-check of the claim
+itself.
+
+**Not established:** whether any of the 188 others are *true*. A post with no citation is not a false post — it
+is an unevidenced one. **Those are different claims and this file has been careful to keep them apart.**
+
+### The artifact
+
+    data/nzeora-wp/africa-review.json   189 posts, each with its categories, length, sourcing class,
+                                        the exact links it cites, its year-claims, and
+                                        review_status: "unreviewed"
+
+**Sorted so the 176 unsourced posts come first**, because those are the ones where the reviewer's work is not
+"check the citation" but "find one".
+
+**Nothing has been imported**, and the position from round 231 is unchanged: the archive may not hold a claim
+without a source, and 93% of this material has none.
