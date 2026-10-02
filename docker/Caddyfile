@@ -71,3 +71,51 @@ www.{$OZITUMA_DOMAIN} {
 		format json
 	}
 }
+
+# ---------------------------------------------------------------------------
+# The archive — ozikoro.com
+#
+# A second site on the same proxy, the same certificate and the same container network. It is the
+# project the other two belong to, and it is served from the same database they are.
+# ---------------------------------------------------------------------------
+
+# www redirects to the apex, as the dictionary does, so there is one address for the archive.
+www.{$OZIKORO_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	redir https://{$OZIKORO_DOMAIN}{uri} permanent
+}
+
+{$OZIKORO_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	@health path /api/health
+	header @health Cache-Control "no-store"
+
+	# As for the dictionary: no page may be cached at the edge. The archive sends `no-store` itself, and
+	# this makes it not depend on the app remembering — which is the failure the note above records.
+	header Cache-Control "private, no-cache, no-store, max-age=0, must-revalidate"
+
+	# Build assets are the exception, and the only one.
+	@immutable path /_next/static/* /assets/* /fonts/* /design/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	reverse_proxy ozikoro:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

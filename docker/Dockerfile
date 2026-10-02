@@ -45,6 +45,12 @@ COPY packages/core/package.json ./packages/core/
 COPY packages/db/package.json ./packages/db/
 COPY apps/web/package.json ./apps/web/
 COPY apps/learn/package.json ./apps/learn/
+# The archive. THIS LINE AFFECTS ALL THREE IMAGES: this layer is shared, so adding a workspace here
+# invalidates the cached `npm ci` for web and learn as well as ozikoro. That is the cost of one lockfile
+# and one install, and it is why this is not an "ozikoro-only" change — round 152 recorded that the
+# Dockerfile work is five parts across two files rather than one service definition.
+COPY packages/ozikoro/package.json ./packages/ozikoro/
+COPY apps/ozikoro/package.json ./apps/ozikoro/
 RUN npm ci --ignore-scripts
 
 # ---------------------------------------------------------------------------
@@ -57,6 +63,19 @@ COPY . .
 # DATABASE_URL. If a route ever becomes statically rendered, this is where a build-time database
 # would be wired in.
 RUN npm -w @ozituma/web run build
+
+# The archive — ozikoro.com
+#
+# Its own builder for the same reason web and learn have theirs: `docker build --target
+# builder-ozikoro` must not build the dictionary or the academy, so a fault in either cannot fail this
+# app's image.
+FROM base AS builder-ozikoro
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+# Like the dictionary, every route here is dynamic and reads the database at request time, so the build
+# needs no DATABASE_URL. If a route ever becomes statically rendered, this is where a build-time
+# database would be wired in.
+RUN npm -w @ozikoro/site run build
 
 FROM base AS builder-learn
 COPY --from=deps /app/node_modules ./node_modules
@@ -143,3 +162,19 @@ COPY --from=builder-learn --chown=nextjs:nodejs /app/apps/learn/.next/static ./a
 COPY --from=builder-learn --chown=nextjs:nodejs /app/apps/learn/public ./apps/learn/public
 
 CMD ["node", "apps/learn/server.js"]
+
+# ---------------------------------------------------------------------------
+# The archive — ozikoro.com
+#
+# `public` is copied by hand for the same reason it is for the dictionary, and here it matters more: the
+# archive's whole approved design handoff lives in `apps/ozikoro/public/design/` — 51 screens, the
+# stylesheets and the five progressive-enhancement scripts. Without this line every page would render
+# unstyled HTML, which is a failure that looks like a broken design rather than a missing COPY.
+# ---------------------------------------------------------------------------
+FROM runtime-base AS ozikoro
+
+COPY --from=builder-ozikoro --chown=nextjs:nodejs /app/apps/ozikoro/.next/standalone ./
+COPY --from=builder-ozikoro --chown=nextjs:nodejs /app/apps/ozikoro/.next/static ./apps/ozikoro/.next/static
+COPY --from=builder-ozikoro --chown=nextjs:nodejs /app/apps/ozikoro/public ./apps/ozikoro/public
+
+CMD ["node", "apps/ozikoro/server.js"]

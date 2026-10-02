@@ -121,6 +121,56 @@ services:
   # Deploy it alone with:  docker compose -f docker-compose.prod.yml up -d --build learn
   #
   # No Paystack key: the courses take no payments in v1.0 (§18 #7 defaults to payments off).
+  # ---------------------------------------------------------------------------
+  # The archive — ozikoro.com
+  #
+  # Its own build target, so `--target ozikoro` never builds the dictionary or the academy. Shares the
+  # one postgres service and the one account table with them: three sites, one database, which is the
+  # requirement this project has held to throughout.
+  # ---------------------------------------------------------------------------
+  ozikoro:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: ozikoro
+    image: ozikoro-site:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
+      OZIKORO_SITE_URL: ${OZIKORO_SITE_URL:-https://ozikoro.com}
+      NODE_ENV: production
+      # Media. The archive self-hosts 3,437 files and hotlinks 51; the same S3-compatible store the
+      # dictionary uses is where the bytes go, so the variables have the same names.
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL}
+      # Mail, read by @ozituma/core since round 178 moved the SMTP client there. Left empty by default:
+      # with no SMTP configured the archive sends nothing rather than failing when it tries.
+      OZITUMA_SMTP_HOST: ${OZITUMA_SMTP_HOST:-}
+      OZITUMA_SMTP_PORT: ${OZITUMA_SMTP_PORT:-}
+      OZITUMA_SMTP_USER: ${OZITUMA_SMTP_USER:-}
+      OZITUMA_SMTP_PASS: ${OZITUMA_SMTP_PASS:-}
+      OZITUMA_EHLO_NAME: ${OZITUMA_EHLO_NAME:-}
+    healthcheck:
+      # The archive has had a health endpoint since the vertical slice. Curl is in the node:24-alpine
+      # base only if apk added it, so this asks with node instead of assuming a tool.
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
   learn:
     build:
       context: ..
