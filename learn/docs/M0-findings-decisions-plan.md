@@ -263,7 +263,7 @@ esbuild dev server never runs there.
 
 ### `master`: 30 Dependabot alerts on a different application
 
-The org's `master` branch is `ozituma-dictionary` — Next.js 16, React 19, a July dependency set.
+The repository's `master` branch — in `Ozikoro/ozikoro.com`, renamed from `ozituma-dictionary` in October 2026 — holds a different application: Next.js 16, React 19, a July dependency set.
 Those 30 advisories (4 critical, 14 high, 12 moderate) are version-bump alerts against THAT app.
 
 **They are not the learning platform's**, they are not on the branch this work went to, and clearing
