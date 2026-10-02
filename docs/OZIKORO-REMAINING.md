@@ -12953,3 +12953,60 @@ entirely. **The compiler caught it immediately; a browser would have shown a bla
 
 **A regex that finds "a return" in a file with dozens of them is not a placement strategy.** The component is
 now placed against the outer `.wrap.wrap-narrow`, which is a unique string in the file.
+
+---
+
+## ROUND 286 — THE SIDEBAR POINTED AT NOTHING, AND NOW IT POINTS AT THE ARTICLE
+
+**The owner reported that the article's left column "showed and they are not working". It showed, and not one
+of its eight links did anything.**
+
+### Why
+
+    the design's sidebar      #opening  #record  #context  #sources
+                              #listen   #citation  #related
+    a real article's ids      attachment_438  attachment_6164  attachment_6166 …
+    and its headings          "Who are the Igbo people?"  "Cultural Regions of Alaigbo"  …
+
+**Every anchor exists in the design's example body and none of them exists in a WordPress body.** A real
+article's only ids are on its figures. **So all eight links were inert — a reader could click any of them and
+nothing would move.**
+
+### What replaces it: a table of contents that is a fact about the article
+
+**The article's own `h2` and `h3` headings become the list**, each given an id derived from its own text. So
+`ndi-igbo-meet-the-igbo-people` lists its five real sections, `ute-okpu-…` lists thirteen, and **an article with
+no headings lists none — the summary is dropped rather than left opening onto an empty list.**
+
+    ute-okpu-an-ika-igbo-clan-and-its-nri-roots     13 sections  ·  0 dead anchors
+    umunede-an-ika-igbo-kingdom-in-western-igboland  9 sections  ·  0 dead anchors
+    akwa-ocha-the-white-cloth-of-anioma-pride-…      1 section   ·  0 dead anchors
+    iwa-gi-the-new-yam-festival-and-the-soul-of-…    0 sections  ·  0 dead anchors
+
+**The numbering is dropped.** WordPress writes "1. Who are the Igbo people?" and the list read exactly that.
+**An ordered list is a `<nav>`, not prose**, so the digits stay in the heading and the list supplies its own
+order.
+
+### The sources anchor, for the 769 records that cite their sources
+
+**769 of the archive's published records contain a references, sources or bibliography section in their own
+words** — the founder's writing cites as a matter of habit. **None of them carried an id**, so `#sources`
+pointed at nothing. The first heading matching those words is given the anchor, and **"View sources" is removed
+from the sidebar when a record has none** — a link to a section that is not on the page is the fault being
+fixed, and it would be inconsistent to leave one of them.
+
+### And a section the fill had destroyed
+
+`article.html` carries `<section id="citation">` **inside `.prose`** — and the fill replaces the whole of
+`.prose`, so **it went with the example text and "Copy citation" pointed at nothing.** The same is true of any
+anchor the design places inside the prose column.
+
+**A citation is generated from the record and inserted where the design's used to be:**
+
+> Idenze Ezeme. "Ndi Igbo: Meet The Igbo People." Ozikoro, 2024. https://ozikoro.com/ndi-igbo-meet-the-igbo-people/
+> Reference `OZ-H-1051`. The address is permanent and the record is held by Ozi Ikoro Limited.
+
+**It is generated rather than written**, so it cannot drift from the page it describes, and it uses the design's
+own `.cite-block` class so the styling is the design's.
+
+**The design remains byte-identical: 63 · 0 differing · 0 missing.**

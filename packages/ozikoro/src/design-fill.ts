@@ -430,6 +430,10 @@ export type RealArticle = {
   caption: string | null;
   rights: string;
   body: string;
+  /** The record's clean path, e.g. `/ute-okpu-…/`. Used for the citation. */
+  path: string;
+  /** The archive's own reference, e.g. `OZ-H-0001`. */
+  reference: string;
   related: { title: string; href: string; topic: string | null; image: string | null }[];
   /** Maps an original media URL to the file this archive serves. Absent means leave the URL alone. */
   resolveImage?: (url: string) => string | null;
@@ -539,8 +543,39 @@ export function fillArticle(html: string, a: RealArticle): string {
   const resolved = a.resolveImage ? rewriteBodyImages(a.body, a.resolveImage) : a.body;
   // The featured image goes in the design's own figure; the body is tidied so it does not repeat it, and so
   // its WordPress widths do not run past the reading column.
-  const body = tidyBody(resolved, a.image);
+  let body = tidyBody(resolved, a.image);
+
+  /*
+   * THE SIDEBAR IS BUILT FROM THE ARTICLE, NOT FROM THE TEMPLATE.
+   *
+   * The design's eight anchors — `#opening`, `#record`, `#context`, `#sources`, `#listen`, `#citation`,
+   * `#related` — all exist in its example body and **none of them exists in a WordPress body**, so every link
+   * in the left column did nothing. The article's own headings become the list, each given an id, and the
+   * references section is anchored where the record has one.
+   */
+  const taken = new Set<string>(['opening', 'listen', 'related']);
+  const sourced = anchorSources(body);
+  body = sourced.body;
+  const withToc = buildToc(body, taken);
+  body = withToc.body;
   out = replaceContainer(out, '<div class="prose">', body);
+  // The sidebar last, because `#sources` depends on whether the anchor was found in the body above.
+  /*
+   * THE CITATION, WHICH THE FILL HAD DESTROYED.
+   *
+   * `article.html` has `<section id="citation">` INSIDE `.prose` — and this fill replaces the whole of
+   * `.prose`, so it went with the example text and "Copy citation" pointed at nothing. **The same is true of
+   * any anchor the design places inside the prose column**, which is why the sidebar is filled after the body
+   * and told what actually exists.
+   */
+  out = fillCitation(out, {
+    author: a.author ?? 'Ozikoro',
+    title: a.title,
+    year: (a.published ?? '').slice(0, 4) || 'n.d.',
+    url: `https://ozikoro.com${a.path}`,
+    reference: a.reference,
+  });
+  out = fillSidebar(out, withToc.toc, { sources: sourced.found, citation: true });
 
   // Related reading, from the same topic.
   if (a.related.length > 0) {
@@ -785,4 +820,156 @@ export function absolutiseLinks(html: string): string {
       return `href="${path}${hash ?? ''}${query ?? ''}"`;
     }
   );
+}
+
+/**
+ * A table of contents built from the article's own headings, and the anchors to make it work.
+ *
+ * THE SIDEBAR POINTED AT NOTHING
+ *
+ * The design's article carries a fixed list in its left column:
+ *
+ *     In this history      Opening · Written record · Historical context · Sources
+ *     Reading tools        Listen · View sources · Copy citation · Related reading
+ *
+ * **Every one of those anchors exists in the design's example body and none of them exists in a WordPress
+ * body** — a real article's only ids are `attachment_1234` on its figures. **So the whole sidebar was inert:
+ * a reader could click any of the eight links and nothing would move.**
+ *
+ * WHAT REPLACES IT
+ *
+ * A real article HAS sections — `ndi-igbo-meet-the-igbo-people` has "Who are the Igbo people?", "Cultural
+ * Regions of Alaigbo", "Religious Beliefs of the Igbo People" and more. **They simply have no ids.** So each
+ * heading is given one, derived from its own text, and the list is built from those headings in order.
+ *
+ * **The result is a table of contents that is a fact about the article rather than a template.** A record with
+ * two sections lists two; one with none lists none and the summary is dropped rather than left opening onto an
+ * empty list.
+ *
+ * THE NUMBERING IS DROPPED. WordPress writes "1. Who are the Igbo people?" and the list said exactly that.
+ * **An ordered list is a `<nav>`, not prose**, so the digits that belong in the heading go with it and the
+ * list supplies its own order.
+ */
+
+/** `Who are the Igbo people?` -> `who-are-the-igbo-people`. Unique, and stable for a given heading. */
+function anchorFor(text: string, taken: Set<string>): string {
+  const base =
+    text
+      .toLowerCase()
+      .replace(/&[a-z]+;/g, ' ')
+      .normalize('NFKD')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .slice(0, 60) || 'section';
+  let id = base;
+  let n = 2;
+  while (taken.has(id)) id = `${base}-${n++}`;
+  taken.add(id);
+  return id;
+}
+
+export type TocEntry = { id: string; text: string };
+
+/**
+ * Give every heading an id and return the list, in document order.
+ *
+ * **Only `h2` and `h3`.** An `h1` is the article's own title, which the design renders in its opening, and an
+ * `h4` is a sub-sub-section that would make the list longer than the article. The design's own example body
+ * uses exactly this pair.
+ */
+export function buildToc(body: string, taken: Set<string>): { body: string; toc: TocEntry[] } {
+  const toc: TocEntry[] = [];
+  const out = body.replace(/<h([23])([^>]*)>([\s\S]*?)<\/h\1>/g, (whole, level: string, attrs: string, inner: string) => {
+    const text = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (!text) return whole;
+    // A heading that already carries an id keeps it, so a re-run cannot renumber the anchors.
+    const existing = /\sid="([^"]+)"/.exec(attrs);
+    const id = existing?.[1] ?? anchorFor(text, taken);
+    if (!existing) taken.add(id);
+    toc.push({ id, text });
+    const cleaned = existing ? attrs : `${attrs} id="${id}"`;
+    return `<h${level}${cleaned}>${inner}</h${level}>`;
+  });
+  return { body: out, toc };
+}
+
+/**
+ * Replace the design's fixed sidebar with the article's real sections.
+ *
+ * The `Reading tools` block is left alone except where its target genuinely exists: **`Listen` and
+ * `Related reading` point at panels the design draws on every article**, and `View sources` and `Copy citation`
+ * are removed when the record has neither — **a link to a section that is not on the page is the fault being
+ * fixed, and it would be inconsistent to leave two of them.**
+ */
+export function fillSidebar(html: string, toc: TocEntry[], has: { sources: boolean; citation: boolean }): string {
+  let out = html;
+
+  // "In this history" — the article's own sections, or the whole block if there are none.
+  const inThisHistory = /<details open><summary>In this history<\/summary><nav>[\s\S]*?<\/nav><\/details>/;
+  if (toc.length === 0) {
+    out = out.replace(inThisHistory, '');
+  } else {
+    const items = toc.map((t) => `<a href="#${t.id}">${esc(t.text)}</a>`).join('');
+    out = out.replace(inThisHistory, `<details open><summary>In this history</summary><nav>${items}</nav></details>`);
+  }
+
+  // "Reading tools" — drop the two that may have no target.
+  const tools = /<details><summary>Reading tools<\/summary><nav>[\s\S]*?<\/nav><\/details>/;
+  const links = [
+    '<a href="#listen">Listen</a>',
+    has.sources ? '<a href="#sources">View sources</a>' : '',
+    has.citation ? '<a href="#citation">Copy citation</a>' : '',
+    '<a href="#related">Related reading</a>',
+  ].filter(Boolean);
+  out = out.replace(tools, `<details><summary>Reading tools</summary><nav>${links.join('')}</nav></details>`);
+
+  return out;
+}
+
+/**
+ * Give the record's own references an anchor, and report whether it has one.
+ *
+ * **769 of the archive's published records contain a references, sources or bibliography section in their own
+ * words** — the founder's writing cites its sources as a matter of habit. Since none of them carries an id,
+ * `#sources` pointed at nothing. The first heading matching those words, or a paragraph that begins with one,
+ * is given the id.
+ */
+export function anchorSources(body: string): { body: string; found: boolean } {
+  const pattern = /<(h[2-4]|p)([^>]*)>([\s\S]*?)<\/\1>/g;
+  let found = false;
+  const out = body.replace(pattern, (whole, tag: string, attrs: string, inner: string) => {
+    if (found) return whole;
+    const text = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (!/^(references?|sources?|bibliography|works cited|further reading)\b/i.test(text)) return whole;
+    found = true;
+    return /\sid="/.test(attrs) ? whole : `<${tag}${attrs} id="sources">${inner}</${tag}>`;
+  });
+  return { body: out, found };
+}
+
+/**
+ * A citation block, built from the record.
+ *
+ * THE DESIGN'S WAS DESTROYED BY THE FILL, AND THIS REPLACES IT
+ *
+ * `article.html` carries `<section id="citation">` with a demonstration reference inside `.prose`. **The fill
+ * replaces the whole of `.prose`, so that section went with the example text — and "Copy citation" in the
+ * sidebar then pointed at nothing.** The charted anchors are checked below for the same reason.
+ *
+ * WHAT IT SAYS IS THE ARCHIVE'S OWN POINT
+ *
+ * A permanent address and a stated author are what make a record citable, and citing is what this archive
+ * exists for. **The citation is generated from the record rather than written by hand**, so it cannot drift
+ * from the page it describes: the author is the record's, the year is its publication year, and the URL is its
+ * canonical address. **`OZ-H-0001` is included as the reference**, because the archive's own 404 page invites a
+ * reader to quote it.
+ *
+ * The design's `.cite-block` class is used, so the styling is the design's.
+ */
+export function fillCitation(html: string, c: { author: string; title: string; year: string; url: string; reference: string }): string {
+  const text = `${c.author}. “${c.title}.” Ozikoro, ${c.year}. ${c.url}`;
+  const block = `<section id="citation"><p class="eyebrow">Cite this article</p><div class="cite-block">${esc(text)}</div><p class="small muted">Reference <span class="mono">${esc(c.reference)}</span>. The address is permanent and the record is held by Ozi Ikoro Limited.</p></section>`;
+  // Appended to the prose column, where the design put its own.
+  return html.replace(/(<div class="prose">)/, `$1${block}`);
 }

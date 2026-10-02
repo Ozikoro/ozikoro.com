@@ -115,6 +115,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     caption,
     rights,
     body: row.body_html ?? '<p>This record has no written body yet.</p>',
+    path: `/${clean}/`,
+    reference: `OZ-H-${String(row.id).padStart(4, '0')}`,
     // EACH RELATED IMAGE GOES THROUGH `mediaPath` TOO. The row carries a `storage_key`, which is a disk path
     // — `ozikoro/11231-umunede-king.jpeg` — and a page needs `/media/…`. **The featured image was fixed and
     // this was missed, so three of the five images on an article 404'd** while the two above them worked.
