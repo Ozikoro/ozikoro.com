@@ -1269,6 +1269,388 @@ export function fillMasthead(html: string, viewer: { signedIn: boolean }): strin
   return out;
 }
 
+/*
+ * =====================================================================================
+ * THE DASHBOARD NAVIGATION, MADE HONEST AT SERVE TIME
+ * =====================================================================================
+ *
+ * WHAT WAS WRONG
+ *
+ * The handed-over dashboards are walkthroughs. Their sidebars, their "Open workspace" tiles and their
+ * action buttons were drawn to show a reviewer how each workspace would look, so their destinations
+ * were written as `href="#"` — placeholder syntax, not an address. Served as the live site they became
+ * **156 dead links across fourteen screens**: the per-screen counts are in
+ * `docs/dashboard-functions.md`, and `dashboard-admin` alone carried 25. A link that goes nowhere looks broken, and the owner's rule is that a link which appears
+ * to work and does nothing is worse than one that plainly says it is not built.
+ *
+ * WHAT THIS DOES
+ *
+ *   a link with a real page behind it   becomes that page's address
+ *   a link with nothing behind it       stops being a link, keeps its label and its design classes,
+ *                                       and carries a visible "Not built yet"
+ *
+ * WHY THIS IS NOT A STUB PAGE PER FEATURE
+ *
+ * **A stub route per feature would be a promise dressed as a product** — fourteen screens of invented
+ * addresses, each of which then has to be maintained, and each of which a reader would reasonably read
+ * as "this exists but is empty". The honest statement is next to the label that made the promise.
+ *
+ * WHY IT IS A SERVE-TIME TRANSFORM AND NOT AN EDIT
+ *
+ * `public/design/` is the inviolable deliverable, verified byte-for-byte by `check:design-parity`. Every
+ * change here is made to the template in memory, exactly as `fillMasthead` does it. **The design's own
+ * file keeps its `href="#"` and stays the walkthrough it was written as.**
+ */
+
+/**
+ * A label the design prints, and the page that genuinely answers it.
+ *
+ * A LABEL APPEARS ON SEVERAL SCREENS AND MEANS THE SAME THING ON EACH
+ *
+ * `Publications` is a sidebar item on the student, teacher, researcher and independent-researcher
+ * workspaces and it is the same page every time, so the mapping is by label rather than by screen and
+ * screen. **A per-screen map would be four copies of one fact, and the copies drift.**
+ *
+ * EVERY DESTINATION HERE WAS MEASURED WITH A SIGNED-IN SESSION BEFORE IT WAS WRITTEN DOWN. The addresses
+ * that exist only behind the administration's gate are noted as such, because a link an editor cannot
+ * follow reads as broken and is not.
+ */
+const DASHBOARD_LINK: Record<string, string> = {
+  // --- the administration, all gated behind `getCurrentAccount` + an admin role.
+  'System overview': '/admin/',
+  // The editorial queue IS the queue of content waiting to be worked on: 1,051 migrated records, worst
+  // documented first. It is the only screen in the back office that lists content, so it is what
+  // "Content" promised.
+  Content: '/admin/archive/',
+  'Content queue': '/admin/archive/',
+  Users: '/account/',
+  // `Moderation` promises corrections, rights concerns and community requests. `/admin/claims` is the
+  // authorship-claim queue and `/admin/reviews` is the editorial workflow queue; **neither is a
+  // corrections desk**, and the one that comes closest to a moderation queue is the claims queue, whose
+  // subject is a person and a decision about them. Chosen over `/admin/reviews` because a review here is
+  // a publication workflow state, not a report about the archive.
+  Moderation: '/admin/claims/',
+  Sources: '/admin/rights/',
+  // The editorial queue opens on the counts of what still has no source, no period, no clan: that is what
+  // the archive actually measures, and it is the closest real answer to "Analytics".
+  Analytics: '/admin/archive/',
+  /*
+   * `Research` AND `Entities` HAVE PUBLIC DESTINATIONS, NOT ADMINISTRATIVE ONES.
+   *
+   * There is no research-management screen and no entity browser in the back office — `/entities` exists
+   * only as `/entities/<slug>`, with no index above it. **The public pages are real pages that answer the
+   * same word, and a reader who follows one learns something true**, which is the test this pass applies.
+   * They are also linked from the reader-facing dashboards, so the two roles arrive at the same place; the
+   * difference between the roles is what they may DO there, and that is stated by the page rather than
+   * simulated by the link.
+   */
+  Research: '/publications/',
+  Entities: '/towns/',
+
+  // --- the public archive, which is a real destination for several roles' promises.
+  Publications: '/publications/',
+  Projects: '/projects/',
+  Collections: '/archive/',
+  // The archive's own media surface, which is what a community knowledge holder means by "Media": the
+  // photographs it actually holds, each with its rights state on the record.
+  Media: '/photographs/',
+  'Oral traditions': '/folklore/',
+  'Evidence review': '/admin/reviews/',
+
+  // --- the reader's own record.
+  'Account settings': '/account/',
+  'Return to public site': '/',
+  Identity: '/account/',
+  Privacy: '/account/',
+  Languages: '/account/',
+  Security: '/account/#security',
+};
+
+/**
+ * WHERE ONE LABEL MEANS SOMETHING DIFFERENT TO ONE ROLE.
+ *
+ * `Media` is an administrator's item and a community knowledge holder's item, and the two people mean
+ * different things by it: **the administrator checks the rights of 3,488 items, the holder browses the
+ * 3,437 photographs the archive holds.** The map above is keyed by label because that is right for the
+ * thirty-odd labels that mean one thing everywhere; this table carries the exceptions, so the design's
+ * `Media` reaches the rights register on `/dashboard-admin` and the photograph library everywhere else.
+ *
+ * WHY NOT A SECOND `Media` KEY IN THE MAP ABOVE
+ *
+ * **A duplicate key in an object literal is silently ignored** — the last one wins and no reader of the
+ * source can see that two intentions were written into one slot. A separate table cannot overwrite
+ * anything, and a test asserts the two tables do not disagree.
+ */
+const DASHBOARD_LINK_OVERRIDE: Record<string, Record<string, string>> = {
+  'dashboard-admin': { Media: '/admin/rights/' },
+};
+
+/**
+ * WHAT EACH UNBUILT LABEL IS WAITING FOR, in the words this work's report needs: **the table or the
+ * route that would have to exist.** The strings are the labels the design prints, and an entry missing
+ * from here still loses its dead link — it simply says "Not built yet" without saying what for, which is
+ * why `design-fill.test.ts` asserts that every placeholder on the real screens is answered somewhere.
+ */
+export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
+  'Saved histories': 'a saved-items table per account, and a route to list it',
+  'Followed topics': 'a follow table per account and topic, and a route to list it',
+  'Reading history': 'a read-events table per account, and a route to list it',
+  'Supervisor & institution': 'fields on the member record, and a route to edit them',
+  Notes: 'a private notes table per account, and a route to read and write it',
+  Submissions: 'a submission queue joining an account to what it sent, and a route to list it',
+  Learning: 'the academy’s course catalogue for this site; learn.ozituma.com is a separate application',
+  Resources: 'a teaching-resources library, and a route to browse it',
+  Courses: 'a course record owned by a teacher, and a route to list it',
+  'Classes & projects': 'a class group joining a teacher to students, and a route to open one',
+  Datasets: 'a dataset record with its own rights and a route to list them',
+  Fieldwork: 'a field-notes record with a place and a date, and a route to list them',
+  Questions: 'a research-question record and a route to list them',
+  Groups: 'a working-group record with members, and a route to open one',
+  Collaborators: 'a collaboration table joining two accounts, and a route to invite one',
+  Citations: 'a citation-count or citation-export surface, and a route to serve it',
+  Verification: 'a verification queue over claims a record makes, and a route to decide them',
+  Collaborations: 'a collaboration table joining two accounts, and a route to invite one',
+  'Community profile': 'a public profile page for a knowledge holder, and a route to edit it',
+  'Review status': 'a view of where this account’s own submissions stand, and a route to serve it',
+  'Entity linking': 'an entity-resolution tool over the archive’s place and person names',
+  Revisions: 'a revision history table per record, and a route to compare two of them',
+  Tasks: 'a task table assigned to an account, and a route to list it',
+  'Assigned manuscripts': 'an assignment table joining a reviewer to a work, and a route to list it',
+  Decisions: 'the reviewer-decision record and a route to read it back',
+  'Reviewer profile': 'reviewer-specific fields on the member record, and a route to edit them',
+  Settings: 'a platform-settings surface; the archive stores no configurable platform settings',
+  'Audit logs': 'an append-only audit table, written by every privileged action, and a route to read it',
+  Search: 'a site-wide search route; the archive has per-index filters but no single search page',
+  'Primary action': 'the screen’s own next step, which the design does not name',
+  'Open next task': 'a task queue for this workspace; the dashboard has no tasks to open',
+  'View all': 'a list view of this panel’s contents',
+  'Open →': 'the record named above it in the design’s example material',
+  'Try again': 'an error the reader can actually retry',
+  'Request access': 'a rights-request workflow, with a table and an approval route',
+  'View version': 'a version record for the change that was saved',
+};
+
+/**
+ * The prompt a module tile carries. It is the design's own phrase, and it is the marker that tells the
+ * transform a tile is the design's walkthrough rather than a real destination.
+ */
+const TILE_PROMISE = 'Open workspace';
+
+/**
+ * Every `<a …>` in the markup whose `href` is the placeholder `#`, with its label and its attributes.
+ *
+ * WHY THIS IS A SCANNER AND NOT A REGULAR EXPRESSION
+ *
+ * The obvious pattern is `/<a([^>]*?)\shref="#">([\s\S]*?)<\/a>/g`, and it is wrong on two counts.
+ *
+ *   1. It does not match a link that carries ANY other attribute — `<a href="#" style="…">` — because the
+ *      lazy group must consume at least one character and cannot give it back. **A design that adds a
+ *      class to one link would silently stop having that link rewritten**, which is the same silent
+ *      failure this whole transform exists to remove. (Measured on Node 26: the pattern matches
+ *      `<a href="#">` and not `<a href="#" style="x">`.)
+ *   2. It matches across element boundaries, so a link whose label contains markup swallows its
+ *      neighbours and the second placeholder is never seen at all.
+ *
+ * A scan cannot do either: it finds the opening tag, finds that tag's own `>`, finds the matching close,
+ * and gives the caller the text in between. **No backtracking, no attribute-order assumption, and one
+ * link per link.**
+ */
+function placeholderAnchors(html: string): { start: number; end: number; attrs: string; inner: string }[] {
+  const found: { start: number; end: number; attrs: string; inner: string }[] = [];
+  let from = 0;
+  for (;;) {
+    const at = html.indexOf('<a ', from);
+    if (at === -1) return found;
+    const openEnd = html.indexOf('>', at);
+    if (openEnd === -1) return found;
+    from = openEnd + 1;
+
+    const attrs = html.slice(at + 2, openEnd);
+    // Only the placeholder. A real `href` is some other pass's business.
+    if (!/\shref="#"/.test(attrs)) continue;
+
+    const close = html.slice(openEnd + 1).search(/<\/a\s*>/);
+    if (close === -1) continue;
+    found.push({
+      start: at,
+      end: openEnd + 1 + close + html.slice(openEnd + 1 + close).match(/<\/a\s*>/)![0].length,
+      attrs,
+      inner: html.slice(openEnd + 1, openEnd + 1 + close),
+    });
+  }
+}
+
+/**
+ * A link with nothing behind it becomes a NON-LINK that says so.
+ * IT KEEPS THE DESIGN'S CLASSES AND LOSES ITS `href`
+ *
+ * The design's `.sx-dash-nav a` rule is what makes a sidebar item look like one, so the element stays an
+ * `<a>` — **an anchor without an `href` is not a link: it cannot be clicked, it cannot be focused, and it
+ * announces itself as plain text.** It keeps every class it had, so the sidebar still looks like the
+ * sidebar. The design's stylesheet is not touched, and neither is its HTML.
+ *
+ * WHY A MARKER AND NOT JUST THE ABSENCE OF A LINK
+ *
+ * A label with no destination looks identical to one that was forgotten. The marker is what makes the
+ * page state the omission rather than merely exhibit it.
+ */
+function unbuiltAnchor(label: string, attrs: string): string {
+  const cleanAttrs = attrs.replace(/\shref="#"/, '').trimEnd();
+  /*
+   * THE LABEL IS LOOKED UP DECODED, AND PRINTED ENCODED.
+   *
+   * The design writes `Classes &amp; projects` and `Supervisor &amp; institution`, so the table's keys are
+   * written with the ampersand as a reader sees it — **a key written to match the raw HTML would be wrong
+   * the day the design escapes the same word differently, and right today by accident.** The decoded form
+   * is what a person reads, so it is what identifies the label.
+   */
+  const why = DASHBOARD_UNBUILT_MAP[decodeEntities(label)];
+  const title = why ? ` title="Not built yet — waiting on ${why}"` : ' title="Not built yet"';
+  return (
+    `<a${cleanAttrs} aria-disabled="true"${title}>${esc(label)} ` +
+    `<span class="small muted">— Not built yet</span></a>`
+  );
+}
+
+/** The five entities the design's own labels actually contain, and nothing more. */
+function decodeEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+
+/** The destination for a label on a screen, honouring a role's exception before the shared meaning. */
+function destinationFor(screen: string, label: string): string | undefined {
+  return DASHBOARD_LINK_OVERRIDE[screen]?.[label] ?? DASHBOARD_LINK[label];
+}
+
+/**
+ * Rewrite every placeholder link on one dashboard screen.
+ *
+ * `screen` is the design's screen name (`dashboard-reader`), and it is used only to report what could not
+ * be rewritten: a leftover is logged rather than silently turned into a link to nowhere.
+ */
+export function fillDashboardLinks(html: string, screen: string): string {
+  let out = html;
+
+  /*
+   * 1. THE SIDEBARS.
+   *
+   * The sidebar's items are the only `<a>`s inside `.sx-dash-nav`, so they are matched from the opening
+   * tag to the first `</nav>` rather than one at a time — **a page-wide search for `<a href="#">` would
+   * also catch the design's in-page anchors and its example controls, and quietly rewrite them too.**
+   */
+  out = out.replace(
+    /(<nav class="sx-dash-nav"[^>]*>)([\s\S]*?)(<\/nav>)/,
+    (_all, open: string, body: string, close: string) =>
+      open + body.replace(/<a href="#">([^<]*)<\/a>/g, (_a, label: string) => {
+        const dest = destinationFor(screen, decodeEntities(label));
+        return dest ? `<a href="${dest}">${label}</a>` : unbuiltAnchor(label, '');
+      }) + close
+  );
+
+  /*
+   * 2. THE "OPEN WORKSPACE" TILES.
+   *
+   * A tile is an `<a class="sx-state">` wrapping a number, a heading and the promise `Open workspace`.
+   * A tile that leads nowhere **stops being a link**, and the promise line is replaced by the statement —
+   * leaving "Open workspace" above "Not built yet" would keep the promise while denying it.
+   */
+  out = out.replace(
+    /<a class="sx-state" href="#">([\s\S]*?)<\/a>/g,
+    (_all, inner: string) => {
+      const heading = inner.match(/<h3[^>]*>([^<]*)<\/h3>/);
+      const label = decodeEntities(heading?.[1]?.trim() ?? '');
+      const dest = destinationFor(screen, label);
+      if (dest) return `<a class="sx-state" href="${dest}">${inner}</a>`;
+      const body = inner.replace(
+        new RegExp(`<p class="small muted">${TILE_PROMISE}</p>`),
+        '<p class="small muted">Not built yet — nothing to open.</p>'
+      );
+      return `<div class="sx-state" aria-disabled="true">${body}</div>`;
+    }
+  );
+
+  /*
+   * 3. EVERY REMAINING PLACEHOLDER.
+   *
+   * The action buttons ("Search", "Open next task"), the panel links ("View all"), the account screen's
+   * four "Open →" cards and the state screens' controls. They are found after 1 and 2, so what is left is
+   * exactly the set that is not part of a navigation list. Replaced from the END so that every earlier
+   * offset stays valid — **the first version replaced forwards and each replacement shifted the offsets
+   * of every link after it.**
+   */
+  const remaining = placeholderAnchors(out);
+  for (let i = remaining.length - 1; i >= 0; i -= 1) {
+    const { start, end, attrs, inner } = remaining[i]!;
+    const text = inner.replace(/<[^>]+>/g, '').trim();
+    const dest = destinationFor(screen, decodeEntities(text));
+
+    /*
+     * A LINK WHOSE CONTENT IS AN IMAGE OR NESTED MARKUP WITH NO READABLE LABEL IS LEFT ALONE.
+     *
+     * There is no label to read and no destination to give it, and **rewriting a card whose content is an
+     * image into a bare "Not built yet" would destroy the design's markup to say something it cannot say
+     * anyway.** Any that remain are printed by the route, so a leftover is reported rather than hidden.
+     */
+    if (!text) continue;
+
+    const cleanAttrs = attrs.replace(/\shref="#"/, '').trimEnd();
+    const replacement = dest
+      ? `<a ${cleanAttrs} href="${dest}">${inner}</a>`
+      : unbuiltAnchor(text, ` ${cleanAttrs}`);
+    out = out.slice(0, start) + replacement + out.slice(end);
+  }
+
+  /*
+   * 4. THE DESIGN'S RELATIVE LINKS, MADE ABSOLUTE.
+   *
+   * Every dashboard writes its own links the way the walkthrough needs them — `dashboard-account.html`,
+   * `home.html`, `../styles/main.css` — because in the deliverable they sit beside each other on disk.
+   * Served at `/dashboard-reader` they resolve to `/dashboard-account.html`, which the middleware answers;
+   * **served at `/dashboard-reader/`, with the trailing slash the site serves, the browser resolves them
+   * against `/dashboard-reader/` instead and every one of them 404s.** Measured: 27 links to `home.html`
+   * and 27 to `dashboard-account.html` across the fourteen screens, all dead at the second address.
+   *
+   * A `<base href="/">` is the one-line fix that is right for a screen whose every relative link is
+   * relative to the site root, and the design's files are not touched to make it. These two rewrites cover
+   * the links the sidebar and the top bar put beside them, and **both are relative-aware: the lookbehind
+   * stops the second rule from shortening an address the first rule has already made absolute.**
+   */
+  out = out.replace(/<head>/, '<head><base href="/">');
+
+  // `../styles/main.css` and `../screens/style.css` -> `/styles/main.css`. The deliverable's own assets,
+  // and the middleware serves them from there.
+  out = out.replace(/href="\.\.\/((?:styles|screens)\/[^"]+)"/g, 'href="/$1"');
+
+  /*
+   * THE RELATIVE SCREEN LINKS BECOME THE ADDRESSES THE SITE ACTUALLY SERVES.
+   *
+   * Each of these is a design screen whose own page is not the page the link promised: the design's
+   * `dashboard-account.html` IS the account screen, and its address on this site is `/account/`.
+   * **`/dashboard-account/` also answers — it serves the design's screen — so a generic rewrite would
+   * look as though it worked while sending every "Account settings" link on the site to a dashboard
+   * instead of to the account.**
+   */
+  const screenLinks: Record<string, string> = {
+    'home.html': '/',
+    'dashboard-account.html': '/account/',
+    'dashboard-states.html': '/dashboard-states/',
+    // The design's own name for the archive index is not an address this site serves. `/archive-index/`
+    // answers only because the middleware rewrites it to this route — **a link that reaches the design
+    // screen rather than the archive**, and the archive's own page is one segment away.
+    'archive-index.html': '/archive/',
+  };
+  out = out.replace(/href="(?!\/|https?:)([a-z0-9-]+\.html)"/g, (m, file: string) =>
+    `href="${screenLinks[file] ?? `/${file.replace(/\.html$/, '')}/`}"`
+  );
+
+  return out;
+}
+
 /**
  * THE ABOUT PAGE, TOLD WITH THE ARCHIVE'S OWN NUMBERS AND ITS OWN PEOPLE.
  *

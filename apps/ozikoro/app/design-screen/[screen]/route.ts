@@ -28,6 +28,7 @@ import {
   withSeoHead,
   fillMasthead,
   fillAbout,
+  fillDashboardLinks,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import {
@@ -101,6 +102,36 @@ const DASHBOARD_ROLE: Record<string, { role: string; label: string }> = {
 };
 
 /**
+ * THE DASHBOARDS' OWN TITLES AND DESCRIPTIONS.
+ *
+ * WHY THEY ARE NOT LEFT TO THE GENERIC FALLBACK
+ *
+ * Without these the fallback makes a title by replacing the dashes in the screen's filename, so a reader's
+ * saved workspace announced itself in the browser tab as **`dashboard reader — Ozikoro`** — the design's own
+ * filename, lower-cased, shown to a reader as though it named the page. The role's name is the right title
+ * and it is already in `DASHBOARD_ROLE`; this table is where the two are written down together.
+ *
+ * `kind: 'page'` because these are places rather than lists of records, notwithstanding `DASHBOARD_ROLE.label`
+ * calling two of them a queue.
+ */
+const DASHBOARD_SEO: Record<string, { title: string; description: string; kind?: 'page' }> = {
+  'dashboard-reader': { title: 'Reader workspace — Ozikoro', description: 'Your saved histories, followed topics and reading, and what the archive holds for you.', kind: 'page' },
+  'dashboard-student': { title: 'Student workspace — Ozikoro', description: 'Projects, publications, notes and submissions for a student of the archive.', kind: 'page' },
+  'dashboard-teacher': { title: 'Teacher workspace — Ozikoro', description: 'Resources, courses and classes for teaching with the archive.', kind: 'page' },
+  'dashboard-researcher': { title: 'Research workspace — Ozikoro', description: 'Publications, projects, datasets and fieldwork for a researcher of African history.', kind: 'page' },
+  'dashboard-independent-researcher': { title: 'Independent research workspace — Ozikoro', description: 'Publications, projects, fieldwork and sources for a researcher working without an institution.', kind: 'page' },
+  'dashboard-knowledge-holder': { title: 'Community archive workspace — Ozikoro', description: 'Oral traditions, media and submissions from a community knowledge holder.', kind: 'page' },
+  'dashboard-editor': { title: 'Editorial desk — Ozikoro', description: 'The content queue, entity linking, verification and revisions for an editor of the archive.', kind: 'page' },
+  'dashboard-reviewer': { title: 'Review workspace — Ozikoro', description: 'Assigned work, evidence review and decisions for an expert reviewer.', kind: 'page' },
+  'dashboard-admin': { title: 'Administration workspace — Ozikoro', description: 'The archive’s queues, media rights and connections, and what is still to be built.', kind: 'page' },
+  'dashboard-account': { title: 'Account & profile — Ozikoro', description: 'Your record: identity, privacy, languages and security.', kind: 'page' },
+  'dashboard-moderation': { title: 'Moderation states — Ozikoro', description: 'How corrections, rights concerns and community requests are handled in the archive.', kind: 'page' },
+  'dashboard-review': { title: 'Evidence review — Ozikoro', description: 'How a claim, its evidence and an alternative interpretation are weighed.', kind: 'page' },
+  'dashboard-states': { title: 'Workspace states — Ozikoro', description: 'How the archive presents an error, a permission limit and a success.', kind: 'page' },
+  'dashboard-workflow': { title: 'Publishing workflow — Ozikoro', description: 'How a work moves from draft to a durable public record.', kind: 'page' },
+};
+
+/**
  * THE SCREENS THAT ARE FILLED WITH THE ARCHIVE'S OWN CONTENT.
  *
  * **A SCREEN ABSENT FROM THIS SET IS SERVED EXACTLY AS THE DESIGN HAS IT** — and the design's text is a
@@ -148,6 +179,21 @@ async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEn
   }));
 }
 
+/**
+ * Report any placeholder link the transform could not make honest.
+ *
+ * WHY A REPORT RATHER THAN A SILENT PASS
+ *
+ * The transform matches the design's markup, so a screen written differently keeps its `href="#"` and then
+ * looks exactly like a screen that never had one. **A link that goes nowhere is the fault this work exists to
+ * remove, so a leftover is printed rather than passed over.** It is a log line and not a thrown error: the page
+ * is still served, because one dead link is better than no page.
+ */
+function reportLeftoverLinks(html: string, screen: string): void {
+  const left = (html.match(/href="#"/g) ?? []).length;
+  if (left > 0) console.error(`design-screen: ${screen} still carries ${left} href="#" after the link transform`);
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ screen: string }> }
@@ -173,6 +219,19 @@ export async function GET(
      */
     const viewer = await getCurrentAccount().catch(() => null);
     html = fillMasthead(html, { signedIn: Boolean(viewer) });
+
+    /*
+     * THE DEAD LINKS GO, FILLED OR NOT.
+     *
+     * This runs for EVERY dashboard and BEFORE the fill, because **the placeholder links belong to the design
+     * rather than to the fill.** Left inside the `FILLED` branch it would have skipped `dashboard-states` and
+     * `dashboard-workflow` — the two dashboards this route deliberately serves untouched — so they would have
+     * kept their dead links while every neighbouring screen lost its own.
+     */
+    if (DASHBOARDS.includes(name)) {
+      html = fillDashboardLinks(html, name);
+      reportLeftoverLinks(html, name);
+    }
   } catch {
     return new Response('Not found', { status: 404 });
   }
@@ -561,13 +620,27 @@ export async function GET(
    * themselves as the same demonstration.** `SCREEN_SEO` gives each the title and description it should have,
    * and anything not listed falls back to a generic one rather than to the design's example.
    */
-  const meta = SCREEN_SEO[name] ?? {
+  const meta = SCREEN_SEO[name] ?? DASHBOARD_SEO[name] ?? {
     title: `${name.replace(/-/g, ' ')} — Ozikoro`,
     description: 'A page in the Ozikoro archive of Igbo and African histories, culture and scholarship.',
   };
   const trail = [
     { name: 'Ozikoro', path: '/' },
-    ...(name === 'home' ? [] : [{ name: meta.title.split(' — ')[0] ?? name, path: `/${name}/` }]),
+    ...(name === 'home'
+      ? []
+      : [
+          {
+            /*
+             * THE BREADCRUMB NAMES THE WORKSPACE, NOT THE SCREEN.
+             *
+             * Built from the title it read "dashboard reader" — **the design's own filename, shown to a
+             * reader as the name of a place.** For a dashboard the role's label is the name of the place,
+             * and it is already in `DASHBOARD_ROLE`.
+             */
+            name: DASHBOARD_ROLE[name]?.label ?? meta.title.split(' — ')[0] ?? name,
+            path: `/${name}/`,
+          },
+        ]),
   ];
   html = withSeoHead(
     html,
