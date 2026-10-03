@@ -134,7 +134,8 @@ interface ResendConfig {
  * READ AS LITERALS RATHER THAN THROUGH env()
  *
  * `scripts/check-secrets.sh` keeps `.env.example` honest by grepping the source for
- * `process.env.NAME` as TEXT, and it reports a name that is documented but not seen that way as
+ * the `process.env.<NAME>` pattern as TEXT, and it reports a name that is documented but not seen that
+ * way as
  * "DOCUMENTED BUT NEVER READ" — which fails the pre-commit hook. `env()` takes the name as an
  * argument, so a variable read only through it is invisible to that check. **The names that
  * `.env.example` lists are therefore spelled out here**, and `OZITUMA_SMTP_ALLOW_PLAINTEXT` and
