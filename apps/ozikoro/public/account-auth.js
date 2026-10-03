@@ -88,8 +88,30 @@
   wrap('signin', 'signin');
   wrap('signup', 'join');
 
-  // The page opens in whichever mode the address asks for.
-  if (joining() && typeof window.signup === 'function') window.signup();
+  /*
+   * THE MODE IS APPLIED ON LOAD — IN BOTH DIRECTIONS, WHICH IS WHAT WAS MISSING.
+   *
+   * This called `signup()` when the address asked for joining and **did nothing at all when it asked for
+   * signing in**, on the assumption that the design's own default was already sign-in. The design's default is
+   * sign-in in its *words*, but its *form* still carries `<input type="checkbox" required>` — so on a page that
+   * had never called `signin()`, the terms box stayed required and the browser refused to submit.
+   *
+   * **The owner pressed Sign in with both fields filled and was told to tick a consent box.** The wrapper that
+   * clears it only ever ran when a link was clicked.
+   */
+  function applyMode() {
+    var fn = joining() ? 'signup' : 'signin';
+    if (typeof window[fn] === 'function') window[fn]();
+    else {
+      // The design's function is absent for any reason: do the part this file owns anyway.
+      if (submit) submit.textContent = joining() ? 'Create account  →' : 'Sign in  →';
+      if (terms) terms.required = joining();
+      if (termsLabel) termsLabel.style.display = joining() ? '' : 'none';
+    }
+  }
+  applyMode();
+  // The design's own "Create one" and "Sign in" links change the hash without a reload, so the mode follows it.
+  window.addEventListener('hashchange', applyMode);
 
   /*
    * A FORM THAT IS BLOCKED BY THE BROWSER SAYS SO.
@@ -98,8 +120,19 @@
    * reader sees a button that does nothing and no reason for it.** `invalid` fires on the offending field
    * instead, which is the one moment at which the page can say why it will not go.
    */
-  form.addEventListener('invalid', function () {
-    say('Please fill in the fields above, and tick the consent box when joining.', true);
+  form.addEventListener('invalid', function (event) {
+    /*
+     * THE MESSAGE NAMES THE FIELD, WHICH THE FIRST VERSION DID NOT.
+     *
+     * It said "please fill in the fields above, and tick the consent box when joining" whatever was actually
+     * wrong — **so a reader who had filled everything in and was being blocked by a hidden `required` control
+     * was told to tick a box that was on screen and already ticked.** A message that misnames the problem is
+     * worse than none, because it sends the reader to fix the wrong thing.
+     */
+    var el = event && event.target;
+    var label = el && el.closest && el.closest('.group, label');
+    var what = label ? (label.textContent || '').trim().split('\n')[0].slice(0, 40) : 'a required field';
+    say('Please complete: ' + (what || 'the required fields') + '.', true);
   }, true);
 
   form.addEventListener('submit', function (event) {

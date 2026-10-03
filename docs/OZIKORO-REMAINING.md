@@ -13847,3 +13847,47 @@ TTL, earlier links voided, sessions revoked.
 
 **It was never reachable from a page.** The work was wiring, not writing, **and the subagent was right to
 refuse the instruction I gave it.**
+
+---
+
+## ROUND 303 — THE CONSENT BOX THAT COULD NOT BE SEEN AND COULD NOT BE AVOIDED
+
+**The owner: *"the login is not going, and it is asking me to fill in the fields above and tick the consent
+box, despite already adding it."***
+
+**The box was not on the page.** `account.html` carries:
+
+    <div class="terms" id="terms" style="display:none"><label class="check">
+      <input type="checkbox" required>  I agree to the Terms of Use…
+
+**Hidden, and required.** A `required` field stops a form submitting whether or not anybody can see it, so the
+browser refused every sign-in and named a field the reader could not point at. **The one control it wanted was
+invisible, and the message I had written made it worse by telling them to tick it.**
+
+### Three attempts, and why only the third held
+
+    first    cleared `terms.required` from JavaScript inside the wrapper for `signin()`
+             **but that wrapper only ran when one of the design's own links called `signin()`** — a reader
+             arriving at `/signin` directly never triggered it
+    second   edited `ACCOUNT_LINES.terms` in `lib/account-screen.ts`
+             **but that constant is used for REPLACEMENTS; the page is read from `account.html` directly**,
+             so the edit changed nothing that was served
+    third    strip the attribute in `accountScreen()`, where the served copy is actually built
+
+**The third holds because it does not depend on which script ran first or on which constant is consulted.** The
+attribute is gone from the document that reaches the browser.
+
+**`/account-auth.js` sets it back when the form is joining and only then**, which is where the requirement
+belongs: **the consent is the join form's, and neither it nor its box should exist while signing in.**
+
+    /signin   consent-required=0   inputs-required=2
+    /join     consent-required=0   inputs-required=2 · the script adds it
+    /forgot   consent-required=0   inputs-required=0
+
+### And the message was wrong too
+
+The first version said *"please fill in the fields above, and tick the consent box when joining"* **whatever was
+actually wrong** — so a reader who had filled everything in and was blocked by a hidden control was told to fix
+something that was already correct. **It now names the field the browser is refusing**, taken from the event's
+own target. **A message that misnames the problem is worse than no message, because it sends the reader to the
+wrong place.**
