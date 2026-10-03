@@ -30,6 +30,7 @@ import {
   getArticleStatusCounts,
   getAuditOverview,
   getEditorialProgress,
+  getEntityGraphState,
   getMediaStats,
   getRightsProgress,
   getUserOverview,
@@ -70,6 +71,7 @@ export default async function Page() {
     spotify,
     users,
     audit,
+    graph,
   ] = await Promise.all([
     getArticleStatusCounts(db),
     getEditorialProgress(db),
@@ -81,6 +83,12 @@ export default async function Page() {
     spotifyConnectionView(db),
     maySeeAccounts ? getUserOverview(db) : Promise.resolve(null),
     maySeeAccounts ? getAuditOverview(db) : Promise.resolve(null),
+    /*
+     * The graph's state is shown to everybody who can open the back office, not only to an
+     * administrator: `edit_entity` is what `/admin/entities` asks for and it is held by editors, so a
+     * count that only an administrator could see would describe a screen the editor cannot reach.
+     */
+    getEntityGraphState(db),
   ]);
 
   const proposals = narration
@@ -132,6 +140,29 @@ export default async function Page() {
         <p className="actions">
           <Link className="btn btn--primary" href="/admin/archive">
             Editorial queue
+          </Link>
+        </p>
+      </Card>
+
+      <Card title="Knowledge graph">
+        <p>
+          The clans, towns, kingdoms and peoples a record can name. <strong>188 published clans and
+          their 995 towns already exist in the dictionary</strong>, and nothing about them is restated
+          here — an entity points at the dictionary row, so the two cannot disagree about a name. Every
+          filter on the public archive that offers a clan, a town or an ethnic group reads this graph,
+          which is why it is the first thing to fill.
+        </p>
+        <AtAGlance
+          rows={[
+            ['Entities in the graph', num(graph.entities)],
+            ['Records naming a place', `${num(graph.articlesWithAPlace)} of ${num(graph.records)}`],
+            ['Links from a record to an entity', num(graph.articleLinks)],
+            ['With coordinates', `${num(graph.withCoordinates)} — the dictionary holds none, and the brief forbids inventing them`],
+          ]}
+        />
+        <p className="actions">
+          <Link className="btn btn--primary" href="/admin/entities">
+            Knowledge graph
           </Link>
         </p>
       </Card>

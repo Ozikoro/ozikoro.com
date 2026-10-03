@@ -54,6 +54,31 @@ export function jsonError(status: number, code: string, message: string): Respon
 }
 
 /**
+ * The form body, or null when the request did not carry one.
+ *
+ * WHY THIS EXISTS AT ALL
+ *
+ * `request.formData()` **throws a `TypeError` when the request has no body and no content type** —
+ * measured, not assumed — and an uncaught throw out of a route handler is a 500. So a bare
+ * `curl -X POST` to this app's state-changing endpoints answered "Internal Server Error" instead of
+ * the refusal they should give, which reads as a broken server when nothing is broken.
+ *
+ * Calling this AFTER the capability check means an anonymous request never reaches it: the guard
+ * answers first with a redirect to sign in, which is the right refusal for a person. This is for the
+ * authenticated-but-malformed case, where a form genuinely did not arrive and 415 is the honest answer.
+ */
+export async function formBody(request: Request): Promise<FormData | null> {
+  const type = request.headers.get('content-type') ?? '';
+  if (!/^multipart\/form-data\b|^application\/x-www-form-urlencoded\b/i.test(type)) return null;
+  try {
+    return await request.formData();
+  } catch {
+    // A declared form type with an unparseable body is still a malformed request rather than a fault.
+    return null;
+  }
+}
+
+/**
  * The signed-in administrator, or a refusal to act on.
  *
  * Signed out and signed in as somebody who is not an administrator are different refusals and

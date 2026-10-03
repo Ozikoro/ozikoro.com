@@ -15,7 +15,15 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
-import { STATE_LABEL, getMember, listByAccount } from '@ozikoro/platform';
+import {
+  ACCEPTED_FILE_LABEL,
+  MAX_MANUSCRIPT_BYTES,
+  STATE_LABEL,
+  getMember,
+  humanSize,
+  listByAccount,
+  listPublicationFiles,
+} from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
@@ -41,6 +49,19 @@ export default async function SubmitPage({
     getMember(db, guard.account.account.id),
     listByAccount(db, guard.account.account.id, { includePrivate: true }),
   ]);
+
+  /*
+   * EACH WORK'S FILES, READ ONCE FOR THE WHOLE PAGE.
+   *
+   * A query per row would be N+1 on a list that grows with how much somebody has published, and the
+   * page needs the files twice: to show what is attached, and to decide whether the upload control
+   * should offer to replace or add. One query per work is fine at this size and the loop is here
+   * rather than in the markup so the page component stays a rendering of facts it was given.
+   */
+  const filesByWork = new Map<number, Awaited<ReturnType<typeof listPublicationFiles>>>();
+  for (const work of works) {
+    filesByWork.set(work.id, await listPublicationFiles(db, work.id));
+  }
 
   const hasProfile = Boolean(member?.institution || member?.headline || member?.researchInterests.length);
 
@@ -82,17 +103,26 @@ export default async function SubmitPage({
 
         <section>
           <h2>1 · The file</h2>
+          {/*
+            THE UPLOAD IS ATTACHED TO A WORK, AND IT SAYS SO.
+            A manuscript with no work behind it would be a file with no record, no authors and no
+            licence — so the form below saves the description first and this section explains that.
+            The upload control itself is on each work, further down, where the work it belongs to is
+            named rather than chosen from a list.
+          */}
           <div className="dropzone">
             <p>
-              <strong>Manuscript upload is not open yet.</strong> The storage for it is not connected, and a
-              control that quietly discarded your file would be worse than not offering one — so the abstract
-              and the metadata below are the record, and you can link to the manuscript where it already
-              lives.
+              <strong>A manuscript is attached to a work.</strong> Describe it below and save it as a
+              draft — the metadata is the record, and it is what makes the file findable. You can then
+              attach the PDF or document to that work from the list at the foot of this page, at any
+              point before or after you submit it.
             </p>
           </div>
           <div className="card">
             <p className="small muted">
-              A document, photograph, map or recording goes through a different route, because those carry
+              Accepted: {ACCEPTED_FILE_LABEL}. Up to{' '}
+              {Math.round(MAX_MANUSCRIPT_BYTES / (1024 * 1024))} MB. A document, photograph, map or
+              recording that is not part of a paper goes through a different route, because those carry
               different rights.
             </p>
           </div>
@@ -217,33 +247,115 @@ export default async function SubmitPage({
       </section>
 
       <section className="section">
-        <p className="eyebrow">Your work</p>
+        <p className="eyebrow">Your work, and its files</p>
         {works.length === 0 ? (
           <p className="help">Nothing yet. A draft you save here is private until you submit it.</p>
         ) : (
-          <table className="record">
-            <thead>
-              <tr><th scope="col">Title</th><th scope="col">State</th><th scope="col">Review</th></tr>
-            </thead>
-            <tbody>
-              {works.map((w) => (
-                <tr key={w.id}>
-                  <td>
-                    {w.status === 'published' && w.isPublic
-                      ? <Link href={w.url}>{w.title}</Link>
-                      : <span>{w.title}</span>}
-                    <div className="history__when">version {w.currentVersion} · {w.kind.replace(/_/g, ' ')}</div>
-                  </td>
-                  <td className="small">{STATE_LABEL[w.status]}</td>
-                  <td className="small">
-                    {w.status === 'published' || w.status === 'archived'
-                      ? (w.peerReviewed ? 'peer-reviewed' : 'not peer-reviewed')
-                      : '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <ul className="stack-lg">
+            {works.map((w) => {
+              const files = filesByWork.get(w.id) ?? [];
+              /*
+               * AN ARCHIVED WORK CANNOT TAKE A FILE.
+               *
+               * `attachPublicationFile` refuses it, because an archived version is the record of what
+               * was published and changing it would change what a citation resolves to. **The form is
+               * not rendered for that case rather than rendered and refused** — a control whose only
+               * outcome is an error teaches the reader nothing and wastes their upload.
+               */
+              const mayAttach = w.status !== 'archived';
+              return (
+                <li key={w.id}>
+                  <table className="record">
+                    <thead>
+                      <tr>
+                        <th scope="col">Work</th>
+                        <th scope="col">State</th>
+                        <th scope="col">Review</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>
+                          {w.status === 'published' && w.isPublic
+                            ? <Link href={w.url}>{w.title}</Link>
+                            : <span>{w.title}</span>}
+                          <div className="history__when">
+                            version {w.currentVersion} · {w.kind.replace(/_/g, ' ')}
+                          </div>
+                        </td>
+                        <td className="small">{STATE_LABEL[w.status]}</td>
+                        <td className="small">
+                          {w.status === 'published' || w.status === 'archived'
+                            ? (w.peerReviewed ? 'peer-reviewed' : 'not peer-reviewed')
+                            : '—'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+
+                  {files.length > 0 ? (
+                    <ul className="history">
+                      {files.map((f) => (
+                        <li key={f.id}>
+                          <p className="history__what">
+                            <a href={`/publication-file/${f.id}`}>{f.filename}</a>
+                          </p>
+                          <p className="history__detail">
+                            {f.role.replace(/_/g, ' ')} · {f.typeLabel} · {humanSize(f.sizeBytes)}
+                            {f.checksum ? ` · sha256 ${f.checksum.slice(0, 12)}…` : ''}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="help">No file attached to this work yet.</p>
+                  )}
+
+                  {mayAttach ? (
+                    /*
+                     * A PLAIN multipart FORM, AS THE DASHBOARD BRIEF REQUIRES — it works with
+                     * JavaScript disabled, which is the same constraint every other form on this site
+                     * carries. `enctype` is the only attribute that matters here.
+                     */
+                    <form method="post" action="/api/research/files" encType="multipart/form-data">
+                      <input type="hidden" name="publicationId" value={w.id} />
+                      <input type="hidden" name="returnTo" value="/submit/" />
+                      <div className="row" style={{ gap: '0.6rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                        <div className="field">
+                          <label className="small" htmlFor={`manuscript-${w.id}`}>
+                            Attach a file to this work
+                          </label>
+                          <input
+                            id={`manuscript-${w.id}`}
+                            name="manuscript"
+                            type="file"
+                            accept=".pdf,.docx,.odt,.rtf,.txt,.md,.png,.jpg,.jpeg"
+                            required
+                          />
+                        </div>
+                        <div className="field">
+                          <label className="small" htmlFor={`role-${w.id}`}>What it is</label>
+                          <select id={`role-${w.id}`} name="role" defaultValue="manuscript">
+                            <option value="manuscript">The manuscript</option>
+                            <option value="supplementary">A supplement</option>
+                            <option value="figure">A figure</option>
+                            <option value="dataset">A dataset</option>
+                            <option value="cover">A cover image</option>
+                          </select>
+                        </div>
+                        <button className="btn" type="submit">Upload</button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p className="help">
+                      This work is archived. Its files are part of the published record and cannot be
+                      added to — a revision is what changes a work, and it keeps the earlier version.
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         )}
       </section>
     </div>

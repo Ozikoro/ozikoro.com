@@ -210,6 +210,21 @@ export function middleware(request: NextRequest) {
      * every future static parent still belongs in it.
      */
     'clans',
+    /*
+     * THE MANUSCRIPT DOWNLOAD — the fifth real route this rewrite has swallowed, and the reason each one
+     * is worth naming.
+     *
+     * `/publication-file/<id>` is two segments whose first is in no list, so the attachment fallback
+     * rewrote it to `/attachment/<id>/`. **Measured before this line: `/publication-file/1` answered 308**
+     * — the fallback found an attachment whose slug happened to be the id and redirected there, which is
+     * precisely the shape recorded for `/clans/umunri/`. The route compiled and its own handler was never
+     * reached, which is why the fault reads as a wrong destination rather than as a broken route.
+     *
+     * `publication-file` is a static parent, so unlike the `/<article-slug>/pdf` case it can simply be
+     * listed. The rule to carry forward: **the rewrite runs BEFORE routing, so an omission here is not a
+     * 404 for the fallback — it is a misroute for the real route.**
+     */
+    'publication-file',
   ]);
   const segments = pathname.split('/').filter(Boolean);
   /*

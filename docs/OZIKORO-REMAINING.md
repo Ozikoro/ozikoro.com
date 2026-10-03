@@ -13921,3 +13921,237 @@ parity check at `identical 63 differing 0 missing 0`.**
 material"*, and the fill removes it — correctly, because the counts are no longer example material.** But that
 banner was the only thing on the page saying the role switch was a demonstration, **so removing it is what made
 the switch look real.** A control is only honest while the thing that frames it is still there.
+
+---
+
+## ROUND 305 — THE ARCHIVE'S FILTERS, THE GRAPH BEHIND THEM, AND THE UPLOAD THAT WAS NEVER CONNECTED
+
+**What this round set out to do:** the two design briefs name five surfaces (archive §3.1, researchers network
+§3.2, the archive items §3.4, and "every section needs a back office" §6). The back office and the archive
+metadata already existed — `/admin/archive` with a per-record facet form, and `edit_entity` gating it with an
+`ozikoro_audit` row per change. **What did not exist was any way for a reader to use the metadata, and no
+graph for the metadata to point at.** That is this round.
+
+### A — THE STRUCTURE WAS ALREADY THERE; THE GRAPH WAS NOT
+
+`ozikoro_article` has carried `source_type`, `period_label`, `period_start`, `period_end` since migration
+0035, and `ozikoro_article_entity` has carried the four roles the brief names since the same migration.
+**Measured, not assumed: all four of the period and source columns were 0 of 1,057, and
+`ozikoro_entity` held ZERO rows** — so `ozikoro_article_entity` could not hold a row either, and every
+filter the brief asks for was provably empty. **No migration could fix that: the rows the graph needed to
+point at already existed in the dictionary** — 188 published clans and towns, with names, aliases, kinds and
+an ethnic group — and nobody had made the node.
+
+`buildEntityGraph` (`packages/ozikoro/src/entity-graph.ts`) does it, and it is deliberately narrow:
+
+    considered              188 published dictionary rows
+    entities created        188  (142 clan · 37 town · 7 people · 2 kingdom)
+    article links created   170  across 146 records — matched on TITLE only
+    coordinates written     0
+    skipped                  18  (17 colonial sections, 1 administrative grouping)
+
+**It writes no coordinate, no period and no source.** The first two the dictionary does not hold and the
+brief forbids inventing them; the last needs a human to read the record, which is the queue's job. **And it
+refuses to make a colonial section into an entity**, which is the correction migration 0019 exists to hold:
+`KIND_MAP` returns null for `section` and `other`, and the 18 are counted and named rather than dropped.
+
+Idempotence is the dictionary row and not the name: `ozikoro_entity.clan_id` carries a PARTIAL unique index
+(migration 0048), so a second run creates nothing — measured, `0 created, 188 already present, 0 links`.
+
+**And one fault found by measuring rather than by reading.** The first version wrote `role = 'town'` for
+every link, so 142 clans landed in the town group and **the clan group was empty while 146 records were
+linked to clans** — a rail offering a filter that matched nothing beside a total that disagreed with the
+data. The role is now read from the entity's own kind, and a test asserts the two groups stay disjoint.
+
+### B — THE RAIL IS COUNTED FROM THE RECORDS, NOT DRAWN FROM A CONSTANT
+
+`getArchiveFacets` groups the published records by ethnic group, clan, town, period and source kind, and
+`/archive` renders whatever comes back. **A group with no rows is a sentence saying so, not an empty list
+and not an invented spread of counts** — which is the brief's own requirement, quoted in the page:
+*"If a filter would return nothing because no record carries that value, the interface must say so rather
+than showing an empty list with no explanation."* The page distinguishes the two answers an empty grid
+cannot: *"no record carries that period"* is not *"your words are not in the record"*.
+
+Free text, clan/town, ethnic group, period, source type and the completeness axis all work as plain GET
+filters, so a filtered view is a citable URL. The ethnic group is read **through the clan** rather than
+copied onto the article, so the two can never disagree about which grouping a clan belongs to.
+
+### C — THE BACK OFFICE: `/admin/entities`, AND A 500 WHERE A 303 BELONGED
+
+`/admin/entities` shows the graph's state, states the zero coordinates in words, and offers the one button.
+It is gated on `edit_entity` and passes the signed-in account as the actor — **never a form field, because
+the one thing an audit exists to prevent is a change attributed to somebody who did not make it.**
+
+And a fault found while verifying the refusal rather than the success: **a bare `POST` to any
+state-changing route in this app answered 500.** `request.formData()` throws a `TypeError` when a request
+carries no body and no content type, and an uncaught throw is an internal error. Measured on all seven
+routes, including the four that predate this round. The guard now runs before the body is read, so an
+anonymous request is answered with a redirect to sign in, and a malformed authenticated one with 415:
+
+    /api/admin/entities     was 500  →  303 /signin?error=Sign+in+first.&next=%2Fadmin%2Fentities
+    /api/follows            was 500  →  303 /signin/?error=Sign+in+first.&next=%2F
+    /api/research/files     was 500  →  303 /signin?error=Sign+in+first.&next=%2Fsubmit%2F
+
+### D — THE RESEARCHERS NETWORK: THE UPLOAD, THE SEARCH, THE FOLLOW
+
+`/submit` said in its own words that manuscript upload was not connected, and that was true: the brief names
+"PDF or document" first and `ozikoro_publication_file` had **never held a row.**
+
+* **The upload** (`/api/research/files` → `attachPublicationFile`) writes the bytes to the same
+  `getStorage()` seam the 3,488 migrated media records use, and the row second — **a row pointing at a key
+  that was never written is a download that 404s, which is the fault round 280 records** — with a SHA-256
+  the server computes rather than accepts. The type is checked against the FILE'S OWN BYTES, not the
+  browser's claim, and the stored key's extension comes from the accepted type rather than from the
+  filename.
+* **The download** (`/publication-file/<id>`) decides access from the database — published-and-public, or an
+  author, or the depositor, or an editor — and **answers 404 rather than 403, because a 403 confirms a
+  private draft exists.**
+* **Search by the brief's three axes** (`/publications`): free text over title, abstract, author and
+  affiliation, plus author and institution fields and a kind toolbar, all counted from published works.
+* **Following** (`/api/follows`, `ozikoro_follow` in migration 0048): one table over three subject kinds,
+  *"make it so"* rather than a toggle so a double submit is harmless, and **an account's own reading list is
+  nobody else's** — the function compares the two ids and refuses rather than answering.
+
+### E — THE MIDDLEWARE SWALLOWED A FIFTH ROUTE
+
+`/publication-file/<id>` answered **308**. The document already records this shape four times (`town`,
+`sitemap`, `clans`, `/<article-slug>/pdf`): the attachment fallback runs BEFORE routing, so a two-segment
+path whose first segment is in no list is rewritten to `/attachment/<id>/` and the real route's handler is
+never reached. `publication-file` is now in `KNOWN_FIRST_SEGMENTS`, where a static parent belongs. **The
+fault reads as a wrong destination rather than as a broken route, which is why the list has to be checked
+whenever a new two-segment route is added.**
+
+### HOW IT WAS VERIFIED, AND WHAT WAS NOT
+
+    npm run typecheck                 exit 0, seven workspaces, 0 errors
+    design parity                     identical 63 differing 0 missing 0
+    design-fill tests                 9 pass, 0 fail
+    test:archive                      all checks passed (facets counted, completeness partition exact,
+                                      free-text hit and miss, sourced filter agreeing with the facet)
+    test:graph (new, on a cluster copy)  all checks passed — see the count below
+
+`test:graph` (`packages/ozikoro/src/test-graph.ts`, 315 lines) asserts the rules rather than the happy
+paths: a dry run writes no row and no audit entry; a colonial section is never made an entity; **no entity
+anywhere carries a coordinate**; the second run creates and links nothing; every graph write is audited and
+every audit row names its actor; a follow is idempotent, self-follow is refused, and another account's list
+is refused; an empty file, a mislabelled file, an over-sized file and an unaccepted type are each refused
+with their own code; and a private draft is readable by its depositor and by an editor and by nobody else.
+It is wired into `npm run test:ozikoro-data` as `test:graph`.
+
+**NOT YET RUN, AND THEREFORE NOT CLAIMED.** The final HTTP pass against a server on 3110 — the archive
+filters over the live data, the anonymous-versus-authenticated boundary on the new routes, and the audit
+row for a mutation made through the interface — was interrupted by a shared-database corruption at 23:18
+(see the note below) and **has not been completed.** The design-parity, design-fill, typecheck and
+`test:archive` results above were measured before that. The script for the pass is at
+`scripts/verify-round-305.sh` and is ready to run the moment the cluster is free; **every line of it that
+touches the database or the network is yet to produce a result.**
+
+### THE SHARED CLUSTER, AND THE EXACT SEQUENCE TO RE-APPLY THIS WORK AFTER A RESTORE
+
+**On 3 October 2026 at about 23:18 the PGlite cluster aborted** (`RuntimeError: Aborted()` on every query)
+while two agents were building and serving in this checkout at the same time. A backup was verified intact
+(`node packages/ozikoro/src/ops/backup.ts --verify .data/backups/pg-2026-10-03T21-35-35`) and another agent
+restored from it and is re-importing the drafts, Blogger records, accounts and episodes the replace lost.
+
+**The damaged directory is `.data/pg-corrupt-20261003T231847`, and counting it there are SEVEN damaged
+cluster directories in this checkout, not five:**
+
+    pg.corrupt-20261001T0522      pg-corrupt-20261003-204126
+    pg.locked-20261001            pg-corrupt-20261003-205425
+    pg.damaged-20261003T165654    pg-corrupt-20261003T231847   ← this one
+    pg.damaged-20261003T180058
+
+**Four of the seven are from 3 October alone.** The earlier notes in this file say five and then six; the
+count is seven, and the number matters because **the recurrence is the finding, not any one incident** —
+and because a count written down carelessly is the first thing a reader stops trusting.
+
+**Two `next build`s in one `.next` corrupt each other as well as the database** — measured here:
+`ENOENT … .next/export/500.html`, then `Cannot find module '…/.next/server/middleware-manifest.json'`, then
+a standalone directory with **no `server.js` in it at all** — and each of those reads like a code fault and
+is not one. `scripts/build-and-serve-once.sh` was written because of it: it waits for any other build,
+stops the port with SIGTERM only, builds, **proves `server.js` and the design stylesheet exist before
+serving**, and starts detached with `nohup` (there is no `setsid` on this machine).
+
+**The backup predates this round's migrations, so a restore silently reverts the authorisation note below.
+Run both in one pass, in this order, and nothing else at the same time:**
+
+```bash
+# 1. The schema. Both are additive and both were rehearsed on a COPY of the live cluster
+#    (1,057 articles, 3,488 media) before they were applied to it: "applying 0048 … ok",
+#    "applying 0049 … ok", and the article and media counts unchanged afterwards.
+npm run db:migrate
+
+# 2. The graph. Idempotent: the second run reports "0 entities created, 0 links".
+#    The actor is named, because every row it writes is audited. With several accounts in the
+#    table it refuses rather than picking one, so name the owner explicitly.
+npm run build:entities                 # or: node scripts/build-town-entities.ts --actor <email>
+npm run build:entities -- --dry-run    # before it, if you want the count first
+
+# 3. Nothing else. There is no import to re-run: this round adds no content, only the graph
+#    node that points at content the dictionary already holds.
+```
+
+**What that restores, in numbers, measured twice — once on a cluster copy and once on the live cluster:**
+
+    188 entities (142 clan · 37 town · 7 people · 2 kingdom) · 170 links · 146 of 1,051 records
+    linked to a place · 0 coordinates · 18 dictionary rows deliberately left alone
+
+**And the archive's filter rail fills itself from those rows.** `getArchiveFacets` needs no re-run: it
+counts whatever the records and the graph hold, so as soon as step 2 finishes, `/archive` offers
+`Igbo (146)` and the clan and town groups the links produced — measured on the live cluster as 39 clans and
+21 towns, with the per-group counts coming from the same query rather than from a list written here.
+**The one number that must be zero is `ozikoro_entity` with a non-null latitude or longitude**, and
+`test:graph` asserts it.
+
+### WHAT A DURABLE FIX FOR THE MIDDLEWARE SWALLOW WOULD LOOK LIKE
+
+**Five routes have now been eaten by the same ten lines, and each has been fixed by adding a name:
+`town`, `sitemap`, `clans`, `pdf` and `publication-file`.** The pattern is worth stating in one place,
+because **a fix that consists of adding a sixth name guarantees a sixth victim.**
+
+    const isPublication = segments.length === 2 && segments[1] === 'pdf';
+    if (!isApi && segments.length === 2 && !isPublication
+        && !KNOWN_FIRST_SEGMENTS.has(segments[0] ?? '')) {
+      url.pathname = `/attachment/${segments[1]}/`;   // ← the rewrite runs BEFORE routing
+      return NextResponse.rewrite(url, { request: { headers } });
+    }
+
+**Why it cannot simply be made correct by enumeration.** The fallback exists for WordPress's attachment
+addresses, `/<post-slug>/<attachment-slug>/`. **The first segment is a record's own slug, and there is no
+list that can be written in advance** — this is recorded in the code already, in the comment explaining
+why `pdf` could not be fixed the way `town` and `sitemap` were. So the fallback must decide on the SECOND
+segment, and the second segment is exactly what a new route also looks like. **A first-segment allowlist
+is therefore the wrong instrument for the half of the problem that grows**, and each new route is a coin
+flip against a rewrite that runs before the router.
+
+**What would actually hold.** Four shapes, in increasing order of how much they change:
+
+1. **Decide the fallback on evidence rather than on absence.** The rewrite is only correct when
+   `<attachment-slug>` names a real attachment; otherwise the path should reach the router and 404 on its
+   own terms. `ozikoro_media.slug` is the table, and the middleware currently cannot ask it. A small
+   route-shaped lookup — or a generated set of attachment slugs refreshed when the media table changes —
+   turns "not in my list" into "is a real attachment", and **a path that is neither falls through to
+   routing, which is where every one of the five failures wanted to go.**
+2. **Move the fallback to the 404 path.** `app/not-found.tsx` runs only where nothing matched, so it can
+   never shadow a real route — the property the middleware lacks. It would resolve the last segment
+   against `ozikoro_media.slug` and redirect to the attachment's canonical address. **The reason to be
+   careful is already recorded in this file: the not-found path is the one place where a matched dynamic
+   route calling `notFound()` can defer instead of rendering**, so this needs the round-119 measurement
+   repeated, not assumed.
+3. **Give the attachment address a route.** Rounds 81 and 82 measured both spellings Next rejects
+   (`app/[parent]/[child]/` and `app/[slug]/[slug]/`), and each took the dev server down. A **catch-all**
+   (`app/[...path]/route.ts`) is the third spelling, it is expressible, and it runs *inside* routing where
+   it cannot shadow anything — but it also catches every other unmatched path, so it has to 404
+   explicitly rather than by omission.
+4. **Retire the fallback and accept the 404s.** There are three waived in-body links to things that never
+   existed; the attachment family was a separate repair (rounds 81–84) of 26 measured broken links. **If
+   the alternative to five silent misroutes is a handful of honest 404s, that is a trade worth pricing** —
+   and it is a decision for the owner, not for a middleware file.
+
+**Until one of those is chosen, the rule stands and belongs beside the list: adding a two-segment route
+means adding its first segment to `KNOWN_FIRST_SEGMENTS` in the same change, and `check:links` is what
+would have caught `publication-file` if the route had been reachable when it last ran.** The cheapest
+durable improvement that does not need a decision: **a test that walks `app/` for static first segments
+and fails when one is missing from the list.** That converts "remember to add a name" into "the suite
+says which name", which is the difference between a rule and a hope — the same distinction the pre-commit
+hook was built on.

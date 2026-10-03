@@ -334,6 +334,56 @@ export interface ListOptions {
   offset?: number;
   /** Newest first by default; alphabetical is used by the A–Z index. */
   order?: 'recent' | 'title';
+
+  // -------------------------------------------------------------------------
+  // The archive's filter rail (design brief §3.1)
+  // -------------------------------------------------------------------------
+  /**
+   * Free text over the title, the standfirst and the body.
+   *
+   * The body match is `ilike` rather than the generated `search_vector`, because the vector is
+   * built with the `english` configuration and this archive is full of Igbo names that the English
+   * stemmer mangles — "Abọ" and "Abo" are the same place and neither is an English word. A plain
+   * substring match over the stored HTML is slower and finds what a reader actually typed, which is
+   * the trade this archive wants: the brief's first audience is a diaspora reader on a phone who
+   * does not have the diacritics to hand.
+   *
+   * Match-anywhere is deliberate. At 1,057 records a sequential scan is milliseconds, and a filter
+   * that misses a record because the word appears in the third paragraph is a filter that has
+   * failed at the one thing it was for.
+   */
+  search?: string | null;
+  /** A town, village or named site — matched against the entity graph AND the dictionary. */
+  place?: string | null;
+  /** The Igbo grouping a record's clan belongs to, e.g. `Igbo`. */
+  ethnicGroup?: string | null;
+  /** The article's own `period_label`. */
+  period?: string | null;
+  /** One of `SOURCE_TYPES`. */
+  sourceType?: string | null;
+  /**
+   * `sourced` — carries at least one source AND a recorded source type.
+   * `partial` — missing either. This is the archive's honest completeness axis, and both halves
+   *   are computed from the same two facts the article page renders.
+   */
+  completeness?: 'sourced' | 'partial' | null;
+  /** Restrict to the entities a record is linked to by slug — the rail's clan and town links. */
+  entitySlug?: string | null;
+}
+
+/**
+ * The roles an entity can fill on a record, narrowed to the four the filter rail draws.
+ *
+ * A narrower union than `EntityRole` in `editorial.ts` on purpose: `person`, `event` and `other`
+ * are real links the archive makes and are not facets a reader filters an index by, so admitting
+ * them here would create filters the rail has no group for.
+ */
+export type EntityRoleFilter = 'ethnic_group' | 'clan' | 'town' | 'place';
+
+const ENTITY_ROLE_FILTERS: EntityRoleFilter[] = ['ethnic_group', 'clan', 'town', 'place'];
+
+export function isEntityRoleFilter(value: string): value is EntityRoleFilter {
+  return (ENTITY_ROLE_FILTERS as string[]).includes(value);
 }
 
 function listWhere(options: ListOptions): { clause: string; params: unknown[] } {
@@ -361,7 +411,213 @@ function listWhere(options: ListOptions): { clause: string; params: unknown[] } 
     conditions.push(`exists (select 1 from ozikoro_article_entity ae where ae.article_id = a.id and ae.entity_id = $${params.length})`);
   }
 
+  if (options.search) {
+    params.push(`%${options.search}%`);
+    conditions.push(
+      `(a.title ilike $${params.length}
+        or a.standfirst ilike $${params.length}
+        or a.body_html ilike $${params.length})`
+    );
+  }
+
+  if (options.place) {
+    params.push(`%${options.place}%`);
+    const p = `$${params.length}`;
+    conditions.push(
+      `(
+        exists (
+          select 1 from ozikoro_article_entity ae
+            join ozikoro_entity en on en.id = ae.entity_id
+           where ae.article_id = a.id
+             and ae.role in ('town', 'place')
+             and (en.name ilike ${p}
+                  or exists (select 1 from unnest(en.aliases) al where al ilike ${p}))
+        )
+        or exists (
+          select 1 from ozikoro_article_entity ae
+            join ozikoro_entity en on en.id = ae.entity_id
+            join clan cl on cl.id = en.clan_id
+           where ae.article_id = a.id
+             and (cl.name ilike ${p}
+                  or exists (select 1 from clan_town ct where ct.clan_id = cl.id and ct.name ilike ${p}))
+        )
+      )`
+    );
+  }
+
+  if (options.ethnicGroup) {
+    /*
+     * THE ETHNIC GROUP IS READ FROM THE CLAN, NOT COPIED ONTO THE RECORD.
+     *
+     * `clan.ethnic_group` is where this fact lives — one row per group, stated once — and an
+     * article's ethnic group is a property of the clan it is attached to. Copying it onto the
+     * article would be a second definition of the same thing, and the two would drift the first
+     * time a clan was reclassified. So the filter follows the relation, which is also why a record
+     * with no clan linked to it can never appear under any ethnic group: it does not have one yet.
+     */
+    params.push(options.ethnicGroup);
+    conditions.push(
+      `exists (
+        select 1 from ozikoro_article_entity ae
+          join ozikoro_entity en on en.id = ae.entity_id
+          join clan cl on cl.id = en.clan_id
+         where ae.article_id = a.id and cl.ethnic_group = $${params.length}
+      )`
+    );
+  }
+
+  if (options.entitySlug) {
+    params.push(options.entitySlug);
+    conditions.push(
+      `exists (
+        select 1 from ozikoro_article_entity ae
+          join ozikoro_entity en on en.id = ae.entity_id
+         where ae.article_id = a.id and en.slug = $${params.length}
+      )`
+    );
+  }
+
+  if (options.period) {
+    params.push(options.period);
+    conditions.push(`a.period_label = $${params.length}`);
+  }
+
+  if (options.sourceType) {
+    params.push(options.sourceType);
+    conditions.push(`a.source_type = $${params.length}`);
+  }
+
+  if (options.completeness === 'sourced') {
+    conditions.push(
+      `(a.source_type is not null and a.source_type <> 'unsourced'
+        and exists (select 1 from ozikoro_article_source s where s.article_id = a.id))`
+    );
+  }
+  if (options.completeness === 'partial') {
+    conditions.push(
+      `(a.source_type is null or a.source_type = 'unsourced'
+        or not exists (select 1 from ozikoro_article_source s where s.article_id = a.id))`
+    );
+  }
+
   return { clause: `where ${conditions.join(' and ')}`, params };
+}
+
+/**
+ * What the archive's rail can offer, counted from the records themselves.
+ *
+ * WHY THIS IS A FUNCTION AND NOT A CONSTANT
+ *
+ * The design draws fixed groups — five period bands, three source types — and the archive holds
+ * 1,057 records with **no period and no source type recorded on any of them**. A rail that printed
+ * the design's bands with invented counts would be a lie with a progress bar, and one that omitted
+ * them would promise less than the schema can do.
+ *
+ * So every option below is a `group by` over the published records, and a group with no rows comes
+ * back empty. The page then says, in words, that nothing is recorded yet — which is the honest
+ * screen the brief asks for ("an entry without a source should look incomplete") and, unlike a
+ * constant, fills itself the moment an editor records the first period.
+ */
+export interface ArchiveFacetOption {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface ArchiveFacets {
+  /** The four facets every record is required to carry. */
+  ethnicGroups: ArchiveFacetOption[];
+  clans: ArchiveFacetOption[];
+  towns: ArchiveFacetOption[];
+  periods: ArchiveFacetOption[];
+  sourceTypes: ArchiveFacetOption[];
+  /** The archive's own completeness axis. */
+  sourced: number;
+  partial: number;
+  /** Totals, so a page can say what it is a filter over. */
+  records: number;
+  /** Of `records`, how many carry at least one source at all. */
+  withAnySource: number;
+}
+
+const SOURCE_TYPE_NAMES: Record<string, string> = {
+  oral_history: 'Oral history',
+  colonial_record: 'Colonial record',
+  academic_source: 'Academic source',
+  mixed: 'More than one kind',
+  unsourced: 'No source recorded',
+};
+
+export async function getArchiveFacets(db: Db): Promise<ArchiveFacets> {
+  /*
+   * One query per group rather than one enormous query, because each has a different grain (an
+   * entity role, a text column, a joined dictionary row) and a union of them would have to be
+   * unpivoted in TypeScript anyway. All six are indexed or trivially small.
+   */
+  const base = `from ozikoro_article a where a.status = 'published' and a.is_page = false`;
+
+  const [ethnic, clans, towns, periods, sources, totals] = await Promise.all([
+    db.rows<{ value: string; n: number }>(
+      `select cl.ethnic_group as value, count(distinct a.id)::int n
+         from ozikoro_article a
+         join ozikoro_article_entity ae on ae.article_id = a.id
+         join ozikoro_entity en on en.id = ae.entity_id
+         join clan cl on cl.id = en.clan_id
+        where a.status = 'published' and a.is_page = false and cl.ethnic_group is not null
+        group by 1 order by n desc, 1`
+    ),
+    db.rows<{ value: string; label: string; n: number }>(
+      `select en.slug as value, en.name as label, count(distinct a.id)::int n
+         from ozikoro_article a
+         join ozikoro_article_entity ae on ae.article_id = a.id and ae.role = 'clan'
+         join ozikoro_entity en on en.id = ae.entity_id
+        where a.status = 'published' and a.is_page = false
+        group by 1, 2 order by n desc, 2`
+    ),
+    db.rows<{ value: string; label: string; n: number }>(
+      `select en.slug as value, en.name as label, count(distinct a.id)::int n
+         from ozikoro_article a
+         join ozikoro_article_entity ae on ae.article_id = a.id and ae.role in ('town','place')
+         join ozikoro_entity en on en.id = ae.entity_id
+        where a.status = 'published' and a.is_page = false
+        group by 1, 2 order by n desc, 2`
+    ),
+    db.rows<{ value: string; n: number }>(
+      `select a.period_label as value, count(*)::int n ${base} and a.period_label is not null
+        group by 1 order by 1`
+    ),
+    db.rows<{ value: string; n: number }>(
+      `select a.source_type as value, count(*)::int n ${base} and a.source_type is not null
+        group by 1 order by 2 desc, 1`
+    ),
+    db.one<{ records: number; sourced: number; partial: number; with_any: number }>(
+      `select count(*)::int as records,
+              count(*) filter (where a.source_type is not null
+                                 and a.source_type <> 'unsourced'
+                                 and exists (select 1 from ozikoro_article_source s where s.article_id = a.id))::int as sourced,
+              count(*) filter (where a.source_type is null
+                                 or a.source_type = 'unsourced'
+                                 or not exists (select 1 from ozikoro_article_source s where s.article_id = a.id))::int as partial,
+              count(*) filter (where exists (select 1 from ozikoro_article_source s where s.article_id = a.id))::int as with_any
+         ${base}`
+    ),
+  ]);
+
+  return {
+    ethnicGroups: ethnic.map((r) => ({ value: r.value, label: r.value, count: Number(r.n) })),
+    clans: clans.map((r) => ({ value: r.value, label: r.label, count: Number(r.n) })),
+    towns: towns.map((r) => ({ value: r.value, label: r.label, count: Number(r.n) })),
+    periods: periods.map((r) => ({ value: r.value, label: r.value, count: Number(r.n) })),
+    sourceTypes: sources.map((r) => ({
+      value: r.value,
+      label: SOURCE_TYPE_NAMES[r.value] ?? r.value.replace(/_/g, ' '),
+      count: Number(r.n),
+    })),
+    sourced: Number(totals?.sourced ?? 0),
+    partial: Number(totals?.partial ?? 0),
+    records: Number(totals?.records ?? 0),
+    withAnySource: Number(totals?.with_any ?? 0),
+  };
 }
 
 export async function listArticles(db: Db, options: ListOptions = {}): Promise<ArticleSummary[]> {

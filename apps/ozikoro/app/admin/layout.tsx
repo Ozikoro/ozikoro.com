@@ -120,6 +120,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="admin-nav__inner">
           <Link href="/admin">Overview</Link>
           <Link href="/admin/archive">Editorial queue</Link>
+          <Link href="/admin/entities">Knowledge graph</Link>
           <Link href="/admin/reviews">Review queue</Link>
           <Link href="/admin/audio">Audio review</Link>
           <Link href="/admin/media">Media register</Link>

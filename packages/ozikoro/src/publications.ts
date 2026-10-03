@@ -526,29 +526,97 @@ export async function getPublicationBySlug(db: Db, slug: string): Promise<Public
   };
 }
 
-/** What the public can read: published and public, and nothing else. */
-export async function listPublished(
-  db: Db,
-  options: { limit?: number; offset?: number; discipline?: string | null; search?: string | null; accountId?: number | null } = {}
-): Promise<PublicationSummary[]> {
-  const params: unknown[] = [];
+/**
+ * What the public can read: published and public, and nothing else.
+ *
+ * THE THREE WAYS A WORK IS FOUND, ALL OF THEM HERE
+ *
+ * The brief names them: "search and discovery by topic, author or institution — findability is the
+ * entire value". `search` covers the free-text half of all three at once (it matches the title, the
+ * abstract and every author's name and affiliation), and `kind`, `author` and `institution` narrow it
+ * to one axis at a time. The author and institution filters both go through
+ * `ozikoro_publication_author`, because that is where a name and an affiliation are recorded — an
+ * institution is not a column on the work, and copying it there would be a second answer to the same
+ * question that drifts the first time a co-author moves.
+ */
+export interface PublishedOptions {
+  limit?: number;
+  offset?: number;
+  discipline?: string | null;
+  /** A publication kind — `journal_article`, `thesis`, `report`. */
+  kind?: string | null;
+  /** Free text over title, abstract, and every author's name and affiliation. */
+  search?: string | null;
+  /** An author's name, or part of one. */
+  author?: string | null;
+  /** An institution, or part of one, matched on the author row's affiliation. */
+  institution?: string | null;
+  /** Narrow to one account's works — the profile page's "their publications". */
+  accountId?: number | null;
+}
+
+function publishedWhere(options: PublishedOptions): { clause: string; params: unknown[] } {
   const conditions: string[] = [`p.status = 'published'`, `p.is_public = true`];
+  const params: unknown[] = [];
 
   if (options.discipline) {
     params.push(options.discipline);
     conditions.push(`$${params.length} = any(p.disciplines)`);
   }
+  if (options.kind) {
+    params.push(options.kind);
+    conditions.push(`p.kind = $${params.length}`);
+  }
+  if (options.accountId) {
+    params.push(options.accountId);
+    conditions.push(
+      `(p.submitted_by = $${params.length}
+        or exists (select 1 from ozikoro_publication_author a where a.publication_id = p.id and a.account_id = $${params.length}))`
+    );
+  }
+  if (options.author) {
+    params.push(`%${options.author}%`);
+    conditions.push(
+      `exists (
+        select 1 from ozikoro_publication_author a
+         where a.publication_id = p.id and a.name ilike $${params.length}
+      )`
+    );
+  }
+  if (options.institution) {
+    params.push(`%${options.institution}%`);
+    conditions.push(
+      `exists (
+        select 1 from ozikoro_publication_author a
+         where a.publication_id = p.id and a.affiliation ilike $${params.length}
+      )`
+    );
+  }
   if (options.search) {
     params.push(options.search);
-    conditions.push(`(p.search_vector @@ websearch_to_tsquery('english', $${params.length}) or p.title ilike '%' || $${params.length} || '%')`);
-  }
+    const p = `$${params.length}`;
+    conditions.push(
+      `(p.search_vector @@ websearch_to_tsquery('english', ${p})
+        or p.title ilike '%' || ${p} || '%'
+        or exists (
+             select 1 from ozikoro_publication_author a
+              where a.publication_id = p.id
+                and (a.name ilike '%' || ${p} || '%' or a.affiliation ilike '%' || ${p} || '%')
+           ))`
+    );  }
+
+  return { clause: conditions.join(' and '), params };
+}
+
+export async function listPublished(db: Db, options: PublishedOptions = {}): Promise<PublicationSummary[]> {
+  const { clause, params } = publishedWhere(options);
   const limit = Math.min(Math.max(options.limit ?? 20, 1), 100);
   const offset = Math.max(options.offset ?? 0, 0);
   params.push(limit, offset);
 
   const rows = await db.rows<Record<string, unknown>>(
     `select ${PUBLICATION_COLUMNS.replace(/(\w+)(,|$)/g, 'p.$1$2')} from ozikoro_publication p
-      where ${conditions.join(' and ')}
+      where ${clause}
       order by p.published_at desc nulls last limit $${params.length - 1} offset $${params.length}`,
     params
   );
@@ -556,6 +624,58 @@ export async function listPublished(
   const out: PublicationSummary[] = [];
   for (const row of rows) out.push(rowToSummary(row, await loadAuthors(db, Number(row.id))));
   return out;
+}
+
+/**
+ * How many works match the same filters, so a page can say whether there are more.
+ *
+ * Beside `listPublished` and sharing its `where`, deliberately: a count computed from a different
+ * set of conditions is a count of a different thing, and a page that says "3 works" while showing
+ * four is worse than one that says nothing.
+ */
+export async function countPublished(db: Db, options: PublishedOptions = {}): Promise<number> {
+  const { clause, params } = publishedWhere(options);
+  const row = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_publication p where ${clause}`,
+    params
+  );
+  return Number(row?.n ?? 0);
+}
+
+/**
+ * The institutions the repository's works actually name, with how many works each one carries.
+ *
+ * Counted from `ozikoro_publication_author.affiliation` rather than kept as a list, for the same
+ * reason the archive's filter rail is counted: an institution nobody has published from is not an
+ * institution this repository can offer, and a hand-maintained list would offer it anyway.
+ */
+export async function listInstitutions(
+  db: Db,
+  options: { limit?: number } = {}
+): Promise<{ institution: string; works: number }[]> {
+  const rows = await db.rows<{ institution: string; n: number }>(
+    `select a.affiliation as institution, count(distinct a.publication_id)::int as n
+       from ozikoro_publication_author a
+       join ozikoro_publication p on p.id = a.publication_id
+      where a.affiliation is not null and btrim(a.affiliation) <> ''
+        and p.status = 'published' and p.is_public = true
+      group by 1
+      order by n desc, 1
+      limit $1`,
+    [Math.min(Math.max(options.limit ?? 60, 1), 200)]
+  );
+  return rows.map((r) => ({ institution: String(r.institution), works: Number(r.n) }));
+}
+
+/** The publication kinds actually present, so the toolbar offers only what exists. */
+export async function listPublishedKinds(db: Db): Promise<{ kind: string; works: number }[]> {
+  const rows = await db.rows<{ kind: string; n: number }>(
+    `select kind, count(*)::int as n
+       from ozikoro_publication
+      where status = 'published' and is_public = true
+      group by 1 order by n desc, 1`
+  );
+  return rows.map((r) => ({ kind: String(r.kind), works: Number(r.n) }));
 }
 
 /** A researcher's own works, including the ones nobody else can see yet. */

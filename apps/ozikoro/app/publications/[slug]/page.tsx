@@ -14,7 +14,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { CITATION_STYLES, getPublicationBySlug } from '@ozikoro/platform';
+import { CITATION_STYLES, getPublicationBySlug, humanSize } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -106,6 +106,37 @@ export default async function PublicationPage({ params }: { params: Promise<{ sl
               <div className="prose"><p>{work.abstract}</p></div>
             </section>
           ) : null}
+
+          {/*
+            THE FILES, WITH THEIR SIZE AND TYPE SAID BEFORE THE CLICK.
+            A reader deciding whether to download a 4 MB attachment wants to know it is a PDF first,
+            which is why the size and the human type are printed beside the link rather than left for
+            the browser to reveal. The route decides who may read the bytes; this only offers the
+            address, and a work with no file says so instead of showing an empty list.
+          */}
+          <section className="section" aria-labelledby="files">
+            <p className="eyebrow" id="files">Files</p>
+            {work.files.length === 0 ? (
+              <p className="help">
+                No file is attached to this work. The record is complete without one — an abstract and
+                its metadata are a deposit — and the author can attach a manuscript at any time.
+              </p>
+            ) : (
+              <ul className="history">
+                {work.files.map((f) => (
+                  <li key={f.id}>
+                    <p className="history__what">
+                      <a href={`/publication-file/${f.id}`}>{f.filename}</a>
+                    </p>
+                    <p className="history__detail">
+                      {f.role.replace(/_/g, ' ')} · {f.mimeType === 'application/pdf' ? 'PDF' : f.mimeType} ·{' '}
+                      {humanSize(f.sizeBytes)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
           {/*
             The review status, generated from the record rather than written into the template. This is

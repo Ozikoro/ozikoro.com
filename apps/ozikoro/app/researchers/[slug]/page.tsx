@@ -9,7 +9,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { getResearcher, getResearcherBio, listByAccount } from '@ozikoro/platform';
+import {
+  countFollowers,
+  followsResearcher,
+  getResearcher,
+  getResearcherBio,
+  listByAccount,
+} from '@ozikoro/platform';
+import { getCurrentAccount } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +38,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function ResearcherPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function ResearcherPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ saved?: string; error?: string }>;
+}) {
   const { slug } = await params;
+  const notices = await searchParams;
   const id = Number.parseInt(slug, 10);
   if (!Number.isInteger(id)) notFound();
 
@@ -45,11 +59,37 @@ export default async function ResearcherPage({ params }: { params: Promise<{ slu
     listByAccount(db, id, { includePrivate: false }),
   ]);
 
+  /*
+   * THE FOLLOW STATE IS READ FOR THE READER, AND ONLY FOR THE READER.
+   *
+   * A signed-out visitor gets the follower COUNT and no button: the count is a fact about a public
+   * profile, and whether *you* follow somebody is a fact about your own reading list. So the two
+   * queries are asked separately — `countFollowers` always, `followsResearcher` only when there is
+   * somebody signed in — rather than one query that returns a state the page would then hide.
+   */
+  const current = await getCurrentAccount();
+  const viewerId = current?.account.id ?? null;
+  const [followers, following] = await Promise.all([
+    countFollowers(db, id),
+    viewerId === null ? Promise.resolve(false) : followsResearcher(db, viewerId, id),
+  ]);
+
   const role = researcher.headline
     ?? (researcher.institution ? `${researcher.department ? `${researcher.department}, ` : ''}${researcher.institution}` : 'Independent researcher');
 
   return (
     <div className="wrap section">
+      {notices.saved ? (
+        <div className="notice notice--success" role="status">
+          <div><p className="notice__body">{notices.saved}</p></div>
+        </div>
+      ) : null}
+      {notices.error ? (
+        <div className="notice notice--error" role="alert">
+          <div><p className="notice__body">{notices.error}</p></div>
+        </div>
+      ) : null}
+
       <div className="profile-head">
         <p className="avatar" aria-hidden="true">{initials(researcher.name)}</p>
         <div>
@@ -65,6 +105,43 @@ export default async function ResearcherPage({ params }: { params: Promise<{ slu
             <span className="chip chip-source">
               {researcher.publicationCount} {researcher.publicationCount === 1 ? 'publication' : 'publications'}
             </span>
+            {/*
+              The follower count is shown whether or not there are any. "0 followers" on a new profile is
+              a true statement and a different one from hiding the figure — and the design's rule that an
+              empty profile is an invitation rather than a failure applies to its numbers too.
+            */}
+            <span className="chip">
+              {followers} {followers === 1 ? 'follower' : 'followers'}
+            </span>
+          </div>
+
+          {/*
+            FOLLOWING IS A READER'S ACT, SO THE CONTROL BELONGS TO THE READER.
+            Signed out, the form is not rendered at all — a button that bounces somebody to a sign-in
+            page is a promise the page cannot keep on its own, and the page says what signing in would
+            buy instead. An author is not offered a button to follow themselves: the endpoint refuses
+            it, and offering a control whose only outcome is a refusal is the fault this pass exists to
+            remove.
+          */}
+          <div className="row" style={{ marginTop: 'var(--s-4)' }}>
+            {viewerId === null ? (
+              <p className="small muted">
+                <Link href={`/signin?next=${encodeURIComponent(`/researchers/${id}/`)}`}>Sign in</Link> to follow
+                this researcher and keep a reading list.
+              </p>
+            ) : viewerId === id ? (
+              <p className="small muted">This is your own profile.</p>
+            ) : (
+              <form method="post" action="/api/follows">
+                <input type="hidden" name="kind" value="researcher" />
+                <input type="hidden" name="subjectAccountId" value={id} />
+                <input type="hidden" name="on" value={following ? '0' : '1'} />
+                <input type="hidden" name="returnTo" value={`/researchers/${id}/`} />
+                <button className={following ? 'btn btn-quiet' : 'btn'} type="submit">
+                  {following ? 'Following — stop' : 'Follow'}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>
