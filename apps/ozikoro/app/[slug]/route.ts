@@ -153,7 +153,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
       [row.id]
     );
 
-    const filled = fillArticle(await readFile(SCREEN, 'utf8'), {
+    let filled = fillArticle(await readFile(SCREEN, 'utf8'), {
       ...article,
       episode: episode
         ? {
@@ -173,6 +173,18 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
      * 1,051 records was telling a search engine it was called "Nwagu Aneke", the example title**, with no
      * canonical, no Open Graph and no structured data beside it. Invisible in a browser; fatal in an index.
      */
+    /*
+     * THE PLAYER SCRIPT IS ADDED ONLY WHERE THERE IS SOMETHING TO PLAY.
+     *
+     * `audio-listen.js` hands the listen panel to the recorded audio instead of the browser's voice — **and it
+     * does nothing at all on a page without `[data-listen-audio]`**, which is every page whose episode has not
+     * been approved. So the script tag is only written when an episode is present, and a page with no recording
+     * is byte-for-byte the page it was before.
+     */
+    if (episode) {
+      filled = filled.replace('</body>', '<script src="/audio-listen.js" defer></script></body>');
+    }
+
     html = withSeoHead(
       filled,
       seoHead(

@@ -13550,3 +13550,38 @@ same article.**
 
 **Two paths to one job, and fixing one of them left the other broken in exactly the way the fix was for.** The
 script now calls the shared renderer, and there is one place where text becomes speech.
+
+---
+
+## ROUND 297 — THE BUTTON THAT NEVER PLAYED THE RECORDING
+
+**The owner pressed ▶ Listen on fourteen minutes of his own voice and heard nothing.** The audio file was
+correct, served 200 as `audio/mpeg`, and had been verified twice.
+
+**The fault was in the button.** The design's `reader.js` reads an article aloud with
+`window.speechSynthesis` — the browser's own voice — and **it has no knowledge of `[data-listen-audio]`, the
+element this archive adds.** The check was decisive:
+
+    grep -c "data-listen-audio" apps/ozikoro/public/design/reader.js   ->   0
+
+**So the button ran a robot voice over the article text, and the recording was never asked for.** Every test I
+ran was against the file, the route, the headers and the page — **and every one of them passed, because the
+file was fine. Nobody had tested the thing a person presses.**
+
+**`reader.js` is the design and is not edited.** `public/audio-listen.js` is loaded after it and takes the panel
+over, but only where `[data-listen-audio]` exists:
+
+    with a recording      the button plays the file; speed tunes the file; progress follows it
+    without one           nothing in the new file runs, and the browser voice remains
+
+**That is the honest order of preference: a person's recording beats a synthetic one, and a synthetic one beats
+silence.**
+
+The script is added to the page **only when an approved episode exists**, so a record with no narration is the
+same document it was before.
+
+### And one more time, the same lesson
+
+`if (episode) { html = html.replace(…` — at that point the variable is `filled`, not `html`, **and the block sat
+above the assignment.** A rename I did not make, in code I had just written, **caught by the typechecker rather
+than by the owner.**
