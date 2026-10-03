@@ -13243,3 +13243,45 @@ write the delimiter again.**
     akwa-ocha-the-white-cloth-of-…      targets 7 · problems none
 
 **The design remains byte-identical: 63 · 0 differing · 0 missing.**
+
+---
+
+## ROUND 291 — THE OWNER'S ACCOUNT, AND A SILENT FAILURE THAT HID FOURTEEN DASHBOARDS
+
+### The account
+
+    email        idenzeme@gmail.com
+    name         Idenze Ezeme
+    account.role owner            the platform enum already had this value
+    member role  owner            the archive's eleven-role model, with its rank rule
+    contributor  nze (id 6)       already existed, and is the byline on every record they wrote
+
+**There is no `username` column anywhere in `account`** — this platform signs in by email. **`nze` is the
+owner's contributor slug and it has been there since the import**, so the username asked for is already the one
+the archive uses and nothing had to be invented to provide it.
+
+**Both role systems were set**, because a person who is the owner of the record should be the owner in both
+places, and **a gap between them is how a permission model stops matching the thing it describes.**
+
+**A password was generated and set, because there is no way to reset one**: sign-in is by password and no mail
+transport is configured, so a "forgot password" link would send nothing, and an account created without a
+password would be unusable *and* unrecoverable. It is printed once and is expected to be changed.
+
+    verified   POST /api/auth/signin  ->  303  ->  /dashboard-admin?welcome=1  +  session cookie
+               /dashboard-admin       ->  "Welcome back, Idenze Ezeme"  ·  Roles held: owner
+
+### And the failure that made every dashboard look unfilled
+
+    design fill failed for dashboard-admin: column "capability" does not exist
+
+**`ozikoro_capabilities` is a set-returning function, so its column is named after the FUNCTION, not after what
+it returns.** The query read `select capability from ozikoro_capabilities($1)`, which is invalid — **and the
+route catches a fill failure and serves the design unchanged, by design.**
+
+**So the page fell back to the walkthrough's example content and looked exactly like a page that had never been
+filled at all.** The owner's dashboard said *"Pending Moderation escalation · Example workspace item"* and gave
+no hint that anything had gone wrong.
+
+**That is the trade the catch was written for, and it hid a fault in all fourteen dashboards at once.** A
+fallback that leaves the page looking plausible is a fallback that hides its own failures — **and the only
+reason this was found is that a name was expected to appear and did not.**

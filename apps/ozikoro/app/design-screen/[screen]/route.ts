@@ -244,7 +244,11 @@ export async function GET(
           `select role from ozikoro_member_role where account_id = $1 order by role`, [account.id]
         );
         const caps = await db.rows<{ capability: string }>(
-          `select capability from ozikoro_capabilities($1) order by capability`, [account.id]
+          // A set-returning function's column is named after the FUNCTION, not after what it returns.
+          // `select capability from ozikoro_capabilities($1)` failed with `column "capability" does not exist`
+          // on every dashboard render — and the catch swallowed it, **so the page quietly fell back to the
+          // design's example content and looked like it had never been filled at all.**
+          `select ozikoro_capabilities as capability from ozikoro_capabilities($1) order by 1`, [account.id]
         );
         who = {
           ...who,
