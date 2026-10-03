@@ -1199,3 +1199,171 @@ export function extractReferences(body: string): string[] {
   return all.slice(0, 60);
 }
 
+
+/**
+ * THE MASTHEAD'S LAST ITEM, WHICH IS ABOUT THE READER RATHER THAN THE ARCHIVE.
+ *
+ * The design's menu ends with `My Ozikoro`, pointing at `dashboard-reader.html` — **a link that goes to a
+ * dashboard whether or not anybody is signed in, and therefore lands a stranger on a page addressed to a
+ * person they are not.** The owner asked for it to say what the reader can actually do, and to sit last,
+ * after About:
+ *
+ *   signed in       My account        -> the dashboard
+ *   not signed in   Sign in / Sign up -> the way in
+ *
+ * WHY THIS IS REWRITTEN AT SERVE TIME RATHER THAN EDITED INTO THE DESIGN
+ *
+ * The menu is in all 52 screens. **Editing it would mean editing the design**, which is the one thing that
+ * must not happen to it — and the two states cannot both be stored in a static file anyway, because which
+ * one is right depends on who is asking.
+ */
+export function fillMasthead(html: string, viewer: { signedIn: boolean }): string {
+  /*
+   * THE EXISTING ITEM IS REMOVED WHEREVER IT SITS, AND ONE ITEM IS ADDED AFTER ABOUT.
+   *
+   * Matching the anchor by its href rather than by its label, because the label differs between screens.
+   * **A menu item that is moved by matching its text moves only on the screens whose text happens to match.**
+   */
+  let out = html.replace(/<li>\s*<a[^>]*href="[^"]*dashboard-reader[^"]*"[^>]*>[\s\S]*?<\/a>\s*<\/li>/gi, '');
+
+  const item = viewer.signedIn
+    ? '<li class="nav-account"><a href="/dashboard-reader">My account</a></li>'
+    : '<li class="nav-account"><a href="/signin">Sign in / Sign up</a></li>';
+
+  // After the About item, which is where the owner asked for it.
+  out = out.replace(/(<li>\s*<a[^>]*href="[^"]*about[^"]*"[^>]*>[\s\S]*?<\/a>\s*<\/li>)/i, `$1${item}`);
+
+  /*
+   * IF ABOUT IS NOT IN THE MENU, THE ITEM GOES AT THE END RATHER THAN NOWHERE.
+   *
+   * A screen whose menu omits About would otherwise lose the way in entirely — and **a way in that exists on
+   * fifty screens and not two is worse than one that is consistently last.**
+   */
+  if (!out.includes('nav-account')) {
+    out = out.replace(/(<nav class="nav"[^>]*>[\s\S]*?<ul>)([\s\S]*?)(<\/ul>)/i, `$1$2${item}$3`);
+  }
+  return out;
+}
+
+/**
+ * THE ABOUT PAGE, TOLD WITH THE ARCHIVE'S OWN NUMBERS AND ITS OWN PEOPLE.
+ *
+ * The design's About is a walkthrough: a mission in the abstract, three tools described, four editorial
+ * principles, and **six invented people under a heading that says readers already meet them here**. Every
+ * figure in it is a placeholder, and the people are not real.
+ *
+ * What replaces it is the same page with the same structure, filled with what the archive actually holds:
+ *
+ *   the counts come from the database, so "1,051 histories" is a count and not a claim about one
+ *   the people are the nineteen contributors, in the order of how much they wrote
+ *   the portraits are MONOGRAM TILES, because **not one of the eleven WordPress authors has a photograph** —
+ *     Gravatar serves the same grey silhouette for all of them, and eleven identical grey figures would be
+ *     worse than eleven initials
+ *   the principles say what this archive does, including where it has not done it yet
+ *
+ * **The design's own note already anticipated the portraits**: *"Monogram tiles hold each place until approved
+ * portraits are supplied — no stock faces are used."*
+ */
+export type AboutData = {
+  published: number;
+  inReview: number;
+  media: number;
+  towns: number;
+  sources: number;
+  licences: number;
+  contributors: { slug: string; name: string; records: number; bio: string | null }[];
+};
+
+/** `IE` from `Idenze Ezeme`. Two letters, or one if the name has one word. */
+function monogram(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '··';
+  if (parts.length === 1) return (parts[0] ?? '').slice(0, 2).toUpperCase();
+  return `${parts[0]?.[0] ?? ''}${parts[parts.length - 1]?.[0] ?? ''}`.toUpperCase();
+}
+
+export function fillAbout(html: string, d: AboutData): string {
+  let out = html;
+
+  /*
+   * THE PEOPLE, BUILT FROM THE DESIGN'S OWN CARD.
+   *
+   * The design's cards carry a background photograph with a monogram over it and a caption reading "Portrait to
+   * be supplied". **The photograph is one of the archive's own images used as a tint — and it is the same image
+   * on every card in the design, which is worse than none.** Each card here keeps the monogram, drops the
+   * borrowed image, and says whose card it is.
+   */
+  const card = (p: AboutData['contributors'][number]) => {
+    const bio = p.bio?.trim();
+    return `<article class="sx-person">
+  <div style="position:relative;aspect-ratio:1;overflow:hidden;background:#14261d">
+    <span style="position:absolute;inset:0;display:grid;place-items:center;font-family:'Noto Serif',serif;font-size:3rem;color:#d8b25a;font-weight:700">${esc(monogram(p.name))}</span>
+    <small style="position:absolute;bottom:.5rem;left:.6rem;color:#f6efe0;font-size:.7rem">No portrait supplied</small>
+  </div>
+  <div class="sx-person-copy">
+    <p class="eyebrow">${p.records === 1 ? '1 published history' : `${p.records.toLocaleString('en-GB')} published histories`}</p>
+    <h3>${esc(p.name)}</h3>
+    ${bio ? `<p class="small muted" style="margin-top:var(--s-2)">${esc(bio.slice(0, 240))}</p>` : ''}
+  </div>
+</article>`;
+  };
+
+  const people = d.contributors.filter((c) => c.records > 0).map(card).join('');
+  if (people) out = replaceContainer(out, '<div class="sx-people">', people);
+
+  /*
+   * THE NOTE ABOVE THEM, WHICH SAID SOMETHING THAT IS NO LONGER TRUE.
+   *
+   * The design's reads *"Biographies below are as published on ozikoro.com. Monogram tiles hold each place
+   * until approved portraits are supplied — no stock faces are used."* **The second sentence is right and the
+   * first is not: the archive holds no biographies for most of these people.** So it says what is actually the
+   * case.
+   */
+  const named = d.contributors.filter((c) => c.bio?.trim()).length;
+  out = out.replace(
+    /<p class="sx-notice"[^>]*>[\s\S]*?<\/p>/,
+    `<p class="sx-notice" style="margin-bottom:var(--s-5)">The people who wrote what is here, in the order of how much of it they wrote. ` +
+      `${named} of these ${d.contributors.filter((c) => c.records > 0).length} have a biography on file; the rest are named by their work alone. ` +
+      `Portraits are monogram tiles because no author on ozikoro.com has uploaded one — <strong>no stock faces are used.</strong></p>`
+  );
+
+  /*
+   * THE NUMBERS, WHICH THE DESIGN DOES NOT HAVE AT ALL.
+   *
+   * A page about an archive should say how much it holds. **Every figure here is counted at render time**, and
+   * the ones that are uncomfortable are included rather than left out: 526 records are held in review and not
+   * published, and **not one of the 3,488 media items has a licence recorded**, which is the archive's largest
+   * open problem and the one a reader is least likely to guess.
+   */
+  const figures: [string, string][] = [
+    [d.published.toLocaleString('en-GB'), 'published histories'],
+    [d.inReview.toLocaleString('en-GB'), 'held in review'],
+    [d.towns.toLocaleString('en-GB'), 'towns and clans'],
+    [d.media.toLocaleString('en-GB'), 'images, films and documents'],
+  ];
+  const figureRow = `<div class="sx-metrics" style="margin:var(--s-6) 0">${figures
+    .map(
+      ([n, label]) =>
+        `<article class="sx-metric"><b>${esc(String(n))}</b><span class="small muted">${esc(label)}</span></article>`
+    )
+    .join('')}</div>`;
+  // Placed directly after the mission section, where a reader has just been told what this is.
+  out = out.replace(/(<section class="wrap sx-mission">[\s\S]*?<\/section>)/, `$1${figureRow}`);
+
+  /*
+   * THE RECORDS' OWN SOURCES, COUNTED HONESTLY.
+   *
+   * The design's editorial method is four principles with no numbers. **"Source in view" is a claim, and the
+   * archive can say how often it holds**: 744 records name a sources section and 728 of them yield citations.
+   * **0 licences** is the number that matters, and it is stated.
+   */
+  out = out.replace(
+    /(<section class="sx-principles">)/,
+    `<p class="small muted" style="max-width:60ch;margin-bottom:var(--s-5)">Of ${d.published.toLocaleString('en-GB')} published histories, ` +
+      `${d.sources.toLocaleString('en-GB')} state their sources. The archive holds <strong>${d.licences} recorded licences</strong> ` +
+      `for ${d.media.toLocaleString('en-GB')} media items: every one is held with its rights basis recorded as unknown and consent as not sought. ` +
+      `That is stated here rather than left for a reader to discover, because it is the archive's largest open problem.</p>$1`
+  );
+
+  return out;
+}

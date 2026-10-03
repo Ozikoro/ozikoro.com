@@ -13454,3 +13454,59 @@ slash or a dot-dot. **The guard is not relaxed; a second door is opened onto one
     /media/ozikoro/episodes/../../../../etc/…  404
     /media/ozikoro/episodes/..%2fsecret.mp3    404
     /media/ozikoro/episodes/ute-okpu-….mp3     200  8,029,457 bytes  audio/mpeg
+
+---
+
+## ROUND 295 — THE MENU, THE AUTH PAGES, AND WHAT THE WORDPRESS PROFILES ACTUALLY HOLD
+
+### The menu, verified in both states
+
+    signed out   … About · Sign in / Sign up -> /signin
+    signed in    … About · My account      -> /dashboard-reader
+
+**Last, after About, on every screen** — because the menu is in all 52, so it is rewritten at serve time rather
+than stored, and **both states cannot live in one static file: which is right depends on who is asking.**
+
+The design's item was `My Ozikoro`, pointing at `dashboard-reader.html` — **a link that goes to a dashboard
+whether or not anybody is signed in, and so lands a stranger on a page addressed to somebody they are not.**
+It is matched by its href rather than its label, because **a menu item moved by matching its text moves only on
+the screens whose text happens to match.**
+
+### The auth pages already exist
+
+    /signin   a real form posting to a real endpoint, so it works without JavaScript and can be driven by curl
+    /join     registration; creates the account, the member profile and the reader role, then signs in
+
+**They are not the design's screens**, and `?next=` is carried through so an administrator sent here from the
+Spotify page lands back on it.
+
+### The author photographs, which do not exist
+
+**The owner asked for the portraits already on the contributors' WordPress profiles. There are none.**
+
+    each of the eleven authors has a DISTINCT Gravatar hash      — so each has an identity
+    every downloaded image is byte-identical to the others      — and not one has a picture
+    Gravatar therefore serves the same grey silhouette for all eleven
+
+**Verified by looking at the file rather than trusting its size**: the 3,270-byte response is Gravatar's
+placeholder figure, identical for every author.
+
+**Eleven identical grey silhouettes would be worse than eleven initials**, and the design's own note on this
+page already says so: *"Monogram tiles hold each place until approved portraits are supplied — no stock faces
+are used."* **The monograms stay, and the note now says why.**
+
+### Where the About page actually lives, and a lesson
+
+**`fillAbout` was written, wired, typechecked, and never called** — because `/about/` is served by
+`app/about/page.tsx`, a hand-built React page that reproduces the design section for section, **and never
+reaches the design-screen route at all.**
+
+**Two further faults were hiding behind it, each of which looked like the same symptom:**
+
+    `about` was absent from the FILLED set        a screen not in FILLED is served as the design has it
+    `licence_code` does not exist                 the column is `licence`; the catch served the design
+                                                  unfilled, so a wrong column name looked like a page
+                                                  nobody had written a fill for
+
+**Three different faults, one symptom: a page showing the design's example content.** Each was found only by
+asking why an expected name was not in the output.

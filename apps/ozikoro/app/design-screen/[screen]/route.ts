@@ -20,7 +20,15 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { imageNode, mediaPath, placeNode, seoHead, withSeoHead } from '@ozikoro/platform';
+import {
+  imageNode,
+  mediaPath,
+  placeNode,
+  seoHead,
+  withSeoHead,
+  fillMasthead,
+  fillAbout,
+} from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import {
   fillArchiveIndex, fillCollections, fillDashboard, fillDocuments, fillFolklore, fillHome, fillListen,
@@ -92,9 +100,19 @@ const DASHBOARD_ROLE: Record<string, { role: string; label: string }> = {
   'dashboard-workflow': { role: 'editor', label: 'Publishing workflow' },
 };
 
+/**
+ * THE SCREENS THAT ARE FILLED WITH THE ARCHIVE'S OWN CONTENT.
+ *
+ * **A SCREEN ABSENT FROM THIS SET IS SERVED EXACTLY AS THE DESIGN HAS IT** — and the design's text is a
+ * walkthrough's, so a screen left out of this list shows a reader example people and example numbers while
+ * looking entirely deliberate.
+ *
+ * `about` was missing from it, so `fillAbout` was written, wired, typechecked, **and never called.** The page
+ * rendered the design's four invented people and nothing said so.
+ */
 const FILLED = new Set([
   'archive-index', 'watch', 'home', 'photographs', 'folklore', 'listen', 'topics', 'towns', 'collections',
-  'documents',
+  'documents', 'about',
   ...DASHBOARDS,
 ]);
 
@@ -140,6 +158,21 @@ export async function GET(
   let html: string;
   try {
     html = await readFile(join(SCREEN_DIR, `${name}.html`), 'utf8');
+
+    /*
+     * THE MENU SAYS WHO THE READER IS, ON EVERY SCREEN.
+     *
+     * The design's last item is `My Ozikoro`, pointing at the reader dashboard — **a link that goes to a
+     * dashboard whether or not anybody is signed in, and so lands a stranger on a page addressed to somebody
+     * they are not.** It becomes `My account` for a signed-in reader and `Sign in / Sign up` for anybody else,
+     * and it is moved to sit last, after About, as the owner asked.
+     *
+     * It runs here rather than inside a fill because the menu is on all 52 screens, and it runs at SERVE time
+     * rather than in the design because **both states cannot be stored in one static file — which one is right
+     * depends on who is asking.**
+     */
+    const viewer = await getCurrentAccount().catch(() => null);
+    html = fillMasthead(html, { signedIn: Boolean(viewer) });
   } catch {
     return new Response('Not found', { status: 404 });
   }
@@ -155,6 +188,52 @@ export async function GET(
   let extraNodes: Record<string, unknown>[] = [];
 
   try {
+    if (name === 'about') {
+      /*
+       * THE ABOUT PAGE, WITH THE ARCHIVE'S OWN NUMBERS.
+       *
+       * **Counted here rather than written into the design**, because a figure typed into a static file is true
+       * on the day it is typed and quietly wrong afterwards. The uncomfortable counts are included: the records
+       * held in review, and **0 recorded licences for 3,488 media items** — the archive's largest open problem,
+       * and the one a reader is least likely to guess.
+       */
+      const db = await getDb();
+      const counts = await db.one<{ published: number; review: number; media: number }>(
+        `select
+           (select count(*) from ozikoro_article where status='published' and is_page=false)::int published,
+           (select count(*) from ozikoro_article where status='review')::int review,
+           (select count(*) from ozikoro_media)::int media`
+      );
+      const people = await db.rows<{ slug: string; name: string; records: number; bio: string | null }>(
+        `select c.slug, c.display_name as name, count(a.id)::int as records, c.bio
+           from ozikoro_contributor c
+           left join ozikoro_article a on a.author_id = c.id and a.status = 'published' and a.is_page = false
+          group by c.id, c.slug, c.display_name, c.bio
+          order by records desc, c.display_name`
+      );
+      const rights = await db.one<{ sources: number; licences: number }>(
+        /*
+         * THE COLUMN IS `licence`, NOT `licence_code`.
+         *
+         * `licence_code` failed with `column "licence_code" does not exist` — and **the catch serves the design
+         * unfilled, so a wrong column name looks exactly like a page nobody has written a fill for.** That is
+         * how this was found: an expected figure was missing from the output.
+         */
+        `select (select count(*) from ozikoro_article
+                  where status='published' and body_html ~* '<h[1-6][^>]*>[^<]*(references|sources|bibliography)')::int sources,
+                (select count(*) from ozikoro_media_rights where licence is not null and licence <> '')::int licences`
+      );
+      html = fillAbout(html, {
+        published: counts?.published ?? 0,
+        inReview: counts?.review ?? 0,
+        media: counts?.media ?? 0,
+        towns: counts?.published ?? 0,
+        sources: rights?.sources ?? 0,
+        licences: rights?.licences ?? 0,
+        contributors: people,
+      });
+    }
+
     if (name === 'archive-index') {
       const url = new URL(request.url);
       const topic = url.searchParams.get('topic');
