@@ -134,7 +134,38 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   let html: string;
   try {
-    const filled = fillArticle(await readFile(SCREEN, 'utf8'), article);
+    /*
+     * THE SPOKEN RECORD, BUT ONLY ONCE A PERSON HAS APPROVED IT.
+     *
+     * **`status = 'published'` and nothing else.** An episode sitting in `pending_review` is one nobody has
+     * listened to yet, and the whole point of the review step is that a mistake is caught before a reader
+     * hears it. A `draft` or `failed` episode has no audio worth offering either.
+     */
+    const episode = await db.one<{
+      slug: string; storage_key: string | null; external_url: string | null; duration_seconds: number | null;
+      narrator_kind: string; narrator_name: string | null; ai_disclosure: string; transcript: string;
+    }>(
+      `select slug, storage_key, external_url, duration_seconds, narrator_kind, narrator_name, ai_disclosure, transcript
+         from ozikoro_episode
+        where article_id = $1 and status = 'published'
+          and coalesce(external_url, storage_key) is not null
+        order by published_at desc nulls last limit 1`,
+      [row.id]
+    );
+
+    const filled = fillArticle(await readFile(SCREEN, 'utf8'), {
+      ...article,
+      episode: episode
+        ? {
+            url: episode.external_url ?? `/media/${episode.storage_key}`,
+            seconds: episode.duration_seconds,
+            narratorKind: episode.narrator_kind,
+            narratorName: episode.narrator_name,
+            disclosure: episode.ai_disclosure,
+            transcript: episode.transcript,
+          }
+        : null,
+    });
     /*
      * THE HEAD IS REPLACED, NOT APPENDED TO.
      *

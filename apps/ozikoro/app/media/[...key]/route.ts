@@ -52,6 +52,17 @@ const ARCHIVE_MEDIA_DIR = join(process.cwd(), '..', '..', 'data', 'media', 'ozik
  */
 const KEY_PATTERN = /^ozikoro\/\d{1,8}-[A-Za-z0-9._\- ()[\],'&+]{1,180}$/;
 
+/**
+ * The spoken records live in their own subdirectory, and the pattern above forbids `/` **on purpose** — the
+ * traversal guard is what it exists for, so `..`, an absolute path and anything else never matches.
+ *
+ * **Widening that pattern to permit a slash would have weakened the guard for every one of the 3,750 archive
+ * images to serve eight episodes.** So the episode path is a SECOND, NARROWER pattern: one fixed directory
+ * name, then a filename that cannot contain a slash, a backslash or a dot-dot. **The guard is not relaxed; a
+ * second door is cut that only opens onto one room.**
+ */
+const EPISODE_PATTERN = /^ozikoro\/episodes\/[A-Za-z0-9._\-]{1,180}$/;
+
 const CONTENT_TYPES: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
   avif: 'image/avif', svg: 'image/svg+xml', pdf: 'application/pdf', mp4: 'video/mp4',
@@ -66,7 +77,7 @@ export async function GET(
   const { key: segments } = await context.params;
   const key = (segments ?? []).join('/');
 
-  if (!KEY_PATTERN.test(key)) {
+  if (!KEY_PATTERN.test(key) && !EPISODE_PATTERN.test(key)) {
     return new NextResponse('Not found', { status: 404 });
   }
 

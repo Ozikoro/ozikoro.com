@@ -445,6 +445,21 @@ export type RealArticle = {
   related: { title: string; href: string; topic: string | null; image: string | null }[];
   /** Maps an original media URL to the file this archive serves. Absent means leave the URL alone. */
   resolveImage?: (url: string) => string | null;
+  /**
+   * THE PUBLISHED SPOKEN RECORD, IF ONE EXISTS.
+   *
+   * **Absent or null means the audio button does not appear at all.** The design's panel carries a `<button>`
+   * and a speed control, and a button that plays nothing is worse than no button: it invites a click and
+   * answers with silence.
+   */
+  episode?: {
+    url: string;
+    seconds: number | null;
+    narratorKind: string;
+    narratorName: string | null;
+    disclosure: string;
+    transcript: string;
+  } | null;
 };
 
 /**
@@ -518,6 +533,47 @@ export function fillArticle(html: string, a: RealArticle): string {
     /(<p class="sx-article-byline">)[\s\S]*?(<\/p>)/,
     `$1By <strong>${esc(a.author ?? 'Ozikoro')}</strong>$2`
   );
+
+  /*
+   * THE LISTEN PANEL — THE AUDIO BUTTON APPEARS ONLY FOR AN APPROVED RECORD.
+   *
+   * The design's panel is a real player: a `<button data-listen-toggle>`, a speed `<select>` and a
+   * `<progress>`. Filling none of it and leaving it on the page would offer a reader a button that plays
+   * nothing. **Removing it is the honest state**, and it is what the design's own note anticipates —
+   * *"Published audio would add narrator, rights, duration and a downloadable transcript."*
+   *
+   * When an episode HAS been approved, the panel says who is speaking and how, because that disclosure is
+   * what Spotify's rules require and it belongs beside the play button rather than in a note elsewhere.
+   */
+  if (a.episode) {
+    const mins = a.episode.seconds ? Math.floor(a.episode.seconds / 60) : null;
+    const secs = a.episode.seconds ? a.episode.seconds % 60 : null;
+    const length = mins !== null ? `${mins}m ${String(secs).padStart(2, '0')}s` : '';
+    const transcriptSlug = a.path.replace(/^\//, '').replace(/\/$/, '');
+    out = out.replace(
+      /(<p class="small" data-listen-status aria-live="polite">)[\s\S]*?(<\/p>)/,
+      `$1Ready to listen${length ? ` · ${esc(length)}` : ''}$2`
+    );
+    out = out.replace(
+      /(<button class="btn" type="button" data-listen-toggle[^>]*>)[\s\S]*?(<\/button>)/,
+      '$1▶ Listen$2'
+    );
+    // The audio element carries the file; the design's own script drives the button and the progress bar.
+    out = out.replace(
+      /(<section[^>]*\bid="listen"[^>]*>)/,
+      `$1<audio data-listen-audio preload="none" src="${esc(a.episode.url)}"></audio>`
+    );
+    // The design's last line becomes the disclosure, the credit and the transcript.
+    out = out.replace(
+      /(<p class="small muted">)[\s\S]*?(<\/p>)(\s*<\/section>)/,
+      `$1${esc(a.episode.disclosure)}$2` +
+        `<p class="small muted"><a href="/podcast/${esc(transcriptSlug)}/transcript.txt">Read the transcript</a>` +
+        `${a.episode.narratorName ? ` · ${esc(a.episode.narratorName)}` : ''}</p>$3`
+    );
+  } else {
+    // **No approved episode, so no button.** The panel goes rather than sitting there inert.
+    out = out.replace(/<section[^>]*\bid="listen"[^>]*>[\s\S]*?<\/section>/, '');
+  }
 
   // The image, its alternative text, and the honest caption.
   if (a.image) {

@@ -38,6 +38,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { getDb, closeDb } from '@ozituma/db/client';
+import { getStorage } from '@ozituma/db/storage';
 // The one definition of "prepare the article's own words for speaking", shared with the API route.
 import { toSpokenScript } from '@ozikoro/platform';
 
@@ -142,9 +143,8 @@ if (!show) throw new Error('no show row');
 
 const episodeSlug = article.slug;
 const storageKey = `ozikoro/episodes/${episodeSlug}.mp3`;
-const dest = join(process.cwd(), 'data', 'media', 'ozikoro-wp', `episodes`);
-mkdirSync(dest, { recursive: true });
-writeFileSync(join(dest, `${episodeSlug}.mp3`), audio);
+// Into storage, where the media route reads — **not the archive directory, which production does not serve.**
+await getStorage().put(storageKey, audio, 'audio/mpeg');
 
 const disclosure =
   voiceChoice === 'own'

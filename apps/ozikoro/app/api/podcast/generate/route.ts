@@ -18,10 +18,9 @@
  * `synthetic_generic` otherwise, with the disclosure that follows from each — **Spotify's third rule, and the
  * reason it is a column rather than a convention.**
  */
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { NextResponse } from 'next/server';
 import { getDb } from '@ozituma/db/client';
+import { getStorage } from '@ozituma/db/storage';
 import { apiKey, configured, genericVoiceId, ownVoiceId, speak } from '@/lib/elevenlabs';
 import { getCurrentAccount } from '@/lib/session';
 import { can, toSpokenScript } from '@ozikoro/platform';
@@ -76,10 +75,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: String(error).slice(0, 300) }, { status: 502 });
   }
 
+  /*
+   * THE AUDIO GOES INTO STORAGE, NOT ONTO A PATH.
+   *
+   * This wrote to `data/media/ozikoro-wp/episodes/` — the ARCHIVE directory, where the WordPress extraction put
+   * its files. **The media route does not read that directory in production.** It reads object storage, and
+   * with no `S3_BUCKET` set that is the local driver at `.data/media`. So the file was on disk, correctly named,
+   * 8 MB of it, and the route answered 404 — **a spoken record that existed everywhere except where it was
+   * looked for.**
+   *
+   * Writing through `getStorage()` means the file lands wherever the media route will actually read it, **and
+   * that stays true when the deployment moves to S3 and no path in this file changes.**
+   */
   const storageKey = `ozikoro/episodes/${slug}.mp3`;
-  const dir = join(process.cwd(), 'data', 'media', 'ozikoro-wp', 'episodes');
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${slug}.mp3`), audio);
+  await getStorage().put(storageKey, audio, 'audio/mpeg');
 
   const disclosure =
     voiceChoice === 'own'

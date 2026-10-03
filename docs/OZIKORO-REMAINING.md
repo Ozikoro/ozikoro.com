@@ -13411,3 +13411,46 @@ behind it, because Spotify's rules put the responsibility for the content on the
 
     node scripts/prepare-episode.ts <slug> --dry-run   the spoken script only, nothing recorded
     node scripts/prepare-episode.ts <slug>             renders, and records an episode for review
+
+---
+
+## ROUND 294 — THE AUDIO BUTTON APPEARS ONLY FOR AN APPROVED RECORD
+
+### The gate, measured
+
+    episode status = pending_review      panel ABSENT   no button, no player
+    no episode at all                    panel ABSENT   no button, no player
+    episode status = published           panel PRESENT  audio, disclosure, transcript
+    the feed                            1 item · <enclosure> + <podcast:transcript>
+
+**The design's own note anticipated this**: *"Published audio would add narrator, rights, duration and a
+downloadable transcript."* **A button that plays nothing is worse than no button** — it invites a click and
+answers with silence — so the whole panel is removed rather than left inert.
+
+### And the audio that existed everywhere except where it was looked for
+
+**The file was on disk, correctly named, 8 MB of it, and the route answered 404.**
+
+    the writer wrote to        data/media/ozikoro-wp/episodes/     the ARCHIVE directory
+    the media route reads      object storage, which without S3_BUCKET is `.data/media`
+
+**Two directories that look like the same thing and are not.** In development a fallback serves the archive
+directory, so this would have worked locally and failed the moment `NODE_ENV=production` — **and the review
+server runs the standalone build, which is production.** So it failed here, which is the good outcome.
+
+**Both writers now go through `getStorage().put()`**, which means the file lands wherever the media route will
+actually read it — **and that stays true when the deployment moves to S3 and no path in either file changes.**
+
+### A guard that was not weakened to serve eight files
+
+The media route's key pattern forbids `/`, **on purpose**: the traversal guard is what it exists for. Episodes
+live in a subdirectory, and **widening that pattern to permit a slash would have loosened the guard for all
+3,750 archive images to serve a handful of episodes.**
+
+So a **second, narrower pattern** was cut: one fixed directory name, then a filename that cannot contain a
+slash or a dot-dot. **The guard is not relaxed; a second door is opened onto one room.**
+
+    /media/ozikoro/episodes/…/passwd           404
+    /media/ozikoro/episodes/../../../../etc/…  404
+    /media/ozikoro/episodes/..%2fsecret.mp3    404
+    /media/ozikoro/episodes/ute-okpu-….mp3     200  8,029,457 bytes  audio/mpeg
