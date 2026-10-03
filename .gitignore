@@ -134,3 +134,7 @@ Thumbs.db
 # parent repository should carry twice.
 design/calm-comfort-construct/.git-upstream/
 apps/ozikoro/public/media
+
+# The verify artefact a second build makes when the shared .next is in use.
+# It is output, not source, and two builds sharing .next is how the review server was killed mid-write.
+.next-verify/
