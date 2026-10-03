@@ -13891,3 +13891,33 @@ actually wrong** — so a reader who had filled everything in and was blocked by
 something that was already correct. **It now names the field the browser is refusing**, taken from the event's
 own target. **A message that misnames the problem is worse than no message, because it sends the reader to the
 wrong place.**
+
+---
+
+## ROUND 304 — THE ROLE SWITCH THAT TOLD THE OWNER HE WAS SOMEBODY ELSE
+
+**Every dashboard in the design carries a `<details class="sx-role-switch">` offering nine workspaces.** It is a
+walkthrough control — it exists so a reviewer of the design can see how each workspace looks. **There is no
+product feature behind it and there was never meant to be one.**
+
+**On the live site it stopped being harmless.** Measured as the owner:
+
+    /dashboard-admin/             shows his name · the page calls itself Administrator
+    /dashboard-reader/            shows his name · the page calls itself Reader
+    /dashboard-knowledge-holder/  shows his name · the page calls itself Community knowledge holder
+
+**His name, on a workspace labelled with a role he does not hold.** A recorded role is a fact; a dropdown that
+appears to change it is a demonstration. **And for an administrator it implies something worse — that he can
+look at a reader's workspace, which is their saved histories and their reading. It only appeared to work
+because the page was showing his own data dressed as somebody else's.**
+
+**Removed at serve time; the design's file is not edited.** Both were verified: the switch is absent from the
+admin, editor and reader dashboards and their sidebars are intact, **and `design/` still contains it, with the
+parity check at `identical 63 differing 0 missing 0`.**
+
+### And the honest label was the one thing that had been taken away
+
+**The design's own banner reads *"Dashboard design demonstration — all people, counts and activity are example
+material"*, and the fill removes it — correctly, because the counts are no longer example material.** But that
+banner was the only thing on the page saying the role switch was a demonstration, **so removing it is what made
+the switch look real.** A control is only honest while the thing that frames it is still there.

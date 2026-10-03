@@ -1234,6 +1234,30 @@ export function fillMasthead(html: string, viewer: { signedIn: boolean }): strin
   out = out.replace(/(<li>\s*<a[^>]*href="[^"]*about[^"]*"[^>]*>[\s\S]*?<\/a>\s*<\/li>)/i, `$1${item}`);
 
   /*
+   * THE ROLE SWITCH GOES, BECAUSE IT TELLS THE READER SOMETHING UNTRUE.
+   *
+   * Every dashboard in the design carries a `<details class="sx-role-switch">` offering nine workspaces — Reader,
+   * Student, Teacher, Researcher, Independent Researcher, Community Knowledge Holder, Editor, Expert Reviewer,
+   * Admin. **It is a walkthrough control: it exists so a reviewer of the design can see how each workspace
+   * looks.** There is no product feature behind it and there was never meant to be.
+   *
+   * On the live site it stopped being harmless. Measured as the owner:
+   *
+   *     /dashboard-admin/            shows his name · the page calls itself Administrator
+   *     /dashboard-reader/           shows his name · the page calls itself Reader
+   *     /dashboard-knowledge-holder/ shows his name · the page calls itself Community knowledge holder
+   *
+   * **His name, on a workspace labelled with a role he does not hold.** A recorded role is a fact; a dropdown
+   * that appears to change it is a demonstration. And for an administrator it implies something worse — that he
+   * can look at a reader's workspace, which is their saved histories and their reading. **It only appears to
+   * work because the page is showing his own data dressed as somebody else's.**
+   *
+   * So it is removed at serve time, and the design's own file is not edited. **The sidebar then says only what
+   * the account may actually do, which is what a workspace is for.**
+   */
+  out = out.replace(/<details class="sx-role-switch">[\s\S]*?<\/details>/i, '');
+
+  /*
    * IF ABOUT IS NOT IN THE MENU, THE ITEM GOES AT THE END RATHER THAN NOWHERE.
    *
    * A screen whose menu omits About would otherwise lose the way in entirely — and **a way in that exists on
