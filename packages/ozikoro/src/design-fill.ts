@@ -1531,7 +1531,9 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   'Igbo ritual office': 'a topic record for this name; the archive’s fourteen topics do not include it',
   'Archives and repatriation': 'a topic record for this name; the archive’s fourteen topics do not include it',
   'Niger delta trade': 'a topic record for this name; the archive’s fourteen topics do not include it',
-  'Emeka Ǹwàchukwu': 'a byline page for the design’s example author; the archive credits eleven contributors and none of them is this name',
+  // The count is not written here: the archive has gained and lost contributor records during this work, and a
+  // number typed into a table of unbuilt links goes stale silently. The claim that matters is the second one.
+  'Emeka Ǹwàchukwu': 'a byline page for the design’s example author; no contributor record in this archive carries that name',
 };
 
 /**
@@ -1810,11 +1812,11 @@ export function fillDashboardLinks(html: string, screen: string): string {
  *
  * What replaces it is the same page with the same structure, filled with what the archive actually holds:
  *
- *   the counts come from the database, so "1,051 histories" is a count and not a claim about one
- *   the people are the nineteen contributors, in the order of how much they wrote
- *   the portraits are MONOGRAM TILES, because **not one of the eleven WordPress authors has a photograph** —
- *     Gravatar serves the same grey silhouette for all of them, and eleven identical grey figures would be
- *     worse than eleven initials
+ *   the counts come from the database, so the number of histories is a count and not a claim about one
+ *   the people are every contributor the archive holds, in the order of how much of it they wrote
+ *   the portraits are MONOGRAM TILES, because **not one WordPress author has ever uploaded a photograph** —
+ *     Gravatar answers the same grey silhouette for every one of them, and that many identical grey figures
+ *     would be worse than that many initials
  *   the principles say what this archive does, including where it has not done it yet
  *
  * **The design's own note already anticipated the portraits**: *"Monogram tiles hold each place until approved
@@ -1853,8 +1855,8 @@ function n(value: number): string {
  * A filled `.sx-people` card: a real contributor, a monogram rather than a face.
  *
  * **Not one WordPress author has ever uploaded a profile photograph** (the migration holds the uploads table,
- * and it is empty of avatars), and Gravatar answers the same grey silhouette for every one of them — so eleven
- * identical grey figures would be worse than eleven initials. The design's own note anticipated exactly this:
+ * and it is empty of avatars), and Gravatar answers the same grey silhouette for every one of them — so that
+ * many identical grey figures would be worse than that many initials. The design's own note anticipated exactly this:
  * *"Monogram tiles hold each place until approved portraits are supplied — no stock faces are used."*
  *
  * The record count is counted from the archive, the link is the contributor's own byline page, and the design's
