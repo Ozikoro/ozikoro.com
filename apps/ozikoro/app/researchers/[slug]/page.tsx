@@ -12,6 +12,8 @@ import { getDb } from '@ozituma/db/client';
 import {
   countFollowers,
   followsResearcher,
+  getOwnResearcher,
+  getProfileForEditing,
   getResearcher,
   getResearcherBio,
   listByAccount,
@@ -51,12 +53,24 @@ export default async function ResearcherPage({
   if (!Number.isInteger(id)) notFound();
 
   const db = await getDb();
-  const researcher = await getResearcher(db, id);
+
+  /*
+   * The signed-in account is resolved BEFORE the profile, because it decides which question is asked.
+   * The public reader filters on `is_public = true`; the owner's own view must not, or clearing the
+   * visibility box would hide from a person the only screen that can put it back. See
+   * `getOwnResearcher`.
+   */
+  const current = await getCurrentAccount();
+  const viewerId = current?.account.id ?? null;
+
+  const researcher =
+    (await getResearcher(db, id)) ?? (viewerId === id ? await getOwnResearcher(db, id) : null);
   if (!researcher) notFound();
 
-  const [bio, works] = await Promise.all([
+  const [bio, works, editable] = await Promise.all([
     getResearcherBio(db, id),
     listByAccount(db, id, { includePrivate: false }),
+    viewerId === id ? getProfileForEditing(db, id) : Promise.resolve(null),
   ]);
 
   /*
@@ -67,8 +81,6 @@ export default async function ResearcherPage({
    * queries are asked separately — `countFollowers` always, `followsResearcher` only when there is
    * somebody signed in — rather than one query that returns a state the page would then hide.
    */
-  const current = await getCurrentAccount();
-  const viewerId = current?.account.id ?? null;
   const [followers, following] = await Promise.all([
     countFollowers(db, id),
     viewerId === null ? Promise.resolve(false) : followsResearcher(db, viewerId, id),
@@ -130,7 +142,89 @@ export default async function ResearcherPage({
                 this researcher and keep a reading list.
               </p>
             ) : viewerId === id ? (
-              <p className="small muted">This is your own profile.</p>
+              /*
+               * THE OWNER'S OWN PROFILE, AND THE SCREEN THAT DID NOT EXIST.
+               *
+               * The database has modelled credentials, institution, research interests and visibility
+               * since migration 0037 and the library has implemented the update since the same round —
+               * but nothing ever called it, so a researcher could be listed and could deposit work and
+               * could not write a single word about themselves. The empty state this page shows is an
+               * invitation; this is the door it invites you through.
+               *
+               * `<details>` rather than a modal or a separate route: it is keyboard-operable with no
+               * JavaScript, which is the pattern the dashboard brief names for disclosure, and it keeps
+               * the profile itself the first thing on the page.
+               */
+              <details className="notice" style={{ marginTop: 'var(--s-2)' }}>
+                <summary>Edit your profile</summary>
+                <form method="post" action="/api/research" className="stack" style={{ marginTop: 'var(--s-4)' }}>
+                  <input type="hidden" name="action" value="profile" />
+                  <input type="hidden" name="returnTo" value={`/researchers/${id}/`} />
+
+                  <p className="wpfield">
+                    <label htmlFor="headline">Headline</label>
+                    <input id="headline" name="headline" type="text" maxLength={200}
+                      defaultValue={researcher.headline ?? ''}
+                      placeholder="e.g. Lecturer in Igbo history" />
+                  </p>
+
+                  <p className="wpfield">
+                    <label htmlFor="institution">Institution</label>
+                    <input id="institution" name="institution" type="text" maxLength={200}
+                      defaultValue={researcher.institution ?? ''} />
+                    <span className="wphelp">Leave empty if you work independently. It is not required.</span>
+                  </p>
+
+                  <p className="wpfield">
+                    <label htmlFor="department">Department</label>
+                    <input id="department" name="department" type="text" maxLength={200}
+                      defaultValue={researcher.department ?? ''} />
+                  </p>
+
+                  <p className="wpfield">
+                    <label htmlFor="orcid">ORCID iD</label>
+                    <input id="orcid" name="orcid" type="text" maxLength={40}
+                      defaultValue={researcher.orcid ?? ''} placeholder="0000-0002-1825-0097" />
+                    <span className="wphelp">
+                      Recorded as you give it. It is your identifier and is not validated here.
+                    </span>
+                  </p>
+
+                  <p className="wpfield">
+                    <label htmlFor="website">Website</label>
+                    <input id="website" name="website" type="url" maxLength={300}
+                      defaultValue={editable?.website ?? ''} placeholder="https://" />
+                  </p>
+
+                  <p className="wpfield">
+                    <label htmlFor="bio">About your work</label>
+                    <textarea id="bio" name="bio" rows={6} maxLength={5000}
+                      defaultValue={editable?.bio ?? ''} />
+                  </p>
+
+                  <p className="wpfield">
+                    <label htmlFor="researchInterests">Research interests</label>
+                    <input id="researchInterests" name="researchInterests" type="text" maxLength={1000}
+                      defaultValue={researcher.researchInterests.join(', ')}
+                      placeholder="Igbo history, Oral tradition" />
+                    <span className="wphelp">Separate them with commas.</span>
+                  </p>
+
+                  <p className="wpfield">
+                    <label htmlFor="isPublic">
+                      <input id="isPublic" name="isPublic" type="checkbox" value="1"
+                        defaultChecked={editable?.isPublic ?? true} />{' '}
+                      List my profile in the researchers directory
+                    </label>
+                    <span className="wphelp">
+                      Unchecking hides you from the directory. Your profile stays visible to you, so you
+                      can turn it back on.
+                    </span>
+                  </p>
+
+                  <p><button className="btn" type="submit">Save profile</button></p>
+                </form>
+              </details>
             ) : (
               <form method="post" action="/api/follows">
                 <input type="hidden" name="kind" value="researcher" />

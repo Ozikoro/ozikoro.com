@@ -248,6 +248,17 @@ export function fillHome(html: string, entries: { title: string; href: string; t
 /** A photograph as the archive holds it. */
 export type RealPhotograph = {
   id: number;
+  /**
+   * The media record's own slug, which is the address of its record page at `/documents/<slug>/`.
+   *
+   * WHY THIS FIELD EXISTS. The first version of this renderer wrote `<a href="/photographs">Open
+   * record</a>` — a link that returns the reader to the page they are already on. **Every one of the
+   * 3,462 photographs had a full record page carrying its provenance, its reuse terms, the collection
+   * it came from and how to cite it, and not one of them was reachable from the gallery.** The screen
+   * looked complete and offered nothing; the owner could look and could not read, cite or request.
+   * Measured on the served page: zero anchors to `/documents/…`.
+   */
+  slug: string;
   title: string;
   alt: string;
   src: string;
@@ -279,13 +290,15 @@ export function renderPhotograph(ph: RealPhotograph): string {
     ? `Licence ${ph.licence}`
     : 'No licence recorded · reuse not granted';
 
+  const record = `/documents/${ph.slug}/`;
+
   return `<article>
           <img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy">
           <div>
             <small>${esc(context)}</small>
-            <h2>${esc(ph.title)}</h2>
+            <h2><a href="${esc(record)}">${esc(ph.title)}</a></h2>
             <p>Reference <code>OZ-M-${ph.id}</code> · ${esc(terms)}</p>
-            <a href="/photographs">Open record <span aria-hidden="true">→</span></a>
+            <a href="${esc(record)}">Record, provenance and how to cite it <span aria-hidden="true">→</span></a>
           </div>
         </article>`;
 }
@@ -787,11 +800,23 @@ export function fillDashboard(html: string, who: DashboardWho): string {
 }
 
 /** A downloadable document the archive actually holds as a file. */
-export type RealDocument = { title: string; href: string; label: string; note: string; size: string | null };
+export type RealDocument = {
+  title: string;
+  href: string;
+  /**
+   * The record page at `/documents/<slug>/`. The same fault the photograph gallery had: this card
+   * offered only a download, so the provenance, the rights and the citation were unreachable from the
+   * library. The record is the way in; the file is one of the things it offers.
+   */
+  recordHref: string;
+  label: string;
+  note: string;
+  size: string | null;
+};
 
 /** One document card, in the design's `.sx-pdf-grid > article` markup. */
 export function renderDocument(d: RealDocument): string {
-  return `<article><span class="sx-file-icon">PDF</span><div><small>${esc(d.label)}</small><h3>${esc(d.title)}</h3><p>${esc(d.note)}</p><a href="${esc(d.href)}" download>Download PDF${d.size ? ` · ${esc(d.size)}` : ''} <span aria-hidden="true">↓</span></a></div></article>`;
+  return `<article><span class="sx-file-icon">PDF</span><div><small>${esc(d.label)}</small><h3><a href="${esc(d.recordHref)}">${esc(d.title)}</a></h3><p>${esc(d.note)}</p><p><a href="${esc(d.recordHref)}">Record and citation</a> · <a href="${esc(d.href)}" download>Download PDF${d.size ? ` · ${esc(d.size)}` : ''} <span aria-hidden="true">↓</span></a></p></div></article>`;
 }
 
 /**

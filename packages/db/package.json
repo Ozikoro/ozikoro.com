@@ -42,6 +42,7 @@
     "typecheck": "tsc --noEmit",
     "smoke": "node src/smoke.ts",
     "accounts": "node src/role.ts",
+    "test:cluster-lock": "node src/test-cluster-lock.ts",
     "test:contributions": "node src/test-contributions.ts",
     "import:ibodict": "node src/import/ibodict.ts",
     "import:examples": "node src/import/examples.ts",

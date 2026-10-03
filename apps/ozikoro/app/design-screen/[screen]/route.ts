@@ -405,13 +405,19 @@ export async function GET(
          * fault this archive already recorded once: presenting web captures as documents.
          */
         const db = await getDb();
-        const rows = await db.rows<{ id: number; title: string | null; storage_key: string; filesize_bytes: number | null }>(
-          `select id, title, storage_key, filesize_bytes from ozikoro_media
+        const rows = await db.rows<{ id: number; slug: string; title: string | null; storage_key: string; filesize_bytes: number | null }>(
+          `select id, slug, title, storage_key, filesize_bytes from ozikoro_media
             where kind = 'document' and mime_type = 'application/pdf' and storage_key is not null
             order by id`
         );
         const docs: RealDocument[] = rows.map((r) => ({
           title: r.title?.trim() || `Document ${r.id}`,
+          /*
+           * THE RECORD, FIRST. This grid used to offer a download and nothing else, so the page that
+           * carries the provenance, the rights and the citation was unreachable from the library — the
+           * same fault as the photograph gallery's "Open record" link that returned to the gallery.
+           */
+          recordHref: `/documents/${r.slug}/`,
           // THE KEY CAN CONTAIN SPACES. `storage_key` is derived from the WordPress filename, and a filename
           // like `11237-Igbo Folk Idioms in Caribbean Phrase.pdf` is stored verbatim. **An unencoded space
           // truncates the URL at the space**, so the link 404s on exactly the files whose names are most
@@ -679,16 +685,19 @@ export async function GET(
          */
         const db = await getDb();
         const rows = await db.rows<{
-          id: number; title: string | null; alt_text: string | null; storage_key: string | null;
+          id: number; slug: string; title: string | null; alt_text: string | null; storage_key: string | null;
           creator: string | null; credit: string | null; licence: string | null; captured_at: Date | null;
         }>(
-          `select id, title, alt_text, storage_key, creator, credit, licence, captured_at
+          `select id, slug, title, alt_text, storage_key, creator, credit, licence, captured_at
              from ozikoro_media
             where kind = 'image' and storage_key is not null
             order by id limit 24`
         );
         const photos: RealPhotograph[] = rows.filter((r) => r.storage_key).map((r) => ({
           id: r.id,
+          // The record page's address. Without it the gallery rendered 24 photographs and no way into
+          // any of their records — see the note on `RealPhotograph.slug`.
+          slug: r.slug,
           title: r.title?.trim() || `Photograph ${r.id}`,
           alt: r.alt_text?.trim() || r.title?.trim() || 'Archive photograph',
           // `filter` does not narrow the property, and the guard above is what makes this safe.
@@ -703,7 +712,9 @@ export async function GET(
         // `copyrightNotice` saying so rather than a `license` asserting a permission nobody granted.
         extraNodes = photos.map((ph) =>
           imageNode({
-            url: `https://ozikoro.com/photographs/`,
+            // The record's own address, not the listing's: a search engine given the gallery's URL for
+            // every image can only ever index one page for 3,462 records.
+            url: `https://ozikoro.com/documents/${ph.slug}/`,
             contentUrl: `https://ozikoro.com${ph.src}`,
             caption: ph.title,
             creator: ph.creator,

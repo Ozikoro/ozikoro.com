@@ -1200,3 +1200,58 @@ export async function getResearcherBio(db: Db, accountId: number): Promise<{ bio
   );
   return { bio: row?.bio ?? null, website: row?.website ?? null };
 }
+
+/**
+ * A person's own profile, whether or not they have made it public.
+ *
+ * WHY THIS EXISTS RATHER THAN A FLAG ON `getResearcher`. The public reader filters on
+ * `is_public = true`, which is right: the directory and every profile page should show the people who
+ * chose to be findable. But the profile page is also the only surface where a researcher can EDIT
+ * theirs, so a person who cleared the visibility box would find their own page answering "not found"
+ * and would have no way to put it back — **a control that can lock you out of the screen that undoes
+ * it.** The owner's view is therefore a different question from the public one, and it is asked
+ * separately rather than by loosening the public read.
+ */
+export async function getOwnResearcher(
+  db: Db,
+  accountId: number
+): Promise<(ResearcherCard & { memberSince: string | null }) | null> {
+  const row = await db.one<Record<string, unknown>>(
+    `select m.account_id, coalesce(m.display_name, a.display_name, a.email) as name,
+            m.headline, m.institution, m.department, m.orcid, m.research_interests,
+            m.created_at,
+            (select count(distinct p.id)::int from ozikoro_publication p
+               join ozikoro_publication_author pa on pa.publication_id = p.id
+              where pa.account_id = m.account_id and p.status = 'published' and p.is_public = true) as publication_count
+       from ozikoro_member m join account a on a.id = m.account_id
+      where m.account_id = $1`,
+    [accountId]
+  );
+  if (!row) return null;
+  return {
+    accountId: Number(row.account_id),
+    slug: String(row.account_id),
+    name: String(row.name),
+    headline: row.headline ? String(row.headline) : null,
+    institution: row.institution ? String(row.institution) : null,
+    department: row.department ? String(row.department) : null,
+    orcid: row.orcid ? String(row.orcid) : null,
+    researchInterests: Array.isArray(row.research_interests) ? row.research_interests.map(String) : [],
+    publicationCount: Number(row.publication_count ?? 0),
+    memberSince: row.created_at ? new Date(String(row.created_at)).toISOString() : null,
+  };
+}
+
+/** The profile's visibility setting, which `ResearcherCard` deliberately does not carry. */
+export async function getProfileForEditing(db: Db, accountId: number): Promise<{
+  isPublic: boolean;
+  bio: string | null;
+  website: string | null;
+} | null> {
+  const row = await db.one<{ is_public: boolean; bio: string | null; website: string | null }>(
+    `select is_public, bio, website from ozikoro_member where account_id = $1`,
+    [accountId]
+  );
+  if (!row) return null;
+  return { isPublic: row.is_public, bio: row.bio ?? null, website: row.website ?? null };
+}

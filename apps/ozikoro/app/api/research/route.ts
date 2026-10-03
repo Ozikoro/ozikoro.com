@@ -23,6 +23,7 @@ import {
   createPublication,
   revisePublication,
   transitionPublication,
+  updateMemberProfile,
   type PublicationState,
 } from '@ozikoro/platform';
 import { redirectTo, requireCapability, sameOrigin, jsonError } from '@/lib/access';
@@ -58,8 +59,18 @@ export async function POST(request: Request): Promise<Response> {
 
   // Which capability this action needs, decided before anything is read, so a refusal costs nothing
   // and cannot half-apply.
+  /*
+   * The profile is gated on `submit_work` rather than on `research_profile`, and that is deliberate.
+   * `research_profile` is held by `researcher` and `independent_researcher` only, and the brief's
+   * audience is "students, lecturers and researchers" — a student who could deposit a working paper
+   * but not describe themselves on it would be a strange gate. `submit_work` is held by student,
+   * teacher, researcher and independent researcher alike, and a profile is the thing a person's work
+   * hangs off. `research_profile` remains the vocabulary's name for the act; it is simply not the
+   * capability that admits it.
+   */
   const capability =
     action === 'create' || action === 'revise' ? 'submit_work'
+    : action === 'profile' ? 'submit_work'
     : action === 'complete-review' ? 'expert_review'
     : action === 'transition' ? capabilityForTransition((text('to', 40) || 'submitted') as PublicationState)
     : action === 'assign-review' ? 'review_queue'
@@ -109,6 +120,34 @@ export async function POST(request: Request): Promise<Response> {
       return redirectTo('/submit/', {
         saved: wantsSubmit ? 'Submitted. An editor will screen it.' : 'Saved as a draft. Nobody else can see it.',
       });
+    }
+
+    if (action === 'profile') {
+      /*
+       * THE PROFILE A RESEARCHER OWNS.
+       *
+       * The account being edited is the SIGNED-IN account and never a form field: the one thing this
+       * route must not allow is a change attributed to somebody who did not make it, and an id taken
+       * from a form is an id an attacker chooses. `updateMemberProfile` re-checks the same equality
+       * and refuses, so the rule holds even if a future caller forgets this line.
+       *
+       * Research interests arrive as one comma-separated field, the same convention the deposit form
+       * uses for disciplines, because a person typing interests should not have to learn a syntax.
+       */
+      const interests = list('researchInterests');
+      await updateMemberProfile(db, {
+        accountId: actorId,
+        actorId,
+        headline: text('headline', 200) || null,
+        bio: text('bio', 5000) || null,
+        institution: text('institution', 200) || null,
+        department: text('department', 200) || null,
+        orcid: text('orcid', 40) || null,
+        website: text('website', 300) || null,
+        researchInterests: interests,
+        isPublic: text('isPublic', 4) === '1',
+      });
+      return redirectTo(backTo, { saved: 'Your profile is saved.' });
     }
 
     if (action === 'transition') {

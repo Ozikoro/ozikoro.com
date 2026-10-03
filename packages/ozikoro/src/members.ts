@@ -345,11 +345,24 @@ export async function setMemberStatus(
   });
 }
 
-/** Update the profile fields the person owns. */
+/**
+ * Update the profile fields the person owns.
+ *
+ * EVERY WRITE IS AUDITED AND NAMED. The audit row is not decoration here: a profile's institution,
+ * ORCID and research interests are claims a reader will take as credentials, and "who said this, and
+ * when" is the question asked when one is disputed. The `before` image is recorded as well as the
+ * `after`, so a change can be read back rather than guessed at.
+ *
+ * There is no rank check — `ozikoro_role_may_grant` governs granting ROLES, and this grants nothing.
+ * A person may edit their own profile and no other: the account id comes from the session and the
+ * `actorId` must be the same account, which is enforced here rather than trusted to the caller.
+ */
 export async function updateMemberProfile(
   db: Db,
   input: {
     accountId: number;
+    /** Who is making the change. Must be the profile's own account — see the check below. */
+    actorId: number;
     displayName?: string | null;
     headline?: string | null;
     bio?: string | null;
@@ -361,7 +374,28 @@ export async function updateMemberProfile(
     isPublic?: boolean;
   }
 ): Promise<void> {
+  if (input.accountId !== input.actorId) {
+    throw new MemberError('not_your_profile', 'That is not your profile to change.');
+  }
   await ensureMember(db, input.accountId);
+
+  const before = await db.one<{
+    display_name: string | null;
+    headline: string | null;
+    bio: string | null;
+    institution: string | null;
+    department: string | null;
+    orcid: string | null;
+    website: string | null;
+    research_interests: string[] | null;
+    is_public: boolean | null;
+  }>(
+    `select display_name, headline, bio, institution, department, orcid, website,
+            research_interests, is_public
+       from ozikoro_member where account_id = $1`,
+    [input.accountId]
+  );
+
   await db.query(
     `update ozikoro_member set
         display_name = coalesce($2, display_name),
@@ -388,6 +422,37 @@ export async function updateMemberProfile(
       input.isPublic ?? null,
     ]
   );
+
+  await audit(db, {
+    entityType: 'ozikoro_member',
+    entityId: input.accountId,
+    action: 'update_profile',
+    before: before
+      ? {
+          headline: before.headline,
+          institution: before.institution,
+          department: before.department,
+          orcid: before.orcid,
+          website: before.website,
+          researchInterests: before.research_interests,
+          isPublic: before.is_public,
+          // The bio is recorded as a presence rather than reproduced: it can run to thousands of
+          // characters, and the audit trail is a record of what changed, not a second copy of it.
+          hasBio: Boolean(before.bio),
+        }
+      : null,
+    after: {
+      headline: input.headline ?? null,
+      institution: input.institution ?? null,
+      department: input.department ?? null,
+      orcid: input.orcid ?? null,
+      website: input.website ?? null,
+      researchInterests: input.researchInterests ?? null,
+      isPublic: input.isPublic ?? null,
+      hasBio: input.bio !== undefined ? Boolean(input.bio) : before?.bio != null,
+    },
+    actorId: input.actorId,
+  });
 }
 
 // ---------------------------------------------------------------------------

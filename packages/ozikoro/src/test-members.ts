@@ -231,11 +231,29 @@ await setMemberStatus(db, { accountId: both.id, status: 'active', actorId: platf
 console.log('\n--- the profile a person owns ---');
 await updateMemberProfile(db, {
   accountId: both.id,
+  actorId: both.id,
   displayName: 'Test Researcher',
   institution: 'University of Nowhere',
   orcid: '0000-0002-1825-0097',
   researchInterests: ['Igbo history', 'Oral tradition'],
 });
+// The profile is self-service and nobody else's: the audit row must name the person, and a change
+// attributed to somebody who did not make it is the one thing an audit exists to prevent.
+const profileAudits = await db.rows<{ n: number; unattributed: number; actors: string }>(
+  `select count(*)::int as n,
+          count(*) filter (where actor_id is null)::int as unattributed,
+          coalesce(string_agg(distinct actor_id::text, ','), '') as actors
+     from ozikoro_audit where entity_type = 'ozikoro_member' and action = 'update_profile'`
+);
+assert('a profile change is audited', Number(profileAudits[0]?.n ?? 0) >= 1, `${profileAudits[0]?.n} rows`);
+assert('and names the actor', Number(profileAudits[0]?.unattributed ?? 1) === 0, `actors ${profileAudits[0]?.actors}`);
+let refusedOtherProfile = false;
+try {
+  await updateMemberProfile(db, { accountId: both.id, actorId: platformAdmin.id, headline: 'not mine' });
+} catch {
+  refusedOtherProfile = true;
+}
+assert('and one account may not edit another account\'s profile', refusedOtherProfile);
 const updated = await getMember(db, both.id);
 assert('a profile saves', updated?.institution === 'University of Nowhere');
 assert('with research interests', updated?.researchInterests.length === 2, updated?.researchInterests.join(', '));

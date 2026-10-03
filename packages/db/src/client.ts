@@ -20,6 +20,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { acquireClusterLock, isEphemeralDataDir, registerShutdownHook, type ClusterLock } from './cluster-lock.ts';
 
 export interface QueryResult<T> {
   rows: T[];
@@ -73,14 +74,17 @@ class PGliteDb implements Db {
   private trigram: boolean | null = null;
   private readonly client: PGlite;
   private readonly debug: boolean;
+  /** The single-process cluster guard, released when this connection closes. */
+  private readonly lock: ClusterLock;
 
   // Note: explicit field declarations rather than TypeScript parameter
   // properties. Node runs these files directly via type stripping, which is
   // strip-only and rejects parameter properties. Keeping the source erasable
   // means the import scripts and CLI need no build step.
-  constructor(client: PGlite, debug: boolean) {
+  constructor(client: PGlite, debug: boolean, lock: ClusterLock) {
     this.client = client;
     this.debug = debug;
+    this.lock = lock;
   }
 
   async query<T>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
@@ -123,7 +127,11 @@ class PGliteDb implements Db {
   }
 
   async close(): Promise<void> {
+    // Order matters: flush and close the cluster first, then surrender the
+    // guard, so a successor that starts on seeing the lock disappear cannot
+    // find PGlite still writing to the directory it is about to open.
     await this.client.close();
+    this.lock.release();
   }
 
   /** Escape hatch for tests that need the raw PGlite instance. */
@@ -247,11 +255,47 @@ function postgresSslFor(url: string): { rejectUnauthorized: boolean } | undefine
 
   const { PGlite } = await import('@electric-sql/pglite');
   const { mkdir } = await import('node:fs/promises');
-  const dataDir = opts.dataDir ?? process.env.OZITUMA_DB_PATH ?? DEFAULT_DATA_DIR;
-  // PGlite expects the parent directory to exist; it will not create it.
-  await mkdir(dataDir, { recursive: true });
-  const client = await PGlite.create({ dataDir });
-  return new PGliteDb(client, debug);
+  /*
+   * `||` and not `??` on purpose. `.env.example` documents OZITUMA_DB_PATH with an empty value, and
+   * a deployment that loads that file sets the variable to the empty string rather than leaving it
+   * unset — which `??` would accept, handing PGlite an empty data directory and putting the cluster
+   * guard's lock file beside the working directory. An empty path means "not configured", which is
+   * exactly what the default is for.
+   */
+  const dataDir = opts.dataDir || process.env.OZITUMA_DB_PATH || DEFAULT_DATA_DIR;
+  // PGlite expects the parent directory to exist; it will not create it. Skipped for an in-memory
+  // data directory, where `mkdir('memory://')` would create a literal directory of that name.
+  if (!isEphemeralDataDir(dataDir)) await mkdir(dataDir, { recursive: true });
+
+  // ── THE CLUSTER GUARD ────────────────────────────────────────────────────
+  // Taken here, before the cluster is opened and therefore before it is read:
+  // a reader and a writer corrupt each other equally, because both open the
+  // same files for writing while Postgres recovers and checkpoints. Placed at
+  // the single point where PGlite is instantiated rather than at the callers,
+  // so the server, the migrations, the importers, the tests and the next
+  // script written are all covered without remembering anything.
+  //
+  // This branch is only reached when no connection string is configured — a
+  // real Postgres reaches the pool above and is deliberately not locked, since
+  // a server handles its own concurrency and a lock there would be a lie.
+  //
+  // Refuses by exiting non-zero, naming the holder, before any file is opened.
+  const lock = acquireClusterLock(dataDir);
+
+  let client: PGlite;
+  try {
+    client = await PGlite.create({ dataDir });
+  } catch (error) {
+    // The cluster never opened, so the guard must not outlive the attempt.
+    lock.release();
+    throw error;
+  }
+
+  // On SIGINT/SIGTERM the cluster is closed before the guard is surrendered, so
+  // an operator's ordinary `kill` cannot leave a half-written cluster behind.
+  registerShutdownHook(() => client.close());
+
+  return new PGliteDb(client, debug, lock);
 }
 
 /** Process-wide shared connection. */
