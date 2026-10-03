@@ -13640,3 +13640,48 @@ has a cover that ends in its own typography rather than in an empty box.
 **A WebP or PNG figure is skipped rather than written wrong.** A PDF embeds JPEG natively and nothing else, and
 writing another format's bytes into an image object that claims DCTDecode produces a grey rectangle — **a
 missing figure is a smaller fault than a corrupt one.** Converting them is the next step.
+
+---
+
+## ROUND 299 — THE ARCHIVE IS 229 WEBP AND 438 PNG FILES, AND A PDF EMBEDS NEITHER
+
+**`ute-okpu-an-ika-igbo-clan-and-its-nri-roots` references exactly one image: `11234-ute-king.webp`.** Its
+publication was seven pages with **nothing in them**, and the reason was not a layout fault.
+
+    a PDF carries a JPEG natively through DCTDecode, and nothing else
+
+So a figure written as WebP or PNG was skipped by the guard in `jpegOf`, **which was doing its job correctly and
+producing an empty publication in the process.** The archive holds:
+
+    2,736  jpg / jpeg     already embeddable
+      438  png            not embeddable
+      229  webp           not embeddable
+        6  gif            not embeddable
+
+**Roughly one record in five has a figure a PDF cannot carry**, which is not an edge case.
+
+### The conversion, and why it needed no installation
+
+**`sips` is part of macOS and converts both formats**, so nothing had to be added to the machine — which
+matters, because `npm install pdf-lib` had already failed on a cache-permission fault and the answer to that was
+to write the writer rather than fight the tooling.
+
+    before    ute-okpu    7 pages    0 images     26 KB
+    after     ute-okpu    7 pages    2 images    205 KB
+
+**Converted once per file into `.data/publication-images`**, because a publication is built on every download
+and reconverting on each is work nobody asked for twice. Quality 88: **high enough that a printed page shows no
+artefacts, low enough that a five-image publication is not fifty megabytes.**
+
+**A conversion that fails returns null and the figure is left out** — the same rule as before, because a missing
+figure is a smaller fault than a corrupt one.
+
+### All seven, regenerated
+
+    aya-adesuwa-the-ubulu-uku-bini-war            11 pages   3 images    460 KB
+    extended-family-and-kinship-structures-…      10 pages   5 images    827 KB
+    james-africanus-beale-horton                   9 pages   5 images    419 KB
+    oil-and-tradition-…-kalabari-communities       8 pages   2 images    345 KB
+    ute-okpu-an-ika-igbo-clan-and-its-nri-roots    7 pages   2 images    205 KB   was 0
+    the-anioma-people-culture-history-…            5 pages   2 images    168 KB
+    strategic-relocation-…-immigrants-in-the-usa   5 pages   0 images     20 KB   genuinely has none

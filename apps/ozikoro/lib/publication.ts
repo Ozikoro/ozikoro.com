@@ -11,7 +11,8 @@
  * from the database and none is assumed to exist** — the schema is inspected rather than imagined, and a record
  * with no subtitle, no biography or no image simply has no subtitle, no biography or no image.
  */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
 import { ArticlePdf, type Block } from '@ozikoro/platform';
@@ -27,13 +28,60 @@ const MEDIA_ROOT = join(process.cwd(), '.data', 'media', 'ozikoro');
  * fault than a corrupt one**, and the alternative — writing a WebP's bytes into an image object that claims
  * DCTDecode — produces a page that renders grey or not at all.
  */
+/**
+ * THE ARCHIVE IS 229 WEBP AND 438 PNG FILES, AND A PDF EMBEDS NEITHER.
+ *
+ * A PDF carries a JPEG natively through `DCTDecode` and nothing else. **So a record whose only figure is a
+ * WebP got a publication with no figure at all** — `ute-okpu-an-ika-igbo-clan-and-its-nri-roots` references
+ * exactly one image, `11234-ute-king.webp`, and its seven pages had nothing in them. The same is true of PNG.
+ *
+ * `sips` is part of macOS and converts both, **so nothing has to be installed** — and the conversion is done
+ * once per file into a cache, because a publication is built on every download and reconverting on each is
+ * work nobody asked for twice.
+ *
+ * **A conversion failure returns null and the figure is left out**, which is the same rule as before: a
+ * missing figure is a smaller fault than a corrupt one.
+ */
+const CONVERT_CACHE = join(process.cwd(), '.data', 'publication-images');
+
+function toJpeg(path: string, name: string): Buffer | null {
+  const cached = join(CONVERT_CACHE, `${name.replace(/[\/]/g, '_')}.jpg`);
+  if (existsSync(cached)) {
+    const cachedData: Buffer = readFileSync(cached);
+    return cachedData[0] === 0xff && cachedData[1] === 0xd8 ? cachedData : null;
+  }
+  try {
+    mkdirSync(CONVERT_CACHE, { recursive: true });
+    /*
+     * `-s format jpeg` and a quality of 88.
+     *
+     * **High enough that a printed page shows no artefacts and low enough that a five-image publication is
+     * not fifty megabytes.** The reference publication's own images are photographic plates, and this is the
+     * setting those are reproduced at.
+     */
+    const r = spawnSync('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '88', path, '--out', cached], {
+      stdio: 'ignore',
+    });
+    if (r.status !== 0 || !existsSync(cached)) return null;
+    const cachedData: Buffer = readFileSync(cached);
+    return cachedData[0] === 0xff && cachedData[1] === 0xd8 ? cachedData : null;
+  } catch {
+    return null;
+  }
+}
+
 function jpegOf(storageKey: string | null | undefined): { data: Buffer; width: number; height: number } | null {
   if (!storageKey) return null;
   const name = storageKey.replace(/^ozikoro\//, '');
   const path = join(MEDIA_ROOT, name);
   if (!existsSync(path)) return null;
-  const data = readFileSync(path);
-  if (data[0] !== 0xff || data[1] !== 0xd8) return null;
+  let data: Buffer = readFileSync(path);
+  // Not a JPEG: convert it, and if that fails the caller leaves the figure out.
+  if (data[0] !== 0xff || data[1] !== 0xd8) {
+    const converted = toJpeg(path, name);
+    if (!converted) return null;
+    data = converted;
+  }
   const size = jpegSize(data);
   return size ? { data, ...size } : null;
 }
