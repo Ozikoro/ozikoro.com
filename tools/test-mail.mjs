@@ -92,7 +92,24 @@ process.env.OZITUMA_SMTP_USER = 'hello@ozituma.com';
 process.env.OZITUMA_SMTP_PASSWORD = 'a secret';
 process.env.OZITUMA_MAIL_FROM = 'Ozituma <hello@ozituma.com>';
 
-const { mailStatus, sendMail } = await import(new URL('../apps/web/lib/mail.ts', import.meta.url).href);
+/*
+ * RESEND IS CLEARED, because it now outranks SMTP and this harness tests SMTP.
+ *
+ * A transport added ahead of another one silently changes what every existing test of the later one is
+ * testing. A developer whose shell happens to export RESEND_API_KEY would have had this file exercise
+ * the Resend HTTP path against a local SMTP server and report eleven failures with no cause in the diff.
+ * **The precedence is stated here rather than inherited from the environment it is run in.**
+ */
+delete process.env.RESEND_API_KEY;
+delete process.env.OZIKORO_MAIL_FROM;
+delete process.env.RESEND_FROM;
+
+/*
+ * The module moved to `@ozituma/core` in round 178 and this path was not moved with it, so the check
+ * had been failing to import anything at all. A test that cannot load its subject reports nothing
+ * about it; see the note in `packages/core/src/mail.ts` on why the client is shared.
+ */
+const { mailStatus, sendMail } = await import(new URL('../packages/core/src/mail.ts', import.meta.url).href);
 
 let failures = 0;
 const assert = (label, ok, detail = '') => {

@@ -94,7 +94,16 @@ const DESIGN_SCREENS = new Set<string>([
   "sponsors",
   "topics",
   "town",
-  "towns",
+  /*
+   * "towns" IS DELIBERATELY ABSENT.
+   *
+   * It was here, which meant /towns was rewritten to the design SCREEN and the application's own
+   * app/towns/page.tsx was never reached at all — dead code, and the reason the owner could not see
+   * the finder he asked for even though it built correctly. `clans` is absent for the same reason:
+   * those are real routes now, not screens.
+   *
+   * The screen still exists at /design/screens/towns.html and /design-screen/towns for reference.
+   */
   "type-test",
   "upload",
   "watch",
@@ -186,6 +195,21 @@ export function middleware(request: NextRequest) {
     // the attachment fallback but a 404 for the real route**, because the rewrite runs before routing: every
     // child sitemap answered "Not found" until this was added.
     'sitemap',
+    /*
+     * The clan register, added with it — and this entry is load-bearing, not tidiness.
+     *
+     * `/clans` is a one-segment path, so it routed fine and this list was never consulted for it. Every
+     * page UNDER it is two segments, so without this line `/clans/anam/` was rewritten to
+     * `/attachment/anam/` before routing was ever reached: the entry page answered 404 even though `clan`
+     * held the row and the page compiled and ran, and `/clans/umunri/` answered 308 because an attachment
+     * happened to share that name. `/clans/tribes/` and `/clans/regions/` were 404 for the same reason.
+     *
+     * Measured, not reasoned: with this line absent, the mirror's dev server logged
+     * `GET /clans/anam/ 404 in 135ms` with no compilation of `/clans/[slug]` at all. This is the third
+     * time this list has silently swallowed a real route — `town` and `sitemap` are the earlier two — and
+     * every future static parent still belongs in it.
+     */
+    'clans',
   ]);
   const segments = pathname.split('/').filter(Boolean);
   /*

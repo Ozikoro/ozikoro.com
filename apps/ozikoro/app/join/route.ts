@@ -11,32 +11,34 @@
  * **Both addresses serve it, because the design holds both modes.** `/signin` opens on signing in and
  * `/join` on joining, and the design's own links move between them without a second document, which is what
  * the design was drawn to do.
+ *
+ * THE "Forgot password?" LINK IS REWRITTEN HERE TOO, AND THAT IS NOT TIDINESS.
+ *
+ * The design hides the sign-in row in join mode, and its own "Sign in" link reveals it *in this same
+ * document* — so the reader can reach that link from `/join` without the page being reloaded from
+ * `/signin`. A rewrite applied only on `/signin` would leave a dead "Forgot password?" link on this address,
+ * which is the defect this work exists to fix, at the other door.
  */
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { NextResponse } from 'next/server';
+import { ACCOUNT_LINES, accountScreen, screenResponse } from '@/lib/account-screen';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  const screen = join(process.cwd(), 'public', 'design', 'screens', 'account.html');
-  let html = await readFile(screen, 'utf8');
-
-  /*
-   * join.toUpperCase() OPENS IN ITS OWN MODE.
-   *
-   * The design decides its mode from `location.hash`, and its own "Create one" link sets that. **A reader who
-   * arrives at /$addr directly has set no hash**, so the page would open on whichever mode the design calls
-   * its default — which is signing in. The hash is therefore set once, before the wiring script runs, and the
-   * design's own toggle does everything after that.
-   */
-  html = html.replace(
-    '</head>',
-    '<script>if(!location.hash)location.replace("#signup");</script></head>'
-  );
-  html = html.replace('</body>', '<script src="/account-auth.js" defer></script></body>');
-
-  return new NextResponse(html, {
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+export async function GET(): Promise<Response> {
+  const html = await accountScreen({
+    replace: [
+      [ACCOUNT_LINES.forgotLink, '<a class="link" href="/forgot/">Forgot password?</a>'],
+      /*
+       * join.toUpperCase() OPENS IN ITS OWN MODE.
+       *
+       * The design decides its mode from `location.hash`, and its own "Create one" link sets that. **A reader
+       * who arrives at /join directly has set no hash**, so the page would open on whichever mode the design
+       * calls its default — which is signing in. The hash is therefore set once, before the wiring script
+       * runs, and the design's own toggle does everything after that.
+       */
+      ['</head>', '<script>if(!location.hash)location.replace("#signup");</script></head>'],
+    ],
+    scripts: ['/account-auth.js'],
   });
+
+  return screenResponse(html);
 }

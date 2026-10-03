@@ -6,15 +6,23 @@
  * failure locks somebody out of their own account, so the way it is configured
  * and the way it fails both matter here more than they would elsewhere.
  *
- * TWO TRANSPORTS, ONE FUNCTION
+ * THREE TRANSPORTS, ONE FUNCTION
  *
- * `sendMail` speaks SMTP, and it speaks Amazon SES. SMTP is what a mailbox
- * provider gives you (Zoho, cPanel, Fastmail, Google) and SES is what the
- * project's own AWS account gives you; between them they cover every way this
- * site is likely to send anything, and a change of provider is an environment
- * variable rather than a code change. Both are written against Node's own
- * `net`, `tls` and `crypto` — there is no dependency here to keep patched, which
- * is the same reason passwords use `scrypt`.
+ * `sendMail` speaks Resend, it speaks SMTP, and it speaks Amazon SES. SMTP is what a mailbox
+ * provider gives you (Zoho, cPanel, Fastmail, Google) and SES is what the project's own AWS
+ * account gives you; Resend is what this project actually holds a working key for, on a domain it
+ * has verified. Between them they cover every way this site is likely to send anything, and a
+ * change of provider is an environment variable rather than a code change. Resend and SES are
+ * HTTP, SMTP is written against Node's own `net`, `tls` and `crypto` — there is no dependency here
+ * to keep patched, which is the same reason passwords use `scrypt`.
+ *
+ * THE ORDER IS RESEND, THEN SMTP, THEN SES, AND IT IS DELIBERATE
+ *
+ * Resend first because a live key on a verified domain is the one transport known to deliver;
+ * `mailStatus()` reports the same order, so what the CLI prints is what would actually be used.
+ * SMTP second because it is the one an operator has deliberately configured for this site, whereas
+ * the AWS variables sit on the box for the media bucket and would otherwise be picked up by
+ * accident. **A transport that is merely present is not the same as one that is intended.**
  *
  * WHY IT DOES NOT THROW WHEN UNCONFIGURED
  *
@@ -39,7 +47,7 @@ export interface MailMessage {
   replyTo?: string;
 }
 
-export type Transport = 'smtp' | 'ses' | null;
+export type Transport = 'resend' | 'smtp' | 'ses' | null;
 
 export interface MailStatus {
   /** True when a message would actually leave this machine. */
@@ -55,6 +63,14 @@ export interface SendResult {
   transport: Transport;
   /** Present when `delivered` is false or when the server reported a warning. */
   error?: string;
+  /**
+   * The provider's own identifier for an accepted message, when it gives one.
+   *
+   * Resend answers 200 with `{ id }`. Carrying it back is what lets `scripts/mail-test.ts` report the
+   * API's actual response to the person verifying delivery — "delivered: true" alone is the client's
+   * opinion of itself, and the id is the provider's.
+   */
+  id?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -85,22 +101,63 @@ interface SesConfig {
   fromName: string | null;
 }
 
+interface ResendConfig {
+  apiKey: string;
+  from: string;
+}
+
 /**
- * The From address.
+ * The From address, and the order the names for it are tried.
  *
- * `OZITUMA_MAIL_FROM` when set. Otherwise the site's own domain is used as a
- * last resort, and a message sent from an address that does not exist will be
- * refused or filed as spam — which is why the status reports whether the address
- * was explicitly set rather than silently inventing one.
+ * WHY OZIKORO_MAIL_FROM COMES FIRST
+ *
+ * Two sites share this package and they are different registrable domains: ozituma.com is the
+ * dictionary, ozikoro.com is the archive, and a recovery message has to be recognisable as coming
+ * from the site the reader was on. So the site's own name wins, and the shared one is the fallback
+ * that keeps the dictionary working unchanged.
+ *
+ * THE SENDER MUST BE ON A DOMAIN RESEND WILL SEND FROM, AND THAT IS A MEASURED FACT, NOT AN ASSUMPTION
+ *
+ * `GET https://api.resend.com/domains` with the key in `apps/ozikoro/.env.local` answers 200 and lists TWO
+ * domains, `ozikoro.com` and `ozituma.com`, both reported `verified`. ozikoro.com's own record reads
+ * `partially_verified`, because its inbound MX (receiving) is still pending — **and the two records that
+ * matter for SENDING, DKIM and SPF, are both verified**, which is why the domain sends. Measured, not
+ * reasoned: a real message from `Ozikoro <hello@ozikoro.com>` returned HTTP 200 with an id. **An earlier
+ * note in this project recorded ozikoro.com as not verified with Resend at all; that was true before
+ * 2026-10-03 and is not true now, and the API is the thing to believe.** `scripts/check-mail.sh` re-reads
+ * that list and fails when the configured sender is on a domain Resend will not send from, which is the
+ * check that keeps this comment from going stale in the other direction.
+ *
+ * Changing the sender is one environment variable — `OZIKORO_MAIL_FROM` — and nothing in the code
+ * needs to move with it.
+ *
+ * READ AS LITERALS RATHER THAN THROUGH env()
+ *
+ * `scripts/check-secrets.sh` keeps `.env.example` honest by grepping the source for
+ * `process.env.NAME` as TEXT, and it reports a name that is documented but not seen that way as
+ * "DOCUMENTED BUT NEVER READ" — which fails the pre-commit hook. `env()` takes the name as an
+ * argument, so a variable read only through it is invisible to that check. **The names that
+ * `.env.example` lists are therefore spelled out here**, and `OZITUMA_SMTP_ALLOW_PLAINTEXT` and
+ * `OZITUMA_EHLO_NAME` below are literal for the same reason.
  */
 function fromAddress(): string | null {
-  const explicit = env('OZITUMA_MAIL_FROM');
+  const explicit =
+    process.env.OZIKORO_MAIL_FROM?.trim() ||
+    process.env.OZITUMA_MAIL_FROM?.trim() ||
+    process.env.RESEND_FROM?.trim() ||
+    null;
   if (explicit) return explicit;
   const site = env('OZITUMA_SITE_URL');
   if (!site) return null;
   try {
     const host = new URL(site).hostname.replace(/^www\./, '');
-    return `Ozituma <hello@${host}>`;
+    /*
+     * The derived name follows the domain, because one package serves two sites with two names. Naming
+     * an ozikoro.com sender "Ozituma" would be wrong in the one place a reader judges who wrote to
+     * them, and the domain is the only fact here that decides which site this is.
+     */
+    const name = host === 'ozikoro.com' || host.endsWith('.ozikoro.com') ? 'Ozikoro' : 'Ozituma';
+    return `${name} <hello@${host}>`;
   } catch {
     return null;
   }
@@ -149,13 +206,34 @@ function sesConfig(): SesConfig | null {
 }
 
 /**
+ * Resend, when a key is present and there is something to send from.
+ *
+ * READ AS A LITERAL, NOT THROUGH env(), so `scripts/check-secrets.sh` can see that the name in
+ * `.env.example` is a name the code actually reads. See the note on `fromAddress`.
+ */
+function resendConfig(): ResendConfig | null {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  const from = fromAddress();
+  if (!apiKey || !from) return null;
+  return { apiKey, from };
+}
+
+/**
  * Which transport, if any, would carry a message right now.
  *
- * SMTP wins when both are present: it is the one an operator has deliberately
- * configured for this site, whereas the AWS variables are on the box for the
- * media bucket and would otherwise be picked up by accident.
+ * THE ORDER IS THE ORDER THE MESSAGE WOULD TAKE: Resend, then SMTP, then SES.
+ *
+ * Resend wins because a key on a verified domain is the transport this project can actually
+ * deliver with. SMTP is next: it is the one an operator has deliberately configured for this site,
+ * whereas the AWS variables are on the box for the media bucket and would otherwise be picked up
+ * by accident. SES is last for that reason. **Reporting this order is the point of the function** —
+ * a status that named a transport the send path would not choose would be worse than none.
  */
 export function mailStatus(): MailStatus {
+  const resend = resendConfig();
+  if (resend) {
+    return { configured: true, transport: 'resend', from: resend.from, reason: null };
+  }
   const smtp = smtpConfig();
   if (smtp) {
     return {
@@ -175,7 +253,9 @@ export function mailStatus(): MailStatus {
       transport: null,
       from: null,
       reason:
-        'No From address. Set OZITUMA_MAIL_FROM (and OZITUMA_SITE_URL, which is used to derive one).',
+        'No From address. Set OZIKORO_MAIL_FROM (or OZITUMA_MAIL_FROM, or OZITUMA_SITE_URL, which ' +
+        'is used to derive one). The address must be on a domain the provider has verified; ' +
+        'scripts/check-mail.sh lists what Resend has verified.',
     };
   }
   return {
@@ -183,9 +263,9 @@ export function mailStatus(): MailStatus {
     transport: null,
     from: fromAddress(),
     reason:
-      'No mail transport. Set OZITUMA_SMTP_HOST, OZITUMA_SMTP_PORT, OZITUMA_SMTP_USER and ' +
-      'OZITUMA_SMTP_PASSWORD for a mailbox, or AWS_REGION, AWS_ACCESS_KEY_ID and ' +
-      'AWS_SECRET_ACCESS_KEY for Amazon SES.',
+      'No mail transport. Set RESEND_API_KEY for Resend (preferred), or OZITUMA_SMTP_HOST, ' +
+      'OZITUMA_SMTP_PORT, OZITUMA_SMTP_USER and OZITUMA_SMTP_PASSWORD for a mailbox, or AWS_REGION, ' +
+      'AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for Amazon SES.',
   };
 }
 
@@ -599,6 +679,66 @@ async function sendViaSes(config: SesConfig, message: MailMessage): Promise<void
 }
 
 // ---------------------------------------------------------------------------
+// Resend
+// ---------------------------------------------------------------------------
+
+/**
+ * One POST, and the provider's answer returned rather than assumed.
+ *
+ * Resend is the transport this project has a working key for, so it is the one whose failures matter
+ * most, and the failure is the part worth being careful about: a non-2xx is turned into an Error
+ * carrying the API's own message, because "the API said 403: domain is not verified" is a fact an
+ * administrator can act on and "sending failed" is not. **Nothing is swallowed and nothing is
+ * guessed at** — a message is delivered only when the API said 200.
+ */
+async function sendViaResend(config: ResendConfig, message: MailMessage): Promise<string | null> {
+  const body = JSON.stringify({
+    // The display name is passed through as Resend expects it: `Name <address@domain>`.
+    from: config.from,
+    to: [splitFrom(message.to).address],
+    subject: message.subject,
+    text: message.text,
+    // Resend's own field name for a reply address is snake_case; `replyTo` here would be ignored
+    // silently, which is the kind of mistake that only shows up when somebody replies.
+    ...(message.replyTo ? { reply_to: splitFrom(message.replyTo).address } : {}),
+    ...(message.html ? { html: message.html } : {}),
+  });
+
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body,
+  });
+
+  const detail = await response.text().catch(() => '');
+  if (!response.ok) {
+    let reason = detail.slice(0, 400);
+    try {
+      const parsed = JSON.parse(detail) as { message?: string; error?: string };
+      reason = parsed.message ?? parsed.error ?? reason;
+    } catch {
+      // Not JSON; the raw body is the best we have.
+    }
+    throw new Error(`Resend refused the message (${response.status}): ${reason}`);
+  }
+
+  /*
+   * A 200 whose body we cannot read is still a sent message: the id is for reporting, not for
+   * deciding. Treating an unreadable body as a failure would report a delivered recovery link as
+   * lost, which is the one direction this must never fail in.
+   */
+  try {
+    const parsed = JSON.parse(detail) as { id?: string };
+    return parsed.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // The public entry point
 // ---------------------------------------------------------------------------
 
@@ -616,6 +756,12 @@ export async function sendMail(message: MailMessage): Promise<SendResult> {
   }
 
   try {
+    if (status.transport === 'resend') {
+      const config = resendConfig();
+      if (!config) throw new Error('Resend configuration disappeared.');
+      const id = await sendViaResend(config, message);
+      return { delivered: true, transport: 'resend', ...(id ? { id } : {}) };
+    }
     if (status.transport === 'smtp') {
       const config = smtpConfig();
       if (!config) throw new Error('SMTP configuration disappeared.');

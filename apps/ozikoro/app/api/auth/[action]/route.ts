@@ -31,6 +31,22 @@ import {
   registerAccount,
   revokeSession,
 } from '@ozituma/db/accounts';
+/*
+ * The recovery flow's library, which already existed when this route did not.
+ *
+ * `requestPasswordReset` stores a random token only as a SHA-256 hash, voids any earlier open link, and
+ * returns `null` for an address with no account — **the enumeration-safe answer is the library's, not an
+ * invention of this route.** `resetPasswordWithToken` checks the link before spending it, so a password the
+ * policy refuses does not cost the person their link, then writes the password, audits the change, voids
+ * every other open link and revokes every session. Reusing it is why this route is short.
+ */
+import {
+  RESET_TTL_MINUTES,
+  markResetDelivered,
+  requestPasswordReset,
+  resetPasswordWithToken,
+} from '@ozituma/db/passwords';
+import { sendMail, siteAddress } from '@ozituma/core';
 import { sessionCookie, sessionMaxAgeSeconds } from '@/lib/session';
 import { sameOrigin } from '@/lib/access';
 import { clientKey, rateLimit } from '@/lib/rate-limit';
@@ -53,6 +69,85 @@ function safeNext(value: string | null): string {
   if (path.startsWith('/') && !path.startsWith('//') && !path.includes('\\')) return path;
   return '/admin';
 }
+
+/**
+ * Does the caller want a machine-readable answer?
+ *
+ * The design's pages post with `accept: application/json` so they can put the server's own sentence
+ * beside the form. A browser with JavaScript off posts the same form without that header and is answered
+ * with a 303 carrying the message in the query string, which is what every other endpoint here does.
+ * **Both shapes exist because recovery must work without JavaScript**, and a fetch response cannot be the
+ * only way in.
+ */
+function wantsJson(request: Request): boolean {
+  return (request.headers.get('accept') ?? '').includes('application/json');
+}
+
+/** The same answer in whichever of the two shapes the caller asked for. */
+function answer(
+  request: Request,
+  json: { status: number; body: Record<string, unknown>; headers?: Record<string, string> },
+  path: string,
+  params: Record<string, string> = {}
+): Response {
+  if (wantsJson(request)) {
+    return Response.json(json.body, {
+      status: json.status,
+      headers: { 'Cache-Control': 'no-store', ...(json.headers ?? {}) },
+    });
+  }
+  const response = redirectTo(path, params);
+  for (const [name, value] of Object.entries(json.headers ?? {})) response.headers.set(name, value);
+  return response;
+}
+
+/**
+ * The origin a link in an email has to be built from.
+ *
+ * `OZITUMA_SITE_URL` first, because an email is read somewhere else and the link has to work from there.
+ * The request's own origin is only a fallback: behind a proxy it can be the container's internal name,
+ * which would put an address in somebody's inbox that resolves to nothing.
+ */
+function siteOrigin(request: Request): string {
+  const configured = process.env.OZITUMA_SITE_URL;
+  if (configured) return configured.replace(/\/+$/, '');
+  return new URL(request.url).origin;
+}
+
+/**
+ * The recovery message.
+ *
+ * Plain and text-forward, in the archive's register: no marketing tone, no exclamation marks, and no
+ * claim about the archive that the archive cannot stand behind. Three things have to be in it, because a
+ * person who cannot sign in cannot come back to the site to find them out — the link, how long it lasts,
+ * and what to do if they did not ask for it. **Both parts are always sent**: some clients show nothing
+ * but the text one, and a recovery message that arrives empty is indistinguishable from a broken site.
+ */
+const RESET_TEMPLATE = (link: string, minutes: number) => ({
+  text: [
+    'Someone asked to set a new password for the Ozikoro account at this address.',
+    '',
+    'If that was you, open this link:',
+    link,
+    '',
+    `The link works once, and it stops working ${minutes} minutes from now.`,
+    '',
+    'If it was not you, nothing has changed and nothing needs doing. Your password is still the',
+    'one you set, and this message cannot reach the account on its own — the link is the only thing',
+    'in it that does anything, and it expires unused.',
+    '',
+    'Ozikoro — history and archive',
+    'https://ozikoro.com',
+  ].join('\n'),
+  html: [
+    '<p>Someone asked to set a new password for the Ozikoro account at this address.</p>',
+    `<p>If that was you, <a href="${link}">set a new password</a>.</p>`,
+    `<p>The link works once, and it stops working ${minutes} minutes from now.</p>`,
+    '<p>If it was not you, nothing has changed and nothing needs doing.</p>',
+    '<hr>',
+    '<p>Ozikoro — history and archive<br><a href="https://ozikoro.com">ozikoro.com</a></p>',
+  ].join('\n'),
+});
 
 export async function POST(
   request: Request,
@@ -149,6 +244,160 @@ export async function POST(
           ? error.message
           : 'That account could not be created.';
       return redirectTo('/join', { error: message, email, name: displayName });
+    }
+  }
+
+  /*
+   * FORGOTTEN PASSWORD, WHICH THE PAGE HAD A LINK FOR AND NO ENDPOINT BEHIND.
+   *
+   * THE ONE ANSWER, FOR EVERY CASE.
+   *
+   * "If that address has an account here, a link is on its way to it" is the whole reply, and it is the
+   * reply whether the account exists, is suspended, has no password, or whether mail is switched off
+   * entirely. **The alternative is an account-enumeration oracle**: a form that says "no account with that
+   * address" answers, for anybody who types an address into it, the question "does this person have an
+   * account on Ozikoro". That is a real disclosure on a site whose members are researchers, and it is why
+   * the branch that decides is inside `requestPasswordReset` and its answer is not passed on.
+   *
+   * The one thing that DOES differ is the rate limit, and it is keyed on the client rather than on the
+   * address, so it says nothing about whether the address is registered. Five an hour, the same ceiling
+   * registration uses, because both make the server send a message on a stranger's behalf.
+   */
+  if (action === 'forgot') {
+    if (!sameOrigin(request)) {
+      return answer(
+        request,
+        { status: 403, body: { ok: false, error: 'That request did not come from this site.' } },
+        '/forgot',
+        { error: 'That request did not come from this site.' }
+      );
+    }
+
+    const limit = rateLimit(`forgot:${clientKey(request)}`, { limit: 5, windowSeconds: 3600 });
+    if (!limit.allowed) {
+      const message = 'Too many attempts. Try again shortly.';
+      return answer(
+        request,
+        {
+          status: 429,
+          body: { ok: false, error: message, retryAfterSeconds: limit.retryAfterSeconds },
+          headers: { 'Retry-After': String(limit.retryAfterSeconds) },
+        },
+        '/forgot',
+        { error: message }
+      );
+    }
+
+    const email = String(form.get('email') ?? '').trim().slice(0, 200);
+
+    try {
+      const link = await requestPasswordReset(db, email, {
+        userAgent: request.headers.get('user-agent'),
+        ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null,
+      });
+
+      if (link) {
+        const url = `${siteOrigin(request)}/reset/?token=${encodeURIComponent(link.token)}`;
+        const template = RESET_TEMPLATE(url, RESET_TTL_MINUTES);
+        const sent = await sendMail({
+          to: link.account.email,
+          subject: 'Set a new password for your Ozikoro account',
+          text: template.text,
+          html: template.html,
+          replyTo: siteAddress(),
+        });
+        if (sent.delivered) {
+          await markResetDelivered(db, link.token, 'email');
+          /*
+           * The provider's own identifier, so a message that was ACCEPTED and never arrived can be traced
+           * with the provider. **The link is never logged, and neither is the address**: the link is a live
+           * key for the account and a log is a copy of it, and the address is the one thing this endpoint
+           * exists to avoid disclosing. The id says nothing about either.
+           */
+          console.log(
+            `[ozikoro/auth] reset link accepted by ${sent.transport}${sent.id ? ` (id ${sent.id})` : ''}`
+          );
+        } else {
+          /*
+           * The request stands even when the message did not leave: `listOpenResetRequests` shows it to an
+           * administrator, who can pass the link on by hand. **The link itself is never logged** — it is a
+           * live key for the account, and a log is a copy of it. The transport's own words are logged,
+           * because "Resend refused the message (403): domain is not verified" is the sentence that gets
+           * mail fixed.
+           */
+          console.error(`[ozikoro/auth] password reset for ${link.account.email} was not emailed: ${sent.error}`);
+        }
+      }
+    } catch (error) {
+      console.error('[ozikoro/auth] forgot', error);
+    }
+
+    const message =
+      'If that address has an account here, a link to set a new password has been sent to it. ' +
+      `It works once and it stops working in ${RESET_TTL_MINUTES} minutes.`;
+    return answer(request, { status: 200, body: { ok: true, message } }, '/forgot', { sent: '1' });
+  }
+
+  /*
+   * SETTING THE NEW PASSWORD.
+   *
+   * Every refusal sends the person back to the form with the token still in the address, so a mistyped
+   * confirmation costs them nothing — the link is only spent once a password has been accepted, which is
+   * the order `resetPasswordWithToken` enforces.
+   *
+   * NO SESSION IS CREATED HERE, DELIBERATELY. `writePassword` revokes every session on the account, because
+   * if the reason for the reset is that somebody else had the password, the session they opened with it is
+   * the thing that most needs closing. Minting a new one in the same request would partly undo that, so the
+   * person signs in fresh with the password they have just chosen.
+   */
+  if (action === 'reset') {
+    if (!sameOrigin(request)) {
+      return answer(
+        request,
+        { status: 403, body: { ok: false, error: 'That request did not come from this site.' } },
+        '/reset',
+        { error: 'That request did not come from this site.' }
+      );
+    }
+
+    const token = String(form.get('token') ?? '').slice(0, 400);
+    const password = String(form.get('password') ?? '');
+    const passwordAgain = String(form.get('password_again') ?? '');
+
+    // The same rule registration applies, in the same words, because two forms that disagree about what a
+    // password is are two forms that will be fixed separately and drift.
+    if (password !== passwordAgain) {
+      const message = 'Those two passwords are not the same.';
+      return answer(request, { status: 400, body: { ok: false, error: message } }, '/reset', {
+        token,
+        error: message,
+      });
+    }
+
+    try {
+      const account = await resetPasswordWithToken(db, token, password, {
+        userAgent: request.headers.get('user-agent'),
+        ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null,
+      });
+
+      const message = 'Your password has been changed. Sign in with the new one.';
+      return answer(
+        request,
+        {
+          status: 200,
+          body: { ok: true, message, next: `/signin/?reset=1&email=${encodeURIComponent(account.email)}` },
+        },
+        '/signin',
+        { reset: '1', email: account.email }
+      );
+    } catch (error) {
+      const message =
+        error instanceof AccountError ? error.message : 'Something went wrong. Please try again.';
+      if (!(error instanceof AccountError)) console.error('[ozikoro/auth] reset', error);
+      return answer(request, { status: 400, body: { ok: false, error: message } }, '/reset', {
+        token,
+        error: message,
+      });
     }
   }
 
