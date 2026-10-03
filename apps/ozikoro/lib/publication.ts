@@ -168,7 +168,19 @@ export function decodeEntities(text: string): string {
   for (const [re, ch] of ENT) t = t.replace(re, ch);
   return t.replace(/&#\d+;/g, ' ');
 }
-const clean = (s: string) => decodeEntities(s.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+/**
+ * Text from markup.
+ *
+ * **A tag is replaced with a space, which is right between two words and wrong before punctuation.** A list
+ * item ending in a link came out as `…ApartmentGuide.com .` — the closing tag's space, then the full stop that
+ * belonged to the sentence. The space is removed where the character after it is punctuation that does not
+ * begin a word.
+ */
+const clean = (s: string) =>
+  decodeEntities(s.replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .replace(/\s+([.,;:!?)\u2019\u201d])/g, '$1')
+    .trim();
 
 /**
  * The article's structure, as blocks.
@@ -177,10 +189,23 @@ const clean = (s: string) => decodeEntities(s.replace(/<[^>]+>/g, ' ')).replace(
  * renderer is not allowed to reorder, summarise or merge any of it.
  */
 export function toBlocks(html: string): Block[] {
+  /*
+   * THE REFERENCES ARE TAKEN OUT OF THE BODY, BECAUSE THE LAYOUT PRINTS THEM ITSELF.
+   *
+   * `referencesOf` reads the record's own list and the layout sets it as a numbered scholarly section. **But
+   * the body parser also walked straight into that same list and emitted it as bullets**, so every record with
+   * references printed them twice — once as `· Isichei, E. (1976)…` at the end of the article and once as `01
+   * Isichei, E. (1976)…` under References. Visible on two consecutive pages of the Ute-Okpu publication.
+   *
+   * The body stops where the references begin. **A record with no references heading is unaffected, because
+   * there is nothing to stop at.**
+   */
+  const refAt = html.search(/<h[1-6][^>]*>[^<]*\b(references?|bibliography|sources?)\b[^<]*<\/h[1-6]>/i);
+  const body = refAt === -1 ? html : html.slice(0, refAt);
   const blocks: Block[] = [];
   const re =
     /<(h[1-6])[^>]*>([\s\S]*?)<\/\1>|<figure[^>]*>([\s\S]*?)<\/figure>|<p[^>]*>([\s\S]*?)<\/p>|<(ul|ol)[^>]*>([\s\S]*?)<\/\5>|<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi;
-  for (const m of html.matchAll(re)) {
+  for (const m of body.matchAll(re)) {
     if (m[1]) {
       const text = clean(m[2] ?? '');
       // The references heading is dropped here because the layout writes its own, with numbering.
