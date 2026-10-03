@@ -171,3 +171,76 @@ export async function grantableRoles(db: Db, actorId: number): Promise<OzikoroRo
 export function rankRefusal(reason: string | undefined, code = 'rank'): MemberError {
   return new MemberError(code, reason ?? 'That grant is above your own standing.');
 }
+
+/**
+ * Whether `actorId` may APPROVE a pronunciation that `recorderId` recorded — asked of the database, never
+ * reimplemented.
+ *
+ * WHY THIS IS HERE AND NOT IN THE PRONUNCIATION MODULE
+ *
+ * The owner's pipeline ends in an approval that unblocks a spend: *"approved before it produces any record,
+ * as to not waste credits."* Approving somebody else's recording is a review of their work, and the archive
+ * already has exactly one ladder for "who stands above whom" — `ozikoro_role_may_grant`, added by migration
+ * 0044 and CALLED rather than copied by every act that needs it (see the note at the head of this file). **A
+ * second copy of the rank comparison inside the pronunciation code would be the drift migration 0043 exists
+ * to prevent**, so the comparison is made by asking the same SQL function the user table asks.
+ *
+ * THE RULE, AND THE ONE CASE IT DELIBERATELY DOES NOT FORBID
+ *
+ *   - an actor who strictly OUTRANKS the recorder may approve. This is why capability alone is not enough:
+ *     "may review audio" and "stands above the person who recorded it" are different questions.
+ *   - an actor who does NOT outrank them may still approve **their own recording**, and the caller is told
+ *     which it was. `ownRecording` is returned rather than a bare `true`, so "the owner checked his own
+ *     work" is a fact the audit trail can carry. **An approval whose provenance is indistinguishable from an
+ *     independent review is exactly what this flag exists to prevent.**
+ *
+ * **It does not refuse the owner.** The archive holds ONE account, and migration 0046 states the rule this
+ * follows — "admin must never be locked out of a decision". A rank rule that stopped the only account from
+ * approving the only recording would not be a safeguard; it would be the feature not working. So the
+ * self-approval case is permitted and LABELLED rather than forbidden.
+ */
+export async function mayApprovePronunciation(
+  db: Db,
+  actorId: number,
+  recorderId: number | null
+): Promise<{ allowed: boolean; ownRecording: boolean; actorRank: number; recorderRank: number; reason?: string }> {
+  const ranks = await roleRanks(db);
+  const mine = await actorRank(db, actorId, ranks);
+
+  if (recorderId === null) {
+    // Nobody recorded it: an imported or composed reference, with no standing for anyone to be below.
+    return { allowed: true, ownRecording: false, actorRank: mine, recorderRank: 0 };
+  }
+
+  const theirs = await actorRank(db, recorderId, ranks);
+  if (theirs === 0) {
+    // The recorder holds no archive role at all, so no rank can be below them.
+    return { allowed: true, ownRecording: actorId === recorderId, actorRank: mine, recorderRank: 0 };
+  }
+
+  /*
+   * THE BOOLEAN IS THE DATABASE'S. `rankRoleName` gives a role NAME for each rank so the same function the
+   * grant screen calls can be called here; the numbers are used to EXPLAIN the answer, not to reach it.
+   */
+  const allowed = await db
+    .one<{ ok: boolean }>(`select ozikoro_role_may_grant($1, $2) as ok`, [
+      rankRoleName(ranks, mine),
+      rankRoleName(ranks, theirs),
+    ])
+    .then((row) => Boolean(row?.ok));
+
+  if (allowed) return { allowed: true, ownRecording: actorId === recorderId, actorRank: mine, recorderRank: theirs };
+  if (actorId === recorderId) return { allowed: true, ownRecording: true, actorRank: mine, recorderRank: theirs };
+
+  const mineLabel = roleAtRank(ranks, mine) ?? 'no archive role';
+  return {
+    allowed: false,
+    ownRecording: false,
+    actorRank: mine,
+    recorderRank: theirs,
+    reason:
+      `You hold ${mineLabel} (rank ${mine}) and this recording was made by somebody at rank ${theirs}. ` +
+      'The archive allows one person’s work to be approved only by somebody who outranks them, or by ' +
+      'themselves when they are the account that can decide.',
+  };
+}

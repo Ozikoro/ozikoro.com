@@ -29,6 +29,7 @@ import {
   isNarrationVoice,
   narrationDisclosure,
   narratorKindFor,
+  narrationPronunciationGate,
   recordNarrationRevision,
   type NarrationVoice,
   type NarrationAllowance,
@@ -123,6 +124,34 @@ export async function renderProposedNarration(
   const script = episode.script;
   const characters = script.length;
   const estimatedCredits = estimateNarrationCredits(characters);
+
+  /*
+   * ── THE PRONUNCIATION GATE ───────────────────────────────────────────────────────────────────────
+   *
+   * THE OWNER'S RULE, AND WHY IT IS A REFUSAL RATHER THAN A WARNING:
+   *
+   *   "it can go ahead to inform the admin, and editors, to upload or record the words listed in the
+   *    article in the website, which now pushes it to elevenlabs, and approved before it produces any
+   *    record, as to not waste credits."
+   *
+   * **A word the archive cannot say must stop the render, not be guessed at.** Every other check in this
+   * function protects money; this one protects the RECORD — a render that mispronounces a place name is a
+   * file in the owner's own voice saying something wrong, and re-rendering it spends the credits twice.
+   *
+   * THE DECISION IS `narrationPronunciationGate`, NOT FOUR LINES HERE, and that is deliberate: **a mechanism
+   * whose only proof is a live render can only be tested by spending money.** The gate lives in
+   * `@ozikoro/platform` so the test can call it directly; this function calls the same one, so there is one
+   * implementation of the rule and it is exercised without a credit.
+   *
+   * It is re-read LIVE rather than taken from `ozikoro_episode.pronunciation_gaps`, because a word recorded
+   * and approved after the proposal must unblock this render without the proposal being thrown away. The
+   * stored column is what was known then; this is the question "may we render now".
+   */
+  const gate = await narrationPronunciationGate(db, { slug: episode.slug, episodeId: episode.id });
+  if (!gate.allowed) {
+    return { ok: false, status: 409, code: gate.reason, message: gate.message, details: { words: gate.words } };
+  }
+
   const before = await readAllowance();
   const allowanceChecked = before !== null;
   if (before && !before.sufficient(characters)) {
@@ -182,6 +211,12 @@ export async function renderProposedNarration(
    * estimate shown to the approver is one credit per character; this is the record of whether that was true**,
    * and it costs one extra request on a path that has just spent far more than that. Best-effort: a failure to
    * re-read leaves the estimate as the only figure, and says so.
+   *
+   * THE NUMBERS GO INTO COLUMNS, NOT ONLY INTO THE NOTE. They used to be written only as the sentence below,
+   * and **a charge recorded as prose cannot be summed, compared or audited** — so the planner could not answer
+   * the owner's actual question, which is whether the one-credit-per-character estimate has ever been checked.
+   * Migration 0050 adds the columns; both are written, because the sentence is what a person reads and the
+   * numbers are what the planner reads.
    */
   const after = await readAllowance();
   const measuredCredits = before && after ? Math.max(0, after.used - before.used) : null;
@@ -194,6 +229,14 @@ export async function renderProposedNarration(
     voiceSettings: settings,
     createdBy: input.actorId,
   });
+
+  await db.query(
+    `update ozikoro_episode
+        set measured_credits = $2, measured_used_before = $3, measured_used_after = $4,
+            measured_at = case when $2::integer is null then null else now() end
+      where id = $1`,
+    [episode.id, measuredCredits, before?.used ?? null, after?.used ?? null]
+  );
 
   const chargeNote =
     measuredCredits === null

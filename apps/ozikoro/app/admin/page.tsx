@@ -36,6 +36,7 @@ import {
   getUserOverview,
   listArticleClaims,
   narrationCounts,
+  queueCounts,
   spotifyConnectionView,
 } from '@ozikoro/platform';
 import { requireBackOfficeOrRedirect } from '@/lib/access';
@@ -68,6 +69,7 @@ export default async function Page() {
     pendingClaims,
     recordClaims,
     narration,
+    pronunciation,
     spotify,
     users,
     audit,
@@ -80,6 +82,7 @@ export default async function Page() {
     countContributorClaims(db, 'pending'),
     listArticleClaims(db, { limit: 1 }),
     narrationCounts(db),
+    queueCounts(db),
     spotifyConnectionView(db),
     maySeeAccounts ? getUserOverview(db) : Promise.resolve(null),
     maySeeAccounts ? getAuditOverview(db) : Promise.resolve(null),
@@ -225,6 +228,32 @@ export default async function Page() {
         <p className="actions">
           <Link className="btn btn--primary" href="/admin/audio">
             Audio review queue
+          </Link>
+        </p>
+      </Card>
+
+      {/*
+        THE OTHER HALF OF THE SAME PIPELINE, AND THE ONE THAT PROTECTS THE CREDITS.
+        The audio card above is where a render is authorised; this is where the words it will speak are
+        checked. **A record whose Igbo words the archive cannot pronounce is refused by the render**, so an
+        editor looking at a blocked proposal should be able to reach the queue that unblocks it in one click.
+      */}
+      <Card title="Pronunciations and credits">
+        <p>
+          What the ElevenLabs plan allows in a month, how many records that buys, and what one record costs
+          before it is rendered. Below that, the queue of Igbo words the dictionary cannot pronounce: record
+          one, approve it, and the narration waiting on it is released. A word that is never approved never
+          reaches the API.
+        </p>
+        <AtAGlance
+          rows={[
+            ['Words blocking a narration', num(pronunciation.blocking)],
+            ['Composed from parts, not blocking', num(pronunciation.open - pronunciation.blocking)],
+          ]}
+        />
+        <p className="actions">
+          <Link className="btn btn--primary" href="/admin/pronunciation">
+            Pronunciations and credits
           </Link>
         </p>
       </Card>

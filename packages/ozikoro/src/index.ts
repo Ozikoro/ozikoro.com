@@ -62,5 +62,20 @@ export * from './design-fill.ts';
 export * from './seo-head.ts';
 export * from './spoken.ts';
 export * from './narration.ts';
+/*
+ * THE IGBO PRONUNCIATION PIPELINE, in the order the owner described it:
+ *
+ *   igbo-words.ts      find every Igbo word in an article, and say how it knows   ("any words that is Igbo")
+ *   pronunciation.ts   look it up in ozituma, then dissect it into pieces          ("pull out the record")
+ *   missing-words.ts   queue what cannot be said, notify, and gate the render      ("inform the admin")
+ *   credit-planner.ts  what the plan buys, and what one record costs first         ("how many credits")
+ *
+ * They are exported from the barrel because `apps/ozikoro` is their only consumer and the barrel is how it
+ * already imports `narration.ts` and `spoken.ts`.
+ */
+export * from './igbo-words.ts';
+export * from './pronunciation.ts';
+export * from './missing-words.ts';
+export * from './credit-planner.ts';
 export * from './pdf/writer.ts';
 export * from './pdf/publication.ts';

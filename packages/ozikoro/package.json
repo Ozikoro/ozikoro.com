@@ -43,7 +43,9 @@
     "backup": "node src/ops/backup.ts",
     "test:redirects": "node src/test-redirects.ts",
     "check:residue": "node src/ops/residue-check.ts",
-    "check:capabilities": "node src/ops/capability-check.ts"
+    "check:capabilities": "node src/ops/capability-check.ts",
+    "test:pronunciation": "node src/test-pronunciation.ts",
+    "test:planner": "node src/test-planner.ts"
   },
   "dependencies": {
     "@ozituma/db": "*"

@@ -123,6 +123,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/entities">Knowledge graph</Link>
           <Link href="/admin/reviews">Review queue</Link>
           <Link href="/admin/audio">Audio review</Link>
+          <Link href="/admin/pronunciation">Pronunciations and credits</Link>
           <Link href="/admin/media">Media register</Link>
           <Link href="/admin/rights">Media rights</Link>
           <Link href="/admin/claims">Claims</Link>
