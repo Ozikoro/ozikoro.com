@@ -260,9 +260,25 @@ ${sheets}
  * **The design's own `<head>` is discarded, not appended to.** Appending would leave the demonstration title in
  * place and add a second one after it, and a document with two `<title>` elements is a document whose title is
  * the first — which is the demo's.
+ *
+ * A `<base>` IS THE ONE THING KEPT, AND IT WAS BEING THROWN AWAY.
+ *
+ * `fillDashboardLinks` inserts `<base href="/">` so the design's own relative links (`home.html`,
+ * `dashboard-account.html`) resolve against the site root rather than against the served directory. This
+ * function then replaced the whole `<head>` and **deleted it** — so the mechanism was documented, asserted in
+ * the report, and not actually present in any served page. Measured afterwards on the running site:
+ * `/dashboard-reader/`, `/dashboard-admin/`, `/archive/` all carried `base=0`, and `/archive-index/` served
+ * three links to `about.html#…` that resolved to `/archive-index/about.html#…` and 404'd.
+ *
+ * A `<base>` is not part of the head's *metadata* — it is a resolution rule for the rest of the document — so
+ * it is carried across and the generated head is inserted after it.
  */
 export function withSeoHead(html: string, head: string): string {
-  return html.replace(/<head>[\s\S]*?<\/head>/, `<head>\n${head}\n</head>`);
+  const base = html.match(/<base\s[^>]*>/)?.[0] ?? '';
+  return html.replace(
+    /<head>[\s\S]*?<\/head>/,
+    `<head>\n${base ? `${base}\n` : ''}${head}\n</head>`
+  );
 }
 
 /**

@@ -1,18 +1,22 @@
 /**
- * The dashboards' placeholder links, and the transform that removes them.
+ * The placeholder links on the design's screens, and the transform that removes them.
  *
  * WHY THIS TEST READS THE REAL SCREENS
  *
  * `fillDashboardLinks` matches the design's own markup by label — `Saved histories`, `Open workspace`,
  * `System overview`. **A label typed differently in the design and in the map does not throw: it keeps its
  * `href="#"` and leaves a link that looks identical to a working one.** That is the same class of fault as
- * the one this work exists to remove, so the assertions run against the fourteen handed-over HTML files
- * rather than against fixtures, and a design screen that gains a new item fails here before it reaches a
- * reader.
+ * the one this work exists to remove, so the assertions run against the real handed-over HTML files rather
+ * than against fixtures, and a design screen that gains a new item fails here before it reaches a reader.
+ *
+ * IT COVERS TWO SETS OF SCREENS. The fourteen dashboards came first; a later measurement found **thirty-six
+ * more `href="#"` across six screens served live at `/publication/`, `/researcher-profile/`, `/academy/`,
+ * `/archive-index/`, `/upload/` and `/watch/`.** Both sets are asserted, because a transform that covers one
+ * of them and not the other is exactly the kind of half-done pass this test exists to fail.
  *
  * WHAT IS ASSERTED
  *
- *   1. no dashboard keeps a single `href="#"` after the transform, and the count removed matches the
+ *   1. no covered screen keeps a single `href="#"` after the transform, and the count removed matches the
  *      design's own count, so a screen that stops being filled is still covered;
  *   2. a real destination keeps its label and gains a root-relative `href`;
  *   3. a label with nothing behind it stops being a link and says so in its own text;
@@ -27,7 +31,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { DASHBOARD_UNBUILT_MAP, fillDashboardLinks } from './design-fill.ts';
+import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillDashboardLinks } from './design-fill.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** The deliverable's screens, four levels up: packages/ozikoro/src -> the repository root. */
@@ -38,6 +42,17 @@ function dashboards(): { name: string; html: string }[] {
     .filter((f) => f.startsWith('dashboard-') && f.endsWith('.html'))
     .sort()
     .map((f) => ({ name: f.replace(/\.html$/, ''), html: readFileSync(join(SCREENS, f), 'utf8') }));
+}
+
+/**
+ * The six screens the SAME transform covers and which are not dashboards.
+ *
+ * Read from `LINKED_SCREENS` rather than typed again, so **a screen added to the transform is asserted
+ * against the real file automatically** and a screen quietly removed from it fails here instead of passing
+ * because the test still lists it.
+ */
+function linkedScreens(): { name: string; html: string }[] {
+  return LINKED_SCREENS.map((name) => ({ name, html: readFileSync(join(SCREENS, `${name}.html`), 'utf8') }));
 }
 
 test('every dashboard is free of placeholder links after the transform', () => {
@@ -80,8 +95,15 @@ test('a label with a real page behind it becomes that page’s address', () => {
 });
 
 test('one label can mean a different place to a different role', () => {
-  // The administrator's `Media` is the rights register; everyone else's is the photograph library.
-  assert.match(fillDashboardLinks(screen('dashboard-admin'), 'dashboard-admin'), /<a href="\/admin\/rights\/">Media<\/a>/);
+  /*
+   * The administrator's `Media` is the media REGISTER; everyone else's is the photograph library.
+   *
+   * It pointed at `/admin/rights/` while the rights queue was the only surface that listed media at all.
+   * `/admin/media/` now exists and answers "what do we hold", so the administrator's item reaches it and the
+   * rights queue keeps `Sources`, which is the permissions and provenance work.
+   */
+  assert.match(fillDashboardLinks(screen('dashboard-admin'), 'dashboard-admin'), /<a href="\/admin\/media\/">Media<\/a>/);
+  assert.match(fillDashboardLinks(screen('dashboard-admin'), 'dashboard-admin'), /<a href="\/admin\/rights\/">Sources<\/a>/);
   assert.match(
     fillDashboardLinks(screen('dashboard-knowledge-holder'), 'dashboard-knowledge-holder'),
     /<a href="\/photographs\/">Media<\/a>/
@@ -102,9 +124,79 @@ test('a label with nothing behind it stops being a link and says so', () => {
   assert.doesNotMatch(out, /Saved histories<\/h3><p class="small muted">Open workspace/);
 });
 
+test('every non-dashboard screen in the transform is free of placeholder links too', () => {
+  /*
+   * THIRTY-SIX DEAD LINKS WERE FOUND ON SIX SCREENS NOBODY HAD CALLED A DASHBOARD.
+   *
+   * `/publication/`, `/researcher-profile/`, `/academy/`, `/archive-index/`, `/upload/` and `/watch/` are
+   * served live and return 200. **A dead link is the same fault wherever it is**, so the same transform covers
+   * them and the same assertion holds them to it — including the count, because a screen whose placeholders
+   * stop being rewritten would otherwise pass by having none left to rewrite.
+   */
+  const screens = linkedScreens();
+  assert.equal(screens.length, 6, `expected the six non-dashboard screens; found ${screens.length}`);
+
+  let totalBefore = 0;
+  for (const { name, html } of screens) {
+    const before = (html.match(/href="#"/g) ?? []).length;
+    const after = fillDashboardLinks(html, name);
+    const left = (after.match(/href="#"/g) ?? []).length;
+    totalBefore += before;
+
+    assert.equal(left, 0, `${name}: ${left} of ${before} placeholder links survived the transform`);
+    if (before > 0) {
+      const marked = (after.match(/>— Not built yet<\/span>/g) ?? []).length;
+      assert.ok(
+        marked > 0 || /href="\//.test(after) || /href="https:/.test(after),
+        `${name}: ${before} placeholders went, but nothing was marked or wired`
+      );
+    }
+  }
+
+  // The design carries thirty-six across the six. A number that changed means the design changed, and the
+  // count is how this test notices rather than passing on a screen that no longer has any.
+  assert.equal(totalBefore, 36, `expected 36 placeholders across the six screens; found ${totalBefore}`);
+});
+
+test('a bare button label on a non-dashboard screen becomes a non-link that says why', () => {
+  const out = fillDashboardLinks(screen('upload'), 'upload');
+
+  assert.match(out, /<a class="btn btn-quiet" aria-disabled="true" title="Not built yet[^"]*">Save as draft /);
+  assert.doesNotMatch(out, /<a[^>]*href="#"[^>]*>Save as draft/);
+  // The academy screen names its own destination in its text, so its courses keep a real address.
+  assert.match(fillDashboardLinks(screen('academy'), 'academy'), /<a href="https:\/\/learn\.ozituma\.com\/">Igbo from the beginning<\/a>/);
+  // The archive's own indexes are wired; the design's example topics are not.
+  assert.match(fillDashboardLinks(screen('archive-index'), 'archive-index'), /<a class="small" href="\/clans\/">All 62 clans →<\/a>/);
+  assert.match(fillDashboardLinks(screen('researcher-profile'), 'researcher-profile'), /<a href="\/researchers\/">Researchers<\/a>/);
+});
+
+test('a relative link with a fragment keeps the fragment and stops being relative', () => {
+  /*
+   * THE PATTERN THAT MISSED THIRTEEN LINKS ON EVERY PAGE.
+   *
+   * The design writes `about.html#terms`, `upload.html#community-knowledge` and `projects.html?status=ongoing`.
+   * The earlier pattern required the closing quote immediately after `.html`, so **every one of those stayed
+   * relative** and resolved against the served directory — `/archive-index/about.html#entrust`, which 404s.
+   */
+  const out = fillDashboardLinks(screen('archive-index'), 'archive-index');
+
+  assert.match(out, /href="\/about\/#entrust"/);
+  assert.match(out, /href="\/about\/#terms"/);
+  assert.doesNotMatch(out, /href="about\.html/);
+  assert.doesNotMatch(out, /href="[a-z0-9-]+\.html/);
+});
+
 test('every unbuilt label on the real screens is accounted for in the report map', () => {
+  /*
+   * BOTH SETS, BECAUSE THE REASON TABLE IS WHAT THE REPORT IS WRITTEN FROM.
+   *
+   * A label marked `Not built yet` with no entry here says nothing about what would have to be built, and the
+   * document that answers the owner's question is generated from this map. The six non-dashboard screens
+   * introduced a dozen new labels, so they are asserted here too — **a screen outside this loop could carry
+   * twenty unmarked omissions and the test would still pass.**
+   */
   const missing = new Set<string>();
-  for (const { name, html } of dashboards()) {
+  for (const { name, html } of [...dashboards(), ...linkedScreens()]) {
     const out = fillDashboardLinks(html, name);
     for (const m of out.matchAll(/<a[^>]*aria-disabled="true"[^>]*>([^<]*?)\s*<span class="small muted">— Not built yet/g)) {
       const label = decode(m[1] ?? '');
@@ -135,7 +227,7 @@ function decode(value: string): string {
 }
 
 test('the design’s own files are not what changed', () => {
-  for (const { name, html } of dashboards()) {
+  for (const { name, html } of [...dashboards(), ...linkedScreens()]) {
     const before = html;
     fillDashboardLinks(html, name);
     assert.equal(html, before, `${name}: the transform mutated the screen in place`);

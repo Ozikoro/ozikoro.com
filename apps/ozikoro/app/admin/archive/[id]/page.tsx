@@ -21,6 +21,7 @@ import {
   listTopics,
   searchDictionaryPlaces,
 } from '@ozikoro/platform';
+import { requireCapabilityOrRedirect } from '@/lib/access';
 import { Card, Head, Notices } from '../../ui';
 
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,11 @@ export default async function EditRecord({
   const notices = await searchParams;
   const articleId = Number.parseInt(id, 10);
   if (!Number.isInteger(articleId) || articleId <= 0) notFound();
+
+  // The page's own guard, FIRST and before the record is read: this screen holds one record's body, its
+  // sources and its edit history, and the layout's guard does not stop it rendering. See
+  // `requireCapabilityOrRedirect`.
+  await requireCapabilityOrRedirect('edit_entity', `/admin/archive/${articleId}`);
 
   const db = await getDb();
   const facets = await getArticleFacets(db, articleId);

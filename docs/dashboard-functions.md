@@ -77,6 +77,13 @@ before it was linked to, and the "health" column is what the page actually rende
 
 ### The one finding that looked like a fault and is not
 
+> **CORRECTED IN ROUND 292 — READ THE APPENDIX FIRST.** Two claims in this section were wrong, and both were
+> measurements taken from the wrong place. `/admin/reviews` **was** a queue that failed to read its data: it
+> read `ozikoro_publication` and never read `ozikoro_article`, so the archive's own review status could not
+> appear on it at all. And the `Fetching the record` heading was a fault, not correct behaviour: the
+> placeholder `<h1>` arrived **before** the page's real heading, so anything reading the first heading of
+> `/admin/claims` or `/admin/rights` got the fallback. Both are fixed; the appendix records the measurements.
+
 `/admin/reviews` shows **"Waiting (0)"** while `/admin/archive` reports **1,051 records** and the archive
 holds records in a `review` status. That is not a queue failing to read its data. The two pages read
 different tables:
@@ -526,4 +533,287 @@ archive records are; the accounts are not.
 The corrupted cluster is preserved, not deleted, at `.data/pg-corrupt-20261003-204126`. It is the fifth
 damaged cluster directory in this checkout — `pg.corrupt-20261001T0522`, `pg.damaged-20261003T165654`,
 `pg.damaged-20261003T180058` and `pg.locked-20261001` predate it. **The recurrence is the finding.**
+
+---
+
+# Round 292 — the backlog, the six screens nobody called a dashboard, and three lists that were missing
+
+This round answered three questions in order: **why three admin screens said "Fetching the record" and showed
+nothing**, **the thirty-six `href="#"` left on six non-dashboard screens**, and **which lists the archive is
+still missing**. It also found two faults nobody had asked about, both recorded below.
+
+**Every number in this section was read from the database or from the running site.** Nothing here is
+reasoned from the design or from an earlier report.
+
+## 0. What the cluster actually holds — and the 526 that is not in it
+
+Measured directly against `.data/pg` with the server stopped (`PGlite` is single-process, so no query was run
+while it held the cluster):
+
+| Table | Rows | What it means |
+|---|---|---|
+| `ozikoro_article` | **1,057** | 1,051 records (`is_page = false`) + 6 pages |
+| — by status | **published 1,051 · review 0 · draft 0 · archived 0** | nothing is waiting for a decision |
+| `ozikoro_publication` | 0 | no research work has been submitted |
+| `ozikoro_claim` | 0 | no record makes a recorded claim |
+| `ozikoro_contributor_claim` | 0 | nobody has claimed a byline |
+| `ozikoro_correction` | 0 | no correction has been proposed |
+| `ozikoro_media` | 3,488 | 3,462 image · 13 video · 12 document · 1 other; 3,437 hold the file |
+| `ozikoro_media_rights` | **0** | **not one item has a rights basis recorded** |
+| `ozikoro_source` / `ozikoro_article_source` | 0 / 0 | the archive rests on no recorded source |
+| `ozikoro_audit` | 28 | `approve_claim` 14 · `grant_role` 14, all with no actor |
+| `account` / `ozikoro_contributor` | 1 / 11 | one account; eleven bylines, none linked to it |
+
+### The 526 records awaiting review are not in this cluster
+
+The brief for this round stated that **526 articles sit in `status = 'review'`.** They do not. The count is
+**0**, and it is 0 in both backups as well: `.data/backups/pg-2026-10-01T17-07-50/MANIFEST.json` and
+`…/pg-2026-10-03T19-55-14/MANIFEST.json` each record `ozikoro_article: 1057`, which is the whole table — 526
+more rows would make it 1,583.
+
+Where the figure comes from is written down in this checkout: `docs/OZIKORO-REMAINING.md`, round 281, records
+`published 1,053 -> 1,051` and **`in review 524 -> 526`**. That was true of the cluster that round measured.
+The cluster in use now was restored from the 2026-10-01T17:07:53Z backup, whose own manifest lists 1,057
+articles and 0 publications, and **the review-status rows were written after that backup was taken.**
+
+**What this means for the owner, stated plainly: the backlog list can now be shown, but it is empty because
+the work is not in this database — it is not empty because the page cannot read it.** Both facts are on the
+screen: the page says which table it reads and prints the full status breakdown beside the zero, so the next
+person can tell the two apart without opening a client.
+
+## 1. The three screens that were not reading their data
+
+### `/admin/reviews` read the wrong table
+
+It read `ozikoro_publication` through `listReviewQueue` and nothing else. That table is empty, so the screen
+said *"Waiting (0)"* — a number that was true of one table and false of the archive. It now reads **both**,
+in two named panels:
+
+* **Records waiting for review (N)** — `ozikoro_article where status = 'review'`, oldest first, with the
+  contributor, the moment it entered review (read from `ozikoro_audit`'s `after->>'status'`), and a link to
+  the record's own page. 25 to a page, with the count and the page number stated.
+* **Research works in the publication workflow (N)** — the old `ozikoro_publication` queue, unchanged,
+  because it is a different subject with a different state machine.
+
+**The decision buttons stay on the record page.** `/admin/archive/<id>` is where a status is changed, posting
+to `/api/admin/archive`, which writes the audit row. This screen links there rather than growing a second
+write path.
+
+### `/admin/claims` showed one of the two things called a claim
+
+`ozikoro_contributor_claim` (a person claiming a byline) was the only table it read. `ozikoro_claim` (a
+statement a record makes) existed and was surfaced nowhere. Both are now on the screen, each panel naming the
+table it reads, so a zero is legible.
+
+### The `Fetching the record` heading was a real fault
+
+`apps/ozikoro/app/_components/page-loading.tsx` rendered **`<h1>Fetching the record</h1>`** as its Suspense
+fallback. Next streams that fallback before the page's own content, so **the placeholder heading arrived
+first** and anything taking the first heading of `/admin/claims`, `/admin/rights`, `/admin/spotify` or
+`/admin/reviews` got the fallback instead of the page's name. Measured on the running site before the fix:
+`/admin/claims` and `/admin/rights` both served `h1 "Fetching the record"` while their real content was
+further down the same response.
+
+The heading is gone and the fallback is now a `role="status"` region. **A loading state is not the page and
+must not claim to be one** — there is no sentence that is true of `/admin/reviews`, `/search` and `/signin`
+alike.
+
+After the fix, every admin page's first heading is its own: `Administration`, `Editorial queue`,
+`Review queue`, `Claims`, `Spotify`, `Media rights`, `Audio review`, `Users and contributors`,
+`Media register`, `Audit trail`.
+
+### `/admin/spotify` was already honest, and its row count of 0 was a measurement artefact
+
+`spotifyConnectionView` returns `state: "not_configured"`, `label: "Not configured"`, and the reason:
+`Set SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_TOKEN_KEY in the server environment`. The page renders
+that, the requested scopes, the callback address and an explicit "What this is not yet".
+
+**It has no `<table>`** — the connection facts are a `<dl>` — so a row counter that counts `<tr>` reports 0
+on a page that is showing seven facts. Recorded here because "0 rows" was read as "broken" once already.
+
+## 2. The thirty-six dead links on six screens
+
+`href="#"` counts, read from the design files and then from the served pages:
+
+| Screen | Before | Wired | Marked `Not built yet` | After |
+|---|---|---|---|---|
+| `/publication/` | 14 | 0 | 14 | **0** |
+| `/researcher-profile/` | 11 | 2 | 9 | **0** |
+| `/academy/` | 5 | 5 | 0 | **0** |
+| `/archive-index/` | 3 | 1 | 2 | **0** |
+| `/upload/` | 2 | 0 | 2 | **0** |
+| `/watch/` | 1 | 0 | 1 | **0** |
+| **total** | **36** | **8** | **28** | **0** |
+
+The same transform (`fillDashboardLinks`) does the work; its screen list now lives in `LINKED_SCREENS` so the
+route and `design-fill.test.ts` cannot disagree, and the test reads all twenty real design files.
+
+### The eight links that were wired, each fetched before it was written down
+
+| Screen | Label | Destination | Status |
+|---|---|---|---|
+| `/researcher-profile/` | Researchers (breadcrumb) | `/researchers/` | 200 |
+| `/researcher-profile/` | Complete your profile | `/account/` | 200 signed in · 307 to sign-in anonymous |
+| `/academy/` | the five course titles | `https://learn.ozituma.com/` | 200 |
+| `/archive-index/` | All 62 clans → | `/clans/` | 200 |
+
+The academy's five are wired to `learn.ozituma.com` **because the screen says so in its own words** —
+"Delivered at learn.ozituma.com · enrolment opens there". This is not the dashboards' `Learning` item, which
+promises a catalogue inside this site and remains `NOT BUILT`.
+
+### The twenty-eight that became non-links
+
+Every one belongs to the design's **example record**: a sample publication's author, its PDF, its five
+citation formats, an example researcher's five topic chips, `Follow`, `Request contact`, `Cite this profile`,
+`All 7 publications`, `Replace`, `Save as draft`, the archive index's `Previous`/`Next`, and the inline
+player's `Open on YouTube ↗`. **A control that acts on a record which does not exist has no honest
+destination** — pointing one at a real index would promise that record's file or citation and deliver
+somebody else's page. Each carries a `title` saying what would have to exist instead, and every label is
+asserted against the reason table by the test.
+
+### Three further faults found by doing this, and fixed
+
+1. **The `<base href="/">` was never served.** `fillDashboardLinks` inserts it; `withSeoHead` then replaced
+   the whole `<head>` and deleted it. Measured: `/dashboard-reader/`, `/dashboard-admin/` and `/archive/` all
+   served `base=0`. The base is now carried across, and a test asserts it.
+2. **Thirteen links to `about.html#terms` (and six other fragments) stayed relative**, because the rewrite
+   pattern required the closing quote immediately after `.html`. On `/archive-index/` they resolved to
+   `/archive-index/about.html#entrust` and 404'd. The fragment or query is now carried onto the absolute
+   address. **Six of the eight fragments the design links to on `about.html` are not defined in the design
+   file either** (`privacy`, `entrust`, `access`, `contact`, `licensing`, `partners`); those links now reach
+   the right page and land at the top of it, and the design file is not edited to invent anchors.
+3. **`Showing 1–4 of 24` was left above twenty-four real records** on `/archive-index/`. It now reads
+   "Showing the 24 most recent of 1,051 records · paging is not built yet", which is true and agrees with the
+   `Previous`/`Next` controls beneath it.
+
+## 3. The lists that were missing
+
+### Built
+
+| List | Where | What it shows, and what it says when empty |
+|---|---|---|
+| **Records waiting for review** | `/admin/reviews` | The `review` status over `ozikoro_article`, with the full status breakdown when it is zero. |
+| **Claims made by records** | `/admin/claims` | `ozikoro_claim` — the claim, its anchor, its record and its status. Empty state names the table and the write path that would fill it. |
+| **The media register** | `/admin/media` | All 3,488 items by kind, with size, dimensions, credit and **whether any rights basis exists**. 25 to a page with filters for kind and rights state. |
+| **The audit trail** | `/admin/audit` | `ozikoro_audit` read back: what changed, which record, which account, and the JSON `before`/`after` the writer recorded. Entries with no actor are shown and counted, not hidden. |
+| **The administration index** | `/admin/` | A card per queue carrying its live count, so the landing page answers "does anything need me?" without eight clicks. |
+
+The media register is **not** a second rights queue. `/admin/rights` is the work list (what nobody has
+checked, ordered by published exposure, with the permission form); `/admin/media` is the register (what the
+archive holds, and on what basis). Each answers a question the other cannot.
+
+### Decided against, with the reason
+
+| Candidate | Decision | Why |
+|---|---|---|
+| **Sources** | **Not built** | `ozikoro_source` and `ozikoro_article_source` both hold **0 rows**, so any sources screen would be an empty list. The two questions it would answer are already asked elsewhere: *"which records rest on no source?"* is on `/admin/archive`, and *"on what basis may this be used?"* is the rights register. **A third screen over an empty table would add a surface, not a fact.** |
+| **Contributors** | **Not built again** | Already the second tab of `/admin/users`: eleven bylines, how many records each wrote, and which have no account. Rebuilding it would be the second mechanism this round removed elsewhere. |
+| **Accounts** | **Not built again** | Already `/admin/users`, gated on `manage_users`. |
+| **Unattributed images / orphan media** | **Not built** | `/admin/media` filters by rights state and shows "used by N placements"; an orphan list is the same query with a zero filter, and the register already shows the zero. |
+| **A corrections desk** | **Not built** | `ozikoro_correction` holds 0 rows and there is no route that writes it. The dashboards' `Moderation` item already says in the page that neither `/admin/claims` nor `/admin/reviews` is a corrections desk. |
+| **A task queue** | **Not built** | No task table exists; it is one of the dashboards' `NOT BUILT` promises and building it is a project, not a list. |
+
+## 4. A data leak found by the required verification, and closed
+
+The brief's verification asks that an anonymous request to any admin page be **307 to sign-in with no rows in
+the body**. The first two clauses held; **the third did not.**
+
+```
+before                              status  body      rows in the body
+GET /admin/archive   (no session)   307     32,703 B  the editorial queue's real rows
+GET /admin/rights    (no session)   307     40,463 B  media references and titles
+GET /admin/media     (no session)   307     50,048 B  media references and titles
+GET /admin/          (no session)   307     22,122 B  the archive's counts
+GET /admin/spotify   (no session)   307     19,349 B  the callback address and scopes
+```
+
+**A redirect status is not a guarantee that the body is empty, and a script or a crawler reads the body.**
+The cause is structural: React renders a layout and its children **concurrently**, so the admin pages ran
+their queries and produced their markup before `app/admin/layout.tsx` threw its redirect — and the streamed
+response carried them. Pages that happened to guard themselves (`/admin/users`, `/admin/audit`) leaked
+nothing, which is what identified the mechanism.
+
+The users page had already written the rule down: *"a page that relied on the layout would hand the whole
+account list to anyone who could open the editorial queue, so this page asks for its own capability."*
+**Every admin page now asks its own question as its first statement**, before any query:
+
+| Page | Capability | Same as |
+|---|---|---|
+| `/admin/`, `/admin/archive`, `/admin/archive/<id>`, `/admin/reviews` | `edit_entity` | `/api/admin/archive` |
+| `/admin/rights`, `/admin/media` | `manage_media_rights` | `/api/admin/rights` |
+| `/admin/claims` | `manage_contributors` | `/api/claims` |
+| `/admin/spotify` | administrator or owner | `/api/spotify/*` |
+| `/admin/audio` | `review_audio` | already present |
+| `/admin/users`, `/admin/users/<id>`, `/admin/audit` | `manage_users` | already present |
+| `/admin/` (the door itself) | `mayEnterBackOffice` | the layout's own rule, now in `lib/access.ts` |
+
+After the fix, every anonymous admin request is **307 with a ~10 KB redirect body and zero content markers**.
+
+## 5. How this round was verified
+
+Server: a production standalone build on `http://127.0.0.1:3110`, rebuilt with `bash scripts/serve-review.sh`
+(stop by SIGTERM → build → copy → start; **no build was run while a server was live and no database CLI ran
+while the cluster was held**). Signed in as the owner via `POST /api/auth/signin`.
+
+```
+$ npm run typecheck                       → exit 0
+$ npm -w @ozikoro/platform test           → 81 tests, 81 pass, 0 fail
+$ python3 …design parity…                 → identical 63 differing 0 missing 0
+$ bash scripts/check-auth-boundary.sh     → checked: 13 · every gated route refuses, names itself as the
+                                            return path, and every public page serves
+$ bash scripts/check-not-found.sh         → PASS a missing address returns 404
+$ node scripts/check-design-parity.mjs    → 17 of 18 routes match their design screen; /archive does not,
+                                            and that is another agent's uncommitted rewrite of
+                                            apps/ozikoro/app/archive/page.tsx (+306/−117) — not this round
+```
+
+Signed in, every screen under `/admin/` — status, first heading, and the data it actually shows
+(`glanceRows` counts the `<dt>` rows of the label/value lists, which is how `/admin/spotify` can show seven
+facts and no `<tr>`):
+
+```
+200  /admin/            h1 Administration          h2 Records waiting for review · Editorial queue · Media and rights · Claims · Audio review · Spotify · Users and contributors · Audit trail · Coming to this area
+200  /admin/archive/    h1 Editorial queue         26 table rows
+200  /admin/reviews/    h1 Review queue            h2 Records waiting for review (0) · Research works in the publication workflow (0) · How a record moves
+200  /admin/claims/     h1 Claims                  h2 Authorship claims waiting (0) · Authorship claims decided · Claims made by records (0)
+200  /admin/spotify/    h1 Spotify                 11 glance rows, state "Not configured"
+200  /admin/rights/     h1 Media rights            34 table rows
+200  /admin/audio/      h1 Audio review            h2 …(0) · Rendered — awaiting a listen (0) · Everything the archive holds
+200  /admin/users/      h1 Users and contributors 2 table rows
+200  /admin/media/      h1 Media register          26 table rows
+200  /admin/audit/      h1 Audit trail             26 table rows
+```
+
+Anonymous, every screen including the two dynamic detail pages: **307 → `/signin?error=…&next=<the page
+asked for>`, 0 content markers**, ~10 KB of redirect body.
+
+`href="#"` on the six named screens, read from the served pages: **0 on all six**, and 0 on the fourteen
+dashboards. `<base href="/">` present on all of them, and **zero remaining relative `*.html` links**.
+
+### What still does not work, stated rather than hidden
+
+* **No review backlog can be shown from this cluster** — the 526 `review` rows are not in it, and are in
+  neither backup. See §0.
+* **Six anchors the design links to on `about.html` are not defined in the design file**, so those links
+  reach the right page and land at the top of it rather than at a section. The design is not edited to invent
+  anchors.
+* **The archive index has no paging.** `Previous`/`Next` are marked `Not built yet` and the count line says
+  "paging is not built yet"; the route serves one page of 24 records.
+* **`/api/admin/rights` and the other form endpoints were not exercised by a write** in this round, so what is
+  verified is that the screens render real data and that they are gated — not that a save completes.
+* **Another agent's `/admin/entities` page and its build were live in the same tree during this round.** It
+  carries its own guard and was measured as 307/0 markers anonymously, but its contents are not this round's
+  work.
+* **`/archive` fails `check-design-parity.mjs`** — 8 of the design's sections and 1 of its headings. That
+  page is `apps/ozikoro/app/archive/page.tsx`, which another agent had rewritten and uncommitted in the same
+  working tree (+306/−117) while this round ran; the design screen it is compared against, `/archive-index/`,
+  is the one this round touched and it serves its 24 real records with the new count line. **A live check
+  cannot tell two agents' changes apart, so the failure is recorded rather than attributed.**
+* **The server on 3110 was killed three times during verification** because a concurrent `next build` replaces
+  `apps/ozikoro/.next` under a running server — one of the documented causes of this project's earlier
+  cluster corruptions. The final verification was run against a **private copy** of the standalone build
+  (`/tmp/oz-standalone`) pointed at the same `.data/pg`, with the whole sequence — stop by SIGTERM, build,
+  copy, start, measure — run in one pass so no build could overlap a live server. **No database CLI was ever
+  run while the cluster was held, and no process was ever SIGKILLed.**
+
 

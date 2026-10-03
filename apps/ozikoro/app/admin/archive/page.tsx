@@ -13,6 +13,7 @@
 import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import { getEditorialProgress, listEditorialQueue } from '@ozikoro/platform';
+import { requireCapabilityOrRedirect } from '@/lib/access';
 import { AtAGlance, Card, Head } from '../ui';
 
 export const dynamic = 'force-dynamic';
@@ -37,6 +38,11 @@ export default async function ArchiveQueue({
   const gap = (params.gap ?? 'any') as 'any' | 'sources' | 'period' | 'source_type' | 'entities' | 'topic';
   const search = params.q?.trim() || null;
   const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1);
+
+  // The page's own guard, FIRST and before any query. The layout's guard does not stop this page rendering:
+  // React renders a layout and its children concurrently, so without this line an anonymous request returned
+  // **307 with the queue's real rows in the body**. See `requireCapabilityOrRedirect`.
+  await requireCapabilityOrRedirect('edit_entity', '/admin/archive');
 
   const db = await getDb();
   const [progress, items] = await Promise.all([

@@ -29,14 +29,20 @@ import {
   fillMasthead,
   fillAbout,
   fillDashboardLinks,
+  LINKED_SCREENS,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import {
-  fillArchiveIndex, fillCollections, fillDashboard, fillDocuments, fillFolklore, fillHome, fillListen,
-  fillPhotographs, fillTopics, fillTowns, fillWatch,
+  citationFor,
+  fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
+  fillCulturalEvent, fillDashboard, fillDocuments, fillDonate, fillFolklore, fillFolkloreReader, fillHome,
+  fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMaterialCulture, fillPhotographs,
+  fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
+  fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
   type DashboardWho, type RealAzEntry, type RealCollection, type RealDocument, type RealEntry, type RealFilm,
   type RealPhotograph, type RealStory, type RealTown, type RealTrack,
 } from '@ozikoro/platform';
+import { nowpaymentsConfigured } from '@/lib/nowpayments';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,6 +150,22 @@ const DASHBOARD_SEO: Record<string, { title: string; description: string; kind?:
 const FILLED = new Set([
   'archive-index', 'watch', 'home', 'photographs', 'folklore', 'listen', 'topics', 'towns', 'collections',
   'documents', 'about',
+  /*
+   * THE SCREENS THAT HOLD NO RECORD YET.
+   *
+   * **A screen absent from this set is served exactly as the design has it**, and the design's text is a
+   * walkthrough's — so a screen left out shows a reader example donors, example projects, an invented
+   * researcher and example courses while looking entirely deliberate. This list is the difference between a
+   * page that says "0" and a page that says "Example Supporter A".
+   *
+   * Each one is filled with the archive's own counts where it has them and an honest empty state where it has
+   * none. `donate`, `investors`, `sponsors` and `careers` take the money case in particular: **no amount, no
+   * target, no sponsor, no salary and no vacancy is invented, and the page says which mechanism is absent.**
+   */
+  'academy', 'donate', 'investors', 'sponsors', 'careers', 'cite', 'ledger', 'projects', 'project',
+  'publications', 'publication', 'researcher-profile', 'journeys', 'material-culture',
+  'cultural-calendar', 'cultural-event', 'igbo-calendar', 'market-days', 'watch-video', 'folklore-reader',
+  'town',
   ...DASHBOARDS,
 ]);
 
@@ -227,8 +249,18 @@ export async function GET(
      * rather than to the fill.** Left inside the `FILLED` branch it would have skipped `dashboard-states` and
      * `dashboard-workflow` — the two dashboards this route deliberately serves untouched — so they would have
      * kept their dead links while every neighbouring screen lost its own.
+     *
+     * IT NOW COVERS SIX SCREENS THAT ARE NOT DASHBOARDS.
+     *
+     * `/publication/`, `/researcher-profile/`, `/academy/`, `/archive-index/`, `/upload/` and `/watch/` are
+     * served live and returned 200 with **thirty-six `href="#"` between them** — the same fault on a screen
+     * nobody had called a dashboard. The set lives in `LINKED_SCREENS` so this route and the test that reads
+     * the real design files cannot disagree about which screens are covered. Running it here, outside the
+     * `FILLED` branch, is also what gives `archive-index` and `watch` the `<base href="/">` and the absolute
+     * nav links their sibling screens already had — **their own relative `about.html` links used to resolve
+     * against `/archive-index/` and 404.**
      */
-    if (DASHBOARDS.includes(name)) {
+    if (DASHBOARDS.includes(name) || LINKED_SCREENS.includes(name)) {
       html = fillDashboardLinks(html, name);
       reportLeftoverLinks(html, name);
     }
@@ -247,366 +279,858 @@ export async function GET(
   let extraNodes: Record<string, unknown>[] = [];
 
   try {
-    if (name === 'about') {
-      /*
-       * THE ABOUT PAGE, WITH THE ARCHIVE'S OWN NUMBERS.
-       *
-       * **Counted here rather than written into the design**, because a figure typed into a static file is true
-       * on the day it is typed and quietly wrong afterwards. The uncomfortable counts are included: the records
-       * held in review, and **0 recorded licences for 3,488 media items** — the archive's largest open problem,
-       * and the one a reader is least likely to guess.
-       */
-      const db = await getDb();
-      const counts = await db.one<{ published: number; review: number; media: number }>(
-        `select
-           (select count(*) from ozikoro_article where status='published' and is_page=false)::int published,
-           (select count(*) from ozikoro_article where status='review')::int review,
-           (select count(*) from ozikoro_media)::int media`
-      );
-      const people = await db.rows<{ slug: string; name: string; records: number; bio: string | null }>(
-        `select c.slug, c.display_name as name, count(a.id)::int as records, c.bio
-           from ozikoro_contributor c
-           left join ozikoro_article a on a.author_id = c.id and a.status = 'published' and a.is_page = false
-          group by c.id, c.slug, c.display_name, c.bio
-          order by records desc, c.display_name`
-      );
-      const rights = await db.one<{ sources: number; licences: number }>(
+    try {
+      if (name === 'about') {
         /*
-         * THE COLUMN IS `licence`, NOT `licence_code`.
+         * THE ABOUT PAGE, WITH THE ARCHIVE'S OWN NUMBERS.
          *
-         * `licence_code` failed with `column "licence_code" does not exist` — and **the catch serves the design
-         * unfilled, so a wrong column name looks exactly like a page nobody has written a fill for.** That is
-         * how this was found: an expected figure was missing from the output.
+         * **Counted here rather than written into the design**, because a figure typed into a static file is true
+         * on the day it is typed and quietly wrong afterwards. The uncomfortable counts are included: the records
+         * held in review, and **0 recorded licences for 3,488 media items** — the archive's largest open problem,
+         * and the one a reader is least likely to guess.
          */
-        `select (select count(*) from ozikoro_article
-                  where status='published' and body_html ~* '<h[1-6][^>]*>[^<]*(references|sources|bibliography)')::int sources,
-                (select count(*) from ozikoro_media_rights where licence is not null and licence <> '')::int licences`
-      );
-      html = fillAbout(html, {
-        published: counts?.published ?? 0,
-        inReview: counts?.review ?? 0,
-        media: counts?.media ?? 0,
-        towns: counts?.published ?? 0,
-        sources: rights?.sources ?? 0,
-        licences: rights?.licences ?? 0,
-        contributors: people,
-      });
+        const db = await getDb();
+        const counts = await db.one<{ published: number; review: number; media: number }>(
+          `select
+             (select count(*) from ozikoro_article where status='published' and is_page=false)::int published,
+             (select count(*) from ozikoro_article where status='review')::int review,
+             (select count(*) from ozikoro_media)::int media`
+        );
+        const people = await db.rows<{ slug: string; name: string; records: number; bio: string | null }>(
+          `select c.slug, c.display_name as name, count(a.id)::int as records, c.bio
+             from ozikoro_contributor c
+             left join ozikoro_article a on a.author_id = c.id and a.status = 'published' and a.is_page = false
+            group by c.id, c.slug, c.display_name, c.bio
+            order by records desc, c.display_name`
+        );
+        const rights = await db.one<{ sources: number; licences: number }>(
+          /*
+           * THE COLUMN IS `licence`, NOT `licence_code`.
+           *
+           * `licence_code` failed with `column "licence_code" does not exist` — and **the catch serves the design
+           * unfilled, so a wrong column name looks exactly like a page nobody has written a fill for.** That is
+           * how this was found: an expected figure was missing from the output.
+           */
+          `select (select count(*) from ozikoro_article
+                    where status='published' and body_html ~* '<h[1-6][^>]*>[^<]*(references|sources|bibliography)')::int sources,
+                  (select count(*) from ozikoro_media_rights where licence is not null and licence <> '')::int licences`
+        );
+        /*
+         * THE SHELF, COUNTED, so "what we publish" carries a number beside each kind.
+         *
+         * `towns` is the published clan register (188), **not the article count it was passed as before** — that
+         * put "1,051 towns and clans" on the page, which is not a fact about anything. `documents` is every
+         * media record of kind `document` (12, of which four are PDFs), because the count is of what is held
+         * rather than of what is downloadable.
+         */
+        const shelf = await db.one<{ towns: number; folklores: number; photographs: number; documents: number }>(
+          `select (select count(*) from clan where published = true)::int towns,
+                  (select count(*) from ozikoro_article a join ozikoro_topic t on t.id = a.topic_id
+                    where a.status='published' and a.is_page=false and t.slug='folklores')::int folklores,
+                  (select count(*) from ozikoro_article a join ozikoro_topic t on t.id = a.topic_id
+                    where a.status='published' and a.is_page=false and t.slug='photos')::int photographs,
+                  (select count(*) from ozikoro_media where kind='document')::int documents`
+        );
+        html = fillAbout(html, {
+          published: counts?.published ?? 0,
+          inReview: counts?.review ?? 0,
+          media: counts?.media ?? 0,
+          towns: shelf?.towns ?? 0,
+          sources: rights?.sources ?? 0,
+          licences: rights?.licences ?? 0,
+          folklores: shelf?.folklores ?? 0,
+          photographs: shelf?.photographs ?? 0,
+          documents: shelf?.documents ?? 0,
+          contributors: people,
+        });
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for about:`, error);
     }
 
-    if (name === 'archive-index') {
-      const url = new URL(request.url);
-      const topic = url.searchParams.get('topic');
-      const db = await getDb();
-      const [entries, ethnic, topics, total] = await Promise.all([
-        realEntries(topic),
-        db.rows<{ ethnic_group: string; n: number }>(
-          `select coalesce(ethnic_group, 'Unrecorded') ethnic_group, count(*)::int n
-             from clan where published = true group by 1 order by n desc, 1 limit 6`
-        ),
-        db.rows<{ slug: string; name: string; n: number }>(
-          `select t.slug, t.name, count(a.id)::int n from ozikoro_topic t
-             left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
-            group by t.slug, t.name order by n desc`
-        ),
-        db.one<{ n: number }>(
-          `select count(*)::int n from ozikoro_article where status = 'published' and is_page = false`
-        ),
-      ]);
-      html = fillArchiveIndex(html, {
-        entries,
-        ethnic: ethnic.map((e) => ({ name: e.ethnic_group, count: e.n })),
-        topics: topics.map((t) => ({ slug: t.slug, name: t.name, count: t.n })),
-        total: total?.n ?? 0,
-      });
-    }
-    /*
-     * FURTHER GRAPH NODES, FOR THE PAGES THAT DESCRIBE MORE THAN THEMSELVES.
-     *
-     * `/towns` is a list of 188 places and `/photographs` is a collection of images with a rights state on
-     * each. **Those are facts about the page's subject rather than about the page**, so they go into the same
-     * graph rather than into a second head.
-     */
-    if (name === 'documents') {
+    try {
+      if (name === 'archive-index') {
+        const url = new URL(request.url);
+        const topic = url.searchParams.get('topic');
+        const db = await getDb();
+        const [entries, ethnic, topics, total] = await Promise.all([
+          realEntries(topic),
+          db.rows<{ ethnic_group: string; n: number }>(
+            `select coalesce(ethnic_group, 'Unrecorded') ethnic_group, count(*)::int n
+               from clan where published = true group by 1 order by n desc, 1 limit 6`
+          ),
+          db.rows<{ slug: string; name: string; n: number }>(
+            `select t.slug, t.name, count(a.id)::int n from ozikoro_topic t
+               left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
+              group by t.slug, t.name order by n desc`
+          ),
+          db.one<{ n: number }>(
+            `select count(*)::int n from ozikoro_article where status = 'published' and is_page = false`
+          ),
+        ]);
+        html = fillArchiveIndex(html, {
+          entries,
+          ethnic: ethnic.map((e) => ({ name: e.ethnic_group, count: e.n })),
+          topics: topics.map((t) => ({ slug: t.slug, name: t.name, count: t.n })),
+          total: total?.n ?? 0,
+        });
+      }
       /*
-       * ONLY THE FILES. Eight of the twelve records the migration called `document` are `text/html` — saved
-       * web pages — and **a capture is not a document a reader can download.** Listing them would repeat the
-       * fault this archive already recorded once: presenting web captures as documents.
+       * FURTHER GRAPH NODES, FOR THE PAGES THAT DESCRIBE MORE THAN THEMSELVES.
+       *
+       * `/towns` is a list of 188 places and `/photographs` is a collection of images with a rights state on
+       * each. **Those are facts about the page's subject rather than about the page**, so they go into the same
+       * graph rather than into a second head.
        */
-      const db = await getDb();
-      const rows = await db.rows<{ id: number; title: string | null; storage_key: string; filesize_bytes: number | null }>(
-        `select id, title, storage_key, filesize_bytes from ozikoro_media
-          where kind = 'document' and mime_type = 'application/pdf' and storage_key is not null
-          order by id`
-      );
-      const docs: RealDocument[] = rows.map((r) => ({
-        title: r.title?.trim() || `Document ${r.id}`,
-        // THE KEY CAN CONTAIN SPACES. `storage_key` is derived from the WordPress filename, and a filename
-        // like `11237-Igbo Folk Idioms in Caribbean Phrase.pdf` is stored verbatim. **An unencoded space
-        // truncates the URL at the space**, so the link 404s on exactly the files whose names are most
-        // descriptive. Each segment is encoded, and `/` between them is preserved.
-        href: `/media/${r.storage_key.split('/').map(encodeURIComponent).join('/')}`,
-        label: 'Held by the archive · PDF',
-        note: 'Downloadable file held in the archive. Rights and reuse terms are recorded with the record.',
-        size: r.filesize_bytes ? `${Math.max(1, Math.round(r.filesize_bytes / 1024))} KB` : null,
-      }));
-      if (docs.length > 0) html = fillDocuments(html, docs);
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for archive-index:`, error);
+    }
+    try {
+      if (name === 'documents') {
+        /*
+         * ONLY THE FILES. Eight of the twelve records the migration called `document` are `text/html` — saved
+         * web pages — and **a capture is not a document a reader can download.** Listing them would repeat the
+         * fault this archive already recorded once: presenting web captures as documents.
+         */
+        const db = await getDb();
+        const rows = await db.rows<{ id: number; title: string | null; storage_key: string; filesize_bytes: number | null }>(
+          `select id, title, storage_key, filesize_bytes from ozikoro_media
+            where kind = 'document' and mime_type = 'application/pdf' and storage_key is not null
+            order by id`
+        );
+        const docs: RealDocument[] = rows.map((r) => ({
+          title: r.title?.trim() || `Document ${r.id}`,
+          // THE KEY CAN CONTAIN SPACES. `storage_key` is derived from the WordPress filename, and a filename
+          // like `11237-Igbo Folk Idioms in Caribbean Phrase.pdf` is stored verbatim. **An unencoded space
+          // truncates the URL at the space**, so the link 404s on exactly the files whose names are most
+          // descriptive. Each segment is encoded, and `/` between them is preserved.
+          href: `/media/${r.storage_key.split('/').map(encodeURIComponent).join('/')}`,
+          label: 'Held by the archive · PDF',
+          note: 'Downloadable file held in the archive. Rights and reuse terms are recorded with the record.',
+          size: r.filesize_bytes ? `${Math.max(1, Math.round(r.filesize_bytes / 1024))} KB` : null,
+        }));
+        if (docs.length > 0) html = fillDocuments(html, docs);
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for documents:`, error);
     }
 
-    if (DASHBOARDS.includes(name)) {
-      /*
-       * A ROLE DASHBOARD, FILLED WITH WHAT THE ACCOUNT ACTUALLY HOLDS.
-       *
-       * **The design's metrics are examples — "Saved histories 12" — and a member who joined a minute ago has
-       * none of them.** So every count is real, the work panel becomes an honest empty state, and the
-       * capabilities shown are the ones the account's roles genuinely grant.
-       *
-       * **A visitor who is not signed in gets the page too**, told plainly that the workspace is theirs to
-       * claim. That is the owner's point about "My Ozikoro": **it must not open on a sign-in form, because a
-       * sign-in form is no use to somebody who has not joined.**
-       */
-      const current = await getCurrentAccount();
-      const db = await getDb();
-      let who: DashboardWho = {
-        signedIn: false,
-        name: null,
-        roleLabel: DASHBOARD_ROLE[name]?.label ?? 'Reader',
-        roles: [],
-        capabilities: [],
-        today: new Date().toLocaleDateString('en-GB', {
-          weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
-        }),
-      };
-      if (current) {
-        const account = current.account;
-        const roles = await db.rows<{ role: string }>(
-          `select role from ozikoro_member_role where account_id = $1 order by role`, [account.id]
-        );
-        const caps = await db.rows<{ capability: string }>(
-          // A set-returning function's column is named after the FUNCTION, not after what it returns.
-          // `select capability from ozikoro_capabilities($1)` failed with `column "capability" does not exist`
-          // on every dashboard render — and the catch swallowed it, **so the page quietly fell back to the
-          // design's example content and looked like it had never been filled at all.**
-          `select ozikoro_capabilities as capability from ozikoro_capabilities($1) order by 1`, [account.id]
-        );
-        who = {
-          ...who,
-          signedIn: true,
-          name: account.displayName ?? null,
-          roles: roles.map((r) => r.role),
-          capabilities: caps.map((c) => c.capability),
+    try {
+      if (DASHBOARDS.includes(name)) {
+        /*
+         * A ROLE DASHBOARD, FILLED WITH WHAT THE ACCOUNT ACTUALLY HOLDS.
+         *
+         * **The design's metrics are examples — "Saved histories 12" — and a member who joined a minute ago has
+         * none of them.** So every count is real, the work panel becomes an honest empty state, and the
+         * capabilities shown are the ones the account's roles genuinely grant.
+         *
+         * **A visitor who is not signed in gets the page too**, told plainly that the workspace is theirs to
+         * claim. That is the owner's point about "My Ozikoro": **it must not open on a sign-in form, because a
+         * sign-in form is no use to somebody who has not joined.**
+         */
+        const current = await getCurrentAccount();
+        const db = await getDb();
+        let who: DashboardWho = {
+          signedIn: false,
+          name: null,
+          roleLabel: DASHBOARD_ROLE[name]?.label ?? 'Reader',
+          roles: [],
+          capabilities: [],
+          today: new Date().toLocaleDateString('en-GB', {
+            weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+          }),
         };
+        if (current) {
+          const account = current.account;
+          const roles = await db.rows<{ role: string }>(
+            `select role from ozikoro_member_role where account_id = $1 order by role`, [account.id]
+          );
+          const caps = await db.rows<{ capability: string }>(
+            // A set-returning function's column is named after the FUNCTION, not after what it returns.
+            // `select capability from ozikoro_capabilities($1)` failed with `column "capability" does not exist`
+            // on every dashboard render — and the catch swallowed it, **so the page quietly fell back to the
+            // design's example content and looked like it had never been filled at all.**
+            `select ozikoro_capabilities as capability from ozikoro_capabilities($1) order by 1`, [account.id]
+          );
+          who = {
+            ...who,
+            signedIn: true,
+            name: account.displayName ?? null,
+            roles: roles.map((r) => r.role),
+            capabilities: caps.map((c) => c.capability),
+          };
+        }
+        html = fillDashboard(html, who);
       }
-      html = fillDashboard(html, who);
-    }
-
-    if (name === 'towns') {
+    } catch (error) {
       /*
-       * THE 188 PUBLISHED TOWNS AND CLANS.
-       *
-       * A town with no linked record says so in place of a count — **`No records yet` rather than `0 records`
-       * or, worse, a number that flatters the page.** A photograph is used only where the record has one from
-       * a linked article; the rest are drawn without an image rather than given a stand-in.
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
        */
-      const db = await getDb();
-      const rows = await db.rows<{ slug: string; name: string; region: string | null; n: number; img: string | null }>(
-        `select c.slug, c.name, c.region,
-                (select count(*)::int from ozikoro_article_entity ae where ae.entity_id = e.id) as n,
-                (select m.storage_key
-                   from ozikoro_article a
-                   join ozikoro_media m on m.id = a.featured_media_id
-                  where a.status = 'published' and a.is_page = false
-                    and a.id in (select ae2.article_id from ozikoro_article_entity ae2 where ae2.entity_id = e.id)
-                  limit 1) as img
-           from clan c left join ozikoro_entity e on e.clan_id = c.id
-          where c.published = true
-          order by c.name`
-      );
-      const towns: RealTown[] = rows.map((r) => ({
-        name: r.name, href: `/town/${r.slug}/`, region: r.region, image: r.img ? mediaPath(r.img) : null, records: Number(r.n) || 0,
-      }));
-      if (towns.length > 0) html = fillTowns(html, towns);
-      // A Place per town. **No coordinates**: the archive holds none, and a pin that looks like evidence is
-      // the most convincing kind of invented content there is.
-      extraNodes = towns.map((t) =>
-        placeNode({
-          name: t.name,
-          url: `https://ozikoro.com${t.href}`,
-          region: t.region,
-          description: t.records > 0 ? `${t.records} record(s) in the archive.` : 'No records yet.',
-        })
-      );
+      console.error(`design fill failed for dashboard:`, error);
     }
 
-    if (name === 'collections') {
-      /*
-       * THE FOUR COLLECTIONS, WITH THE ARCHIVE'S OWN SIZES.
-       *
-       * **The counts are what the archive holds**, and the oral-recordings card says plainly that it holds no
-       * recording — 13 video records and no audio — rather than borrowing a number from another collection.
-       */
-      const db = await getDb();
-      const counts = await db.one<{ images: number; videos: number; docs: number }>(
-        `select count(*) filter (where kind = 'image')::int images,
-                count(*) filter (where kind = 'video')::int videos,
-                count(*) filter (where kind = 'document')::int docs
-           from ozikoro_media`
-      );
-      const hero = await db.one<{ img: string | null }>(
-        `select storage_key as img from ozikoro_media
-          where kind = 'image' and storage_key is not null order by id limit 1`
-      );
-      const collections: RealCollection[] = [
-        { label: 'Visual archive', name: 'Photographs', href: '/photographs',
-          cta: `${(counts?.images ?? 0).toLocaleString('en-GB')} image records`, image: hero?.img ?? null, glyph: null },
-        { label: 'Written archive', name: 'Documents & maps', href: '/documents',
-          cta: `${(counts?.docs ?? 0).toLocaleString('en-GB')} document records`, image: null, glyph: '≡' },
-        { label: 'Recorded archive', name: 'Oral recordings', href: '/listen',
-          cta: 'No recording held yet', image: null, glyph: '◉' },
-        { label: 'Material archive', name: 'Material culture', href: '/material-culture',
-          cta: `${(counts?.videos ?? 0).toLocaleString('en-GB')} video records`, image: null, glyph: '◈' },
-      ];
-      html = fillCollections(html, collections);
-    }
-
-    if (name === 'folklore') {
-      // The 17 records the archive files under Folklores, with a photograph from the record where it has one.
-      const db = await getDb();
-      const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
-        `select a.slug, a.title, t.name as topic,
-                (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
-           from ozikoro_article a
-           join ozikoro_topic t on t.id = a.topic_id
-          where a.status = 'published' and a.is_page = false and t.slug = 'folklores'
-          order by a.title limit 24`
-      );
-      if (rows.length > 0) {
-        html = fillFolklore(html, rows.map((r) => ({
-          title: r.title, href: `/${r.slug}/`, topic: r.topic, image: r.img ? mediaPath(r.img) : null, alt: r.title,
-        })));
+    try {
+      if (name === 'towns') {
+        /*
+         * THE 188 PUBLISHED TOWNS AND CLANS.
+         *
+         * A town with no linked record says so in place of a count — **`No records yet` rather than `0 records`
+         * or, worse, a number that flatters the page.** A photograph is used only where the record has one from
+         * a linked article; the rest are drawn without an image rather than given a stand-in.
+         */
+        const db = await getDb();
+        const rows = await db.rows<{ slug: string; name: string; region: string | null; n: number; img: string | null }>(
+          `select c.slug, c.name, c.region,
+                  (select count(*)::int from ozikoro_article_entity ae where ae.entity_id = e.id) as n,
+                  (select m.storage_key
+                     from ozikoro_article a
+                     join ozikoro_media m on m.id = a.featured_media_id
+                    where a.status = 'published' and a.is_page = false
+                      and a.id in (select ae2.article_id from ozikoro_article_entity ae2 where ae2.entity_id = e.id)
+                    limit 1) as img
+             from clan c left join ozikoro_entity e on e.clan_id = c.id
+            where c.published = true
+            order by c.name`
+        );
+        const towns: RealTown[] = rows.map((r) => ({
+          name: r.name, href: `/town/${r.slug}/`, region: r.region, image: r.img ? mediaPath(r.img) : null, records: Number(r.n) || 0,
+        }));
+        if (towns.length > 0) html = fillTowns(html, towns);
+        // A Place per town. **No coordinates**: the archive holds none, and a pin that looks like evidence is
+        // the most convincing kind of invented content there is.
+        extraNodes = towns.map((t) =>
+          placeNode({
+            name: t.name,
+            url: `https://ozikoro.com${t.href}`,
+            region: t.region,
+            description: t.records > 0 ? `${t.records} record(s) in the archive.` : 'No records yet.',
+          })
+        );
       }
-    }
-
-    if (name === 'listen') {
+    } catch (error) {
       /*
-       * THE ARCHIVE HOLDS NO AUDIO. It holds 13 video records and no recording, so nothing here is presented
-       * as one: each row is the written record, and the length column says `Read` rather than a duration
-       * nobody measured. **A listen page that claimed episodes would be the plainest kind of invention.**
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
        */
-      const db = await getDb();
-      const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
-        `select a.slug, a.title, t.name as topic,
-                (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
-           from ozikoro_article a
-           left join ozikoro_topic t on t.id = a.topic_id
-          where a.status = 'published' and a.is_page = false
-          order by a.published_at desc nulls last limit 12`
-      );
-      const tracks: RealTrack[] = rows.map((r) => ({
-        title: r.title, href: `/${r.slug}/`, series: r.topic ?? 'The archive', image: r.img ? mediaPath(r.img) : null, length: 'Read',
-      }));
-      if (tracks.length > 0) html = fillListen(html, tracks);
+      console.error(`design fill failed for towns:`, error);
     }
 
-    if (name === 'topics') {
-      // The archive's fourteen categories and its 188 towns, in the design's A–Z shape.
-      const db = await getDb();
-      const [cats, towns] = await Promise.all([
-        db.rows<{ slug: string; name: string; n: number }>(
-          `select t.slug, t.name, count(a.id)::int n from ozikoro_topic t
-             left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
-            group by t.slug, t.name order by t.name`
-        ),
-        db.rows<{ slug: string; name: string }>(
-          `select slug, name from clan where published = true order by name`
-        ),
-      ]);
-      const entries: RealAzEntry[] = [
-        ...cats.map((c) => ({ name: c.name.trim(), href: `/archive-index?topic=${c.slug}`, kind: 'Category' as const })),
-        ...towns.map((t) => ({ name: t.name, href: `/town/${t.slug}/`, kind: 'Place' as const })),
-      ];
-      if (entries.length > 0) html = fillTopics(html, entries);
-    }
-
-    if (name === 'photographs') {
+    try {
+      if (name === 'collections') {
+        /*
+         * THE FOUR COLLECTIONS, WITH THE ARCHIVE'S OWN SIZES.
+         *
+         * **The counts are what the archive holds**, and the oral-recordings card says plainly that it holds no
+         * recording — 13 video records and no audio — rather than borrowing a number from another collection.
+         */
+        const db = await getDb();
+        const counts = await db.one<{ images: number; videos: number; docs: number }>(
+          `select count(*) filter (where kind = 'image')::int images,
+                  count(*) filter (where kind = 'video')::int videos,
+                  count(*) filter (where kind = 'document')::int docs
+             from ozikoro_media`
+        );
+        const hero = await db.one<{ img: string | null }>(
+          `select storage_key as img from ozikoro_media
+            where kind = 'image' and storage_key is not null order by id limit 1`
+        );
+        const collections: RealCollection[] = [
+          { label: 'Visual archive', name: 'Photographs', href: '/photographs',
+            cta: `${(counts?.images ?? 0).toLocaleString('en-GB')} image records`, image: hero?.img ?? null, glyph: null },
+          { label: 'Written archive', name: 'Documents & maps', href: '/documents',
+            cta: `${(counts?.docs ?? 0).toLocaleString('en-GB')} document records`, image: null, glyph: '≡' },
+          { label: 'Recorded archive', name: 'Oral recordings', href: '/listen',
+            cta: 'No recording held yet', image: null, glyph: '◉' },
+          { label: 'Material archive', name: 'Material culture', href: '/material-culture',
+            cta: `${(counts?.videos ?? 0).toLocaleString('en-GB')} video records`, image: null, glyph: '◈' },
+        ];
+        html = fillCollections(html, collections);
+      }
+    } catch (error) {
       /*
-       * THE PHOTOGRAPHS, SERVED FROM THIS ARCHIVE RATHER THAN HOT-LINKED.
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for collections:`, error);
+    }
+
+    try {
+      if (name === 'folklore') {
+        // The 17 records the archive files under Folklores, with a photograph from the record where it has one.
+        const db = await getDb();
+        const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
+          `select a.slug, a.title, t.name as topic,
+                  (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
+             from ozikoro_article a
+             join ozikoro_topic t on t.id = a.topic_id
+            where a.status = 'published' and a.is_page = false and t.slug = 'folklores'
+            order by a.title limit 24`
+        );
+        if (rows.length > 0) {
+          html = fillFolklore(html, rows.map((r) => ({
+            title: r.title, href: `/${r.slug}/`, topic: r.topic, image: r.img ? mediaPath(r.img) : null, alt: r.title,
+          })));
+        }
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for folklore:`, error);
+    }
+
+    try {
+      if (name === 'listen') {
+        /*
+         * THE ARCHIVE HOLDS NO AUDIO. It holds 13 video records and no recording, so nothing here is presented
+         * as one: each row is the written record, and the length column says `Read` rather than a duration
+         * nobody measured. **A listen page that claimed episodes would be the plainest kind of invention.**
+         */
+        const db = await getDb();
+        const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
+          `select a.slug, a.title, t.name as topic,
+                  (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
+             from ozikoro_article a
+             left join ozikoro_topic t on t.id = a.topic_id
+            where a.status = 'published' and a.is_page = false
+            order by a.published_at desc nulls last limit 12`
+        );
+        const tracks: RealTrack[] = rows.map((r) => ({
+          title: r.title, href: `/${r.slug}/`, series: r.topic ?? 'The archive', image: r.img ? mediaPath(r.img) : null, length: 'Read',
+        }));
+        if (tracks.length > 0) html = fillListen(html, tracks);
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for listen:`, error);
+    }
+
+    try {
+      if (name === 'topics') {
+        // The archive's fourteen categories and its 188 towns, in the design's A–Z shape.
+        const db = await getDb();
+        const [cats, towns] = await Promise.all([
+          db.rows<{ slug: string; name: string; n: number }>(
+            `select t.slug, t.name, count(a.id)::int n from ozikoro_topic t
+               left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
+              group by t.slug, t.name order by t.name`
+          ),
+          db.rows<{ slug: string; name: string }>(
+            `select slug, name from clan where published = true order by name`
+          ),
+        ]);
+        const entries: RealAzEntry[] = [
+          ...cats.map((c) => ({ name: c.name.trim(), href: `/archive-index?topic=${c.slug}`, kind: 'Category' as const })),
+          ...towns.map((t) => ({ name: t.name, href: `/town/${t.slug}/`, kind: 'Place' as const })),
+        ];
+        if (entries.length > 0) html = fillTopics(html, entries);
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for topics:`, error);
+    }
+
+    try {
+      if (name === 'photographs') {
+        /*
+         * THE PHOTOGRAPHS, SERVED FROM THIS ARCHIVE RATHER THAN HOT-LINKED.
+         *
+         * The design's example image points at `https://ozikoro.com/wp-content/uploads/…`, which is the live
+         * WordPress install. These point at `/media/…` on this site, where the archive's own 3,437 files are
+         * served, so the page does not depend on the system it is replacing.
+         */
+        const db = await getDb();
+        const rows = await db.rows<{
+          id: number; title: string | null; alt_text: string | null; storage_key: string | null;
+          creator: string | null; credit: string | null; licence: string | null; captured_at: Date | null;
+        }>(
+          `select id, title, alt_text, storage_key, creator, credit, licence, captured_at
+             from ozikoro_media
+            where kind = 'image' and storage_key is not null
+            order by id limit 24`
+        );
+        const photos: RealPhotograph[] = rows.filter((r) => r.storage_key).map((r) => ({
+          id: r.id,
+          title: r.title?.trim() || `Photograph ${r.id}`,
+          alt: r.alt_text?.trim() || r.title?.trim() || 'Archive photograph',
+          // `filter` does not narrow the property, and the guard above is what makes this safe.
+          src: mediaPath(r.storage_key as string),
+          creator: r.creator,
+          credit: r.credit,
+          licence: r.licence,
+          captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : null,
+        }));
+        if (photos.length > 0) html = fillPhotographs(html, photos);
+        // An ImageObject per photograph. `licence` is null for every one of them, so `imageNode` emits a
+        // `copyrightNotice` saying so rather than a `license` asserting a permission nobody granted.
+        extraNodes = photos.map((ph) =>
+          imageNode({
+            url: `https://ozikoro.com/photographs/`,
+            contentUrl: `https://ozikoro.com${ph.src}`,
+            caption: ph.title,
+            creator: ph.creator,
+            credit: ph.credit,
+            licence: ph.licence,
+          })
+        );
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for photographs:`, error);
+    }
+
+    try {
+      if (name === 'home') {
+        // The five most recent published records, with their topic as the design's `<span class="tag">`.
+        const db = await getDb();
+        const rows = await db.rows<{ slug: string; title: string; topic: string | null }>(
+          `select a.slug, a.title, t.name as topic
+             from ozikoro_article a left join ozikoro_topic t on t.id = a.topic_id
+            where a.status = 'published' and a.is_page = false
+            order by a.published_at desc nulls last, a.id desc limit 5`
+        );
+        if (rows.length > 0) {
+          html = fillHome(html, rows.map((r) => ({ title: r.title, href: `/${r.slug}/`, topic: r.topic })));
+        }
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for home:`, error);
+    }
+
+    try {
+      if (name === 'watch') {
+        /*
+         * THE FILMS THE ARCHIVE ACTUALLY HOLDS.
+         *
+         * 24 published articles embed a YouTube video and 23 have a readable id, so **no video was sourced from
+         * outside the archive** — the owner's fallback was not needed. The title is the article's own, the href
+         * is the article, and the poster frame is YouTube's for that id.
+         */
+        const db = await getDb();
+        const rows = await db.rows<{ slug: string; title: string; ytid: string }>(
+          `select a.slug, a.title,
+                  substring(a.body_html from '(?:youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)([A-Za-z0-9_-]{11})') as ytid
+             from ozikoro_article a
+            where a.status = 'published' and a.is_page = false
+              and a.body_html ~ '(youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)'
+            order by a.published_at desc nulls last`
+        );
+        const films: RealFilm[] = rows
+          .filter((r) => r.ytid)
+          .map((r) => ({ id: r.ytid, title: r.title, source: 'Ozikoro archive film', href: `/${r.slug}/` }));
+        if (films.length > 0) html = fillWatch(html, films);
+      }
+    } catch (error) {
+      /*
+       * ONE SCREEN IS ONE FAILURE. **A query that throws used to be caught by the single outer handler,
+       * which served the WHOLE screen as the design drew it and printed nothing about which screen it
+       * was.** A wrong column name then looked exactly like a page nobody had written a fill for — the fault
+       * this file has already recorded once. Each screen is now its own boundary so the rest still fill.
+       */
+      console.error(`design fill failed for watch:`, error);
+    }
+
+    /*
+     * ============================================================================================
+     * THE SCREENS THE ARCHIVE HOLDS NO RECORDS FOR.
+     * ============================================================================================
+     *
+     * Each of these was served exactly as the design drew it — example donors, example projects, an
+     * invented researcher, example courses — because it was not in `FILLED`. **A page showing the
+     * walkthrough's example content looks deliberate**, which is the whole reason this block exists.
+     *
+     * Every handler here follows the same rule: the archive's own counts where it has them, and an
+     * honest statement of what is absent where it has none. Three of these queries are deliberately
+     * cheap counts of empty tables, because "0" is the fact the page needs.
+     */
+    try {
+      const db = await getDb();
+
+      /*
+       * THE SHELF IS COUNTED ONLY FOR THE SCREENS THAT PRINT IT.
        *
-       * The design's example image points at `https://ozikoro.com/wp-content/uploads/…`, which is the live
-       * WordPress install. These point at `/media/…` on this site, where the archive's own 3,437 files are
-       * served, so the page does not depend on the system it is replacing.
+       * It is one query with eight scalar sub-selects, and `watch-video`, `cultural-event` and `igbo-calendar`
+       * have no use for any of them. **A page that costs a count it does not show is a page that gets slower
+       * on a phone for no reader-visible reason** — and half of this audience is on a phone on poor bandwidth,
+       * which the brief puts in as many words.
        */
-      const db = await getDb();
-      const rows = await db.rows<{
-        id: number; title: string | null; alt_text: string | null; storage_key: string | null;
-        creator: string | null; credit: string | null; licence: string | null; captured_at: Date | null;
+      const USES_SHELF = new Set(['projects', 'ledger', 'publications', 'material-culture']);
+      const EMPTY_SHELF = {
+        records: 0, towns: 0, folklores: 0, photographs: 0, documents: 0,
+        media: 0, contributors: 0, donations: 0,
+      };
+      const shelf = !USES_SHELF.has(name) ? EMPTY_SHELF : await db.one<{
+        records: number; towns: number; folklores: number; photographs: number;
+        documents: number; media: number; contributors: number; donations: number;
       }>(
-        `select id, title, alt_text, storage_key, creator, credit, licence, captured_at
-           from ozikoro_media
-          where kind = 'image' and storage_key is not null
-          order by id limit 24`
+        `select
+           (select count(*) from ozikoro_article where status='published' and is_page=false)::int records,
+           (select count(*) from clan where published = true)::int towns,
+           (select count(*) from ozikoro_article a join ozikoro_topic t on t.id=a.topic_id
+             where a.status='published' and a.is_page=false and t.slug='folklores')::int folklores,
+           (select count(*) from ozikoro_article a join ozikoro_topic t on t.id=a.topic_id
+             where a.status='published' and a.is_page=false and t.slug='photos')::int photographs,
+           (select count(*) from ozikoro_media where kind='document')::int documents,
+           (select count(*) from ozikoro_media)::int media,
+           (select count(*) from ozikoro_contributor)::int contributors,
+           (select count(*) from donation)::int donations`
       );
-      const photos: RealPhotograph[] = rows.filter((r) => r.storage_key).map((r) => ({
-        id: r.id,
-        title: r.title?.trim() || `Photograph ${r.id}`,
-        alt: r.alt_text?.trim() || r.title?.trim() || 'Archive photograph',
-        // `filter` does not narrow the property, and the guard above is what makes this safe.
-        src: mediaPath(r.storage_key as string),
-        creator: r.creator,
-        credit: r.credit,
-        licence: r.licence,
-        captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : null,
-      }));
-      if (photos.length > 0) html = fillPhotographs(html, photos);
-      // An ImageObject per photograph. `licence` is null for every one of them, so `imageNode` emits a
-      // `copyrightNotice` saying so rather than a `license` asserting a permission nobody granted.
-      extraNodes = photos.map((ph) =>
-        imageNode({
-          url: `https://ozikoro.com/photographs/`,
-          contentUrl: `https://ozikoro.com${ph.src}`,
-          caption: ph.title,
-          creator: ph.creator,
-          credit: ph.credit,
-          licence: ph.licence,
-        })
-      );
-    }
+      const S = {
+        records: shelf?.records ?? 0, towns: shelf?.towns ?? 0, folklores: shelf?.folklores ?? 0,
+        photographs: shelf?.photographs ?? 0, documents: shelf?.documents ?? 0, media: shelf?.media ?? 0,
+        contributors: shelf?.contributors ?? 0, donations: shelf?.donations ?? 0,
+      };
 
-    if (name === 'home') {
-      // The five most recent published records, with their topic as the design's `<span class="tag">`.
-      const db = await getDb();
-      const rows = await db.rows<{ slug: string; title: string; topic: string | null }>(
-        `select a.slug, a.title, t.name as topic
-           from ozikoro_article a left join ozikoro_topic t on t.id = a.topic_id
-          where a.status = 'published' and a.is_page = false
-          order by a.published_at desc nulls last, a.id desc limit 5`
-      );
-      if (rows.length > 0) {
-        html = fillHome(html, rows.map((r) => ({ title: r.title, href: `/${r.slug}/`, topic: r.topic })));
-      }
-    }
-
-    if (name === 'watch') {
       /*
-       * THE FILMS THE ARCHIVE ACTUALLY HOLDS.
+       * THE ARCHIVE'S OWN MAIL ROUTE.
        *
-       * 24 published articles embed a YouTube video and 23 have a readable id, so **no video was sourced from
-       * outside the archive** — the owner's fallback was not needed. The title is the article's own, the href
-       * is the article, and the poster frame is YouTube's for that id.
+       * The one address the deliverable itself prints is `archive@ozikoro.com`, on its upload screen. It is
+       * used here because it is the design's own and not an address invented for this work — **and because a
+       * partnership page with no way to make contact is not a page a partner can act on.**
        */
-      const db = await getDb();
-      const rows = await db.rows<{ slug: string; title: string; ytid: string }>(
-        `select a.slug, a.title,
-                substring(a.body_html from '(?:youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)([A-Za-z0-9_-]{11})') as ytid
-           from ozikoro_article a
-          where a.status = 'published' and a.is_page = false
-            and a.body_html ~ '(youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)'
-          order by a.published_at desc nulls last`
-      );
-      const films: RealFilm[] = rows
-        .filter((r) => r.ytid)
-        .map((r) => ({ id: r.ytid, title: r.title, source: 'Ozikoro archive film', href: `/${r.slug}/` }));
-      if (films.length > 0) html = fillWatch(html, films);
+      const MAIL = 'archive@ozikoro.com';
+
+      if (name === 'academy') {
+        /*
+         * The Academy is `learn.ozituma.com`, a separate application with its own Supabase project, and it is
+         * NOT queried from here: a render-time fetch to a third-party host would put this page's availability
+         * in another deployment's hands. The page states what the Academy says about itself instead.
+         */
+        html = fillAcademy(html, [], true);
+      }
+
+      if (name === 'donate') {
+        /*
+         * THE PAYMENT MECHANISM, REPORTED AS IT IS.
+         *
+         * The application holds a NOWPayments webhook and a `donation` table — both real, both tested — and
+         * `nowpaymentsConfigured()` is false because `NOWPAYMENTS_IPN_SECRET` is unset. **There is no route on
+         * this site that starts a donation at all.** So the form is disabled and the page says why, rather
+         * than offering a button that does nothing.
+         */
+        html = fillDonate(html, {
+          configured: nowpaymentsConfigured(),
+          donations: S.donations,
+          currency: 'NGN',
+        });
+      }
+
+      if (name === 'sponsors' || name === 'investors') {
+        html = fillApproach(html, name === 'sponsors' ? 'sponsors' : 'investors', {
+          recorded: 0,
+          route: MAIL,
+        });
+      }
+
+      if (name === 'careers') {
+        html = fillCareers(html, { roles: 0 });
+      }
+
+      if (name === 'ledger') {
+        const people = await db.rows<{ slug: string; name: string; records: number; bio: string | null }>(
+          `select c.slug, c.display_name as name, count(a.id)::int as records, c.bio
+             from ozikoro_contributor c
+             left join ozikoro_article a on a.author_id = c.id and a.status='published' and a.is_page=false
+            group by c.id, c.slug, c.display_name, c.bio
+            order by records desc, c.display_name`
+        );
+        // Communities that have at least one record linked — the one real figure the design's "communities
+        // represented" slot can carry.
+        const linked = await db.one<{ n: number }>(
+          `select count(distinct e.clan_id)::int n
+             from ozikoro_article_entity ae
+             join ozikoro_entity e on e.id = ae.entity_id
+             join ozikoro_article a on a.id = ae.article_id
+            where e.clan_id is not null and a.status='published'`
+        );
+        html = fillLedger(html, {
+          donations: S.donations,
+          contributors: people,
+          communities: linked?.n ?? 0,
+        });
+      }
+
+      if (name === 'projects') {
+        html = fillProjectsIndex(html, S);
+      }
+
+      if (name === 'project') {
+        html = fillProjectRecord(html);
+      }
+
+      if (name === 'publications') {
+        html = fillPublications(html, { records: S.records });
+      }
+
+      if (name === 'publication') {
+        html = fillPublicationRecord(html);
+      }
+
+      if (name === 'cite') {
+        /*
+         * THE WORKED EXAMPLE IS A REAL RECORD'S CITATION.
+         *
+         * The design asks for exactly this in its own words — *"Replace this example with the citation shown on
+         * the article itself"* — so the sample is built by the same `citationFor` the article route uses, from
+         * the most recently published record that has an author.
+         */
+        const sample = await db.one<{ title: string; slug: string; author: string | null; published_at: Date | null }>(
+          `select a.title, a.slug, c.display_name as author, a.published_at
+             from ozikoro_article a left join ozikoro_contributor c on c.id = a.author_id
+            where a.status='published' and a.is_page=false
+            order by a.published_at desc nulls last, a.id desc limit 1`
+        );
+        html = fillCite(
+          html,
+          sample
+            ? {
+                citation: citationFor({
+                  authorName: sample.author,
+                  title: sample.title,
+                  publishedAt: sample.published_at ? new Date(sample.published_at).toISOString() : null,
+                  url: `https://ozikoro.com/${sample.slug}/`,
+                }),
+                title: sample.title,
+                path: `/${sample.slug}/`,
+              }
+            : null
+        );
+      }
+
+      if (name === 'researcher-profile') {
+        /*
+         * THE REAL PEOPLE NETWORK HAS ALMOST NOTHING ON FILE, AND THAT IS THE PAGE.
+         *
+         * `ozikoro_member` holds one row and it is the owner's; the eleven contributors have no account and no
+         * member profile. So the profile shown is a contributor's own record — byline name, biography where
+         * WordPress held one, and the histories they wrote — and **every field the archive does not hold is
+         * stated as absent rather than borrowed from the design's invented researcher.**
+         */
+        const person = await db.one<{
+          slug: string; name: string; bio: string | null; records: number;
+          member_headline: string | null; institution: string | null; department: string | null;
+          orcid: string | null; interests: string[] | null; member_since: Date | null; is_public: boolean | null;
+          publications: number;
+        }>(
+          `select c.slug, c.display_name as name, c.bio,
+                  count(a.id)::int as records,
+                  m.headline as member_headline, m.institution, m.department, m.orcid,
+                  m.research_interests as interests, m.created_at as member_since, m.is_public,
+                  (select count(*) from ozikoro_publication p where p.submitted_by = c.id)::int publications
+             from ozikoro_contributor c
+             left join ozikoro_article a on a.author_id = c.id and a.status='published' and a.is_page=false
+             left join ozikoro_member m on m.account_id = c.account_id
+            group by c.id, c.slug, c.display_name, c.bio, m.headline, m.institution, m.department,
+                     m.orcid, m.research_interests, m.created_at, m.is_public
+            order by records desc, c.display_name limit 1`
+        );
+        html = fillResearcherProfile(html, {
+          slug: person?.slug ?? '',
+          name: person?.name ?? 'No contributor recorded',
+          headline: person?.member_headline ?? null,
+          bio: person?.bio ?? null,
+          institution: person?.institution ?? null,
+          department: person?.department ?? null,
+          orcid: person?.orcid ?? null,
+          interests: person?.interests ?? [],
+          since: person?.member_since ? new Date(person.member_since).toISOString().slice(0, 10) : null,
+          publications: person?.publications ?? 0,
+          joined: Boolean(person?.is_public),
+        });
+      }
+
+      if (name === 'journeys') {
+        /*
+         * THE PLACES, BY REGION — AND NO COORDINATE.
+         *
+         * `clan` holds 188 published places with a region name and **no latitude or longitude anywhere**, so the
+         * design's map line is not drawn. What the page carries instead is the same discovery done with what the
+         * archive actually has: region, how many places, how many linked records.
+         */
+        const regions = await db.rows<{ region: string; towns: number; records: number }>(
+          `select coalesce(c.region, 'Region not recorded') as region,
+                  count(distinct c.id)::int as towns,
+                  count(distinct ae.article_id)::int as records
+             from clan c
+             left join ozikoro_entity e on e.clan_id = c.id
+             left join ozikoro_article_entity ae on ae.entity_id = e.id
+             left join ozikoro_article a on a.id = ae.article_id and a.status='published' and a.is_page=false
+            where c.published = true
+            group by 1 order by records desc, towns desc, region`
+        );
+        html = fillJourneys(html, regions, { towns: S.towns, records: S.records });
+      }
+
+      if (name === 'material-culture') {
+        const objects = await db.one<{ n: number }>(`select count(*)::int n from ozikoro_object`);
+        html = fillMaterialCulture(html, {
+          objects: objects?.n ?? 0,
+          photographs: S.photographs,
+          documents: S.documents,
+        });
+      }
+
+      if (name === 'cultural-calendar') {
+        /*
+         * THE MONTH ON THE PAGE IS THE MONTH IT IS, AND THE EVENT COUNT IS THE ARCHIVE'S.
+         *
+         * The design heads its grid "October 2026 · demonstration month". **There is no event table** — the only
+         * `%event%` tables are `learn_xp_event` and `spotify_event` — so the count is 0 and every date is a
+         * plain date, which is the design's own non-interactive state rather than a degraded one.
+         */
+        const now = new Date();
+        html = fillCulturalCalendar(html, {
+          label: now.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' }),
+          year: now.getUTCFullYear(),
+          events: 0,
+        });
+      }
+
+      if (name === 'cultural-event') {
+        html = fillCulturalEvent(html);
+      }
+
+      if (name === 'igbo-calendar' || name === 'market-days') {
+        /*
+         * THE ANCHOR, STATED. It is the design's own (`market-days.js` anchors 1 January 2026 at Orie) and the
+         * page already calls it a demonstration; the fill makes the wording name it as this archive's reckoning
+         * rather than a universal one, which the brief requires.
+         */
+        html = fillIgboCalendar(html, { basis: '1 January 2026 taken as Orie, repeating the four-day cycle' });
+      }
+
+      if (name === 'watch-video') {
+        html = fillWatchVideo(html);
+      }
+
+      if (name === 'folklore-reader') {
+        /*
+         * A REAL STORY'S OWN WORDS, ON THE DESIGN'S READING FRAME.
+         *
+         * The design's banner says the title and photograph are from live Ozikoro and the sample text is not the
+         * published story — **the worst combination, because a reader who came for a story is given a paragraph
+         * about the interface.** The record's own first paragraph and the rest of its prose replace it, and the
+         * listen panel goes, because the archive holds no audio.
+         */
+        const story = await db.one<{
+          id: number; slug: string; title: string; topic: string | null; author: string | null;
+          published_at: Date | null; body_html: string | null; image: string | null; image_alt: string | null;
+        }>(
+          `select a.id, a.slug, a.title, t.name as topic, c.display_name as author, a.published_at, a.body_html,
+                  (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as image,
+                  (select m.alt_text from ozikoro_media m where m.id = a.featured_media_id) as image_alt
+             from ozikoro_article a
+             join ozikoro_topic t on t.id = a.topic_id
+             left join ozikoro_contributor c on c.id = a.author_id
+            where a.status='published' and a.is_page=false and t.slug='folklores'
+            order by a.title limit 1`
+        );
+        if (story) {
+          const related = await db.rows<{ slug: string; title: string }>(
+            `select a.slug, a.title from ozikoro_article a
+               join ozikoro_topic t on t.id = a.topic_id
+              where a.status='published' and a.is_page=false and t.slug='folklores' and a.id <> $1
+              order by a.title limit 3`,
+            [story.id]
+          );
+          const body = story.body_html ?? '';
+          const paragraphs = [...body.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)];
+          const chosen = paragraphs.find((m) => (m[1] ?? '').replace(/&nbsp;|\s|<[^>]+>/g, '').length > 40);
+          html = fillFolkloreReader(html, {
+            title: story.title,
+            topic: story.topic,
+            author: story.author,
+            published: story.published_at
+              ? new Date(story.published_at).toLocaleDateString('en-GB', {
+                  day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+                })
+              : null,
+            image: story.image ? mediaPath(story.image) : null,
+            imageAlt: story.image_alt ?? story.title,
+            lead: chosen ? (chosen[1] ?? '') : 'This record has no written body yet.',
+            body: chosen ? body.replace(chosen[0], '') : '',
+            path: `/${story.slug}/`,
+            reference: `OZ-H-${String(story.id).padStart(4, '0')}`,
+            related: related.map((r) => ({ title: r.title, href: `/${r.slug}/` })),
+          });
+        }
+      }
+
+      if (name === 'town') {
+        /*
+         * `/town/` IS THE REGISTER, NOT ONE TOWN.
+         *
+         * A single town has its own address (`/town/<slug>/`, served by the application's own route, which the
+         * middleware does not intercept because it is two segments). This screen is the one-segment address, so
+         * what it can honestly carry is the register and a way into each place.
+         */
+        const towns = await db.rows<{ slug: string; name: string; region: string | null; records: number }>(
+          `select c.slug, c.name, c.region,
+                  (select count(*)::int from ozikoro_article_entity ae
+                     join ozikoro_article a on a.id = ae.article_id and a.status='published' and a.is_page=false
+                    where ae.entity_id = e.id) as records
+             from clan c left join ozikoro_entity e on e.clan_id = c.id
+            where c.published = true
+            order by records desc, c.name limit 24`
+        );
+        html = fillTown(html, {
+          towns: towns.map((t) => ({ name: t.name, href: `/town/${t.slug}/`, region: t.region, records: Number(t.records) || 0 })),
+          total: S.towns,
+        });
+      }
+    } catch (error) {
+      console.error('design fill failed for the record-less screens:', error);
     }
+
   } catch (error) {
     // Degrade to the design rather than to an error page, and say so in the log.
     console.error(`design fill failed for ${name}:`, error);

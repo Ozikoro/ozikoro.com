@@ -17,6 +17,7 @@
     "./roles": "./src/roles.ts",
     "./users": "./src/users.ts",
     "./editorial": "./src/editorial.ts",
+    "./audit": "./src/audit.ts",
     "./publications": "./src/publications.ts",
     "./rights": "./src/rights.ts",
     "./search": "./src/search.ts",

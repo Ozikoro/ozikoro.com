@@ -32,6 +32,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getDb } from '@ozituma/db/client';
 import { spotifyConnectionView, type SpotifyEventRow } from '@ozikoro/platform';
+import { requireAdministratorOrRedirect } from '@/lib/access';
 import { AtAGlance, Card, Head, Notices } from '../ui';
 
 export const dynamic = 'force-dynamic';
@@ -103,6 +104,15 @@ export default async function Page({
   }>;
 }) {
   const params = await searchParams;
+
+  /*
+   * The page's own guard, FIRST. The connection screen states the callback address and the granted scopes,
+   * and every endpoint that changes it already requires an administrator or the owner — **so the page that
+   * shows it must ask the same question**, and the layout's guard does not stop this page rendering before it
+   * redirects. See `requireAdministratorOrRedirect`.
+   */
+  await requireAdministratorOrRedirect('/admin/spotify');
+
   const db = await getDb();
   const view = await spotifyConnectionView(db);
 

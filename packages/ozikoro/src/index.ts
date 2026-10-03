@@ -45,6 +45,7 @@ export * from './members.ts';
 export * from './roles.ts';
 export * from './users.ts';
 export * from './editorial.ts';
+export * from './audit.ts';
 export * from './publications.ts';
 export * from './rights.ts';
 export * from './search.ts';

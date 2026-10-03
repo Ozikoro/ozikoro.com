@@ -21,6 +21,7 @@ import {
   getRightsProgress,
   listRightsQueue,
 } from '@ozikoro/platform';
+import { requireCapabilityOrRedirect } from '@/lib/access';
 import { Card, Head, Notices } from '../ui';
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +43,11 @@ export default async function RightsPage({
   const filter = (params.filter ?? 'unchecked') as 'unchecked' | 'checked' | 'unpublishable' | 'restricted' | 'all';
   const search = params.q?.trim() || null;
   const selectedId = params.item ? Number.parseInt(params.item, 10) : null;
+
+  // The page's own guard, FIRST. The layout's guard does not stop this page rendering — see
+  // `requireCapabilityOrRedirect` for the measurement (an anonymous request answered 307 with 40 KB of this
+  // screen's item references in the body).
+  await requireCapabilityOrRedirect('manage_media_rights', '/admin/rights');
 
   const db = await getDb();
   const [progress, queue] = await Promise.all([

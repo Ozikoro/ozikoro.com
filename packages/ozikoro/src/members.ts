@@ -483,6 +483,23 @@ export async function requestContributorClaim(
   );
 }
 
+/**
+ * How many claims are in a state, counted rather than measured by the length of a capped page.
+ *
+ * `listContributorClaims` clamps its limit to 200, so `listContributorClaims(db, {status:'pending'}).length`
+ * reports **200 for a backlog of any size above it** — a page-shaped number presented as a count. The index
+ * prints a count, so it asks for one.
+ */
+export async function countContributorClaims(
+  db: Db,
+  status?: 'pending' | 'approved' | 'rejected'
+): Promise<number> {
+  const row = status
+    ? await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_contributor_claim where status = $1`, [status])
+    : await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_contributor_claim`);
+  return Number(row?.n ?? 0);
+}
+
 export async function listContributorClaims(
   db: Db,
   options: { status?: 'pending' | 'approved' | 'rejected' | null; limit?: number } = {}

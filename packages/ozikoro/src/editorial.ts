@@ -252,6 +252,229 @@ export async function getEditorialProgress(db: Db): Promise<{
 }
 
 // ---------------------------------------------------------------------------
+// The review queue — records waiting on a decision, not on typing
+// ---------------------------------------------------------------------------
+
+/**
+ * WHY THIS IS SEPARATE FROM `listEditorialQueue`
+ *
+ * The editorial queue answers *"which records are worst documented?"* and deliberately mixes every status
+ * except `archived`, because a record with no source needs work whether or not it is live. **A record in
+ * `review` is waiting on a different question — someone has to decide whether it may be published at all** —
+ * and mixing the two produced the fault this list exists to fix: a review queue that read
+ * `ozikoro_publication` (an empty table) while the archive's own records sat in `review`, showing
+ * *"Waiting (0)"* next to a real backlog.
+ *
+ * The state is the archive's own. `updateArticleFacets` accepts `draft | review | published | archived`, and
+ * `review` is what the archive uses for "the work exists and the verdict has not been given".
+ */
+export interface ReviewArticle {
+  id: number;
+  slug: string;
+  /** The public address, which exists whether or not the record is currently published. */
+  url: string;
+  title: string;
+  authorName: string | null;
+  topicName: string | null;
+  wordCount: number | null;
+  standfirst: string | null;
+  /** 'Last changed' from WordPress; the closest thing the import carries to a submission date. */
+  lastChangedAt: string | null;
+  /** When this site imported the record. */
+  importedAt: string | null;
+  /**
+   * WHEN THE RECORD ENTERED REVIEW, FROM THE AUDIT TRAIL — or null.
+   *
+   * The article table has no `submitted_at`, so the honest answer for a record put into review through the
+   * editorial desk is the `update_facets` audit row whose `after` carries `status: review`. **Where no such
+   * row exists the screen says the time is not recorded** rather than printing the WordPress modified date
+   * and calling it a submission — the two are different facts and only one of them answers "how long has
+   * this been waiting?".
+   */
+  inReviewSince: string | null;
+}
+
+export interface ReviewQueueOptions {
+  search?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
+/** How many records the archive holds in each state, so a count can be stated rather than guessed. */
+export async function getArticleStatusCounts(db: Db): Promise<{
+  total: number;
+  published: number;
+  review: number;
+  draft: number;
+  archived: number;
+  pages: number;
+}> {
+  const row = await db.one<Record<string, unknown>>(`
+    select count(*)::int as total,
+           count(*) filter (where status = 'published' and is_page = false)::int as published,
+           count(*) filter (where status = 'review' and is_page = false)::int as review,
+           count(*) filter (where status = 'draft' and is_page = false)::int as draft,
+           count(*) filter (where status = 'archived' and is_page = false)::int as archived,
+           count(*) filter (where is_page = true)::int as pages
+      from ozikoro_article
+  `);
+  return {
+    total: Number(row?.total ?? 0),
+    published: Number(row?.published ?? 0),
+    review: Number(row?.review ?? 0),
+    draft: Number(row?.draft ?? 0),
+    archived: Number(row?.archived ?? 0),
+    pages: Number(row?.pages ?? 0),
+  };
+}
+
+/**
+ * The records in `review`, oldest submission first.
+ *
+ * Oldest first for the same reason the editorial queue orders by need: **the person who has waited longest
+ * is the one to look at.** A record with no audit row has no knowable waiting time and sorts by the import
+ * date, which is the earliest date that is true of it.
+ */
+export async function listArticlesInReview(
+  db: Db,
+  options: ReviewQueueOptions = {}
+): Promise<{ total: number; articles: ReviewArticle[] }> {
+  const params: unknown[] = [];
+  const conditions: string[] = [`a.status = 'review'`, `a.is_page = false`];
+
+  if (options.search) {
+    params.push(`%${options.search}%`);
+    conditions.push(`(a.title ilike $${params.length} or a.slug ilike $${params.length})`);
+  }
+  const where = `where ${conditions.join(' and ')}`;
+
+  const totalRow = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_article a ${where}`,
+    params
+  );
+
+  const limit = Math.min(Math.max(options.limit ?? 25, 1), 200);
+  const offset = Math.max(options.offset ?? 0, 0);
+  params.push(limit, offset);
+
+  const rows = await db.rows<Record<string, unknown>>(
+    `select a.id, a.slug, a.title, a.standfirst, a.word_count, a.modified_at, a.created_at,
+            t.name as topic_name, c.display_name as author_name,
+            (select max(au.created_at) from ozikoro_audit au
+              where au.entity_type = 'ozikoro_article' and au.entity_id = a.id
+                and au.after ->> 'status' = 'review') as in_review_since
+       from ozikoro_article a
+       left join ozikoro_topic t on t.id = a.topic_id
+       left join ozikoro_contributor c on c.id = a.author_id
+       ${where}
+      order by coalesce(
+                 (select max(au.created_at) from ozikoro_audit au
+                   where au.entity_type = 'ozikoro_article' and au.entity_id = a.id
+                     and au.after ->> 'status' = 'review'),
+                 a.created_at
+               ) asc,
+               a.id asc
+      limit $${params.length - 1} offset $${params.length}`,
+    params
+  );
+
+  return {
+    total: Number(totalRow?.n ?? 0),
+    articles: rows.map((r) => ({
+      id: Number(r.id),
+      slug: String(r.slug),
+      url: `/${String(r.slug)}/`,
+      title: String(r.title ?? '').trim() || 'Untitled record',
+      authorName: r.author_name ? String(r.author_name) : null,
+      topicName: r.topic_name ? String(r.topic_name) : null,
+      wordCount: r.word_count === null || r.word_count === undefined ? null : Number(r.word_count),
+      standfirst: r.standfirst ? String(r.standfirst) : null,
+      lastChangedAt: r.modified_at ? new Date(String(r.modified_at)).toISOString() : null,
+      importedAt: r.created_at ? new Date(String(r.created_at)).toISOString() : null,
+      inReviewSince: r.in_review_since ? new Date(String(r.in_review_since)).toISOString() : null,
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Article claims — the `ozikoro_claim` register
+// ---------------------------------------------------------------------------
+
+/**
+ * `ozikoro_claim` IS NOT THE AUTHORSHIP CLAIM QUEUE.
+ *
+ * There are two tables and the names invite the confusion:
+ *
+ *   `ozikoro_claim`             a statement an article makes — the claim, the anchor it sits under, and
+ *                               whether an editor has accepted it. Its subject is a *record's assertion*.
+ *   `ozikoro_contributor_claim` a person asking to be recognised as the author of a byline. Its subject is
+ *                               a *person*.
+ *
+ * **A screen that showed one and called it the other would be reporting an empty table as a fact about
+ * authorship.** Both are shown on `/admin/claims`, each named for what it holds, so the zero is legible.
+ */
+export interface ArticleClaim {
+  id: number;
+  articleId: number;
+  articleSlug: string | null;
+  articleTitle: string | null;
+  entityId: number | null;
+  entityName: string | null;
+  statement: string | null;
+  anchor: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listArticleClaims(
+  db: Db,
+  options: { status?: string | null; limit?: number; offset?: number } = {}
+): Promise<{ total: number; claims: ArticleClaim[] }> {
+  const params: unknown[] = [];
+  const conditions: string[] = [];
+  if (options.status) {
+    params.push(options.status);
+    conditions.push(`c.status = $${params.length}`);
+  }
+  const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
+
+  const totalRow = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_claim c ${where}`, params);
+  const limit = Math.min(Math.max(options.limit ?? 25, 1), 200);
+  const offset = Math.max(options.offset ?? 0, 0);
+  params.push(limit, offset);
+
+  const rows = await db.rows<Record<string, unknown>>(
+    `select c.id, c.article_id, c.entity_id, c.statement, c.anchor, c.status, c.created_at, c.updated_at,
+            a.slug as article_slug, a.title as article_title, e.name as entity_name
+       from ozikoro_claim c
+       left join ozikoro_article a on a.id = c.article_id
+       left join ozikoro_entity e on e.id = c.entity_id
+       ${where}
+      order by c.created_at desc, c.id desc
+      limit $${params.length - 1} offset $${params.length}`,
+    params
+  );
+
+  return {
+    total: Number(totalRow?.n ?? 0),
+    claims: rows.map((r) => ({
+      id: Number(r.id),
+      articleId: Number(r.article_id),
+      articleSlug: r.article_slug ? String(r.article_slug) : null,
+      articleTitle: r.article_title ? String(r.article_title) : null,
+      entityId: r.entity_id === null || r.entity_id === undefined ? null : Number(r.entity_id),
+      entityName: r.entity_name ? String(r.entity_name) : null,
+      statement: r.statement ? String(r.statement) : null,
+      anchor: r.anchor ? String(r.anchor) : null,
+      status: String(r.status),
+      createdAt: new Date(String(r.created_at)).toISOString(),
+      updatedAt: new Date(String(r.updated_at)).toISOString(),
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Editing a record's facets
 // ---------------------------------------------------------------------------
 

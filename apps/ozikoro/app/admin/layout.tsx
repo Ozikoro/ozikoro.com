@@ -2,10 +2,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
-import { isAdmin } from '@ozituma/db/accounts';
 import { getDb } from '@ozituma/db/client';
 import { capabilitiesFor } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
+import { mayEnterBackOffice } from '@/lib/access';
 
 /**
  * The Ozikoro administrator's area.
@@ -65,8 +65,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
    */
   const db = await getDb();
   const capabilities = await capabilitiesFor(db, account.id);
-  const mayEnter = isAdmin(account.role) || capabilities.has('edit_entity') || capabilities.has('moderate') || capabilities.has('expert_review') || capabilities.has('review_audio');
-  if (!mayEnter) {
+  /*
+   * THE RULE LIVES IN `mayEnterBackOffice`, WHICH EVERY ADMIN PAGE ALSO CALLS.
+   *
+   * It was written out here as five terms inline. **A page must ask the same question before it renders**,
+   * because React renders a layout and its children concurrently and this layout's redirect therefore does
+   * not keep a page's output out of the response body — so the test now exists twice by necessity, and a
+   * second hand-written copy here is a drift waiting to open a door this function closes.
+   */
+  if (!mayEnterBackOffice(account.role, capabilities)) {
     return (
       <div className="admin-shell" style={{ maxWidth: '38rem', paddingTop: '3rem' }}>
         <header className="page-header">
@@ -115,9 +122,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/archive">Editorial queue</Link>
           <Link href="/admin/reviews">Review queue</Link>
           <Link href="/admin/audio">Audio review</Link>
+          <Link href="/admin/media">Media register</Link>
           <Link href="/admin/rights">Media rights</Link>
           <Link href="/admin/claims">Claims</Link>
           <Link href="/admin/users">Users</Link>
+          <Link href="/admin/audit">Audit trail</Link>
           <Link href="/admin/spotify">Spotify</Link>
         </div>
       </nav>
