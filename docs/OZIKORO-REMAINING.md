@@ -13344,3 +13344,70 @@ the punctuation joining a heading to its paragraph. **It reorders nothing, short
 
 **An archive that has never published an episode is in an honest state. One that has published a silent one is
 not.**
+
+---
+
+## ROUND 293 — THE VOICE IS TRAINED, AND FOUR THINGS IN THE SPECIFICATION WERE NOT TRUE
+
+### The voice exists
+
+    voice_id    wmiayHyRqbZKEoeIfhVK
+    name        Idenze Ezeme
+    category    cloned            ← an INSTANT clone: usable the moment it was created
+    trained from 13 recordings of the owner's own voice, 2.6 MB total
+
+    test render          200, 179 KB of audio
+    a real article       Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots
+                         1,538 spoken words · 10m 36s · 7.7 MB · PENDING REVIEW, not in the feed
+
+**The whole purpose of the pipeline the specification describes — a trained voice that narrates a history —
+was done before the specification ran.** What follows is what was built around it, and what had to be
+corrected.
+
+### Four corrections, each measured against the account rather than argued
+
+**1. `https://elevenlabs.io` is the website, not the API.** Every call to it returns the marketing page as
+HTML — **so a `responseType: 'arraybuffer'` "success" would have written a web page into an MP3 file, and the
+fault would have appeared only when somebody pressed play.** The API is `https://api.elevenlabs.io`.
+
+**2. There is no `/v1/voice-isolator`.** Measured: `/v1/audio-isolation` answers **422** (a real endpoint,
+missing its file) and `/v1/voice-isolator` answers **404**. A 404 on a POST inside a retry loop is not always
+obvious, and the code would have "run" and cleaned nothing.
+
+**3. Professional Voice Cloning is not available on this account.** `GET /v1/user/subscription` reports
+`tier: starter`; the voice reports `is_allowed_to_fine_tune: false`. **PVC begins at `creator`.** A pipeline
+built for PVC here would have returned a voice id and polled forever for a training run that never started —
+**and the monitoring route would have reported `processing` indefinitely, which looks exactly like patience.**
+Instant cloning works at every tier and is what the voice actually is.
+
+**4. The isolator is not a step that is always owed.** It is separately billed; the recordings were made in a
+quiet room and the clone came out clean. **Running thirteen files through it first would have spent credits and
+could have stripped breath and room tone the voice needs.** It is offered — `?isolate=1` — not applied.
+
+### And the thing the specification does not ask for, which the archive requires
+
+**The specification's script stage rewrites each article into the tone of a dramatic audiobook.** That is the
+one thing this archive must not do, and its own rules are why. **A history rewritten into a menacing register
+asserts a tone the record does not have, in a way a listener cannot detect.**
+
+`toSpokenScript` removes only what cannot be **heard**: markup, figure captions, citation brackets, raw URLs,
+and the punctuation joining a heading to its paragraph. **It reorders nothing, shortens nothing, adds nothing.**
+
+### Built
+
+    apps/ozikoro/lib/elevenlabs.ts                       the client, with the limits as they are
+    apps/ozikoro/app/api/voice/pvc-initiate/route.ts     train, and say which kind of clone it made
+    apps/ozikoro/app/api/voice/status/[voiceId]/route.ts ready · processing · unavailable
+    apps/ozikoro/app/api/podcast/generate/route.ts       speak a record, hold it for review
+    packages/ozikoro/src/spoken.ts                       the one definition of "prepare for speaking"
+    scripts/prepare-episode.ts                           the runner, sharing that definition
+
+**Every route is gated on a capability and records its actor.** `pvc-initiate` needs `manage_ai_corpus`,
+because it creates something that speaks in a person's name; `generate` needs `publish`. **And `generate` does
+not publish** — `ozikoro_episode.status` moves to `published` only through an explicit transition with a human
+behind it, because Spotify's rules put the responsibility for the content on the publisher.
+
+### The test script that was asked for already exists and already ran
+
+    node scripts/prepare-episode.ts <slug> --dry-run   the spoken script only, nothing recorded
+    node scripts/prepare-episode.ts <slug>             renders, and records an episode for review

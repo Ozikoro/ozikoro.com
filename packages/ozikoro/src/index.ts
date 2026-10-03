@@ -47,9 +47,11 @@ export * from './publications.ts';
 export * from './rights.ts';
 export * from './search.ts';
 export * from './entities.ts';
+export * from './places.ts';
 export * from './seo.ts';
 export * from './redirects.ts';
 
 export * from './knowledge.ts';
 export * from './design-fill.ts';
 export * from './seo-head.ts';
+export * from './spoken.ts';

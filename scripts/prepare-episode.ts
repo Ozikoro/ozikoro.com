@@ -38,6 +38,8 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { getDb, closeDb } from '@ozituma/db/client';
+// The one definition of "prepare the article's own words for speaking", shared with the API route.
+import { toSpokenScript } from '@ozikoro/platform';
 
 const args = process.argv.slice(2);
 const slug = args.find((a) => !a.startsWith('--'));
@@ -52,49 +54,6 @@ if (!slug) {
   process.exit(2);
 }
 
-/**
- * The article's words, prepared for speaking.
- *
- * **Every transformation here removes something a listener cannot use. None of them changes a word the article
- * says.** That distinction is the whole function.
- */
-function toSpokenScript(html: string): { script: string; transcript: string } {
-  let t = html;
-
-  // Blocks that mean nothing out loud.
-  t = t.replace(/<(script|style)[\s\S]*?<\/\1>/gi, '');
-  t = t.replace(/<figure[\s\S]*?<\/figure>/gi, ''); // captions and credits are seen, not heard
-  t = t.replace(/<aside[\s\S]*?<\/aside>/gi, '');
-
-  // Headings become sentences, so a heading does not run into the paragraph after it.
-  t = t.replace(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi, (_m, inner: string) => {
-    const text = inner.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
-    return text ? `\n\n${text}.\n\n` : '\n\n';
-  });
-
-  // Paragraphs and list items become their own lines.
-  t = t.replace(/<\/(p|li|blockquote)>/gi, '\n\n');
-  t = t.replace(/<br\s*\/?>/gi, '\n');
-  t = t.replace(/<li[^>]*>/gi, '— ');
-
-  // Everything else is markup.
-  t = t.replace(/<[^>]+>/g, '');
-
-  // Citation brackets and reference numbers, which cannot be followed by ear.
-  t = t.replace(/\[\s*\d+\s*\]/g, '');
-  t = t.replace(/\((?:see|cf\.?|ibid\.?)[^)]{0,60}\)/gi, '');
-  t = t.replace(/https?:\/\/\S+/g, '');
-
-  // Entities and spacing.
-  t = t.replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-       .replace(/&#8217;|&rsquo;/g, '’').replace(/&#8216;|&lsquo;/g, '‘')
-       .replace(/&#8220;|&ldquo;/g, '“').replace(/&#8221;|&rdquo;/g, '”')
-       .replace(/&#8211;|&ndash;/g, '–').replace(/&#8212;|&mdash;/g, '—');
-  t = t.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
-
-  const transcript = t;
-  return { script: t, transcript };
-}
 
 const db = await getDb();
 
