@@ -13,7 +13,16 @@
  */
 import type { Db } from '@ozituma/db/client';
 
-/** The plan's ten, in the order it lists them. */
+/**
+ * The plan's ten, in the order it lists them, and the eleventh added above `admin` in migration 0044.
+ *
+ * `owner` is last on purpose: this array is the plan's order and the plan does not know about the owner, who
+ * was added because a staff of administrators could otherwise outvote the proprietor of the record. It has to
+ * be IN the array all the same. **`isOzikoroRole` gates every grant, and for as long as `owner` was absent
+ * from it the one account that exists could not be given its own role** — the users screen answered "That is
+ * not a role on this site" about the role the database had already stored. A role the schema accepts and the
+ * application does not is a role that cannot be granted, revoked or displayed correctly.
+ */
 export const OZIKORO_ROLES = [
   'reader',
   'student',
@@ -25,6 +34,7 @@ export const OZIKORO_ROLES = [
   'expert_reviewer',
   'moderator',
   'admin',
+  'owner',
 ] as const;
 
 export type OzikoroRole = (typeof OZIKORO_ROLES)[number];
@@ -44,6 +54,7 @@ const ROLE_LABEL: Record<OzikoroRole, string> = {
   expert_reviewer: 'Expert reviewer',
   moderator: 'Moderator',
   admin: 'Administrator',
+  owner: 'Owner',
 };
 
 export function roleLabel(role: OzikoroRole): string {
@@ -68,6 +79,7 @@ export const ROLE_PURPOSE: Record<OzikoroRole, string> = {
   expert_reviewer: 'Assigned manuscript and evidence reviews.',
   moderator: 'Reports, moderation of users and content, and escalation.',
   admin: 'The whole system: users, data, configuration, audit and security.',
+  owner: 'The proprietor of the record: everything an administrator has, and the only role that may appoint one.',
 };
 
 // ---------------------------------------------------------------------------
@@ -243,6 +255,18 @@ export async function grantRole(
     action: 'grant_role',
     after: { role: input.role },
     actorId: input.grantedBy,
+    /*
+     * THE NOTE BELONGS ON THE AUDIT ROW, NOT ONLY ON THE GRANT.
+     *
+     * `note` was written to `ozikoro_member_role` and dropped here, so the screen collected "why" and the
+     * audit trail — which is the thing the archive keeps as its record of who did what — did not have it.
+     * The users screen prints that note under the change; without this line the reason a role was granted
+     * existed only for as long as the grant row did, and revoking the role would have taken it with it.
+     *
+     * Found by checking the audit row the action actually wrote rather than by reading this function:
+     * the response said the grant was recorded, and the note was simply not in the record.
+     */
+    note: input.note ?? null,
   });
 }
 
@@ -254,7 +278,7 @@ export async function grantRole(
  */
 export async function revokeRole(
   db: Db,
-  input: { accountId: number; role: OzikoroRole; actorId: number | null }
+  input: { accountId: number; role: OzikoroRole; actorId: number | null; note?: string | null }
 ): Promise<void> {
   const held = await db.one<{ n: number }>(
     `select count(*)::int as n from ozikoro_member_role where account_id = $1 and role = $2`,
@@ -295,6 +319,9 @@ export async function revokeRole(
     action: 'revoke_role',
     before: { role: input.role },
     actorId: input.actorId,
+    // Optional, and kept for the same reason the grant's note is: a removal with no stated reason is a
+    // change the next reader cannot weigh. The callers that pass none are unchanged.
+    note: input.note ?? null,
   });
 }
 

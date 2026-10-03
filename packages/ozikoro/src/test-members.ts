@@ -28,6 +28,12 @@ import {
   setMemberStatus,
   updateMemberProfile,
 } from './members.ts';
+/*
+ * The rank rule is its own module, and the test imports it from where it lives rather than through the barrel
+ * — the barrel is `src/index.ts`, which pulls in the Spotify client and the PDF writer, and a test that needs
+ * a database should not need a network client to reach it.
+ */
+import { grantableRoles, mayGrantRole, roleRanks } from './roles.ts';
 
 const db = await getDb();
 let failures = 0;
@@ -73,7 +79,13 @@ async function cleanup() {
 
 console.log('\n--- the roles the plan names ---');
 
-assert('all ten roles exist', OZIKORO_ROLES.length === 10, OZIKORO_ROLES.join(', '));
+/*
+ * Eleven, not the plan's ten. `owner` was added above `admin` by migration 0044, because with ten roles every
+ * administrator can mint another and no administrator can be removed by anyone of equal rank — which makes
+ * the staff collectively able to outvote the proprietor of the record. The assertion is written as a count
+ * rather than a list so that a role added without a label or a purpose still fails the two checks below.
+ */
+assert('all eleven roles exist, the owner included', OZIKORO_ROLES.length === 11, OZIKORO_ROLES.join(', '));
 assert('every role explains itself, so a dashboard can too', OZIKORO_ROLES.every((r) => (ROLE_PURPOSE[r] ?? '').length > 20));
 assert('university affiliation is not implied by any role', Object.values(ROLE_PURPOSE).every((p) => !/must|required/i.test(p)));
 
@@ -143,11 +155,54 @@ console.log('\n--- the last administrator cannot be locked out ---');
 
 // Give the account an Ozikoro admin grant so there is something to revoke.
 await grantRole(db, { accountId: platformAdmin.id, role: 'admin', grantedBy: null });
-await refuses(
-  'demoting an administrator when no other effective administrator exists is refused',
-  () => revokeRole(db, { accountId: platformAdmin.id, role: 'admin', actorId: platformAdmin.id }),
-  'last_admin'
+
+/*
+ * THE ASSERTION IS DERIVED FROM THE DATABASE, NOT ASSUMED.
+ *
+ * This test used to say "demoting an administrator when no other effective administrator exists is refused" and
+ * call `revokeRole` expecting a refusal — which passed only while the database happened to contain nothing but
+ * this test's own accounts. **The owner's real account became the second effective administrator and the test
+ * then failed while the guard was working perfectly**: `revokeRole` counts effective administrators as
+ * `ozikoro_member_role.role = 'admin'` UNION `account.role in ('admin','owner')`, and with the owner present the
+ * test's administrator genuinely is not the last one.
+ *
+ * A test that encodes the state of the developer's database is not testing the rule. So the count is taken here,
+ * with the same query the guard uses, and the expectation follows from it — the guard is exercised when this
+ * administrator is the only one, and the "a second administrator changes the answer" case below exercises it
+ * either way.
+ */
+const effectiveAdministrators = async (): Promise<number> => {
+  const row = await db.one<{ n: number }>(`
+    select count(distinct id)::int as n from (
+      select account_id as id from ozikoro_member_role where role = 'admin'
+      union
+      select id from account where role in ('admin', 'owner')
+    ) t
+  `);
+  return Number(row?.n ?? 0);
+};
+
+const administratorsBefore = await effectiveAdministrators();
+assert(
+  'the guard and this test count effective administrators the same way',
+  administratorsBefore >= 1,
+  `${administratorsBefore} effective administrator(s) in the database`
 );
+if (administratorsBefore <= 1) {
+  await refuses(
+    'demoting the last effective administrator is refused',
+    () => revokeRole(db, { accountId: platformAdmin.id, role: 'admin', actorId: platformAdmin.id }),
+    'last_admin'
+  );
+} else {
+  console.log(
+    `  · skipped the last-administrator refusal: ${administratorsBefore} effective administrators exist, ` +
+      'so this one is genuinely not the last and the guard must allow it'
+  );
+  await revokeRole(db, { accountId: platformAdmin.id, role: 'admin', actorId: platformAdmin.id });
+  assert('an administrator who is not the last may be demoted', true);
+  await grantRole(db, { accountId: platformAdmin.id, role: 'admin', grantedBy: null });
+}
 
 // A second effective administrator, so the first may now be demoted.
 await grantRole(db, { accountId: publisher.id, role: 'admin', grantedBy: platformAdmin.id });
@@ -226,6 +281,41 @@ await refuses(
   'and an approved claim cannot be decided again',
   () => decideContributorClaim(db, { claimId: claim.id, approve: true, actorId: platformAdmin.id }),
   'already_decided'
+);
+
+console.log('\n--- the rank rule: an administrator cannot mint an administrator ---');
+
+/*
+ * THE RULE MIGRATION 0044 ADDED, TESTED WHERE IT IS USED.
+ *
+ * `ozikoro_role_may_grant` decides this, and the users screen must not reimplement it — so the test asks the
+ * same function the screen asks, through the same wrapper. **The failure this guards against is not a missing
+ * rule but a second copy of it**: a screen that compared role names itself would pass a happy-path test and
+ * still let an administrator appoint an administrator on the one path nobody exercised.
+ *
+ * The platform admin created above is an administrator without an archive `admin` row, which is also the case
+ * the wrapper's platform branch exists for: they must rank as an administrator and must still not be able to
+ * grant the administrator role.
+ */
+const adminGrantingAdmin = await mayGrantRole(db, platformAdmin.id, 'admin');
+assert('an administrator may NOT grant the administrator role', !adminGrantingAdmin.allowed, adminGrantingAdmin.reason ?? '');
+assert('and the refusal says both ranks, so it can be acted on', /rank/i.test(adminGrantingAdmin.reason ?? ''));
+assert('an administrator MAY grant a role below it', (await mayGrantRole(db, platformAdmin.id, 'editor')).allowed);
+assert(
+  'equal ranks may not grant each other, which is what stops a second administrator being minted',
+  adminGrantingAdmin.actorRank === adminGrantingAdmin.targetRank,
+  `${adminGrantingAdmin.actorRank} vs ${adminGrantingAdmin.targetRank}`
+);
+assert('the owner outranks an administrator', (await roleRanks(db)).get('owner')! > (await roleRanks(db)).get('admin')!);
+assert(
+  'and only the owner may appoint an administrator',
+  await db
+    .one<{ ok: boolean }>(`select ozikoro_role_may_grant('owner', 'admin') as ok`)
+    .then((row) => Boolean(row?.ok))
+);
+assert(
+  'the roles offered on a screen exclude the actor’s own rank',
+  (await grantableRoles(db, platformAdmin.id)).every((role) => role !== 'admin' && role !== 'owner')
 );
 
 console.log('\n--- the audit trail ---');

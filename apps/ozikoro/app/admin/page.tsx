@@ -29,6 +29,20 @@ export default async function Page() {
         </p>
       </Card>
 
+      <Card title="Users and contributors">
+        <p>
+          Every account in the database, and every byline the archive credits — including the contributors who
+          wrote for it and have no account, because WordPress stores no password hash and nothing could be
+          carried across. Change an archive role, suspend or reactivate an account, and read the audit trail of
+          who did what. It cannot create an account or sign in as anybody.
+        </p>
+        <p className="actions">
+          <Link className="btn btn--primary" href="/admin/users">
+            User table
+          </Link>
+        </p>
+      </Card>
+
       <Card title="Spotify">
         <p>
           Connect the Spotify account Ozikoro publishes from, see whether it is still authorised,

@@ -14,6 +14,8 @@
     "./content": "./src/content.ts",
     "./media": "./src/media.ts",
     "./members": "./src/members.ts",
+    "./roles": "./src/roles.ts",
+    "./users": "./src/users.ts",
     "./editorial": "./src/editorial.ts",
     "./publications": "./src/publications.ts",
     "./rights": "./src/rights.ts",
