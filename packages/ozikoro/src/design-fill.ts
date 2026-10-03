@@ -2295,6 +2295,19 @@ export function fillApproach(html: string, kind: 'sponsors' | 'investors', d: Ap
   out = out.replace(/<form([^>]*)>/, '<fieldset disabled style="border:0;padding:0;margin:0"><form$1>');
   out = out.replace(/<\/form>/, '</form></fieldset>');
 
+  /*
+   * THE FORM'S OWN CHECKBOX, WHICH ASKED THE READER TO ACCEPT THAT THIS WAS A DEMONSTRATION.
+   *
+   * *"I understand this is a design demonstration."* On a served page that sentence is the design describing
+   * itself, and it is the one line a reader has to tick before the submit button — so it is the line they
+   * read most closely. **The form is disabled, so there is nothing to acknowledge**; the label states the
+   * actual position instead.
+   */
+  out = out.replace(
+    /<label class="row"[^>]*>\s*<input type="checkbox"[^>]*>\s*I understand this is a design demonstration\.\s*<\/label>/,
+    '<p class="small muted" style="margin-top:var(--s-4)">The form above is disabled and cannot be submitted. No enquiry is recorded by it and none is expected from it — to reach the company, use the address below.</p>'
+  );
+
   const heading = kind === 'sponsors' ? 'sponsorship' : 'investment';
   const note =
     `<p class="small muted" style="margin-top:var(--s-4)"><strong>This form is not connected and cannot be submitted.</strong> ` +
@@ -3008,6 +3021,25 @@ export function fillCulturalCalendar(html: string, month: { label: string; year:
 /** One event page, which cannot be anything but empty. */
 export function fillCulturalEvent(html: string): string {
   let out = clearExampleMaterial(html);
+  /*
+   * THE HERO, WHICH CARRIED THE DESIGN'S EXAMPLE EVENT.
+   *
+   * The h1 reads "Verified event title appears here" and the standfirst reads "A clear introduction to the
+   * event… will appear here after verification". Filling the reading column below left BOTH of them on the
+   * page, above an honest notice — **which is worse than not filling it, because the page then contradicts
+   * itself in the first line a reader reads.** The hero is replaced with the state itself.
+   */
+  out = out.replace(
+    /(<section class="sx-event-story-hero">[\s\S]*?)<p class="eyebrow"[^>]*>[\s\S]*?<\/p>\s*<h1[^>]*>[\s\S]*?<\/h1>\s*<p class="lede"[^>]*>[\s\S]*?<\/p>/,
+    '$1<p class="eyebrow">Cultural event</p><h1>No event is recorded</h1><p class="lede">The archive holds no event record, so there is no date, place, organiser or story to show here. Nothing has been invented to fill it.</p>'
+  );
+  /*
+   * And the reading column's own opening line, which describes the page rather than an event.
+   */
+  out = out.replace(
+    /<p>This page demonstrates how a calendar event can open into a full Ozikoro story[^<]*<\/p>/,
+    '<p>An event story opens from the calendar: it names the organiser, the place and the source, gives the programme and its cultural context, states when it was verified, and offers a visible path for a community correction. None of that exists for any date yet.</p>'
+  );
   out = fillContainer(
     out,
     /<div class="sx-event-reading"[^>]*>/,

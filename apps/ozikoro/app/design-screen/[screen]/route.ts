@@ -803,7 +803,7 @@ export async function GET(
        * on a phone for no reader-visible reason** — and half of this audience is on a phone on poor bandwidth,
        * which the brief puts in as many words.
        */
-      const USES_SHELF = new Set(['projects', 'ledger', 'publications', 'material-culture']);
+      const USES_SHELF = new Set(['projects', 'ledger', 'publications', 'material-culture', 'town']);
       const EMPTY_SHELF = {
         records: 0, towns: 0, folklores: 0, photographs: 0, documents: 0,
         media: 0, contributors: 0, donations: 0,
