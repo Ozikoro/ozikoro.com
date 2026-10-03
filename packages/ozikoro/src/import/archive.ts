@@ -56,6 +56,20 @@ interface ArticleRow {
   wordCount: number;
 }
 
+/**
+ * An unpublished post, recovered through an authenticated session.
+ *
+ * Same shape as `ArticleRow` for the fields the two share, plus the WordPress status the record
+ * actually carried. See `recovered.ts` for why these are in a separate file: `articles.json` came
+ * from the public route, which is unchanged, and these are the records that route could not reach.
+ */
+interface DraftRow extends ArticleRow {
+  date: string;
+  modifiedGmt: string;
+  wpStatus: 'draft' | 'pending' | 'private' | 'future';
+  commentStatus: string;
+}
+
 interface MediaRow {
   wpId: number;
   slug: string;
@@ -97,6 +111,20 @@ async function loadJson<T>(name: string): Promise<T> {
   return JSON.parse(await readFile(join(OUT_DIR, name), 'utf8')) as T;
 }
 
+/**
+ * The recovered drafts, when the authenticated extraction has been run.
+ *
+ * Optional on purpose: a checkout that has only ever run the public extraction has no `drafts.json`,
+ * and the import must still work there rather than failing on a missing file.
+ */
+async function loadDrafts(): Promise<DraftRow[]> {
+  try {
+    return await loadJson<DraftRow[]>('drafts.json');
+  } catch {
+    return [];
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -129,6 +157,14 @@ function plainText(html: string): string {
 function legacyPath(url: string, slug: string): string {
   try {
     const parsed = new URL(url);
+    /*
+     * An unpublished post has no address yet: WordPress reports its `link` as `/?p=10779`, which is
+     * a query string rather than a path. Storing that as the legacy URL would create a redirect from
+     * a meaningless address, so a post with no real path falls back to its slug. Nothing is
+     * redirected on the strength of it — the redirect pass only fires where an address genuinely
+     * changed, and these were never live.
+     */
+    if (parsed.pathname === '/' || parsed.pathname === '') return `/${slug}/`;
     return parsed.pathname.endsWith('/') ? parsed.pathname : `${parsed.pathname}/`;
   } catch {
     return `/${slug}/`;
@@ -249,6 +285,10 @@ export interface ImportReport {
   labels: number;
   media: number;
   articles: number;
+  /** Records imported from `drafts.json`, all as `review`. Zero when that file is absent. */
+  drafts: number;
+  /** The recovered drafts by their real WordPress status, so the split is visible not assumed. */
+  draftsByStatus: Record<string, number>;
   articleLabels: number;
   articleMedia: number;
   redirects: number;
@@ -280,13 +320,14 @@ export function normaliseTopicSlug(raw: string): string {
 
 export async function importArchive(db: Db, options: { apply?: boolean } = {}): Promise<ImportReport> {
   const apply = Boolean(options.apply);
-  const [articles, media, users, categories, tags, pages] = await Promise.all([
+  const [articles, media, users, categories, tags, pages, drafts] = await Promise.all([
     loadJson<ArticleRow[]>('articles.json'),
     loadJson<MediaRow[]>('media.json'),
     loadJson<UserRow[]>('users.json'),
     loadJson<TaxonomyRow[]>('categories.json'),
     loadJson<TaxonomyRow[]>('tags.json'),
     loadJson<ArticleRow[]>('pages.json'),
+    loadDrafts(),
   ]);
 
   const report: ImportReport = {
@@ -295,6 +336,8 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
     labels: 0,
     media: 0,
     articles: 0,
+    drafts: 0,
+    draftsByStatus: {},
     articleLabels: 0,
     articleMedia: 0,
     redirects: 0,
@@ -302,12 +345,17 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
     skipped: {},
   };
 
+  for (const d of drafts) {
+    report.draftsByStatus[d.wpStatus] = (report.draftsByStatus[d.wpStatus] ?? 0) + 1;
+  }
+
   if (!apply) {
     report.contributors = users.length;
     report.topics = categories.length;
     report.labels = tags.length;
     report.media = media.length;
     report.articles = articles.length;
+    report.drafts = drafts.length;
     return report;
   }
 
@@ -451,7 +499,15 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
   const isPageByWp = new Set(pages.map((p) => p.wpId));
   const isPage = (wpId: number) => isPageByWp.has(wpId);
 
-  for (const article of [...articles, ...pages]) {
+  for (const article of [...articles, ...pages, ...drafts]) {
+    /*
+     * A recovered draft is the same record shape as a published article, so the only thing that
+     * separates them here is the status the record carried. `publishedAt` only exists on the
+     * published shape; a draft carries `date` instead, and it is deliberately not mapped to the
+     * publication date, because the piece never went live.
+     */
+    const draft = article as Partial<DraftRow>;
+    const isDraft = typeof draft.wpStatus === 'string';
     let slug = article.slug || `article-${article.wpId}`;
     if (takenSlugs.has(slug)) {
       const resolved = `${slug}-${article.wpId}`;
@@ -476,10 +532,14 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
         null,
         null,
         null,
-        // Imported content is published, because it already was. It is not "draft": setting that
-        // would take 1,051 live pages off the internet on the day of the migration.
-        'published',
-        article.publishedAt ? new Date(`${article.publishedAt}Z`).toISOString() : null,
+        /*
+         * Published content stays published, because it already was — setting anything else would
+         * take 1,051 live pages off the internet on the day of the migration. A recovered draft
+         * lands as `review`, never `published`: it was never public, and an unpublished draft is
+         * not for the public site. Its real WordPress status is kept on the row below.
+         */
+        isDraft ? 'review' : 'published',
+        isDraft ? null : article.publishedAt ? new Date(`${article.publishedAt}Z`).toISOString() : null,
         article.modifiedAt ? new Date(`${article.modifiedAt}Z`).toISOString() : null,
         article.seo?.title ?? null,
         article.seo?.description ?? null,
@@ -492,7 +552,7 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
     });
   }
 
-  report.articles = await upsertBatch(
+  const written = await upsertBatch(
     db,
     'ozikoro_article',
     ['wp_post_id', 'slug', 'legacy_url', 'title', 'standfirst', 'body_html', 'author_id',
@@ -506,6 +566,9 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
      'canonical_url', 'word_count', 'is_page'],
     200
   );
+  // One statement covers both files, so the total is split here rather than claimed as one figure.
+  report.drafts = drafts.length;
+  report.articles = written - drafts.length;
 
   const articleIdByWp = new Map<number, number>();
   for (const row of await db.rows<{ id: string; wp_post_id: number }>(
@@ -576,7 +639,8 @@ if (process.argv[1] && process.argv[1].endsWith('archive.ts')) {
 
   for (const [key, value] of Object.entries(report)) {
     if (key === 'conflicts' || key === 'skipped') continue;
-    console.log(`    ${key.padEnd(16)} ${value}`);
+    // An object value gets stringified rather than printed as `[object Object]`.
+    console.log(`    ${key.padEnd(16)} ${typeof value === 'object' ? JSON.stringify(value) : value}`);
   }
   if (report.conflicts.length > 0) {
     console.log(`\n    slug conflicts (${report.conflicts.length}):`);

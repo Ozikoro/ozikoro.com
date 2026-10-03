@@ -15,9 +15,11 @@ import { getDb, closeDb } from '@ozituma/db/client';
 import {
   RESERVED_ARCHIVE_SLUGS,
   countArticles,
+  getArchiveFacets,
   getArchiveStats,
   getArticleBySlug,
   listArticleSlugs,
+  listArticles,
   searchArticles,
 } from './archive.ts';
 
@@ -66,6 +68,30 @@ if (ARCHIVE_PRESENT) {
   assert('the labels arrived', stats.labels >= 11000, `${stats.labels} labels`);
   assert('most records carry an image', stats.withImages > 1000, `${stats.withImages} of ${stats.articles}`);
   assert('the archive spans the site\'s publishing history', Boolean(stats.earliest && stats.latest), `${stats.earliest} .. ${stats.latest}`);
+  /*
+   * The recovered drafts, counted exactly rather than as "at least".
+   *
+   * The public REST API refuses `status=draft`, so these did not exist in the archive until the
+   * authenticated extraction ran. The number is worth pinning precisely because it is the figure that
+   * proves the second extraction happened: 39 is what the live site reports, and an inequality here
+   * would let a partial pull pass as a complete one.
+   */
+  const recovered = await db.one<{ review_count: number; dated: number }>(`
+    select
+      count(*) filter (where status = 'review') as review_count,
+      count(*) filter (where status = 'review' and published_at is not null) as dated
+    from ozikoro_article
+  `);
+  assert(
+    'the recovered drafts are held as review, and there are 39 of them',
+    Number(recovered?.review_count) === 39,
+    `${recovered?.review_count} in review`
+  );
+  assert(
+    'and none of them claims a publication date',
+    Number(recovered?.dated) === 0,
+    `${recovered?.dated} with a date`
+  );
 } else {
   /*
    * THE SUITE STOPS HERE, AND SAYS SO.
@@ -125,10 +151,16 @@ const gaps = await db.one<Record<string, number>>(`
    * migration's rules over it would force publishing unverified community history to make a test pass,
    * which is the wrong direction for the test to push.
    *
+   * THAT ARGUMENT APPLIES WITHIN THE MIGRATION TOO. An unpublished WordPress draft is the same case as an
+   * ingested Blogger post on the point that matters: it was never live, so "it must not go offline" and
+   * "it must have a body" are not claims that hold of it. The drafts recovered from an authenticated
+   * session are therefore held to the same rules as ingested material — asserted in full, just below, on
+   * their own terms — rather than folded in here where the invariants do not apply.
+   *
    * NOTE ON THIS COMMENT ITSELF: it sits inside a backtick-delimited SQL template literal, so it may not
    * contain a backtick. An earlier version quoted the column names and ended the string.
    */
-  where is_page = false and wp_post_id is not null
+  where is_page = false and wp_post_id is not null and status = 'published'
 `);
 /*
  * One source record has no title. Asserted as exactly one, by name, rather than as zero: the
@@ -152,12 +184,45 @@ assert(
 assert('no record lost its slug', Number(gaps?.no_slug) === 0, String(gaps?.no_slug));
 assert('no record lost the address it was published at', Number(gaps?.no_legacy) === 0, String(gaps?.no_legacy));
 assert('no record lost its author', Number(gaps?.no_author) === 0, String(gaps?.no_author));
-assert('no record lost its body', Number(gaps?.no_body) === 0, String(gaps?.no_body));
+assert('no published record lost its body', Number(gaps?.no_body) === 0, String(gaps?.no_body));
 assert('every record is searchable', Number(gaps?.no_search) === 0, String(gaps?.no_search));
 assert(
-  'imported records are published, because they already were',
+  'every published record is still published, because it already was',
   Number(gaps?.not_published) === 0,
   `${gaps?.not_published} not published`
+);
+
+/*
+ * --- the unpublished WordPress drafts, asserted rather than excluded ---
+ *
+ * These arrived through an authenticated session, because the public REST API answers `status=draft` with
+ * `rest_invalid_param`. They are in the migration's own source, so they are held to the standards above
+ * wherever those standards apply — and where they do not, they are asserted on their own terms here, for
+ * the same reason the ingested class is: a suite that quietly drops its strongest assertions is worse than
+ * one that cannot run them.
+ *
+ * Three things are checked, and each is a real risk rather than a formality:
+ *
+ *   1. Exactly 39, the number the live site reports. An inequality would let a partial pull pass.
+ *   2. Every one attributed. An unattributed record is attribution silently lost.
+ *   3. Exactly one with an empty body, and it is the known WordPress one. One draft really is empty at the
+ *      source, so zero would mean the comparison is wrong and two would mean a body was lost.
+ */
+console.log('\n--- the unpublished drafts recovered from WordPress ---');
+const drafts = await db.rows<{ wp_post_id: string; body_html: string; author_id: string | null }>(
+  `select wp_post_id, body_html, author_id from ozikoro_article where status = 'review' order by wp_post_id`
+);
+assert('all 39 unpublished posts arrived', drafts.length === 39, `${drafts.length} records`);
+assert(
+  'every draft is attributed to its author',
+  drafts.every((d) => d.author_id !== null),
+  `${drafts.filter((d) => d.author_id === null).length} unattributed`
+);
+const emptyDrafts = drafts.filter((d) => d.body_html === '');
+assert(
+  'exactly one draft is empty, and it is the one that is empty at the source',
+  emptyDrafts.length === 1 && Number(emptyDrafts[0]?.wp_post_id) === 6868,
+  emptyDrafts.map((d) => d.wp_post_id).join(', ') || 'none'
 );
 
 /*
@@ -325,6 +390,56 @@ console.log('\n--- filtering ---');
 const historyOnly = await countArticles(db, { topicSlug: 'historical-studies' });
 const everything = await countArticles(db);
 assert('a series filter narrows the archive', historyOnly > 0 && historyOnly < everything, `${historyOnly} of ${everything}`);
+
+/*
+ * THE RAIL'S OWN COUNTS, AND THE TWO ANSWERS THAT MUST NOT BE CONFUSED.
+ *
+ * The filter rail draws its options from `getArchiveFacets`, which counts them from the records. The
+ * checks below hold for any dataset, present or empty:
+ *
+ *   * a facet that offers nothing must COUNT zero, so the page cannot print an option that matches
+ *     nothing and cannot hide one that matches something;
+ *   * a free-text filter must return records for a word the archive contains and none for a word it
+ *     does not, so "no results" is a fact about the query rather than about the query layer;
+ *   * the completeness axis must partition the archive exactly — `sourced + partial = records` —
+ *     because a filter that loses records is worse than one that finds none.
+ */
+const facets = await getArchiveFacets(db);
+assert('the facets count every published record', facets.records === everything, `${facets.records} of ${everything}`);
+assert(
+  'the completeness axis partitions the archive exactly',
+  facets.sourced + facets.partial === facets.records,
+  `${facets.sourced} sourced + ${facets.partial} partial = ${facets.records}`
+);
+assert(
+  'every offered facet option matches at least one record',
+  [...facets.ethnicGroups, ...facets.clans, ...facets.towns, ...facets.periods, ...facets.sourceTypes].every((o) => o.count > 0),
+  `${facets.ethnicGroups.length} ethnic · ${facets.clans.length} clan · ${facets.towns.length} town · ${facets.periods.length} period · ${facets.sourceTypes.length} source`
+);
+assert(
+  'the source-type count agrees with a direct count of the column',
+  facets.sourceTypes.reduce((n, o) => n + o.count, 0) ===
+    (await db.one<{ n: number }>(`select count(*)::int n from ozikoro_article where status='published' and is_page=false and source_type is not null`))!.n,
+  `${facets.sourceTypes.length} recorded types`
+);
+
+const textHit = await countArticles(db, { search: 'Nri' });
+assert('a free-text filter finds records', textHit > 0, `${textHit} records contain “Nri”`);
+const textMiss = await countArticles(db, { search: 'zzzznothingmatchesthiszzzz' });
+assert('and returns none for a word the archive does not contain', textMiss === 0, `${textMiss} records`);
+const textRows = await listArticles(db, { search: 'Nri', limit: 2 });
+assert('the filtered listing returns rows, not just a count', textRows.length > 0, `${textRows.length} rows`);
+
+const sourcedOnly = await countArticles(db, { completeness: 'sourced' });
+assert('the sourced filter agrees with the facet count', sourcedOnly === facets.sourced, `${sourcedOnly} fully sourced`);
+/* A value the archive holds and a value it does not must both be answerable without inventing one. */
+const knownSourceType = facets.sourceTypes[0]?.value ?? 'oral_history';
+assert(
+  'a recorded source type returns its records',
+  (await countArticles(db, { sourceType: knownSourceType })) === (facets.sourceTypes[0]?.count ?? 0),
+  `${knownSourceType}`
+);
+assert('an unrecorded source type returns an honest empty result', (await countArticles(db, { sourceType: '__none__' })) === 0);
 
 console.log(`\n${failures === 0 ? '  All checks passed.' : `  ${failures} check(s) failed.`}\n`);
 await closeDb();
