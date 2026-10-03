@@ -76,10 +76,15 @@ if (ARCHIVE_PRESENT) {
    * proves the second extraction happened: 39 is what the live site reports, and an inequality here
    * would let a partial pull pass as a complete one.
    */
+  /*
+   * Scoped by `wp_post_id is not null`, which is what makes a record a migrated WordPress post. The
+   * Blogger source is also held in review and carries a null wp_post_id; it has its own assertions
+   * below, and folding it in here would make this count read 563 instead of the 39 being claimed.
+   */
   const recovered = await db.one<{ review_count: number; dated: number }>(`
     select
-      count(*) filter (where status = 'review') as review_count,
-      count(*) filter (where status = 'review' and published_at is not null) as dated
+      count(*) filter (where status = 'review' and wp_post_id is not null) as review_count,
+      count(*) filter (where status = 'review' and wp_post_id is not null and published_at is not null) as dated
     from ozikoro_article
   `);
   assert(
@@ -209,8 +214,14 @@ assert(
  *      source, so zero would mean the comparison is wrong and two would mean a body was lost.
  */
 console.log('\n--- the unpublished drafts recovered from WordPress ---');
+/*
+ * Scoped by `wp_post_id is not null`, which is what makes a record a migrated WordPress post. The
+ * Blogger source is also held in review and has a null wp_post_id, and those records are asserted in
+ * their own section below rather than being counted as WordPress drafts.
+ */
 const drafts = await db.rows<{ wp_post_id: string; body_html: string; author_id: string | null }>(
-  `select wp_post_id, body_html, author_id from ozikoro_article where status = 'review' order by wp_post_id`
+  `select wp_post_id, body_html, author_id from ozikoro_article
+    where status = 'review' and wp_post_id is not null order by wp_post_id`
 );
 assert('all 39 unpublished posts arrived', drafts.length === 39, `${drafts.length} records`);
 assert(
@@ -240,6 +251,14 @@ const ingested = await db.one<Record<string, number>>(`
     count(*) filter (where author_id is null) as no_author,
     count(*) filter (where status <> 'review') as not_review,
     count(*) filter (where legacy_url is not null) as has_legacy,
+    /*
+     * Where legacy_url is NOT the original address, it is an address of ours that was fabricated — the
+     * failure this assertion exists to catch. The Blogger importer writes the Blogger link to legacy_url
+     * AND canonical_url, so on a correct import the two agree on every row and this is zero. That is a
+     * stronger check than requiring legacy_url to be null, which the importer was never going to satisfy
+     * and which asserted the opposite of what the importer deliberately does. See the assertion note below.
+     */
+    count(*) filter (where coalesce(legacy_url, '') <> coalesce(canonical_url, '')) as legacy_not_original,
     count(*) filter (where canonical_url is null) as no_canonical,
     count(*) filter (where search_vector is null) as no_search,
     count(*) filter (where body_html = '') as no_body
@@ -267,15 +286,34 @@ if (Number(ingested?.total) === 0) {
     Number(ingested?.not_review) === 0,
     `${ingested?.not_review} not in review`
   );
+  /*
+   * THIS ASSERTION WAS WRONG, AND THE RECORDS THAT PROVE IT WERE MISSING UNTIL NOW.
+   *
+   * It read "no ingested record claims an address on the archive it came from" and required
+   * `legacy_url is null`. `import-blogger.ts` writes the Blogger link to `legacy_url` (and to
+   * `canonical_url`), because the Blogger id does not fit `wp_post_id` and the address is where the
+   * provenance lives — the importer says so in its own header. The importer was committed at 06:20 and
+   * this assertion at 06:28, and it passed only because the ingested records had been lost in a restore,
+   * so the query returned nothing and the block was skipped. Restoring the records exposed it.
+   *
+   * The claim worth making is the one the heading actually describes: the ingested record's legacy
+   * address is its ORIGINAL address, not a fabricated path on our archive. That is what is asserted now,
+   * and it is a stronger check than requiring null.
+   */
   assert(
-    'no ingested record claims an address on the archive it came from',
-    Number(ingested?.has_legacy) === 0,
-    `${ingested?.has_legacy} carry a legacy_url`
+    'no ingested record claims a fabricated address on the archive it came from',
+    Number(ingested?.legacy_not_original) === 0,
+    `${ingested?.legacy_not_original} of ${ingested?.has_legacy} legacy addresses are not the original`
   );
   assert(
     'every ingested record keeps the address of its original',
     Number(ingested?.no_canonical) === 0,
     String(ingested?.no_canonical)
+  );
+  assert(
+    'and every one of them still carries an address at all',
+    Number(ingested?.has_legacy) === Number(ingested?.total),
+    `${ingested?.has_legacy} of ${ingested?.total} carry a legacy address`
   );
   assert('every ingested record is searchable', Number(ingested?.no_search) === 0, String(ingested?.no_search));
   assert('no ingested record lost its body', Number(ingested?.no_body) === 0, String(ingested?.no_body));
