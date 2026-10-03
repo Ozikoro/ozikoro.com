@@ -17,8 +17,47 @@ import { dirname, join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
 import { ArticlePdf, type ArticleLogo, type Block, type Raster } from '@ozikoro/platform';
 
-/** Where the media route's storage puts files. */
-const MEDIA_ROOT = join(process.cwd(), '.data', 'media', 'ozikoro');
+/**
+ * Where the media and the logo live, found by walking up rather than by assuming a working directory.
+ *
+ * **This was `join(process.cwd(), '.data', 'media', 'ozikoro')` and it silently produced publications with no
+ * figures at all.** The command-line generator runs from the repository root, where that path is right; the
+ * standalone server runs from `apps/ozikoro/.next/standalone`, where it is not — **and the failure was
+ * invisible, because a record with no image and a record whose image cannot be found render the same page.**
+ *
+ * The download route returned 200, `application/pdf`, `%PDF-1.4` … `%%EOF`, seven pages — and not one image
+ * object in it. **A valid document with the pictures missing is exactly the fault that survives every check
+ * except looking at it.**
+ */
+function findRoot(): string {
+  let dir = process.cwd();
+  /*
+   * EIGHT LEVELS, BECAUSE THE SERVER'S WORKING DIRECTORY IS SEVEN ABOVE THE DATA.
+   *
+   * `serve-review.sh` runs `node apps/ozikoro/server.js` from the standalone root, **but the standalone's own
+   * server.js moves into its app directory**, so `process.cwd()` is:
+   *
+   *     staging/apps/ozikoro/.next/standalone/apps/ozikoro
+   *
+   * From there `staging/.data` is **six** directories up, and this loop ran `i < 6` — meaning it tested levels
+   * 0 to 5 and stopped at `staging/apps`, one short. So it never found the media, `jpegOf` returned null for
+   * every figure and the logo, and the route served a valid seven-page PDF with no pictures in it.
+   *
+   * **The count was a guess and the guess was one too small.** Being generous costs one `existsSync` per level
+   * and cannot be wrong in the direction that matters.
+   */
+  for (let i = 0; i < 8; i++) {
+    const candidate = join(dir, '.data', 'media', 'ozikoro');
+    if (existsSync(candidate)) return candidate;
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  // Not found: the caller's `existsSync` check then leaves each figure out rather than throwing.
+  return join(process.cwd(), '.data', 'media', 'ozikoro');
+}
+
+const MEDIA_ROOT = findRoot();
 
 /**
  * A JPEG the PDF can embed directly.
@@ -119,7 +158,7 @@ function jpegSize(b: Buffer): { width: number; height: number } | null {
  */
 function assetsDir(): string | null {
   let dir = process.cwd();
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 8; i++) {
     const candidate = join(dir, 'packages', 'ozikoro', 'assets');
     if (existsSync(join(candidate, 'ozikoro-wordmark.jpg'))) return candidate;
     const up = dirname(dir);

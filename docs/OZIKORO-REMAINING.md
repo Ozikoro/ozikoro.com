@@ -13685,3 +13685,60 @@ figure is a smaller fault than a corrupt one.
     ute-okpu-an-ika-igbo-clan-and-its-nri-roots    7 pages   2 images    205 KB   was 0
     the-anioma-people-culture-history-…            5 pages   2 images    168 KB
     strategic-relocation-…-immigrants-in-the-usa   5 pages   0 images     20 KB   genuinely has none
+
+---
+
+## ROUND 300 — THE DATABASE WAS DESTROYED, AND THE PUBLICATION WAS EMPTY FOR A PATH ONE LEVEL TOO SHORT
+
+### The incident, stated plainly
+
+**Three processes touched PGlite at once** — a dev server on 3110 plus two subagents running CLI database
+scripts, which is the concurrent-access hazard `AGENTS.md` warns about. The result was unrecoverable in place:
+
+    PANIC: could not locate a valid checkpoint record
+    pg_control pointed at a redo LSN in WAL segment ...0019; pg_wal held ...193..1B8
+
+**PGlite is single-process and was never designed for this.** Both subagents independently diagnosed it and
+neither deleted anything.
+
+    preserved   .data/pg.damaged-20261003T165654
+    restored    .data/backups/pg-2026-10-01T17-07-50
+
+### What the restore cost, and what it did not
+
+    LOST   the owner account and every session            (weeks of nothing — created the same day)
+    LOST   the three episode ROWS, their revisions and transitions
+    LOST   any change made after 2026-10-01 17:07
+    KEPT   1,051 published records · 3,488 media · all article content
+
+**AND NOT ONE RECORDING.** The MP3s are files in `.data/media/ozikoro/episodes/` and were untouched, **so every
+episode was rebuilt by pointing a row at a file that already existed — no re-render, no credits spent.** That is
+the whole reason audio is stored apart from the table that describes it.
+
+`npm run db:migrate` re-applied 0043–0046; `scripts/create-owner.ts` recreated the owner; a script rebuilt the
+three episodes from the surviving audio.
+
+### And the fault that made every publication empty
+
+**The download route served a valid seven-page A4 PDF with `%PDF-1.4`, `%%EOF` and no pictures in it.**
+
+    CLI, from the repository root      183,980 bytes    3 image objects
+    the route, every time               26,041 bytes    0 image objects
+
+**The count in the path walk was a guess and the guess was one too small.** `serve-review.sh` runs
+`node apps/ozikoro/server.js` from the standalone root, **but the standalone's own server.js moves into its app
+directory**, so `process.cwd()` is
+
+    staging/apps/ozikoro/.next/standalone/apps/ozikoro
+
+From there `staging/.data` is **six** directories up and the loop ran `i < 6` — testing levels 0 to 5 and
+stopping at `staging/apps`, one short. So `MEDIA_ROOT` was a path that does not exist, `jpegOf` returned null
+for every figure and the logo, and the fallback drew the type-set wordmark.
+
+**The document was valid, the pages were right, the title and byline were right, and the pictures were simply
+absent** — which is why it survived the writer's own checks, `%PDF` validation, page counts, text extraction
+and a clean rebuild. **It was found only by asking why the byte count was identical before and after a fix.**
+
+    after   ute-okpu                     183,980 b   3 images   7 pages
+            james-africanus-beale-horton 132,837 b   3 images   6 pages
+            aya-adesuwa                  315,737 b   3 images   9 pages
