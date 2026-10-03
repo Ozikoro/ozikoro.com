@@ -41,14 +41,15 @@ import { getDb, closeDb } from '@ozituma/db/client';
 import { getStorage } from '@ozituma/db/storage';
 // The one definition of "prepare the article's own words for speaking", shared with the API route.
 import { toSpokenScript } from '@ozikoro/platform';
+import { ownVoiceId, genericVoiceId, speak, apiKey as elKey } from '../apps/ozikoro/lib/elevenlabs.ts';
 
 const args = process.argv.slice(2);
 const slug = args.find((a) => !a.startsWith('--'));
 const dryRun = args.includes('--dry-run');
 const voiceChoice = (args.find((a) => a.startsWith('--voice='))?.split('=')[1] ?? 'own') as 'own' | 'generic';
 
-const API_KEY = process.env.ELEVENLABS_API_KEY;
-const VOICE_ID = voiceChoice === 'own' ? process.env.ELEVENLABS_VOICE_ID_OWN : process.env.ELEVENLABS_VOICE_ID_GENERIC;
+const API_KEY = elKey();
+const VOICE_ID = voiceChoice === 'own' ? ownVoiceId() : genericVoiceId();
 
 if (!slug) {
   console.error('  usage: node scripts/prepare-episode.ts <article-slug> [--voice=own|generic] [--dry-run]');
@@ -125,18 +126,23 @@ if (!API_KEY || !VOICE_ID) {
 const VOICE_SETTINGS = { stability: 0.7, similarity_boost: 0.8, style: 0.1, use_speaker_boost: true };
 
 console.log(`  rendering with ${voiceChoice === 'own' ? 'your trained voice' : 'a stock narrator'}…`);
-const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
-  method: 'POST',
-  headers: { 'xi-api-key': API_KEY, 'content-type': 'application/json', accept: 'audio/mpeg' },
-  body: JSON.stringify({ text: script, model_id: 'eleven_multilingual_v2', voice_settings: VOICE_SETTINGS }),
-});
-if (!res.ok) {
-  console.error(`  RENDER FAILED — HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`);
+/*
+ * THE SHARED RENDERER, WHICH CHUNKS.
+ *
+ * This script had its own `fetch` to `/v1/text-to-speech`, left over from before the client existed — and so
+ * it did not chunk, and a 11,418-character folklore collection failed with `text_too_long` **while the API
+ * route beside it would have handled the same article.** Two paths to one job, and only one of them was fixed.
+ * There is now one renderer.
+ */
+let audio: Buffer;
+try {
+  audio = await speak(script, VOICE_ID);
+} catch (error) {
+  console.error(`  RENDER FAILED — ${String(error).slice(0, 220)}`);
   console.error('  Nothing was written.');
   await closeDb();
   process.exit(1);
 }
-const audio = Buffer.from(await res.arrayBuffer());
 
 const show = await db.one<{ id: number }>(`select id from ozikoro_podcast_show where slug = 'ozikoro'`);
 if (!show) throw new Error('no show row');

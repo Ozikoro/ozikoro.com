@@ -13510,3 +13510,43 @@ reaches the design-screen route at all.**
 
 **Three different faults, one symptom: a page showing the design's example content.** Each was found only by
 asking why an expected name was not in the output.
+
+---
+
+## ROUND 296 — FOLKLORES READ ALOUD, AND THE CEILING THAT STOPPED THE FIRST ONE
+
+### Three spoken records, in the owner's own voice
+
+    Igbo Folklore: Twelve Timeless Tales of Wisdom, Wonder, and Moral Heritage
+      14m 08s · 8.5 MB · 2,050 spoken words · by Chinemerem Okwuchukwu
+    How Tortoise Got His Bumpy Shell
+      4m 14s · 2.3 MB · 615 spoken words
+    Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots
+      10m 36s · 8.0 MB · 1,538 spoken words
+
+**The words are the articles'. Nothing is rewritten.** The renderer removes markup, figure captions, citation
+brackets and raw URLs — everything a listener cannot hear — and reorders, shortens and adds nothing.
+
+### The ceiling, which the first folklore found
+
+    {"code":"text_too_long","message":"Request text length (11418) exceeds the maximum text length of
+     10000 characters. Please use Studio for long form TTS."}
+
+**And 11,418 characters is an ordinary article** — the folklore collection that produced it is fourteen minutes
+read aloud. **A pipeline that only handles ten thousand characters handles the shortest third of this archive
+and fails on everything a listener would most want.**
+
+So `speak()` now renders in pieces and joins them. **`chunkScript` splits at paragraph boundaries and never
+mid-sentence**, because a cut at a character count would break a sentence in half and the two halves would be
+spoken as one sentence with a seam through it — **audible, and unfixable afterwards, because the audio is the
+only record of where the cut was.** The ceiling is 9,000, below the real limit, because the API measures
+something close to characters without being the same thing and **a piece a few over fails the whole render.**
+
+### And the same job done twice, with only one copy fixed
+
+**`scripts/prepare-episode.ts` had its own `fetch` to `/v1/text-to-speech`**, left over from before the client
+existed. So it did not chunk, and the collection failed **while the API route beside it would have handled the
+same article.**
+
+**Two paths to one job, and fixing one of them left the other broken in exactly the way the fix was for.** The
+script now calls the shared renderer, and there is one place where text becomes speech.

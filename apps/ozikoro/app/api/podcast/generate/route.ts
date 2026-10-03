@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
   let audio: Buffer;
   try {
-    audio = await speak(script, voiceId, { stream: script.length > 5000 });
+    audio = await speak(script, voiceId);
   } catch (error) {
     return NextResponse.json({ error: String(error).slice(0, 300) }, { status: 502 });
   }

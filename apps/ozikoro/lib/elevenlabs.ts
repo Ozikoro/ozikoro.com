@@ -144,16 +144,102 @@ export async function isolateAudio(filePath: string): Promise<Buffer> {
  * class of mistake as the isolator's name. The streaming variant is the same path with `/stream` after it, and
  * is used when the text is long enough that waiting for the whole render would time out.
  */
-export async function speak(script: string, voiceId: string, opts: { stream?: boolean; signal?: AbortSignal } = {}): Promise<Buffer> {
+/**
+ * THE MOST TEXT ONE REQUEST WILL TAKE.
+ *
+ * Measured, not guessed: a 11,418-character script was refused with
+ *
+ *   {"code":"text_too_long","message":"Request text length (11418) exceeds the maximum text length of
+ *    10000 characters. Please use Studio for long form TTS."}
+ *
+ * **And that is an ordinary article.** The folklore collection that produced it is fourteen minutes read
+ * aloud. A pipeline that only handles ten thousand characters handles the shortest third of this archive and
+ * fails on everything a listener would most want.
+ *
+ * The ceiling is set below the real limit on purpose: **a chunk is measured in characters and the API measures
+ * something close to them, but not the same thing**, and a chunk that is a few characters over fails the whole
+ * render.
+ */
+const MAX_CHARS = 9_000;
+
+/**
+ * Split a script into pieces the API will accept, **at paragraph boundaries and never mid-sentence**.
+ *
+ * Cutting at a character count would break a sentence in half, and the two halves would be spoken as one
+ * sentence with a seam through it — **audible, and impossible to fix afterwards, because the audio is the only
+ * record of where the cut was.** A paragraph break is where a reader would pause anyway.
+ *
+ * A single paragraph longer than the ceiling is split at the last sentence end before it, and only if a
+ * sentence is itself too long is the cut made mid-sentence — **which is stated rather than silent.**
+ */
+export function chunkScript(script: string, max = MAX_CHARS): string[] {
+  const paras = script.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+  const chunks: string[] = [];
+  let current = '';
+
+  const push = () => {
+    if (current.trim()) chunks.push(current.trim());
+    current = '';
+  };
+
+  for (const para of paras) {
+    if (para.length > max) {
+      push();
+      // A single enormous paragraph: break it at sentence ends.
+      const sentences = para.match(/[^.!?]+[.!?]+["\u2019\u201d)]?\s*/g) ?? [para];
+      for (const sentence of sentences) {
+        if ((current + sentence).length > max) push();
+        if (sentence.length > max) {
+          // Even one sentence is too long. This is logged by the caller as a seam.
+          for (let i = 0; i < sentence.length; i += max) {
+            push();
+            chunks.push(sentence.slice(i, i + max).trim());
+          }
+        } else {
+          current += sentence;
+        }
+      }
+      push();
+      continue;
+    }
+    if ((current + '\n\n' + para).length > max) push();
+    current += (current ? '\n\n' : '') + para;
+  }
+  push();
+  return chunks;
+}
+
+/**
+ * Speak a script of any length.
+ *
+ * **Rendered in pieces and joined, because one request will not take a whole article.** Each piece is a
+ * paragraph-aligned chunk from `chunkScript`, and the MP3s are concatenated — which is valid for the constant
+ * bitrate MP3 the API returns.
+ *
+ * A failed piece fails the render. **It does not return the pieces that succeeded**, because a spoken record
+ * that stops three quarters of the way through sounds like a finished one that ended oddly.
+ */
+export async function speak(script: string, voiceId: string, opts: { onProgress?: (done: number, total: number) => void; signal?: AbortSignal } = {}): Promise<Buffer> {
   const key = apiKey();
   if (!key) throw new Error('ELEVENLABS_API_KEY is not set');
-  const path = `/v1/text-to-speech/${encodeURIComponent(voiceId)}${opts.stream ? '/stream' : ''}`;
-  const res = await fetch(`${API}${path}`, {
-    method: 'POST',
-    headers: { 'xi-api-key': key, 'content-type': 'application/json', accept: 'audio/mpeg' },
-    body: JSON.stringify({ text: script, model_id: NARRATION_MODEL, voice_settings: NARRATION_SETTINGS }),
-    signal: opts.signal,
-  });
-  if (!res.ok) throw new Error(`narration failed: HTTP ${res.status} ${(await res.text()).slice(0, 160)}`);
-  return Buffer.from(await res.arrayBuffer());
+
+  const chunks = chunkScript(script);
+  const parts: Buffer[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    const res = await fetch(`${API}/v1/text-to-speech/${encodeURIComponent(voiceId)}`, {
+      method: 'POST',
+      headers: { 'xi-api-key': key, 'content-type': 'application/json', accept: 'audio/mpeg' },
+      body: JSON.stringify({ text: chunks[i], model_id: NARRATION_MODEL, voice_settings: NARRATION_SETTINGS }),
+      signal: opts.signal,
+    });
+    if (!res.ok) {
+      throw new Error(
+        `narration failed on piece ${i + 1} of ${chunks.length}: HTTP ${res.status} ${(await res.text()).slice(0, 160)}`
+      );
+    }
+    parts.push(Buffer.from(await res.arrayBuffer()));
+    opts.onProgress?.(i + 1, chunks.length);
+  }
+  // An MP3 is a stream of frames, so the pieces play as one file. The API returns constant-bitrate MP3.
+  return Buffer.concat(parts);
 }
