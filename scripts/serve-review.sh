@@ -38,7 +38,49 @@ SD="$ROOT/apps/ozikoro/.next/standalone"
 cd "$ROOT"
 
 echo "==> stopping anything on port $PORT"
-lsof -ti "tcp:$PORT" 2>/dev/null | xargs -r kill -9 2>/dev/null || true
+#
+# A `kill -9` HERE DESTROYED THE DATABASE TWICE, SO IT IS NO LONGER DONE.
+#
+# This line used to be `lsof -ti tcp:$PORT | xargs -r kill -9`. **PGlite is a WASM Postgres in the same process
+# as the server, and it writes WAL while it opens its cluster.** A SIGKILL that lands during that window leaves
+# `pg_control` pointing at a WAL segment that no longer exists, and the cluster is then unopenable:
+#
+#     PANIC: could not locate a valid checkpoint record
+#
+# That happened twice in one day — once when a server was racing a CLI script, and once when this script killed
+# a server that was still booting. Each time the remedy was to discard the cluster and restore a backup.
+#
+# So: ask first, wait, and **never SIGKILL a process that holds the cluster.** A process that will not leave is
+# reported rather than shot, because a stubborn process is a solvable problem and a corrupt database is not.
+DATA_DIR="$ROOT/.data/pg"
+PIDS="$(lsof -ti "tcp:$PORT" 2>/dev/null || true)"
+if [ -n "$PIDS" ]; then
+  HOLDING=""
+  for pid in $PIDS; do
+    if lsof -p "$pid" 2>/dev/null | grep -q "$DATA_DIR"; then HOLDING="$HOLDING $pid"; fi
+  done
+
+  # SIGTERM, which a Node server handles by closing the database and exiting.
+  # shellcheck disable=SC2086
+  kill $PIDS 2>/dev/null || true
+  for _ in $(seq 1 20); do
+    sleep 1
+    [ -z "$(lsof -ti "tcp:$PORT" 2>/dev/null || true)" ] && break
+  done
+
+  if [ -n "$(lsof -ti "tcp:$PORT" 2>/dev/null || true)" ]; then
+    if [ -n "$HOLDING" ]; then
+      echo "  REFUSING TO FORCE: PID(s)$HOLDING still hold $DATA_DIR and port $PORT." >&2
+      echo "  A SIGKILL while PGlite holds its cluster corrupts it, and the cluster has had to be restored twice." >&2
+      echo "  Stop it yourself if you are sure:  kill -9$HOLDING" >&2
+      exit 1
+    fi
+    echo "  a process on port $PORT did not answer SIGTERM and does not hold the cluster; forcing it"
+    # shellcheck disable=SC2086
+    kill -9 $PIDS 2>/dev/null || true
+    sleep 2
+  fi
+fi
 sleep 1
 
 # A PGlite cluster that was not shut down cleanly leaves this behind and the next open refuses.

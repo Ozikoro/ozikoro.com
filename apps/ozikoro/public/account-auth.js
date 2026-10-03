@@ -27,6 +27,20 @@
   var nameInput = nameGroup ? nameGroup.querySelector('input') : null;
   var submit = document.getElementById('submit');
 
+  /*
+   * THE TERMS BOX, WHICH BLOCKED SIGNING IN ENTIRELY.
+   *
+   * The design carries `<input type="checkbox" required>` beside "I agree to the Terms of Use and Privacy
+   * Policy". **In signing-in mode it is still `required`, so the browser refuses to submit the form until a
+   * returning member ticks a consent they gave when they joined.** They press Sign in, nothing happens, and
+   * nothing says why — the commonest way a form "does not work".
+   *
+   * **The box belongs to joining and not to signing in**, so it is required only when joining, and its label is
+   * hidden when it is not required rather than left asking for an agreement that is not wanted.
+   */
+  var terms = form.querySelector('input[type="checkbox"][required]') || null;
+  var termsLabel = terms ? terms.closest('label') : null;
+
   /** Where a message goes. The design has no place for one, so one is added beside the form rather than over it. */
   var notice = document.createElement('p');
   notice.id = 'auth-notice';
@@ -56,8 +70,18 @@
       if (typeof original === 'function') original.apply(this, arguments);
       if (submit) submit.textContent = mode === 'join' ? 'Create account\u00a0 \u2192' : 'Sign in\u00a0 \u2192';
       if (nameGroup) nameGroup.style.display = mode === 'join' ? '' : 'none';
-      if (confirm) confirm.required = mode === 'join';
+      if (confirm) {
+        confirm.required = mode === 'join';
+        // A second password field has no meaning when signing in, so its group goes with the name field.
+        var cg = confirm.closest('.group');
+        if (cg) cg.style.display = mode === 'join' ? '' : 'none';
+      }
       if (nameInput) nameInput.required = mode === 'join';
+      // **The consent belongs to joining.** Left required while signing in, it stops the form dead and says
+      // nothing, which is exactly what a reader would call "the sign in is not working".
+      if (terms) terms.required = mode === 'join';
+      if (termsLabel) termsLabel.style.display = mode === 'join' ? '' : 'none';
+      if (mode !== 'join' && terms) terms.checked = false;
       say('');
     };
   }
@@ -66,6 +90,17 @@
 
   // The page opens in whichever mode the address asks for.
   if (joining() && typeof window.signup === 'function') window.signup();
+
+  /*
+   * A FORM THAT IS BLOCKED BY THE BROWSER SAYS SO.
+   *
+   * `submit` does not fire at all when a `required` field is empty and the browser refuses the form — **so a
+   * reader sees a button that does nothing and no reason for it.** `invalid` fires on the offending field
+   * instead, which is the one moment at which the page can say why it will not go.
+   */
+  form.addEventListener('invalid', function () {
+    say('Please fill in the fields above, and tick the consent box when joining.', true);
+  }, true);
 
   form.addEventListener('submit', function (event) {
     event.preventDefault();

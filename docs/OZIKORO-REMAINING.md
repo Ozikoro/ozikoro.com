@@ -13782,3 +13782,68 @@ way a hand-built form meets a real API.
     register through the same endpoint -> 303 -> /dashboard-reader
 
 **The password is the owner's own choice and is set.**
+
+---
+
+## ROUND 302 — THE SCRIPT THAT DESTROYED THE DATABASE TWICE, AND THE CHECKBOX THAT BLOCKED SIGNING IN
+
+### The database, and who was killing it
+
+**`scripts/serve-review.sh` line 41 was:**
+
+    lsof -ti "tcp:$PORT" | xargs -r kill -9
+
+**PGlite is a WASM Postgres in the same process as the server, and it writes WAL while it opens its cluster.**
+A SIGKILL landing inside that window leaves `pg_control` pointing at a WAL segment that no longer exists:
+
+    PANIC: could not locate a valid checkpoint record
+    RuntimeError: Aborted()
+
+**That is what happened, twice in one day** — once with a server racing a CLI script, and once when this script
+killed a server that was still booting. Each time the remedy was to discard the cluster and restore a backup.
+**The second time was diagnosed by a subagent that refused to guess**: it noted `.data/pg/global` and
+`pg_logical` stamped at 17:58, a stale lock from the same minute, and that the cleanest explanation was a
+`kill -9` during a boot — **which pointed straight at this line.**
+
+The script now asks, waits, and refuses:
+
+    it sends SIGTERM and waits up to 20 seconds
+    a process that will not leave AND holds the cluster is REPORTED, not shot
+    only a process that does not hold the cluster is ever forced
+
+**A stubborn process is a solvable problem. A corrupt database is not.**
+
+### Restored, and what it cost
+
+    preserved   .data/pg.damaged-<timestamp>
+    restored    .data/backups/pg-2026-10-01T17-07-50
+    re-applied  0043 · 0044 · 0045 · 0046 · 0047
+    rebuilt     the owner account, and the three episodes against the MP3s on disk
+
+**Not one recording was lost, and no credit was spent** — the audio is stored apart from the table that
+describes it, so an episode is a row pointing at a file rather than the file itself.
+
+### And the checkbox that made signing in do nothing
+
+The owner said plainly: *"the sign in is not working."* **It was not the endpoint** — `POST /api/auth/signin`
+returned `303` the whole time. **It was the design's terms checkbox:**
+
+    <input type="checkbox" required>   I agree to the Terms of Use and Privacy Policy
+
+**In signing-in mode it was still `required`, so the browser refused to submit the form** until a returning
+member ticked a consent they had given when they joined. **A button that does nothing, and not one word about
+why.** The box is now required only when joining, its label is hidden when it is not, and the confirm-password
+field goes with it.
+
+**And a form the browser blocks now says so**: `submit` never fires for an empty `required` field, so an
+`invalid` handler is the only moment at which the page can explain itself.
+
+### The reset flow, which already existed
+
+**The instruction to a subagent was to create a reset table. It checked first and found migration 0027 already
+had `password_reset` — `token_hash`, `expires_at`, `used_at`, `requested_ip`, `delivered_by` — and
+`packages/db/src/passwords.ts` already implemented the entire flow**: SHA-256 hashes, single use, a 60-minute
+TTL, earlier links voided, sessions revoked.
+
+**It was never reachable from a page.** The work was wiring, not writing, **and the subagent was right to
+refuse the instruction I gave it.**
