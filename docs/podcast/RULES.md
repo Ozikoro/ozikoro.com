@@ -1,0 +1,77 @@
+# Speaking the archive: the rules this follows, and where they come from
+
+**Sources, recorded so this is checked against the published rules rather than against memory:**
+
+- Spotify for Creators — *AI in podcasting*: https://creators.spotify.com/resources/create/ai-in-podcasting
+- RSS.com — *AI-generated content in podcasting*: https://help.rss.com/en/support/solutions/articles/44002518955-ai-generated-content-in-podcasting
+- The Podcast Index namespace (transcripts, people, GUIDs): https://podcastindex.org/namespace/1.0
+
+**Re-read both before publishing a batch.** Platform rules for synthetic media are still moving, and the two
+sources above are the ones the owner named.
+
+---
+
+## The three rules, and what each one costs here
+
+### 1. Own the rights to the text
+
+**The archive's own records are the source, and the two kinds are not the same:**
+
+    the 1,051 migrated records      the owner's own, published on ozikoro.com
+    the 526 ingested records        the owner's own writing, ingested from his blog and held as `review`
+
+**An ingested record is not published**, so it has no episode either — the episode preparation refuses anything
+that is not `ozikoro_article.status = 'published'`. That is not a formality: **an episode is a redistribution,
+and redistributing a record the archive has not itself published would put audio on Spotify that the archive
+has not stood behind as text.**
+
+**A record that belongs to somebody else is not converted, whatever it says.** Records written by the eleven
+contributors are the archive's to hold under the terms it holds them, and that is a question for the owner
+before any of them is narrated.
+
+### 2. No voice impersonation
+
+**Only two narrators are possible, and both are stated:**
+
+    synthetic_own_voice    a clone trained by the owner, on his own recording, of his own voice
+    synthetic_generic      a stock narrator from the provider's catalogue
+
+**There is no path in this code that clones a third party's voice.** The voice is an ID in an environment
+variable that the owner sets, and `narrator_kind` records which of the two it was on the episode itself — **so a
+later reader can tell without asking.**
+
+### 3. Disclose the use of AI
+
+**The disclosure is a column, not a convention.** `ozikoro_episode.ai_disclosure` is `NOT NULL`, the feed prints
+it **first** in each item's description — before the summary, where it is read rather than skimmed past — and
+`podcast:person role="narrator"` names the narrator as synthetic.
+
+**A show-level note would not do.** Spotify's rules put the responsibility for the *content* on the publisher,
+and a subscriber who pulls a single episode's description should be told by that description.
+
+---
+
+## What the archive adds to those three
+
+### The transcript is not optional
+
+`ozikoro_episode.transcript` is `NOT NULL` and the feed emits `<podcast:transcript>`. **A listener who cannot
+hear it, or who wants to check a claim, reads the same words.** Transcripts are also what make an episode
+findable, which for a history archive is not a small thing.
+
+### The script is the article, not a dramatisation
+
+**The brief that prompted this asked for scripts rewritten into the style of a dramatic audiobook.** That is the
+one thing this archive must not do. Its rules are that nothing is invented and that no generated text is put
+above primary evidence — and **a history rewritten into a menacing register asserts a tone the record does not
+have, in a way a listener cannot detect.**
+
+So `toSpokenScript` removes only what cannot be heard: markup, figure captions, citation brackets, raw URLs,
+and the punctuation that joins a heading to a paragraph. **It reorders nothing, shortens nothing, and adds
+nothing.**
+
+### Nothing publishes itself
+
+`status` moves `draft → pending_review → approved → published`, and every move writes a row to
+`ozikoro_episode_transition` with an actor and a time. **A pipeline that publishes on its own is a pipeline that
+can put a mistake in front of subscribers**, and Spotify's rules place that responsibility on the publisher.

@@ -13285,3 +13285,62 @@ no hint that anything had gone wrong.
 **That is the trade the catch was written for, and it hid a fault in all fourteen dashboards at once.** A
 fallback that leaves the page looking plausible is a fallback that hides its own failures — **and the only
 reason this was found is that a name was expected to appear and did not.**
+
+---
+
+## ROUND 292 — SPOKEN RECORDS: THE FEED, THE REVIEW GATE, AND THE ONE THING THAT MUST NOT BE BUILT
+
+### What exists now
+
+    packages/db/migrations/0045_ozikoro_episodes.sql   episodes, revisions, transitions, the show
+    apps/ozikoro/app/podcast/feed.xml/route.ts         the RSS feed Spotify ingests
+    scripts/prepare-episode.ts                         article -> spoken script -> render -> pending review
+    docs/podcast/RULES.md                              the two rule sources, and what each rule costs here
+
+    /podcast/feed.xml   200  application/rss+xml  ·  VALID XML  ·  "Ozikoro — Histories read aloud"
+    ozikoro_episode · ozikoro_episode_revision · ozikoro_episode_transition · ozikoro_podcast_show
+
+### The feed is served from this site, and no host is required
+
+**Spotify ingests an RSS feed, and a feed is a document this site can serve.** The brief assumed publishing must
+go through a host's API because Spotify takes no direct uploads — **true, and it misses the point.** A host adds
+analytics and an upload endpoint, not access. A host can be pointed at this feed later;
+`ozikoro_podcast_show.host_feed_url` exists for that day.
+
+**It is empty until something is approved, and says so.** With no approved episode the channel is valid, listed,
+and carries zero items — **because a feed that lists drafts leaks unreviewed audio into a subscriber's app.**
+
+### And the thing that must not be built
+
+**The brief asks for a script refiner that rewrites each article into the tone of a dramatic audiobook — grim
+maxims, heavy pauses, a chilling closing law.** That is the one thing this archive cannot do, and the brief's own
+rules are why: *never invent content*, and *never put a generated answer above primary evidence*.
+
+**A history rewritten into a menacing register asserts a tone the record does not have — and a listener has no
+way to tell which sentences were the archive's and which were added for effect.**
+
+So `toSpokenScript` removes only what cannot be heard: markup, figure captions, citation brackets, raw URLs, and
+the punctuation joining a heading to its paragraph. **It reorders nothing, shortens nothing, adds nothing.**
+
+    Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots
+    1,538 spoken words   about 10m 36s   the article's own sentences, 0 rewritten
+
+### Three of the four APIs are not needed, and one is not what the brief said
+
+    OpenAI          not needed. The article is already written; a model that rewrites it is the risk above.
+    ElevenLabs      needed, and the endpoint is https://api.elevenlabs.io/v1/text-to-speech/{voice_id}
+                    — not `https://elevenlabs.io`, which is the website and would fail.
+    Transistor      not needed unless a host is wanted. Its API is https://api.transistor.fm/v1/…, not
+                    `https://transistor.fm`, and Spotify ingests the feed without it.
+    Spotify         the OAuth connection at /admin/spotify already exists and is for reading data, which is
+                    what it is for.
+
+### And the pipeline refuses rather than pretending
+
+    node scripts/prepare-episode.ts <slug>              -> NOT PREPARED, names the two missing variables
+                                                           and writes nothing
+    node scripts/prepare-episode.ts <slug> --dry-run    -> writes the spoken script only, and says it wrote
+                                                           nothing to the database
+
+**An archive that has never published an episode is in an honest state. One that has published a silent one is
+not.**
