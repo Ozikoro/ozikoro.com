@@ -16,6 +16,19 @@ export default async function Page() {
     <>
       <Head title="Administration" />
 
+      <Card title="Audio review">
+        <p>
+          The narration queue: read the spoken script and its cost before anything is rendered, decline a
+          proposal at no cost, listen to a rendered take, download the raw file, and approve the one that puts
+          the player on the article. A proposal spends nothing; only an approved render does.
+        </p>
+        <p className="actions">
+          <Link className="btn btn--primary" href="/admin/audio">
+            Audio review queue
+          </Link>
+        </p>
+      </Card>
+
       <Card title="Spotify">
         <p>
           Connect the Spotify account Ozikoro publishes from, see whether it is still authorised,

@@ -55,5 +55,6 @@ export * from './knowledge.ts';
 export * from './design-fill.ts';
 export * from './seo-head.ts';
 export * from './spoken.ts';
+export * from './narration.ts';
 export * from './pdf/writer.ts';
 export * from './pdf/publication.ts';

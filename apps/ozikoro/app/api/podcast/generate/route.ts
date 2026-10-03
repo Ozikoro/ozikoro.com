@@ -1,29 +1,34 @@
 /**
- * Speak a script, and hold the result for review.
+ * POST /api/podcast/generate — kept, and now a THIN ALIAS for rendering an approved proposal.
  *
- * THIS ROUTE DOES NOT PUBLISH, AND THAT IS DELIBERATE
+ * WHAT CHANGED, AND WHY IT HAD TO
  *
- * The specification for this pipeline ends with generation. **Publication is a separate act by a person** —
- * `ozikoro_episode.status` moves to `published` through an explicit transition with an actor recorded, and the
- * feed lists nothing else. **Spotify's own rules put the responsibility for the content on the publisher**, and
- * an endpoint that rendered and published in one call would move that decision into a request.
+ * This route used to prepare a record's words, render them, and record a `pending_review` episode in one call.
+ * **That made it a path to a charge with no approval in front of it** — and the owner's rule is that *every*
+ * audio embarked on must be approved first, because the whole reason for the approval step is that the render
+ * is what costs the credits. A review gate on publication cannot fix that: by the time an episode is
+ * `pending_review` the money is already gone.
  *
- * WHAT IT DOES
+ * So the URL and the request body are unchanged, and the behaviour is not: it now REFUSES a record that has no
+ * proposal, and otherwise delegates to the same renderer `approve-proposal` uses. **One render path, not two**
+ * — a second path is exactly how the gate gets bypassed by the next caller who finds the shorter route.
  *
- *   takes a published record's slug, prepares its own words for speaking, renders them in the chosen voice,
- *   writes the audio beside the other media, and records an episode in `pending_review` with its transcript,
- *   its narrator kind and its disclosure.
+ * The capability moved with it: `publish` (which editors hold) is the gate for putting a record out, and the
+ * gate for spending money on the AI is `manage_ai_corpus`, which only an administrator or the owner holds.
  *
- * THE NARRATOR IS RECORDED, NOT IMPLIED. `synthetic_own_voice` when the owner's clone is used and
- * `synthetic_generic` otherwise, with the disclosure that follows from each — **Spotify's third rule, and the
- * reason it is a column rather than a convention.**
+ * THE SEQUENCE
+ *
+ *   POST /api/podcast/propose            spends nothing, shows the script and the cost
+ *   POST /api/podcast/approve-proposal   renders it — this is where a credit is spent
+ *   POST /api/podcast/review             { "action": "publish" } — this is what makes the player appear
+ *
+ * THIS ROUTE DOES NOT PUBLISH, AND THAT WAS ALREADY TRUE.
  */
 import { NextResponse } from 'next/server';
 import { getDb } from '@ozituma/db/client';
-import { getStorage } from '@ozituma/db/storage';
-import { apiKey, configured, genericVoiceId, ownVoiceId, speak } from '@/lib/elevenlabs';
+import { can, isNarrationVoice } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
-import { can, toSpokenScript } from '@ozikoro/platform';
+import { renderProposedNarration } from '@/lib/render-episode';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,112 +38,74 @@ export const maxDuration = 300;
 export async function POST(request: Request) {
   const current = await getCurrentAccount();
   if (!current) return NextResponse.json({ error: 'Not signed in.' }, { status: 403 });
-  if (!(await can(await getDb(), current.account.id, 'publish'))) {
-    return NextResponse.json({ error: 'Not permitted.' }, { status: 403 });
-  }
-  if (!apiKey() || !configured()) {
+
+  const db = await getDb();
+  if (!(await can(db, current.account.id, 'manage_ai_corpus'))) {
     return NextResponse.json(
-      { error: 'Narration is not configured.', need: ['ELEVENLABS_API_KEY', 'ELEVENLABS_VOICE_ID_OWN'] },
-      { status: 503 }
+      {
+        error: 'Rendering spends credits, and that needs the “manage ai corpus” permission.',
+        instead: 'POST /api/podcast/propose records the script and the cost without spending anything.',
+      },
+      { status: 403 }
     );
   }
 
-  const body = (await request.json().catch(() => ({}))) as { slug?: string; voice?: 'own' | 'generic' };
+  const body = (await request.json().catch(() => ({}))) as { slug?: string; voice?: string; note?: string };
   const slug = body.slug?.trim();
   if (!slug) return NextResponse.json({ error: 'A slug is required.' }, { status: 400 });
 
-  const voiceChoice = body.voice === 'generic' ? 'generic' : 'own';
-  const voiceId = voiceChoice === 'own' ? ownVoiceId() : genericVoiceId();
-  if (!voiceId) {
-    return NextResponse.json({ error: `No ${voiceChoice} voice is configured.` }, { status: 503 });
+  const voice = body.voice?.trim();
+  if (voice && !isNarrationVoice(voice)) {
+    return NextResponse.json({ error: 'voice must be “own” or “generic”.' }, { status: 400 });
   }
 
-  const db = await getDb();
-  const article = await db.one<{ id: number; title: string; body_html: string | null; standfirst: string | null }>(
-    `select id, title, body_html, standfirst from ozikoro_article
-      where slug = $1 and status = 'published' and is_page = false`,
-    [slug]
-  );
-  // **Only a published record can become an episode.** An ingested record is held as `review`, and putting
-  // audio on Spotify for a record the archive has not itself published would be a redistribution it has not
-  // stood behind as text.
-  if (!article) return NextResponse.json({ error: 'No published record with that slug.' }, { status: 404 });
+  const result = await renderProposedNarration(db, {
+    slug,
+    actorId: current.account.id,
+    ...(voice && isNarrationVoice(voice) ? { voice } : {}),
+    note: body.note?.trim() || null,
+  });
 
-  const { script, transcript } = toSpokenScript(article.body_html ?? '');
-  const words = script.split(/\s+/).filter(Boolean).length;
-  const estimatedSeconds = Math.round((words / 145) * 60);
-
-  let audio: Buffer;
-  try {
-    audio = await speak(script, voiceId);
-  } catch (error) {
-    return NextResponse.json({ error: String(error).slice(0, 300) }, { status: 502 });
-  }
-
-  /*
-   * THE AUDIO GOES INTO STORAGE, NOT ONTO A PATH.
-   *
-   * This wrote to `data/media/ozikoro-wp/episodes/` — the ARCHIVE directory, where the WordPress extraction put
-   * its files. **The media route does not read that directory in production.** It reads object storage, and
-   * with no `S3_BUCKET` set that is the local driver at `.data/media`. So the file was on disk, correctly named,
-   * 8 MB of it, and the route answered 404 — **a spoken record that existed everywhere except where it was
-   * looked for.**
-   *
-   * Writing through `getStorage()` means the file lands wherever the media route will actually read it, **and
-   * that stays true when the deployment moves to S3 and no path in this file changes.**
-   */
-  const storageKey = `ozikoro/episodes/${slug}.mp3`;
-  await getStorage().put(storageKey, audio, 'audio/mpeg');
-
-  const disclosure =
-    voiceChoice === 'own'
-      ? 'This episode was generated using AI text-to-speech from a voice cloned from the author’s own recording, with his permission. The words are the article’s own.'
-      : 'This episode was generated using AI text-to-speech. The words are the article’s own. Narrated by a synthetic voice.';
-
-  const episode = await db.one<{ id: number }>(
-    `insert into ozikoro_episode
-       (article_id, slug, title, script, transcript, summary, narrator_kind, narrator_name, ai_disclosure,
-        storage_key, mime_type, byte_size, duration_seconds, status, generator, generator_model, voice_settings)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'audio/mpeg',$11,$12,'pending_review','elevenlabs','eleven_multilingual_v2',$13)
-     on conflict (slug) do update set
-       script = excluded.script, transcript = excluded.transcript, storage_key = excluded.storage_key,
-       byte_size = excluded.byte_size, duration_seconds = excluded.duration_seconds,
-       status = 'pending_review', updated_at = now()
-     returning id`,
-    [
-      article.id, slug, article.title, script, transcript, article.standfirst,
-      voiceChoice === 'own' ? 'synthetic_own_voice' : 'synthetic_generic',
-      voiceChoice === 'own' ? 'Idenze Ezeme (synthetic)' : null,
-      disclosure, storageKey, audio.byteLength, estimatedSeconds,
-      JSON.stringify({ stability: 0.7, similarity_boost: 0.8, style: 0.1, use_speaker_boost: true }),
-    ]
-  );
-
-  if (episode) {
-    const n = await db.one<{ n: number }>(
-      `select coalesce(max(revision_number),0)::int n from ozikoro_episode_revision where episode_id = $1`,
-      [episode.id]
-    );
-    await db.query(
-      `insert into ozikoro_episode_revision (episode_id, revision_number, script, storage_key, byte_size, duration_seconds, generator_model, created_by)
-       values ($1,$2,$3,$4,$5,$6,'eleven_multilingual_v2',$7)`,
-      [episode.id, (n?.n ?? 0) + 1, script, storageKey, audio.byteLength, estimatedSeconds, current.account.id]
-    );
-    await db.query(
-      `insert into ozikoro_episode_transition (episode_id, from_status, to_status, actor_account_id, note)
-       values ($1, null, 'pending_review', $2, 'Rendered and awaiting a human listen.')`,
-      [episode.id, current.account.id]
+  if (!result.ok) {
+    return NextResponse.json(
+      {
+        error: result.message,
+        code: result.code,
+        ...(result.code === 'no_episode'
+          ? { propose: `POST /api/podcast/propose { "slug": "${slug}" } — it spends nothing.` }
+          : {}),
+        ...(result.details ?? {}),
+      },
+      { status: result.status }
     );
   }
 
   return NextResponse.json({
-    status: 'pending_review',
-    episodeId: episode?.id ?? null,
-    audio: `/media/${storageKey}`,
-    seconds: estimatedSeconds,
-    words,
-    narrator: voiceChoice,
+    status: result.status,
+    episodeId: result.episodeId,
+    audio: result.audioUrl,
+    download: `/api/podcast/download/${result.slug}`,
+    seconds: result.durationSeconds,
+    bytes: result.bytes,
+    characters: result.characters,
+    estimatedCredits: result.estimatedCredits,
+    measuredCredits: result.measuredCredits,
+    revision: result.revision,
+    narrator: result.voice,
     published: false,
-    note: 'Nothing is in the feed until this is approved.',
+    note: 'Nothing is in the feed, and nothing is on the article, until this is approved.',
   });
+}
+
+/** A caller that sends no body is told the sequence rather than left guessing at a 400. */
+export async function GET(): Promise<Response> {
+  return NextResponse.json(
+    {
+      error: 'Use POST.',
+      body: { slug: '<article-slug>', voice: 'own' },
+      before: 'POST /api/podcast/propose — it spends nothing and shows the script and the cost.',
+      after: 'POST /api/podcast/review { "action": "publish", "slug": "…" } — the player appears.',
+    },
+    { status: 405, headers: { 'cache-control': 'no-store' } }
+  );
 }

@@ -96,7 +96,10 @@
     "check:design": "bash scripts/check-design-system.sh",
     "check:design-parity": "node scripts/check-design-parity.mjs",
     "check:screens": "node scripts/check-screen-coverage.mjs",
-    "check:grounding": "bash scripts/check-grounding.sh"
+    "check:grounding": "bash scripts/check-grounding.sh",
+    "check:narration": "bash scripts/check-narration.sh",
+    "test:narration": "node scripts/test-narration.ts",
+    "narration": "node scripts/narration-review.ts"
   },
   "devDependencies": {
     "pdfjs-dist": "^6.3.289",
