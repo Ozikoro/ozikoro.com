@@ -188,7 +188,19 @@ export function middleware(request: NextRequest) {
     'sitemap',
   ]);
   const segments = pathname.split('/').filter(Boolean);
-  if (!isApi && segments.length === 2 && !KNOWN_FIRST_SEGMENTS.has(segments[0] ?? '')) {
+  /*
+   * A PUBLICATION ADDRESS IS NOT A MISSING ATTACHMENT.
+   *
+   * `/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/pdf` is two segments whose first is an article's own
+   * slug, so the attachment fallback below rewrote it to `/attachment/pdf/` **before routing was ever
+   * reached** — measured: both `/<slug>/pdf` and `/<slug>/pdf/` answered 404 while the route itself was
+   * fine and never compiled. This is the fourth real route this rewrite has swallowed, after `town`,
+   * `sitemap` and `clans`, **but it cannot be fixed the way those were**, because the first segment is the
+   * record's own slug and no list can be written in advance. So the second segment is tested instead: a
+   * record's `pdf` child is left alone for the router, which is what serves the download.
+   */
+  const isPublication = segments.length === 2 && segments[1] === 'pdf';
+  if (!isApi && segments.length === 2 && !isPublication && !KNOWN_FIRST_SEGMENTS.has(segments[0] ?? '')) {
     const url = request.nextUrl.clone();
     url.pathname = `/attachment/${segments[1]}/`;
     return NextResponse.rewrite(url, { request: { headers } });

@@ -19,6 +19,9 @@
  *
  * 4. **THE FULL WORDMARK IS ON THE COVER ONLY.** Interior pages carry the small mark in the running head,
  *    which is what the brief asks for and what the reference does.
+ *
+ * 5. **THE LOGO IS THE REFERENCE'S OWN ARTWORK, NOT TYPE.** See `Raster` below for where it comes from and
+ *    why the fallback exists rather than a drawn substitute.
  */
 import { A4, FRAME, OZIKORO, PdfDoc, PdfPage, type Rgb } from './writer.ts';
 
@@ -27,7 +30,43 @@ export type Block =
   | { kind: 'paragraph'; text: string }
   | { kind: 'quote'; text: string }
   | { kind: 'image'; data: Buffer; width: number; height: number; caption: string | null; credit: string | null }
-  | { kind: 'list'; items: string[] };
+  | { kind: 'list'; items: string[] }
+  /**
+   * A key/value box built from a list the article already contains — **never from prose, and never with
+   * a heading this renderer wrote.** See the rule in `lib/publication.ts`.
+   */
+  | { kind: 'infobox'; rows: { label: string; value: string }[] };
+
+/** A raster the writer can embed. **JPEG only** — see the note in `writer.ts`. */
+export type Raster = { data: Buffer; width: number; height: number };
+
+/**
+ * THE LOGO, AS THE APPROVED REFERENCE ITSELF CARRIES IT.
+ *
+ * The cover used to set `Ozi Ikòrò` in Times-Bold and the running head drew an `OI` monogram tile, **because
+ * the artwork was not in this repository and a stretched or invented logo is worse than none.** Both were
+ * placeholders and both were visible as placeholders.
+ *
+ * The two files at `packages/ozikoro/assets/` are recovered from `data/pdf-template/reference.pdf`, whose
+ * images are ASCII85-and-Flate raw RGB with a separate soft mask — not JPEG, so they cannot be cut out of
+ * the file and had to be decoded, the mask applied, and the result re-encoded:
+ *
+ *     ozikoro-wordmark.jpg   object 34, 1000×787 → 700×551, composited on #f7f1e3, the cover's own ivory
+ *     ozikoro-mark.jpg       object 28, 1000×529 →  480×254, composited on white, an interior page's ground
+ *
+ * **A PDF carries a raster through `DCTDecode` and a JPEG has no alpha channel**, so the transparency is
+ * resolved once, against the exact colour the image is drawn over, rather than left to the reader — which
+ * would paint an uncomposited logo's transparent pixels black. Neither file is ever scaled unevenly: the
+ * boxes they are placed in carry the images' own aspect ratios.
+ *
+ * They reach the layout as data rather than as a path, so this module needs no filesystem and **the PDF
+ * carries the picture rather than a link to one.**
+ *
+ * **Null is a real state and not an error**: if the assets are absent the cover falls back to the type-set
+ * wordmark and the running head to the tile, exactly as before. A missing logo is a smaller fault than a
+ * drawn one, which is the same rule the figures follow.
+ */
+export type ArticleLogo = { wordmark: Raster | null; mark: Raster | null };
 
 export type ArticlePdfInput = {
   slug: string;
@@ -43,6 +82,7 @@ export type ArticlePdfInput = {
   blocks: Block[];
   references: string[];
   tags: string[];
+  logo?: ArticleLogo | null;
 };
 
 const COL = A4.width - FRAME.marginLeft - FRAME.marginRight;
@@ -96,18 +136,33 @@ export class ArticlePdf {
   /**
    * The running head: the small mark, the section, and the site.
    *
-   * The brief is explicit that the full wordmark does not belong here — **only the mark, small, in proportion**
-   * — so this draws a square monogram tile rather than setting the name in type.
+   * The brief is explicit that the full wordmark does not belong here — **only the mark, small, in
+   * proportion** — so this places the reference's own gold mark and nothing else. It used to draw a square
+   * monogram tile with `OI` set in it, which was a stand-in for artwork this repository did not have.
+   *
+   * **The box is the mark's own aspect ratio**, so `image()` has nothing to scale unevenly: 480×254 in a
+   * 22×11.64pt box. A square box here would squash it by half again, which is the fault the brief names.
    */
   private runningHead(page: PdfPage, index: number): void {
     if (index === 0) return;
-    const markSize = 11;
-    page.fill(OZIKORO.emeraldDeep).fillRect(FRAME.marginLeft, FRAME.headerY - 2, markSize, markSize);
-    page.text('OI', FRAME.marginLeft + 1.9, FRAME.headerY + 1.4, {
-      font: 'sansBold', size: 6.5, rgb: OZIKORO.goldBright,
-    });
+    const mark = this.input.logo?.mark ?? null;
+    let labelX = FRAME.marginLeft;
+    if (mark) {
+      const markW = 22;
+      const markH = (mark.height / mark.width) * markW;
+      this.doc.addJpeg('ozikoro-mark', mark.data, mark.width, mark.height);
+      page.image('ozikoro-mark', FRAME.marginLeft, FRAME.headerY - 2, markW, markH, mark);
+      labelX = FRAME.marginLeft + markW + 8;
+    } else {
+      const markSize = 11;
+      page.fill(OZIKORO.emeraldDeep).fillRect(FRAME.marginLeft, FRAME.headerY - 2, markSize, markSize);
+      page.text('OI', FRAME.marginLeft + 1.9, FRAME.headerY + 1.4, {
+        font: 'sansBold', size: 6.5, rgb: OZIKORO.goldBright,
+      });
+      labelX = FRAME.marginLeft + markSize + 7;
+    }
     const label = (this.input.category ?? 'Ozikoro').toUpperCase();
-    page.text(label, FRAME.marginLeft + markSize + 7, FRAME.headerY + 1.4, {
+    page.text(label, labelX, FRAME.headerY + 1.4, {
       font: 'sans', size: 7, rgb: OZIKORO.inkMuted,
     });
     page.text(`OZIKORO.COM · ${String(index).padStart(2, '0')}`, A4.width - FRAME.marginRight, FRAME.headerY + 1.4, {
@@ -154,15 +209,28 @@ export class ArticlePdf {
     y -= 40;
 
     /*
-     * THE WORDMARK, SET FOR THE COVER ONLY.
+     * THE WORDMARK, WHICH IS THE REFERENCE'S OWN ARTWORK.
      *
-     * **Drawn as type rather than placed as an image, because the logo files are not in this repository and a
-     * stretched or squashed logo is worse than none.** The reference's own wordmark should be dropped in here as
-     * a JPEG or PNG at its own aspect ratio — the writer scales an image to fit a box and never distorts it, so
-     * that swap is one line and cannot go wrong.
+     * **Drawn as type until the artwork could be taken out of the approved reference**, which is what
+     * `data/pdf-template/reference.pdf` object 34 holds: the icon and the name together, dark, on a
+     * transparent ground. The transparent pixels are already composited onto this page's own ivory — a PDF
+     * carries a JPEG through `DCTDecode` and **a JPEG has no alpha channel, so an uncomposited logo would
+     * print its transparent pixels as black.**
+     *
+     * The box is the image's own aspect ratio, so it is placed and never stretched. The type-set wordmark
+     * remains as the fallback for the case where the assets are missing.
      */
-    p.text('Ozi Ikòrò', cx, y, { font: 'serifBold', size: 30, rgb: OZIKORO.emeraldDeep });
-    y -= 15;
+    const wordmark = this.input.logo?.wordmark ?? null;
+    if (wordmark) {
+      const w = 168;
+      const h = (wordmark.height / wordmark.width) * w;
+      this.doc.addJpeg('ozikoro-wordmark', wordmark.data, wordmark.width, wordmark.height);
+      p.image('ozikoro-wordmark', cx, y - h, w, h, wordmark);
+      y -= h + 12;
+    } else {
+      p.text('Ozi Ikòrò', cx, y, { font: 'serifBold', size: 30, rgb: OZIKORO.emeraldDeep });
+      y -= 15;
+    }
     p.text('African History, Culture & Indigenous Knowledge', cx, y, {
       font: 'sans', size: 8.5, rgb: OZIKORO.inkMuted,
     });
@@ -290,11 +358,19 @@ export class ArticlePdf {
     this.y -= BODY * 0.55; // paragraph spacing
   }
 
+  /**
+   * A pull quote, and the conservative rule that decides whether one exists at all.
+   *
+   * The owner's brief allows a pull quote only where the article already carries a quotation. **So a quote
+   * block is created only from a `<blockquote>` in the record's own body and its text goes in verbatim** —
+   * see `toBlocks` in `apps/ozikoro/lib/publication.ts`, which is the only thing that produces one. There is
+   * no path here that writes a quotation, shortens one to fit, or lifts a sentence out of a paragraph: an
+   * article with no blockquote gets no pull quote, and that is the intended outcome rather than a gap.
+   */
   private drawQuote(text: string): void {
     const width = this.bodyWidth - 30;
     const lines = this.doc.wrap(text, 'serifItalic', 12.5, width);
     this.ensure(lines.length * 18 + 24);
-    // A pull quote: the brief allows one, **taken from the article and never written for it.**
     this.page.fill(OZIKORO.gold).fillRect(FRAME.marginLeft, this.y - lines.length * 18 - 2, 2.4, lines.length * 18 + 12);
     let cy = this.y;
     for (const line of lines) {
@@ -302,6 +378,56 @@ export class ArticlePdf {
       cy -= 18;
     }
     this.y = cy - 14;
+  }
+
+  /**
+   * The information box, drawn from a key/value list the article itself contains.
+   *
+   * **Nothing here is composed.** The labels and the values are the list items split at their own colon, and
+   * the box carries no title, because a title would be a heading this renderer had to invent — "Quick
+   * reference" over four facts the article never grouped under one.
+   *
+   * **It never splits across a page.** A key/value box broken in half reads as two unrelated fragments, so the
+   * whole box is measured before a stroke of it is drawn and moves entire — the same rule the figures and their
+   * captions follow.
+   */
+  private drawInfobox(rows: { label: string; value: string }[]): void {
+    const padX = 14;
+    const padY = 11;
+    const labelSize = 7.5;
+    const valueSize = 9.5;
+    const rowGap = 6;
+    const labelW = Math.max(...rows.map((r) => this.doc.widthOf(r.label.toUpperCase(), 'sansBold', labelSize))) + 12;
+    const valueW = this.bodyWidth - padX * 2 - labelW;
+    const wrapped = rows.map((r) => this.doc.wrap(r.value, 'serif', valueSize, valueW));
+    const contentH = wrapped.reduce((total, lines) => total + lines.length * (valueSize * 1.4) + rowGap, 0) - rowGap;
+    const boxH = contentH + padY * 2;
+
+    this.ensure(boxH + 18);
+
+    const top = this.y;
+    this.page.fill(OZIKORO.emeraldWash).fillRect(FRAME.marginLeft, top - boxH, this.bodyWidth, boxH);
+    // A heavy edge down the left and a tint behind it, which is how the design sets a passage apart — its
+    // `.provenance` and `.unsourced` blocks both do exactly this — and the tint is its own `--accent-wash`
+    // rather than a colour mixed here.
+    this.page.fill(OZIKORO.emerald).fillRect(FRAME.marginLeft, top - boxH, 3, boxH);
+
+    let cy = top - padY;
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] as { label: string; value: string };
+      const lines = wrapped[i] as string[];
+      this.page.text(row.label.toUpperCase(), FRAME.marginLeft + padX, cy, {
+        font: 'sansBold', size: labelSize, rgb: OZIKORO.emerald,
+      });
+      for (const line of lines) {
+        this.page.text(line, FRAME.marginLeft + padX + labelW, cy, {
+          font: 'serif', size: valueSize, rgb: OZIKORO.ink,
+        });
+        cy -= valueSize * 1.4;
+      }
+      cy -= rowGap;
+    }
+    this.y = top - boxH - 16;
   }
 
   private drawImage(block: Extract<Block, { kind: 'image' }>): void {
@@ -395,16 +521,31 @@ export class ArticlePdf {
     }
   }
 
-  /** The closing page: the mark, the name, and the three things this archive is for. */
+  /**
+   * The closing page: the mark, the name, and the three things this archive is for.
+   *
+   * **The wordmark is drawn once rather than twice.** It carries its own icon, so the old emerald tile with
+   * `OI` set in it and the separate `Ozi Ikòrò` line were both the same name in two forms — one of them a
+   * stand-in. Both are kept as the fallback for when the artwork is absent, and neither is drawn beside the
+   * real thing.
+   */
   private backPage(): void {
     this.newPage();
     const p = this.page;
     p.fill(OZIKORO.paper).fillRect(0, 0, A4.width, A4.height);
     const mid = A4.height / 2;
-    p.fill(OZIKORO.emeraldDeep).fillRect(FRAME.marginLeft, mid + 54, 34, 34);
-    p.text('OI', FRAME.marginLeft + 6, mid + 66, { font: 'sansBold', size: 18, rgb: OZIKORO.goldBright });
-    p.text('Ozi Ikòrò', FRAME.marginLeft, mid + 18, { font: 'serifBold', size: 20, rgb: OZIKORO.emeraldDeep });
-    let y = mid - 10;
+    const wordmark = this.input.logo?.wordmark ?? null;
+    if (wordmark) {
+      const w = 132;
+      const h = (wordmark.height / wordmark.width) * w;
+      this.doc.addJpeg('ozikoro-wordmark', wordmark.data, wordmark.width, wordmark.height);
+      p.image('ozikoro-wordmark', FRAME.marginLeft, mid + 34, w, h, wordmark);
+    } else {
+      p.fill(OZIKORO.emeraldDeep).fillRect(FRAME.marginLeft, mid + 54, 34, 34);
+      p.text('OI', FRAME.marginLeft + 6, mid + 66, { font: 'sansBold', size: 18, rgb: OZIKORO.goldBright });
+      p.text('Ozi Ikòrò', FRAME.marginLeft, mid + 18, { font: 'serifBold', size: 20, rgb: OZIKORO.emeraldDeep });
+    }
+    let y = mid + 16;
     for (const line of ['African History', 'Culture', 'Indigenous Knowledge']) {
       p.text(line, FRAME.marginLeft, y, { font: 'sans', size: 9.5, rgb: OZIKORO.inkMuted });
       y -= 14;
@@ -446,6 +587,9 @@ export class ArticlePdf {
           break;
         case 'list':
           this.drawList(block.items);
+          break;
+        case 'infobox':
+          this.drawInfobox(block.rows);
           break;
       }
     }

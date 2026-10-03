@@ -13,9 +13,9 @@
  */
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { ArticlePdf, type Block } from '@ozikoro/platform';
+import { ArticlePdf, type ArticleLogo, type Block, type Raster } from '@ozikoro/platform';
 
 /** Where the media route's storage puts files. */
 const MEDIA_ROOT = join(process.cwd(), '.data', 'media', 'ozikoro');
@@ -101,6 +101,57 @@ function jpegSize(b: Buffer): { width: number; height: number } | null {
 }
 
 /**
+ * THE LOGO, READ FROM THE REPOSITORY RATHER THAN FETCHED.
+ *
+ * The two files are the approved reference's own artwork, taken out of `data/pdf-template/reference.pdf`
+ * byte for byte and described at `ArticleLogo` in the layout. **They live in the repository, so a download
+ * never depends on a CDN, and the image object is written into the PDF itself** rather than linked from it.
+ *
+ * WHY THE DIRECTORY IS SEARCHED RATHER THAN COMPUTED
+ *
+ * This one function serves three callers with three different working directories, and **a path built from
+ * `process.cwd()` alone is right for exactly one of them**: the command-line generator runs from the
+ * repository root, `next dev` runs from `apps/ozikoro`, and the deployed image runs `node
+ * apps/ozikoro/server.js` from `/app`. A wrong guess here does not throw — it silently drops the wordmark
+ * and prints the type-set fallback instead, which is the kind of fault that is only noticed on the printed
+ * page. So the directory is looked for upwards from the working directory, and the wordmark file is what
+ * identifies it.
+ */
+function assetsDir(): string | null {
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    const candidate = join(dir, 'packages', 'ozikoro', 'assets');
+    if (existsSync(join(candidate, 'ozikoro-wordmark.jpg'))) return candidate;
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return null;
+}
+
+let logoCache: ArticleLogo | null | undefined;
+function logo(): ArticleLogo | null {
+  if (logoCache !== undefined) return logoCache;
+  const dir = assetsDir();
+  if (!dir) {
+    logoCache = null;
+    return null;
+  }
+  const read = (name: string): Raster | null => {
+    try {
+      const data: Buffer = readFileSync(join(dir, name));
+      if (data[0] !== 0xff || data[1] !== 0xd8) return null;
+      const size = jpegSize(data);
+      return size ? { data, ...size } : null;
+    } catch {
+      return null;
+    }
+  };
+  logoCache = { wordmark: read('ozikoro-wordmark.jpg'), mark: read('ozikoro-mark.jpg') };
+  return logoCache;
+}
+
+/**
  * WordPress writes curly punctuation as numeric entities, so every string that reaches the page is decoded.
  *
  * **The first PDF said `Ute-Okpu&#8217;s own`**, because stripping tags does not decode what the tags held.
@@ -151,11 +202,70 @@ export function toBlocks(html: string): Block[] {
       const items = [...(m[6] ?? '').matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)].map((x) => clean(x[1] ?? '')).filter(Boolean);
       if (items.length) blocks.push({ kind: 'list', items });
     } else if (m[7] !== undefined) {
+      /*
+       * A PULL QUOTE IS PERMITTED, NEVER WRITTEN.
+       *
+       * The brief allows a pull quote where the article has one, and **the only thing that produces a quote
+       * block is a `<blockquote>` the record already carries — the text goes in whole and verbatim.** Nothing
+       * here shortens a quotation to fit a measure, lifts a sentence out of a paragraph, or writes one for an
+       * article that has none: a record with no blockquote gets no pull quote, and **that empty space is the
+       * correct outcome rather than a gap to fill.** The filter below is a length floor, not a choice of which
+       * lines are worth quoting.
+       */
       const text = clean(m[7]);
       if (text.length > 30) blocks.push({ kind: 'quote', text });
     }
   }
-  return blocks;
+  return withInfobox(blocks);
+}
+
+/**
+ * A KEY/VALUE ROW, AS THE ARTICLE ITSELF WRITES ONE.
+ *
+ * `Label: value`, with a short label — letters, spaces and the few marks a label contains — so that a
+ * **citation cannot be mistaken for one**: `Finnegan, R. (201:2). Oral literature in Africa` fails on the
+ * comma before it ever reaches its colon, and a label is capped at 24 characters so an address's `https:`
+ * cannot become a label either.
+ */
+const FACT_ROW = /^([A-Z][A-Za-z0-9 &/'\u2019-]{1,23}):\s*(\S.*)$/;
+
+/**
+ * AN INFORMATION BOX, AND THE RULE THAT DECIDES WHETHER ONE EXISTS AT ALL.
+ *
+ * **This only ever permits. It never composes, and there is no branch here that writes a label or a value** —
+ * both are cut out of a list the record already contains, and the box is drawn with no title because a title
+ * would be a heading this renderer had to think of. "Quick reference" over four facts the article never
+ * grouped under one is exactly the invention the brief forbids, and it is the easy thing to do here.
+ *
+ * The conditions are deliberately narrow, and **the positional one is what stops the commonest false
+ * positive**: a record's references are a `<ul>` or `<ol>` too, so a list is only considered when it falls in
+ * the first third of the body, and the closing apparatus is never boxed. The shape test then refuses the
+ * rest — an achievements list has no labels to lay out, only sentences.
+ *
+ *   - the article's FIRST list, and only that one;
+ *   - inside the first third of the body's blocks;
+ *   - 2 to 8 items, none longer than 140 characters;
+ *   - every item shaped `Label: value`.
+ *
+ * Where a record fails any of these it gets a plain bulleted list, exactly as before. **Most records fail
+ * them and get no box, which is the intended outcome**: an absent box costs a reader nothing, and a
+ * synthesised one puts words in the article's mouth.
+ */
+function withInfobox(blocks: Block[]): Block[] {
+  const at = blocks.findIndex((b) => b.kind === 'list');
+  if (at < 0) return blocks;
+  if (at >= Math.ceil(blocks.length / 3)) return blocks;
+  const list = blocks[at] as Extract<Block, { kind: 'list' }>;
+  if (list.items.length < 2 || list.items.length > 8) return blocks;
+  const rows: { label: string; value: string }[] = [];
+  for (const item of list.items) {
+    const row = FACT_ROW.exec(item);
+    if (!row || item.length > 140) return blocks;
+    rows.push({ label: (row[1] as string).trim(), value: (row[2] as string).trim() });
+  }
+  const out = blocks.slice();
+  out[at] = { kind: 'infobox', rows };
+  return out;
 }
 
 /** The references the record carries. **No heading means no section, never an invented one.** */
@@ -213,6 +323,7 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
     blocks: toBlocks(body),
     references: referencesOf(body),
     tags: [],
+    logo: logo(),
   }).render();
 
   return { pdf: doc, title: a.title, pages: 0 };

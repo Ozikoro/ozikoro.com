@@ -185,6 +185,27 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
       filled = filled.replace('</body>', '<script src="/audio-listen.js" defer></script></body>');
     }
 
+    /*
+     * THE DOWNLOAD LINK, PUT INTO THE DESIGN'S OWN READING TOOLS.
+     *
+     * The publication at `/<slug>/pdf` has existed since the writer landed and **nothing on the site
+     * pointed at it** — a reader had to know the address. The button is injected here rather than drawn
+     * into `public/design/screens/article.html` because **the design is the approved handoff and is not
+     * this work's to edit**; the sidebar was built to hold a list of reading tools, so one more is added
+     * to that list and nothing is restructured.
+     *
+     * TWO THINGS ABOUT THE ADDRESS. It is a rooted path carrying the record's own slug, **not a bare
+     * relative one copied from its neighbours**: every link the design wrote here is an in-page fragment
+     * (`#listen`), and a bare `pdf` would resolve against whatever address the page happened to be served
+     * at — `/ute-okpu-…` without the trailing slash would ask for `/pdf`. And the link is inserted only
+     * when the design still holds the container it expects: **a page whose markup has moved on loses the
+     * button rather than gaining a link somewhere it was never designed to be.**
+     */
+    const TOOLS = '<details><summary>Reading tools</summary><nav>';
+    if (filled.includes(TOOLS)) {
+      filled = filled.replace(TOOLS, `${TOOLS}<a class="btn btn-sm" href="/${clean}/pdf">Download PDF</a>`);
+    }
+
     html = withSeoHead(
       filled,
       seoHead(

@@ -45,6 +45,13 @@ export const OZIKORO = {
   inkMuted: [0.420, 0.388, 0.345] as const, // #6b6358
   emerald: [0.051, 0.361, 0.271] as const, // #0d5c45 deep green
   emeraldDeep: [0.024, 0.180, 0.133] as const, // #062e22
+  /*
+   * `--accent-wash` from the design's own `tokens.css`, **copied rather than mixed here.** An
+   * information box needs a tint of the accent to sit on, and a tint computed at runtime would be a
+   * colour the design system does not contain — which is how a PDF starts drifting away from the
+   * site it is a publication of.
+   */
+  emeraldWash: [0.886, 0.937, 0.910] as const, // #e2efe8
   gold: [0.788, 0.659, 0.298] as const, // #c9a84c
   goldBright: [0.910, 0.780, 0.400] as const, // #e8c766
   ochre: [0.541, 0.353, 0.169] as const, // #8a5a2b muted tan
