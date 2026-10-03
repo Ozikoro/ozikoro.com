@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ozikoro — Account</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif:wght@400;600;700&family=Noto+Sans:wght@400;500;600;700&display=swap');
+:root{
+ --paper:#f7f1e3;--surface:#fffdf8;--sunk:#efe6d2;--edge:#e2d5b8;--edge2:#c9b48a;
+ --ink:#1d1a16;--strong:#0f0d0b;--muted:#6b6358;--faint:#8d8577;
+ --green:#0d5c45;--green2:#08402f;--gold:#c9a84c;--gold2:#e8c766;
+ --night:#0f0d0b;--on:#f3ead6;
+ --serif:"Noto Serif",Georgia,serif;--sans:"Noto Sans",Arial,sans-serif;
+}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans)}
+a{color:inherit}.top{height:38px;background:var(--night);color:#b9ad94;font-size:12px}
+.topin{width:min(1180px,calc(100% - 44px));height:100%;margin:auto;display:flex;align-items:center;justify-content:space-between}
+.top a{text-decoration:none}.top .active{color:var(--on)}
+.header{background:var(--surface);border-bottom:1px solid var(--edge)}
+.headin{width:min(1180px,calc(100% - 44px));height:84px;margin:auto;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px;text-decoration:none}
+.brandmark{width:38px;height:38px;border:1px solid var(--gold);border-radius:50%;display:grid;place-items:center;color:var(--gold);font-family:var(--serif);font-weight:700}
+.brand strong{font:700 25px var(--serif);letter-spacing:.01em}
+.brand small{display:block;margin-top:2px;color:var(--muted);font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+.nav{display:flex;gap:25px;color:var(--muted);font-size:13px}.nav a{text-decoration:none}.nav a:hover{color:var(--green)}
+main{min-height:calc(100vh - 122px);padding:54px 22px 70px}
+.crumb{width:min(1180px,100%);margin:0 auto 20px;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}
+.auth{width:min(1060px,100%);margin:auto;display:grid;grid-template-columns:42% 58%;background:var(--surface);border:1px solid var(--edge);box-shadow:0 18px 45px rgba(29,26,22,.08)}
+.editorial{background:var(--night);color:var(--on);padding:54px 50px;position:relative;overflow:hidden;min-height:610px;display:flex;flex-direction:column;justify-content:space-between}
+.editorial:after{content:"";position:absolute;width:440px;height:440px;border:1px solid rgba(201,168,76,.2);border-radius:50%;right:-300px;bottom:-230px}
+.eyebrow{color:var(--gold2);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;margin:0 0 22px}
+.editorial h1{font:600 43px/1.12 var(--serif);margin:0;max-width:400px;letter-spacing:-.025em}
+.editorial h1 em{color:var(--gold2)}
+.rule{width:55px;height:1px;background:var(--gold);margin:27px 0}
+.editorial p{font:400 16px/1.75 var(--serif);color:#b9ad94;max-width:390px;margin:0}
+.note{position:relative;z-index:2;border-top:1px solid rgba(243,234,214,.15);padding-top:18px;color:#8f856f;font-size:10px;display:flex;justify-content:space-between;letter-spacing:.04em}
+.note b{display:block;color:#f3ead6;font-family:monospace;margin-bottom:3px}
+.formside{padding:54px 66px;display:flex;align-items:center}
+.inner{width:100%;max-width:450px;margin:auto}
+.kicker{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.16em;text-transform:uppercase;margin:0 0 10px}
+h2{font:600 36px/1.18 var(--serif);color:var(--strong);margin:0;letter-spacing:-.02em}
+.lede{color:var(--muted);line-height:1.65;margin:12px 0 29px;max-width:420px}
+label{display:block;font-size:13px;font-weight:600;margin-bottom:7px;color:var(--strong)}
+.group{margin-bottom:18px}
+input{width:100%;height:49px;border:1px solid var(--edge2);background:var(--surface);padding:0 14px;border-radius:4px;outline:0;color:var(--ink);font:15px var(--sans)}
+input:focus{border-color:#1b4f8a;box-shadow:0 0 0 3px rgba(27,79,138,.1)}
+.pass{position:relative}.pass input{padding-right:62px}.show{position:absolute;right:7px;top:7px;height:35px;border:0;background:transparent;color:var(--green);font-size:12px;cursor:pointer}
+.row{display:flex;justify-content:space-between;align-items:center;margin:2px 0 22px;font-size:12px;color:var(--muted)}
+.check{display:flex;align-items:center;gap:8px;font-weight:400}.check input{width:15px;height:15px;accent-color:var(--green)}
+.link{color:var(--green);text-underline-offset:3px}
+.primary{width:100%;height:50px;border:1px solid var(--green);border-radius:4px;background:var(--green);color:white;font-weight:600;cursor:pointer}.primary:hover{background:var(--green2)}
+.or{display:flex;align-items:center;gap:12px;color:var(--faint);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin:24px 0}.or:before,.or:after{content:"";height:1px;background:var(--edge);flex:1}
+.google{width:100%;height:49px;background:var(--surface);border:1px solid var(--edge2);border-radius:4px;font-weight:500;cursor:pointer}.google:hover{background:var(--sunk)}
+.switch{text-align:center;color:var(--muted);font-size:13px;margin:24px 0 0}.switch a{color:var(--green);font-weight:600;text-decoration:none}
+.terms{font-size:11px;color:var(--muted);line-height:1.55;margin:0 0 21px}.terms .check{align-items:flex-start}.terms .check input{margin-top:2px;flex:none}
+.security{border-top:1px solid var(--edge);margin-top:25px;padding-top:15px;color:var(--faint);font-size:10px;line-height:1.55;display:flex;gap:8px}.dot{width:7px;height:7px;border-radius:50%;background:#3c5436;margin-top:4px;flex:none}
+.footer{width:min(1060px,100%);margin:18px auto 0;display:flex;justify-content:space-between;color:var(--faint);font-size:10px}
+@media(max-width:850px){.nav{display:none}.auth{grid-template-columns:1fr}.editorial{min-height:300px;padding:38px 35px}.editorial h1{font-size:38px}.formside{padding:40px 35px}}
+@media(max-width:560px){.topin,.headin{width:calc(100% - 28px)}.topin span{display:none}.headin{height:70px}.brand strong{font-size:22px}.brandmark{width:34px;height:34px}main{padding:25px 12px 45px}.crumb{margin-bottom:12px}.editorial{padding:30px 25px}.editorial h1{font-size:34px}.editorial p{font-size:15px}.formside{padding:31px 23px}h2{font-size:31px}.footer{display:none}}
+</style>
+</head>
+<body>
+<div class="top"><div class="topin"><span><a class="active" href="#">ozikoro.com — archive &amp; research</a>&nbsp;&nbsp;&nbsp; <a href="#">ozituma.com — dictionary</a>&nbsp;&nbsp;&nbsp; <a href="#">learn.ozituma.com — Learn Igbo</a></span><a href="#" class="active">History &amp; Archive</a></div></div>
+<header class="header"><div class="headin">
+<a class="brand" href="#"><span class="brandmark">O</span><span><strong>Ozikoro</strong><small>History &amp; Archive</small></span></a>
+<nav class="nav"><a href="#">Histories</a><a href="#">Folklores</a><a href="#">Watch</a><a href="#">Archive</a><a href="#">Researchers</a><a href="#">Calendars</a><a href="#">About</a></nav>
+</div></header>
+
+<main>
+<div class="crumb">Ozikoro / Account / <span id="crumb">Sign in</span></div>
+<section class="auth">
+<aside class="editorial">
+<div><p class="eyebrow">Ozikoro · History &amp; Archive</p><h1 id="intro">Welcome back to <em>the archive.</em></h1><div class="rule"></div><p id="introcopy">Access your Ozikoro account to continue reading histories, saving research, and managing the material you contribute to the archive.</p></div>
+<div class="note"><span><b>OZ—AUTH—001</b>Archive access</span><span><b>2026</b>Ozi Ikoro Limited</span></div>
+</aside>
+<section class="formside"><div class="inner">
+<p class="kicker" id="kicker">Member access</p><h2 id="title">Sign in to Ozikoro</h2><p class="lede" id="lede">Continue your work across histories, documents, collections and research.</p>
+<form id="form">
+<div class="group" id="namegroup" style="display:none"><label>Full name</label><input type="text" placeholder="Your full name"></div>
+<div class="group"><label>Email address</label><input type="email" placeholder="you@example.com" required></div>
+<div class="group"><label>Password</label><div class="pass"><input id="pw" type="password" placeholder="Your password" required><button class="show" type="button" onclick="toggle()">Show</button></div></div>
+<div class="group" id="confirmgroup" style="display:none"><label>Confirm password</label><div class="pass"><input id="confirm" type="password" placeholder="Confirm your password"><button class="show" type="button" onclick="toggle2()">Show</button></div></div>
+<div class="row" id="signinrow"><label class="check"><input type="checkbox"> Remember me</label><a class="link" href="#">Forgot password?</a></div>
+<div class="terms" id="terms" style="display:none"><label class="check"><input type="checkbox" required><span>I agree to the <a class="link" href="#">Terms of Use</a> and <a class="link" href="#">Privacy Policy</a>.</span></label></div>
+<button class="primary" type="submit" id="submit">Sign in&nbsp; →</button>
+</form>
+<div class="or">or continue with</div><button class="google" type="button">G&nbsp;&nbsp; Continue with Google</button>
+<p class="switch" id="switch">Don’t have an account? <a href="#" onclick="signup();return false">Create one</a></p>
+<div class="security"><span class="dot"></span><span>Your account provides personal research tools. Public archive material remains accessible without an account.</span></div>
+</div></section>
+</section>
+<div class="footer"><span>Ozi Ikoro Limited</span><span>History · Archive · Research · Culture</span></div>
+</main>
+<script>
+function toggle(){let x=document.getElementById('pw'),b=document.querySelectorAll('.show')[0];x.type=x.type==='password'?'text':'password';b.textContent=x.type==='password'?'Show':'Hide'}
+function toggle2(){let x=document.getElementById('confirm'),b=document.querySelectorAll('.show')[1];x.type=x.type==='password'?'text':'password';b.textContent=x.type==='password'?'Show':'Hide'}
+function signin(){location.hash='signin';document.getElementById('crumb').textContent='Sign in';document.getElementById('kicker').textContent='Member access';document.getElementById('title').textContent='Sign in to Ozikoro';document.getElementById('lede').textContent='Continue your work across histories, documents, collections and research.';document.getElementById('intro').innerHTML='Welcome back to <em>the archive.</em>';document.getElementById('introcopy').textContent='Access your Ozikoro account to continue reading histories, saving research, and managing the material you contribute to the archive.';document.getElementById('namegroup').style.display='none';document.getElementById('confirmgroup').style.display='none';document.getElementById('signinrow').style.display='flex';document.getElementById('terms').style.display='none';document.getElementById('submit').innerHTML='Sign in&nbsp; →';document.getElementById('switch').innerHTML='Don’t have an account? <a href="#" onclick="signup();return false">Create one</a>'}
+function signup(){location.hash='signup';document.getElementById('crumb').textContent='Sign up';document.getElementById('kicker').textContent='New member';document.getElementById('title').textContent='Create your Ozikoro account';document.getElementById('lede').textContent='Build a personal place for the histories, sources and communities you want to follow.';document.getElementById('intro').innerHTML='Join the work of <em>the archive.</em>';document.getElementById('introcopy').textContent='Create an account to save histories, build research collections, contribute material, and take part in a growing record of African histories and cultures.';document.getElementById('namegroup').style.display='block';document.getElementById('confirmgroup').style.display='block';document.getElementById('signinrow').style.display='none';document.getElementById('terms').style.display='block';document.getElementById('submit').innerHTML='Create account&nbsp; →';document.getElementById('switch').innerHTML='Already have an account? <a href="#" onclick="signin();return false">Sign in</a>'}
+if(location.hash==='#signup')signup();
+</script>
+</body>
+</html>

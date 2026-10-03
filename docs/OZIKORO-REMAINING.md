@@ -13742,3 +13742,43 @@ and a clean rebuild. **It was found only by asking why the byte count was identi
     after   ute-okpu                     183,980 b   3 images   7 pages
             james-africanus-beale-horton 132,837 b   3 images   6 pages
             aya-adesuwa                  315,737 b   3 images   9 pages
+
+---
+
+## ROUND 301 — THE OWNER'S OWN ACCOUNT PAGE, AND WHY IT WAS NOT THERE BEFORE
+
+### The answer to the question
+
+**The design was not used because it had not arrived.** The owner said *"i also attached the sign up and sign
+in page design"* in an earlier message, **and nothing came through with it** — which was said at the time and
+is why the plain pages were built. It arrived later, and is now the page.
+
+### What the design is
+
+    apps/ozikoro/public/design/screens/account.html     the owner's own page, 12,047 bytes, unedited
+    apps/ozikoro/public/account-auth.js                 the server it does not carry
+
+**Self-contained: no external stylesheet, no external image, every asset inline.** It holds **both modes in one
+document** — `signin()` and `signup()` move the crumb, the kicker, the title, the lede, the visibility of the
+Full name field and the button's own words — and its own links move between them. `/signin` and `/join` both
+serve it, **opening in their own mode by setting the hash once before the wiring script runs**, so the design's
+own toggle does everything after that and the back button works.
+
+### And the field names, read from the endpoint rather than guessed
+
+    the design draws      "Full name"  and  "Confirm your password"
+    the endpoint wants    display_name  and  password_again
+
+**A form posting `name` would have been refused for a missing name it had just been given** — the commonest
+way a hand-built form meets a real API.
+
+### Verified
+
+    /signin  200  design present · wiring present · opens #signin
+    /join    200  design present · wiring present · opens #signup
+    design parity      identical 63 differing 0 missing 0   (account.html is extra, not a substitution)
+
+    sign in with the owner's password  -> 303 -> /admin?welcome=1  ·  "Idenze Ezeme"  ·  owner
+    register through the same endpoint -> 303 -> /dashboard-reader
+
+**The password is the owner's own choice and is set.**
