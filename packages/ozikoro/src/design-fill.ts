@@ -1790,6 +1790,25 @@ export function fillDashboardLinks(html: string, screen: string): string {
   out = out.replace(/href="\.\.\/((?:styles|screens)\/[^"]+)"/g, 'href="/$1"');
 
   /*
+   * THE SCRIPTS WERE THE HALF NOBODY REWROTE, AND THEY ARE THE WHOLE PAGE ON SOME SCREENS.
+   *
+   * Styles were rewritten and scripts were not, so with `<base href="/">` in the head a screen serving
+   * `src="../market-days.js"` asked for `/market-days.js` and got a 404. **The page then sat on the
+   * design's own placeholder — "Today — Loading date…" — forever, because nothing had been replaced.**
+   * It reads as a page that is still loading rather than a page that is broken, which is why it
+   * survived every check: the HTML is well-formed, the status is 200, and the only thing missing is
+   * a number a script was going to put there.
+   *
+   * Measured across the deliverable: `../market-days.js` on about, academy, careers, cite, collections
+   * and others; `../reader.js` and `../mobile-nav.js` on the article screens. Every one of them 404'd.
+   * The files live at `/design/<name>.js` and the middleware serves them from there.
+   *
+   * The lookbehind-free pattern is deliberate: these are simple sibling references and the deliverable
+   * writes no script with a path segment in it, so a bare filename is the whole grammar.
+   */
+  out = out.replace(/src="\.\.\/([^"/]+\.js)"/g, 'src="/design/$1"');
+
+  /*
    * THE RELATIVE SCREEN LINKS BECOME THE ADDRESSES THE SITE ACTUALLY SERVES.
    *
    * Each of these is a design screen whose own page is not the page the link promised: the design's

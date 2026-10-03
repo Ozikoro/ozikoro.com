@@ -117,7 +117,14 @@ done
 echo "==> serving on http://127.0.0.1:$PORT"
 (
   cd "$SD"
+  # OZITUMA_SITE_URL is what decides whether the session cookie carries Secure: the shared helper
+  # derives it from this URL and falls back to NODE_ENV when it is unset. A standalone build runs
+  # with NODE_ENV=production, so leaving this unset makes `secure = true`, and a browser silently
+  # DISCARDS a Secure cookie received over http:// — sign-in returns 303, appears to work, and the
+  # masthead still reads "Sign in / Sign up" on the next page. Setting the real origin makes the
+  # helper set secure = false, which is correct for a plain-HTTP review server.
   PORT="$PORT" HOSTNAME=0.0.0.0 OZITUMA_DB_PATH="$ROOT/.data/pg" \
+    OZITUMA_SITE_URL="http://127.0.0.1:$PORT" \
     node apps/ozikoro/server.js > /tmp/ozikoro-review-$PORT.log 2>&1 &
 )
 

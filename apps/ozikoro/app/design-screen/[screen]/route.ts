@@ -228,6 +228,23 @@ export async function GET(
     html = await readFile(join(SCREEN_DIR, `${name}.html`), 'utf8');
 
     /*
+     * EVERY SCREEN'S SCRIPTS, NOT ONLY THE DASHBOARDS'.
+     *
+     * The design's screens load their behaviour with sibling references — `../market-days.js` on the
+     * calendar screens, `../reader.js` and `../mobile-nav.js` on the article screens. Served at
+     * `/market-days/` those resolve against the served directory and ask for `/market-days.js`, which
+     * does not exist; the file is at `/design/market-days.js`. **The result is a page whose HTML is
+     * correct, whose status is 200, and whose one dynamic value never arrives** — the calendar sat on
+     * the design's own placeholder, "Today — Loading date…", and looked like a page still loading.
+     *
+     * `fillDashboardLinks` rewrote these, but it runs only for the dashboards and the linked screens,
+     * so the fix reached fourteen screens and missed the rest. It belongs here, where every screen
+     * passes. The rule is deliberately narrow — a bare sibling filename with no path segment — because
+     * that is the whole grammar the deliverable uses for its own scripts.
+     */
+    html = html.replace(/src="\.\.\/([^"/]+\.js)"/g, 'src="/design/$1"');
+
+    /*
      * THE MENU SAYS WHO THE READER IS, ON EVERY SCREEN.
      *
      * The design's last item is `My Ozikoro`, pointing at the reader dashboard — **a link that goes to a
