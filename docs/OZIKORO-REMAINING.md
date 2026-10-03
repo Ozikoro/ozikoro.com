@@ -13585,3 +13585,58 @@ same document it was before.
 `if (episode) { html = html.replace(…` — at that point the variable is `filled`, not `html`, **and the block sat
 above the assignment.** A rename I did not make, in code I had just written, **caught by the typechecker rather
 than by the owner.**
+
+---
+
+## ROUND 298 — THE PUBLICATION ENGINE, AND A FILE THAT WAS VALID EVERYWHERE EXCEPT AT ITS FIRST BYTE
+
+### What was built
+
+    packages/ozikoro/src/pdf/writer.ts        a PDF writer, no dependency
+    packages/ozikoro/src/pdf/publication.ts   the layout: cover, body, heads, feet, references
+    apps/ozikoro/lib/publication.ts           article -> blocks, captions, references, featured image
+    apps/ozikoro/app/[slug]/pdf/route.ts      /<slug>/pdf
+    scripts/generate-pdf.ts                   the runner, sharing that one mapping
+
+**`npm install pdf-lib` failed** — the npm cache is not writable by this process, and the log path is the user's
+home directory. **So the writer is written here instead: objects, a page tree, content streams and an xref
+table.** A PDF is a text format, and this is the whole of it, readable in a sitting. **The consequence is that
+nothing in this pipeline can break on an upgrade.**
+
+### Seven test cases, generated from real records
+
+    aya-adesuwa-the-ubulu-uku-bini-war                 11 pages   3 images   460 KB   a long study
+    extended-family-and-kinship-structures-umunna-…    10 pages   5 images   827 KB   a 26-word title
+    james-africanus-beale-horton                        9 pages   5 images   419 KB   has references
+    oil-and-tradition-…-kalabari-communities            8 pages   2 images   345 KB   no featured image
+    ute-okpu-an-ika-igbo-clan-and-its-nri-roots         7 pages   0 images    26 KB   its images are WebP
+    the-anioma-people-culture-history-…                  5 pages   2 images   168 KB   has a table
+    strategic-relocation-…-immigrants-in-the-usa         5 pages   0 images    20 KB   a short record
+
+### The fault that made every file unopenable
+
+**A PDF must begin `%PDF-1.x`. This one began `1 0 obj`.** Every other part of the structure was correct — the
+catalogue, the page tree, the fonts, the content streams, the xref table and its offsets — **and the document
+would not open in anything.** The header is four bytes in front of a file of twenty-seven thousand, and its
+absence is invisible in every check except the one that matters: whether a reader will load it.
+
+### And two faults found by reading the text back out
+
+**The streams are uncompressed, so every word in a generated PDF can be read out of it directly.** That is how
+these were found, without a PDF reader on the machine:
+
+    Ute-Okpu&#8217;s own          the entity was never decoded. Stripping tags does not decode what the
+                                 tags contained, and WordPress writes curly punctuation this way throughout.
+    the drop cap floated          the initial was drawn five points above the rest of its line, so the two
+                                 halves read as separate lines with a letter between them
+
+### What the engine will not do
+
+**It renders and does not edit.** The article's own title, its own paragraphs, its own captions and its own
+references go in. **No subtitle, no biography and no featured image means that part of the page is designed
+away rather than filled** — a record with no references has no references section, and a record with no image
+has a cover that ends in its own typography rather than in an empty box.
+
+**A WebP or PNG figure is skipped rather than written wrong.** A PDF embeds JPEG natively and nothing else, and
+writing another format's bytes into an image object that claims DCTDecode produces a grey rectangle — **a
+missing figure is a smaller fault than a corrupt one.** Converting them is the next step.
