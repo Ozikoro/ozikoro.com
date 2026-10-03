@@ -816,4 +816,30 @@ dashboards. `<base href="/">` present on all of them, and **zero remaining relat
   copy, start, measure — run in one pass so no build could overlap a live server. **No database CLI was ever
   run while the cluster was held, and no process was ever SIGKILLed.**
 
+## 6. A correction to the record, because the commit is not only this round's work
+
+**Commit `6c0f3f9` also carries another agent's work, and that is recorded here rather than left to be
+discovered.** Two files in it are not only this round's changes:
+
+* `packages/ozikoro/src/design-fill.ts` — about 1,300 lines of the public screens' fill functions
+  (`fillAcademy`, `fillPublications`, `fillResearcherProfile`, `fillCareers`, `fillTown`,
+  `clearExampleMaterial` and the rest) and their route wiring;
+* `apps/ozikoro/app/design-screen/[screen]/route.ts` — the expanded `FILLED` set and the fill blocks that call
+  them.
+
+**Those changes belong to the agent working on the public screens, not to this round.** They were uncommitted
+in the shared working tree while this round ran, and they were picked up when the file was staged: the
+concurrent agent had appended them to `design-fill.ts` between this round's last edit and its `git add`. The
+content is intact and that agent's own follow-up commit sits directly on top (`afd1884`), so nothing was lost
+— **what is wrong is the attribution in one commit's diff, and a wrong record is the fault this whole document
+exists to avoid.**
+
+An attempt to rebuild that commit cleanly was abandoned rather than forced: it would have had to rewrite the
+other agent's commit as well, **and rewriting somebody else's commit in a shared working tree is a far worse
+fault than an imperfect attribution.** The separation *was* done for four other shared files, where it was
+safe: `apps/ozikoro/app/admin/page.tsx`, `apps/ozikoro/app/admin/layout.tsx`, `packages/ozikoro/src/index.ts`
+and `packages/ozikoro/package.json` were staged with **only this round's hunks**, and the other agent's
+Knowledge-graph card, its nav link and its three platform exports remain uncommitted in the working tree.
+
+
 
