@@ -15625,8 +15625,14 @@ The owner's second report about the narration:
 > fed you didnt"*
 
 Two faults. **They are not the same fault and they do not have the same answer.** He supplied `Ute Okpu 2.mp3`
-(10,672,389 bytes, copied to `work/audio-forensics/owner-reference.mp3`, SHA-256
+(10,672,389 bytes, SHA-256
 `78cefb7fe022b2d36d35c1fa8e3663ef7f84550d876228d1f1eff8208da08f9a`) as the standard, and it is clean.
+
+**His recording is his media and is deliberately NOT committed.** `work/audio-forensics/measure.py` and
+`plots.py` read it from the attachment it was supplied as (`~/.dsh/attachments/v1/files/78/78cefb…/Ute Okpu
+2.mp3`) and fall back to a copy beside the scripts if one has been placed there, so the numbers and the figures
+can be regenerated without this repository carrying his audio. Only the two figures, which are ours, are
+committed.
 
 **No setting was changed. Nothing was re-rendered. No credit was spent.** What follows is measurement, the
 tools that produced it, and what each number does and does not prove.
@@ -15657,7 +15663,9 @@ audio, so **whether the spoken words match the stored scripts could not be check
 
 Method, stated so it can be repeated: decode to mono float32; frame the signal at **50 ms window, 25 ms hop**;
 frame level = RMS in dBFS; **noise floor = the 10th percentile of frame levels over the whole file**, speech
-level = the 90th percentile. Script: `work/audio-forensics/analyse.py`.
+level = the 90th percentile. Script: **`work/audio-forensics/measure.py`**, which decodes the files itself and
+prints the tables in §2 and §4 (`.tools/tts-venv/bin/python work/audio-forensics/measure.py`); the figures come
+from `work/audio-forensics/plots.py`.
 
 | file | noise floor (10th pct) | speech (90th pct) | **SNR** | quiet-frame RMS |
 |---|---|---|---|---|
@@ -15758,16 +15766,53 @@ and `apps/ozikoro/app/media/[...key]/route.ts` reads object storage — which wi
 `data/media/ozikoro-wp/episodes/` is byte-identical but is **not** storage and is not served. **No setting
 change can reach an existing episode; a file outlives the setting that made it.**
 
-### 4. THE SEAM, AND THE QUARTER OF A RENDER NOBODY HAS EVER HEARD
+### 4. ONLY ONE OF THE THREE WAS RENDERED IN CHUNKS, AND IT IS THE ONE THAT IS DAMAGED
 
 Round 312 found `speak()` concatenates whole MP3s so a multi-chunk episode carries an `ID3v2` tag mid-file, and
-that PyAV refuses the folklore file. Both are confirmed, and the second is worse than "cosmetic":
+that PyAV refuses the folklore file. Both are confirmed — but **the tag is in one file, not three**, and
+establishing which took a check that the first pass here got wrong and then corrected.
 
-| file | internal `ID3` tag at | the file's own `Info` header declares | frames present | frames a decoder plays |
+**A raw byte scan for `ID3` finds one in all three files and is not evidence.** A compressed audio stream is
+arbitrary bytes, so three ASCII characters followed by a plausible header occur by chance several times in
+eight megabytes. Validity has to be tested, not the three bytes — version, revision, flags and a syncsafe size:
+
+| file | raw `ID3` at | header bytes | verdict |
+|---|---|---|---|
+| `ute-okpu` | 600,898 (37.56 s) | `49 44 33 07 63 37 29 62 b0 03` — version **7**, revision 99 | **a coincidence, not a tag** |
+| `how-tortoise` | 534,340 (33.40 s) | `49 44 33 65 4b 39 3c 71 0b 13` — version **101** | **a coincidence, not a tag** |
+| `folklore` | 4,955,774 (309.74 s) | `49 44 33 3f 44 36 30 0c 08 e0` — version **63** | **a coincidence, not a tag** |
+| `folklore` | **6,524,804** (407.80 s) | `49 44 33 04 00 00 00 00 00 23` — v2.4, revision 0, flags 0, size 35 | **a real tag** |
+
+So exactly one of the three is a joined render:
+
+| file | real `ID3` tags | its own `Info` header declares | frames present | frames a decoder plays |
 |---|---|---|---|---|
-| `ute-okpu` | byte 600,898 (37.56 s) | 19,210 frames / 8,029,412 B | 19,210 | 19,210 |
-| `how-tortoise` | byte 534,340 (33.40 s) | 5,527 frames / 2,310,477 B | 5,527 | 5,527 |
-| `folklore` | byte **6,524,804** | **15,610 frames / 6,524,759 B — the first chunk only** | **20,435** | **15,610** |
+| `ute-okpu` | **1** (offset 0) | 19,210 frames / 8,029,412 B — the whole file | 19,210 | 19,210 |
+| `how-tortoise` | **1** (offset 0) | 5,527 frames / 2,310,477 B — the whole file | 5,527 | 5,527 |
+| `folklore` | **2** (0 and 6,524,804) | **15,610 frames / 6,524,759 B — the first chunk only** | **20,435** | **15,610** |
+
+**WHICH FILES WENT THROUGH THE CHUNKER, AND WHY THAT AGREES WITH `chunking.ts`'s OWN HEADER.** The three
+scripts are **9,844 / 3,250 / 11,418 characters**. `ELEVENLABS_MAX_CHARS` is 9,000 and the API's real ceiling is
+10,000, and `chunking.ts` preserves the exact refusal the 9,000 figure was derived from — *"Request text length
+(11418) exceeds the maximum text length of 10000 characters"* — and **11,418 is the folklore script's own
+character count.** That single fact explains the whole set:
+
+* `ute-okpu` (9,844) and `how-tortoise` (3,250) are **under the API's 10,000**, so each was rendered as **one
+  request**: one contiguous stream, one tag, and an `Info` frame covering the whole file. **Neither ever went
+  through the chunker.**
+* `folklore` (11,418) is **over it** and was refused outright; it was then rendered as **two chunks** once
+  chunking existed. It is the only file with a second tag, and the only one that loses audio.
+
+Two things follow, and both matter to the owner's report. **The seam defect has never touched `ute-okpu` — the
+file whose pace he is judging** — so it is not a candidate explanation for the noise there, and it will touch
+every script over 9,000 characters from now on.
+
+The corroboration here is the API's own refusal and not the stored column, and the difference is worth being
+precise about: **`char_count` is `script.length`, written by the same restore script that re-derived the script
+(§3, §5), so it agreeing with the script is arithmetic and not evidence.** What *is* independent is that
+`chunking.ts` preserved a live `text_too_long` refusal quoting **11,418**, against a 10,000-character ceiling —
+a number that matches the folklore script and only that one. So a script of that length was genuinely
+submitted, was genuinely refused, and `folklore` is genuinely the file that then went out in two pieces.
 
 **The folklore file contains 533.812 s of rendered speech and plays 407.771 s of it.** The `Info` frame at
 offset 66 declares 15,610 frames; the file continues for a further 2,017,070 bytes, which is a second whole
@@ -15777,15 +15822,14 @@ because `afinfo` and libsndfile both stop at the declared frame count. `afinfo` 
 the repository's own `mp3DurationSeconds` reports **533.812 s** and is right, which is the case round 312
 predicted it would win.
 
-**Could the noise be a seam artefact? No.** A seam can produce a click, a level step or a burst at one
-instant. The bed in §2 is present in every 60-second window of every generated file, and the join points carry
-**no click**: the largest sample-to-sample step within ±2 samples of each seam is 0.0092 / 0.0094 / 0.0119,
-against the files' own 99.999th percentile of 0.090 / 0.129 / 0.129, and the click count is **0** in all four
-files at a threshold of 8× that percentile (`analyse.py`). What the seams *do* carry is a level step, because
-they fall mid-word: at `ute-okpu`'s join the last 100 ms of chunk 1 fall from −18.0 dBFS to −37.6 dBFS and
-chunk 2 resumes at the floor — the "abrupt change in prosody from one chunk to another" that ElevenLabs' own
-request-stitching guide exists to prevent. **The seam is a real defect that must be fixed before the next
-multi-chunk render, and it is not the noise.**
+**Could the noise be a seam artefact? No — and for the file the owner is judging, there is no seam at all.**
+The bed in §2 is present in every 60-second window of every generated file, and the click count is **0 in all
+four files** at a threshold of 8× each file's own 99.999th sample-difference percentile (`measure.py`); a
+joiner's click, level jump or burst is simply not there. `ute-okpu` and `how-tortoise` have **no join** to
+produce one. `folklore`'s one join sits at 407.80 s — *past* the point its own `Info` frame stops every decoder
+that honours it — so the seam is not even reached; what that file suffers is 126 s of speech going missing, not
+a noise. **The seam is a real defect that must be fixed before the next multi-chunk render, and it is not the
+noise.**
 
 ### 5. `scripts/restore-episodes.ts` REWROTE THE FILES, AND THAT EXPLAINS THE SHARED MTIME
 
@@ -15844,7 +15888,7 @@ are for prosody continuity across chunks, not for cheap previews. A three-senten
 example line repeated to roughly **200 characters** — would cost **≈200 credits**, which is **0.9 %** of the
 remaining allowance, and would answer the question the whole of §2 is a hypothesis about: render the same 200
 characters twice, once with `use_speaker_boost: true` and once with `false`, and measure both with
-`analyse.py`. **That is a cost the owner should authorise rather than have spent for him, so it was not
+`measure.py`. **That is a cost the owner should authorise rather than have spent for him, so it was not
 spent.**
 
 **The caveat that makes the test urgent rather than optional:** if the three files were not produced by this
