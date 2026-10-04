@@ -9,29 +9,56 @@ The interface follows the approved design handoff: editorial serif and sans typo
 accents on deep charcoal-green surfaces, archival imagery, sharp rules and generous whitespace.
 There is deliberately no XP, streak, leaderboard or marketplace economy.
 
-## What this application is, and what it is not
+## What is real, and what is still representative
 
-**It is a complete front end.** Every one of the 34 routes renders, navigates and carries its own
-metadata, and the catalogue, culture profiles, timelines, maps, comparisons, lesson readers and the
-Onye Ozi panel are all driven from one data module.
+**Accounts, enrolment and progress are real and persisted.** A learner registers against the shared
+`account` table — the same one the dictionary uses — signs in, enrols in a course, and their progress
+and assessment attempts survive a reload and follow them between devices. "My Learning" reads that
+record; the lesson reader shows their actual position and offers completion only when a lesson is not
+already done.
 
-**It has no backend.** This is the important thing to know before reading the code as if it were
-finished:
+**The rest of the front end is still representative content**, and it is worth being precise about
+which parts, because the pages look equally finished:
 
-- enrolment, progress, mastery, accounts, certificates and the academic record are **representative
-  content, not recorded state**;
-- nothing persists across a reload, and there is no database, no session and no server function;
-- Onye Ozi answers from a fixed reply, not from approved sources;
-- several controls are presentational — the sort selector, the certificate download, the
-  reading-list save and the class assignment form.
+- **Mastery, certificates and the academic record** are illustrative. The spec's mastery engine has
+  not been built. `academy_attempt` is deliberately a log rather than a single mutable score, so it
+  is the history that engine will read.
+- **The catalogue lives in code** (`src/data/academy.ts`), not in the database, so enrolment
+  references courses by slug. Moving it into `learn_course` is a migration and a foreign key, and
+  enrolments do not change meaning when it happens.
+- **Onye Ozi answers from a fixed reply**, not from approved sources.
+- **Sources, culture profiles, maps, timelines, comparisons and the classroom system** are the
+  spec's remaining entities; none is persisted.
+- Several controls are presentational: the sort selector, the certificate download, the reading-list
+  save and the class assignment form.
+- The home page's "24 Structured courses / 8 Learning pathways / 12 Academic instructors" does not
+  match the data behind it (6 / 10 / 3). It is placeholder copy that should be corrected or wired to
+  real counts.
 
-The originating plan states this plainly: *"Keep interactions front-end only with representative
-content and UI states; enrolment, accounts, saved progress, certificates, search, and Onye Ozi will
-be demonstrations until a connected backend is requested."*
+`AGENTS.md` requires the Academy to use Ozikoro's **single shared authentication, profile, role and
+admin data source, so that registration applies everywhere**. That is now true of authentication: the
+account table is shared. Profiles, roles and admin are shared by virtue of being the same table, but
+nothing in the Academy yet reads a role or exposes an administration surface.
 
-The repository's own `AGENTS.md` sets the requirement that follows: **the Academy must use Ozikoro's
-single shared authentication, profile, role and admin data source, so that registration applies
-everywhere.** That work has not been done.
+### How the backend is wired
+
+- `src/backend/` holds the server side. It is not under `src/server/` because TanStack Start's
+  import-protection plugin denies any client import from a `**/server/**` path.
+- `src/backend/functions.ts` is the only place a session is read and the only place authorisation is
+  decided. `src/backend/academy.ts` takes an `accountId` it cannot obtain itself, so a route cannot
+  read another learner's progress by forgetting a check.
+- The Academy authenticates against the shared tables but **cannot share the session cookie**: a
+  cookie may only be shared within one registrable domain, and `ozikoro.com` and `ozituma.com` are
+  different registrable domains. It therefore issues its own session scoped to `.ozikoro.com`. The
+  shared thing is the account, not the session.
+- `src/backend/passwords.ts` and `src/backend/session.ts` are ports of the canonical implementations
+  in `packages/db`, not imports — see the header of `src/backend/db.ts` for why. They are
+  cross-verified in both directions by `.academy-work/cross-check-passwords.mjs`, because drift there
+  would mean an account created on the dictionary could not sign in here.
+- Schema changes live in `db/migrations/` and are applied by `db/migrate.mjs`, tracked in the
+  Academy's own `academy_migration` ledger. **The Academy deliberately does not use the dictionary's
+  migration chain**, because production and this repository diverged after migration `0033` — see the
+  header of `0001_academy.sql`.
 
 ## Running it
 

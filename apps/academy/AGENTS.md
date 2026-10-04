@@ -16,9 +16,9 @@ one. If the Academy is ever reconnected to Lovable, that warning becomes true ag
   learning views stay consistent with each other. A page that grows its own copy of course data is a
   page that will disagree with the catalogue the first time either changes.
 - **The Academy must use Ozikoro's single shared authentication, profile, role and admin data
-  source, so that registration applies everywhere.** This is the requirement the Academy has not yet
-  met: it currently has no backend, and every account, enrolment, progress and certificate state is
-  representative content. See `README.md` for the full account of what is and is not real.
+  source, so that registration applies everywhere.** Authentication now does: an Academy account is
+  a row in the dictionary's own `account` table. Profiles, roles and admin are shared by being the
+  same table, but nothing here reads a role or exposes an administration surface yet.
 
 ## Things worth knowing before changing it
 
@@ -29,5 +29,15 @@ one. If the Academy is ever reconnected to Lovable, that warning becomes true ag
 - **`apps/academy` is deliberately NOT an npm workspace member.** It has its own lockfile and its own
   Docker build, so its dependency graph cannot collide with the two Next.js apps'. See the header of
   `Dockerfile`.
+- **The server side lives in `src/backend/`, not `src/server/`.** TanStack Start's import-protection
+  plugin denies any client import from a `**/server/**` path, which is what the first build failed on.
+- **`src/backend/passwords.ts` and `session.ts` are COPIES of `packages/db/src/accounts.ts`.** They
+  must not drift: an account is shared, so a hash written by one must verify under the other. Run
+  `.academy-work/cross-check-passwords.mjs` after touching either.
+- **Every server function must be imported by a page, or it is not in the build.** Sign-out silently
+  disappeared from the bundle because nothing called it — an unreachable server function is not a
+  feature, and its absence is invisible until somebody looks for the button.
+- **The Academy has its own migration ledger (`academy_migration`) and must not use the dictionary's
+  chain.** Production and this repository diverged after `0033`; see `db/migrations/0001_academy.sql`.
 - **The shell's top bar names `academy.ozikoro.com` as the current host.** That is accurate now;
   it was not before the hostname existed.
