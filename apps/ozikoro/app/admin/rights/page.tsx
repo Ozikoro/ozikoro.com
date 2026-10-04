@@ -78,6 +78,13 @@ export default async function RightsPage({
           ({pct(progress.checked)}). <strong>{progress.articlesUsingUnchecked.toLocaleString('en-GB')}</strong>{' '}
           published article placements still rest on an item with no rights recorded.
         </p>
+        <p className="small muted">
+          Separately from any of that: <strong>{progress.withCredit.toLocaleString('en-GB')}</strong> items now
+          carry a credit line and <strong>{progress.withLicence.toLocaleString('en-GB')}</strong> name a licence.
+          Both were read out of the records themselves — the file&rsquo;s embedded metadata and the items&rsquo;
+          own captions — by <code>scripts/derive-media-rights.ts</code>. <strong>A credit is not a licence</strong>,
+          which is why they are counted apart: a credit says where something came from and grants nothing.
+        </p>
         <table className="record">
           <tbody>
             <tr><th scope="row">Checked</th><td>{progress.checked.toLocaleString('en-GB')} ({pct(progress.checked)})</td></tr>
@@ -110,37 +117,131 @@ export default async function RightsPage({
             Nothing matches. If you filtered to unchecked items, every item has been looked at.
           </p>
         ) : (
-          <table className="record" style={{ marginTop: '1rem' }}>
-            <thead>
-              <tr>
-                <th scope="col">Item</th>
-                <th scope="col">Used by</th>
-                <th scope="col">State</th>
-                <th scope="col" />
-              </tr>
-            </thead>
-            <tbody>
-              {queue.map((item) => (
-                <tr key={item.mediaId}>
-                  <td>
-                    <span className="mono small">{item.reference}</span>
-                    <div>{item.title}</div>
-                    <div className="history__when">{item.kind}</div>
-                  </td>
-                  <td className="small">
-                    {item.usedByArticles} {item.usedByArticles === 1 ? 'placement' : 'placements'}
-                  </td>
-                  <td className="small">
-                    {item.restricted ? 'restricted' : item.checked ? (item.allowsPublication ? 'publishable' : 'not publishable') : 'not checked'}
-                    {item.licence ? <div className="history__when">{item.licence}</div> : null}
-                  </td>
-                  <td>
-                    <Link className="btn btn--sm" href={`/admin/rights/?filter=${filter}&item=${item.mediaId}`}>Edit</Link>
-                  </td>
+          /*
+           * THE BULK PASS.
+           *
+           * 3,488 items and one form per item is 3,488 sittings, which is how a rights work list stays a
+           * list. The same values can be written to the ticked items, or to every item on this page, in one
+           * action — and **each item still gets its own audit row and its own validation**, because the
+           * route loops the single-item write rather than issuing one UPDATE. So a batch cannot store a
+           * publication permission with no basis, and a later reader can still see every item's own before
+           * and after.
+           *
+           * The two buttons are the whole of the selection UI in either direction: there is no script on
+           * this page, and "apply to all N shown" is deliberately N and not "everything", because a queue
+           * that is paged must not let one click write 3,488 rows.
+           */
+          <form method="post" action="/api/admin/rights" style={{ marginTop: '1rem' }}>
+            <input type="hidden" name="action" value="save-rights-bulk" />
+            <table className="record">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    <span className="visually-hidden">Include in this batch</span>
+                  </th>
+                  <th scope="col">Item</th>
+                  <th scope="col">Used by</th>
+                  <th scope="col">State</th>
+                  <th scope="col" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {queue.map((item) => (
+                  <tr key={item.mediaId}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        name="mediaId"
+                        value={item.mediaId}
+                        aria-label={`Include ${item.reference} in this batch`}
+                      />
+                    </td>
+                    <td>
+                      <span className="mono small">{item.reference}</span>
+                      <div>{item.title}</div>
+                      <div className="history__when">{item.kind}</div>
+                    </td>
+                    <td className="small">
+                      {item.usedByArticles} {item.usedByArticles === 1 ? 'placement' : 'placements'}
+                    </td>
+                    <td className="small">
+                      {item.restricted ? 'restricted' : item.checked ? (item.allowsPublication ? 'publishable' : 'not publishable') : 'not checked'}
+                      {item.licence ? <div className="history__when">{item.licence}</div> : null}
+                    </td>
+                    <td>
+                      <Link className="btn btn--sm" href={`/admin/rights/?filter=${filter}&item=${item.mediaId}`}>Edit</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* The page's own ids, so the second button can write all N without any script. */}
+            {queue.map((item) => (
+              <input key={`page-${item.mediaId}`} type="hidden" name="pageMediaId" value={item.mediaId} />
+            ))}
+
+            <fieldset style={{ marginTop: 'var(--s-4)' }}>
+              <legend className="small">What to record on the selected items</legend>
+              <div className="wpgrid">
+                <div className="wpfield">
+                  <label htmlFor="bulkCredit">Credit</label>
+                  <input id="bulkCredit" name="credit" type="text" maxLength={300} placeholder="left empty, this clears any credit on the selected items" />
+                </div>
+                <div className="wpfield">
+                  <label htmlFor="bulkLicence">Licence</label>
+                  <input id="bulkLicence" name="licence" type="text" maxLength={200} placeholder="e.g. CC BY-SA 4.0" />
+                </div>
+                <div className="wpfield">
+                  <label htmlFor="bulkLicenceUrl">Licence link</label>
+                  <input id="bulkLicenceUrl" name="licenceUrl" type="text" maxLength={300} placeholder="https://…" />
+                </div>
+                <div className="wpfield">
+                  <label htmlFor="bulkHolder">Rights holder</label>
+                  <input id="bulkHolder" name="holderName" type="text" maxLength={200} />
+                </div>
+                <div className="wpfield">
+                  <label htmlFor="bulkBasis">How permission was established</label>
+                  <select id="bulkBasis" name="permissionBasis" defaultValue="">
+                    <option value="">— not established —</option>
+                    {Object.entries(PERMISSION_BASIS_LABEL).map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+                  </select>
+                  <p className="wphelp">
+                    Required before publication can be permitted, on every item in the batch. An item that
+                    cannot take the change is refused and named; the rest are written.
+                  </p>
+                </div>
+                <div className="wpfield">
+                  <label htmlFor="bulkNote">What was established, and how</label>
+                  <textarea id="bulkNote" name="permissionNote" rows={2} maxLength={1000} />
+                </div>
+              </div>
+              <div style={{ marginTop: 'var(--s-3)' }}>
+                <label className="small" style={{ display: 'block' }}>
+                  <input type="checkbox" name="allowsPublication" /> Publish it
+                </label>
+                <label className="small" style={{ display: 'block' }}>
+                  <input type="checkbox" name="allowsDerivative" /> Adapt it — including reading it aloud as audio
+                </label>
+                <label className="small" style={{ display: 'block' }}>
+                  <input type="checkbox" name="allowsCommercial" /> Use it commercially
+                </label>
+              </div>
+            </fieldset>
+
+            <p style={{ marginTop: 'var(--s-4)', display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <button className="btn btn--primary" type="submit" name="scope" value="selected">
+                Record this on the ticked items
+              </button>
+              <button className="btn" type="submit" name="scope" value="page">
+                Record this on all {queue.length} shown
+              </button>
+            </p>
+            <p className="help">
+              Every item written gets its own entry in the audit trail, with the values it replaced. At most
+              200 items are written in one action.
+            </p>
+          </form>
         )}
       </Card>
 
@@ -183,6 +284,16 @@ export default async function RightsPage({
               <div className="wpfield">
                 <label htmlFor="permissionDate">Date permission was given</label>
                 <input id="permissionDate" name="permissionDate" type="date" defaultValue={focus?.permissionDate ?? ''} />
+              </div>
+              <div className="wpfield">
+                <label htmlFor="credit">Credit</label>
+                <input id="credit" name="credit" type="text" defaultValue={focus?.credit ?? ''} maxLength={300} placeholder="who the item is credited to" />
+                <p className="wphelp">
+                  The line shown against the item, e.g. &ldquo;Northcote Thomas Collection / Museum of
+                  Archaeology and Anthropology, Cambridge&rdquo;. Where the record itself states one, it has
+                  already been filled in from that statement; emptying this box clears it, and the previous
+                  value is kept in the audit trail.
+                </p>
               </div>
               <div className="wpfield">
                 <label htmlFor="licence">Licence</label>

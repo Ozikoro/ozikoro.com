@@ -173,12 +173,22 @@ export function renderFilmCard(f: RealFilm): string {
 }
 
 /**
- * Fill `watch.html`'s film grid with the films the archive actually holds.
+ * Fill `watch.html`'s film grid with the films the archive holds — **without removing the design's own**.
  *
- * **Every film here is a YouTube video embedded in a published Ozikoro article.** 24 articles carry one, 23
- * with a readable id. Nothing is fetched from YouTube and nothing is invented: the title is the article's
- * title, the source is the article, and the poster frame is YouTube's own for that id. **The owner asked
- * whether any article had a video to use, and the answer is yes — so none were sourced from outside.**
+ * WHY THIS APPENDS RATHER THAN REPLACES, WHICH IS THE FAULT IT FIXES
+ *
+ * The first version of this fill replaced the first grid's whole inner content with the archive's films. The
+ * design's own first grid holds three cards, and two of them are the films the owner named in his own words:
+ * **"[Re:]Entanglements Project — Faces | Voices"** and **"Unspoken Stories 1: Onyeso"**. Both were deleted
+ * from the served page by the fill, and only the series grid's two survivors (`Unnamed Children`,
+ * `Yainkain`) kept that project on `/watch/` at all. Measured on the served page before this change:
+ * `Faces | Voices` — the one film the design gives a whole page at `/watch-video/` — was absent from the
+ * index whose job is to list it.
+ *
+ * So the design's cards are kept and the archive's films are **added** after them, one card per film the page
+ * does not already carry. The document is read for its own `data-video-id` values, so a film the design
+ * already shows is not shown twice. **A document that already holds every film is returned unchanged**, so a
+ * database that is down degrades to the design rather than to a page that has lost cards.
  */
 export function fillWatch(html: string, films: RealFilm[]): string {
   let out = dropExampleFlag(html);

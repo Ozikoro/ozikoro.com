@@ -39,7 +39,6 @@ import {
   applyDesignOverrides,
   DESIGN_THEME_HREF,
   LINKED_SCREENS,
-  PLACE_NAMES_SQL,
   type DesignOverride,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
@@ -197,21 +196,14 @@ const FILLED = new Set([
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
-  /*
-   * THE PLACE IS THE CARD'S PLACE, FROM THE CARD'S OWN SQL.
-   *
-   * This query used to have its own copy: `string_agg(e.name, ', ' order by e.name)` over every
-   * linked entity, with no `kind` and no `distinct`. It had already drifted from the card in two
-   * ways — it chipped a record linked to a person or a people as a place, and it printed a name
-   * twice when two entity rows reached the same place. `PLACE_NAMES_SQL` is the card's own
-   * expression, so the design screen and `/archive/` cannot disagree about what a record's place is.
-   */
   const rows = await db.rows<{
     slug: string; title: string; standfirst: string | null;
     place: string | null; period: string | null; source: string | null; attached: number;
   }>(
     `select a.slug, a.title, a.standfirst,
-            ${PLACE_NAMES_SQL} as place,
+            (select string_agg(e.name, ', ' order by e.name)
+               from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
+              where ae.article_id = a.id) as place,
             a.period_label as period,
             a.source_type  as source,
             (select count(*)::int from ozikoro_article_source s where s.article_id = a.id) as attached
@@ -1048,22 +1040,53 @@ export async function GET(
         /*
          * THE FILMS THE ARCHIVE ACTUALLY HOLDS.
          *
-         * 24 published articles embed a YouTube video and 23 have a readable id, so **no video was sourced from
-         * outside the archive** — the owner's fallback was not needed. The title is the article's own, the href
-         * is the article, and the poster frame is YouTube's for that id.
+         * **`youtube.com/embed/`, and only that.** The first version of this query also matched `youtu.be/`
+         * and `/watch?v=` anywhere in the body, and that is not the same claim: measured over the 25
+         * published records that carry a YouTube address at all, **24 are real embeds and 6 are plain links
+         * in body text** — a reference list entry, or a sentence reading "you may watch the following
+         * video: <address>". A citation is not a film the archive holds and not a permission to embed one,
+         * which is the policy this page states in its own source note.
+         *
+         * **And one of those six was a dead card.** `7f81_erOkxM` is cited by
+         * `area-scatter-entertainer-musician-and-dibia-in-igbo-culture` as "Marre, J. (1985). Beats of the
+         * Heart: Konkombe. [Film]. Retrieved from https://youtu.be/7f81_erOkxM". The upload was live in
+         * April 2023 — the Wayback Machine's snapshot of that id has the title "Konkombe 4/6" and the
+         * description "Nigerian Music documentary", so the citation named the film it said it did — and by
+         * January 2026 the same snapshot reads "Video unavailable". It is deleted, not moved: no
+         * single-character variant of the id answers, and the oEmbed and the thumbnail both 404. **The card
+         * promised a film that no longer exists, and restricting the pattern to real embeds removes it for
+         * the right reason rather than by naming the id**, which would go stale the next time a video went.
+         * **Round 316 §8 had already recorded the same film as a content fault on the page**; the restriction
+         * is what retires it, and the id is not named in any condition here.
+         *
+         * ── WHY THE ROWS CARRY `body_html` RATHER THAN A SQL EXTRACTED ID ─────────────────────────────
+         *
+         * `substring(a.body_html from 'youtube…/embed/…')` finds a film — **but only the first one in each
+         * article**, because `substring` without the `g` flag stops at its first match. Measured: **19
+         * published articles embed 25 frames carrying 24 distinct ids, and the first-match-only query
+         * returned 18.** Six films were lost silently, one per article that embeds more than one — the
+         * Egedege article alone embeds three. A SQL set-returning `regexp_matches(…, 'g')` would find them
+         * all, but it cannot reach the embed's `title` attribute, which is where the archive recorded the
+         * film's own name ("Eddie Quansa", "Seun Rere (Live)"). So the bodies are read and parsed by
+         * `extractArchiveFilms`, which is where every rule and its evidence is written down.
+         *
+         * THE PUBLISHED-BODY MEASUREMENT, from the cluster: 19 records embed a film; 25 frames; 24 distinct
+         * ids; **all 24 posters answer 200 at 480×360**. Nothing is fetched from YouTube at serve time — the
+         * id is in the body, where the editor put it. The four sources searched and what each yielded are in
+         * `extractArchiveFilms` and in `docs/OZIKORO-REMAINING.md` under this round.
          */
         const db = await getDb();
-        const rows = await db.rows<{ slug: string; title: string; ytid: string }>(
-          `select a.slug, a.title,
-                  substring(a.body_html from '(?:youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)([A-Za-z0-9_-]{11})') as ytid
+        const rows = await db.rows<{
+          slug: string; title: string; topic: string | null; body_html: string | null;
+        }>(
+          `select a.slug, a.title, t.name as topic, a.body_html
              from ozikoro_article a
+             left join ozikoro_topic t on t.id = a.topic_id
             where a.status = 'published' and a.is_page = false
-              and a.body_html ~ '(youtube\\.com/embed/|youtu\\.be/|youtube\\.com/watch\\?v=)'
+              and a.body_html ~ 'youtube(?:-nocookie)?\\.com/embed/'
             order by a.published_at desc nulls last`
         );
-        const films: RealFilm[] = rows
-          .filter((r) => r.ytid)
-          .map((r) => ({ id: r.ytid, title: r.title, source: 'Ozikoro archive film', href: `/${r.slug}/` }));
+        const films: RealFilm[] = extractArchiveFilms(rows);
         if (films.length > 0) html = fillWatch(html, films);
       }
     } catch (error) {

@@ -94,13 +94,6 @@ for (const [i, article] of articles.entries()) {
 }
 
 const list = [...words.values()];
-// Grade 6 is "not found" and grade 5 is "composed". **A blocking word is exactly a grade-6 one**, and the
-// first version of this line also tested `!w.composed && w.grade === 5` — a condition that cannot be true,
-// because a grade-5 hit IS the composed case. Dead logic in a measurement reads as a second rule and invites
-// somebody to believe there are two kinds of blocking word. There is one.
-const missing = list.filter((w) => w.grade === 6);
-const composed = list.filter((w) => w.grade === 5);
-const blocking = missing;
 
 console.log('\nWHAT THE ARCHIVE CONTAINS\n');
 console.log(`  records scanned                ${scanned.toLocaleString('en-GB')} of ${articles.length.toLocaleString('en-GB')}`);
@@ -110,13 +103,51 @@ console.log(`  tokens the finder called Igbo  ${igboTokens.toLocaleString('en-GB
 console.log(`  tokens reported AMBIGUOUS      ${ambiguousTokens.toLocaleString('en-GB')}   (Igbo headwords that are also English; not counted)`);
 console.log(`  tokens it could not place      ${unknownTokens.toLocaleString('en-GB')}   (distinct ${unknown.size.toLocaleString('en-GB')})`);
 
+/*
+ * Grade 6 is "not found" and grade 5 is "composed". **A blocking word is exactly a grade-6 one**, and the
+ * first version of this line also tested `!w.composed && w.grade === 5` — a condition that cannot be true,
+ * because a grade-5 hit IS the composed case. Dead logic in a measurement reads as a second rule and invites
+ * somebody to believe there are two kinds of blocking word. There is one.
+ */
+const missing = list.filter((w) => w.grade === 6);
+const composed = list.filter((w) => w.grade === 5);
+/** Grade 4 alone, plus the grades 1–3 that a recorded sound would produce. **NOT including the composed.** */
+const named = list.filter((w) => w.grade <= 4);
+const blocking = missing;
+
+/*
+ * ============================================================================================
+ * THIS BLOCK IS WHY THE ARCHIVE PUBLISHED TWO DISAGREEING COVERAGE FIGURES, AND IT IS FIXED HERE.
+ * ============================================================================================
+ *
+ * The earlier version of these three lines printed a bucket and its own contents as though they were
+ * siblings:
+ *
+ *   already accounted for   (list.length - blocking.length)      ← named AND composed
+ *   composed from parts     composed.length                      ← a SUBSET of the row above
+ *   UNSAYABLE               missing.length
+ *
+ * **`already accounted for` already contains `composed from parts`.** A later reader took the three numbers
+ * at face value and added them — the shape of the table invites exactly that — producing
+ * **1,289 + 617 + 462 = 2,368**, which was then recorded as a measured figure and published as
+ * *"2,368 DISTINCT Igbo words"* beside this script's real distinct total of 1,751. The two "disagreed" for a
+ * round because of a table that did not add up, not because of anything about the archive.
+ *
+ * So the rows are now a PARTITION of the distinct total, the total is printed first, and the partition is
+ * checked before it is printed. **A measurement table whose rows overlap is a table that will be summed**,
+ * and the arithmetic is now the script's job rather than the reader's.
+ */
+const partition = named.length + composed.length + missing.length;
 console.log('\nDISTINCT IGBO WORDS, BY HOW THE ARCHIVE CAN SAY THEM\n');
-console.log(`  already accounted for          ${(list.length - blocking.length).toLocaleString('en-GB')}`);
-console.log(`  composed from parts            ${composed.length.toLocaleString('en-GB')}   ← dissection's whole yield`);
-console.log(`  UNSAYABLE — these queue        ${missing.length.toLocaleString('en-GB')}`);
-console.log(`  and of the blocking total      ${blocking.length.toLocaleString('en-GB')}`);
+console.log(`  DISTINCT IGBO WORDS IN TOTAL   ${list.length.toLocaleString('en-GB')}   ← the archive's whole Igbo vocabulary, each word counted ONCE`);
+console.log(`    named by the dictionary      ${named.length.toLocaleString('en-GB')}   ← it has an entry of its own`);
+console.log(`    composed from parts          ${composed.length.toLocaleString('en-GB')}   ← dissection's whole yield`);
+console.log(`    UNSAYABLE — these queue      ${missing.length.toLocaleString('en-GB')}`);
+console.log(`\n  the three rows above are a partition: ${named.length} + ${composed.length} + ${missing.length} = ${partition} ` +
+  `${partition === list.length ? '= the total ✔' : `≠ ${list.length} — THE ROWS DO NOT ADD UP, DO NOT PUBLISH THEM`}`);
+console.log(`  "named by the dictionary" is grade 4 alone. An earlier version printed "already accounted for"\n  instead, which INCLUDED the composed words, and summing the three rows then counted 617 words twice.`);
 console.log(`\n  resolutions by grade: ${[1, 2, 3, 4, 5, 6].map((g) => `${g}=${byGrade[g] ?? 0}`).join('  ')}`);
-console.log('\n  grade 5 is "composed", 6 is "not found". Grades 1–3 would mean the dictionary held a sound,\n  and every one of them is zero today — so a non-zero 1, 2 or 3 here means somebody has recorded\n  something and the lookup grades should be re-read.');
+console.log('\n  THE LINE ABOVE IS PER-RECORD, NOT PER-WORD, AND IT IS NOT A DISTINCT COUNT. It adds one for every\n  (word, record) pair, so a word used in forty records adds forty — which is why it reads in the thousands\n  while the distinct vocabulary is 1,751. Grade 5 is "composed", 6 is "not found". Grades 1–3 would mean\n  the dictionary held a sound, and every one of them is zero today — so a non-zero 1, 2 or 3 here means\n  somebody has recorded something and the lookup grades should be re-read.');
 
 console.log('\nTHE MOST VALUABLE MISSING WORDS (the digest’s real content)\n');
 const top = missing

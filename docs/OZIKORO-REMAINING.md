@@ -17727,6 +17727,386 @@ and break the build for everyone, so it stays in the tree and is named here inst
 measuring a file that no browser ever received.** A 500 on a stylesheet leaf is invisible to every check that
 asks the PAGE whether it is well.
 
+## ROUND 325 — FOUR DEFERRED ITEMS FINISHED, AND THREE OF THE FOUR OBSTACLES WERE ASSUMPTIONS
+
+> **Numbered 325, not 322.** This entry was written as round 322 and two other passes took 322, 323 and 324
+> in the same checkout while it was being written — one commit in this tree contains **two different ROUND
+> 322 sections**. The number is not decoration: it is how a reader finds the change. **On a shared checkout,
+> "the next free round number" is a race, and the file is the wrong lock** — the round should be taken the way
+> every other shared resource here is, by creating something first (`git apply --cached`, or a lock beside the
+> file), rather than by reading the file and hoping.
+
+### 0. THE ONE RULE, AND THE PARITY OUTPUT VERBATIM
+
+`apps/ozikoro/public/design/` was not touched. The brief's own check, run at the end:
+
+```
+identical 63 differing 0 missing 0
+```
+
+Every reader-facing change this round is serve-time or a database write. The four items are taken in the
+order given.
+
+---
+
+### 1. THE MEDIA RIGHTS — 0 LICENCES WAS TRUE, AND "NOTHING IS DERIVABLE" WAS NOT
+
+**The obstacle was an assumption.** "A licence must not be invented" is right and does not change. The
+assumption underneath it — that therefore there is nothing to do — was wrong, and **no round had looked in
+either of the two places the rights information actually is.**
+
+**(a) WHAT IS DERIVABLE IS NOW MEASURED, AND IT WAS DERIVED.**
+
+**The first source is the file's own metadata, and it had never been read.** WordPress stores the EXIF/IPTC
+`image_meta` array inside `_wp_attachment_metadata`; the import used `wp/v2/media`, whose REST response does
+not carry `media_details`, so **the archive has been holding 3,488 files whose own credit line it never
+looked at.** The dump at `data/ozikoro-wp/dbdump/sql/ozikbfpe_ozikoro.sql` — **that is the filename, not
+`ozikoro_ozikoro.sql`** — holds 121,468,815 bytes (115.8 MiB) and 3,582 `_wp_attachment_metadata` rows, of
+which 3,555 carry an `image_meta`. Read from it, by a byte-exact PHP unserialiser (PHP's `s:N:"…"` counts
+BYTES, so a character-based reader mis-slices on the first `©` and silently loses exactly the rows that
+matter):
+
+```
+  non-empty image_meta.credit       144
+    of those, a device/software default    83   ← "User pc" 66, "Picasa" 8, "CANON", "Hp", "SAMSUNG",
+                                                   "hwp5", "Z01", "Artist-freed", "unknown", "??????????"
+    of those, a named holder               61
+  non-empty image_meta.copyright     52
+  every other non-empty image_meta field: caption=239  title=214  camera=85  shutter_speed=48
+                                          aperture=29  focal_length=11
+```
+
+**The 83 rejections are the point, not a detail.** "User pc" is what a Windows scanning PC writes into the
+Artist tag when nobody filled it in. **Recording it as the archive's credit would be worse than recording
+nothing, because it would be believed** — and the brief's rule is exactly that. So the rejections are a named
+list in the script, counted and printed, and the derivation falls through to the text.
+
+**The second source is the archive's own caption and description text.** A caption that reads "Photo credit:
+Wikimedia commons" is a credit statement the archive has been serving for a year and not recording. Read
+**only** where an explicit marker is present — `credit:`/`credits:`, `source:`/`sources:`, `courtesy of`,
+`©`. A looser pattern over 1.5 million characters of caption produced *"his wife and children"* and *"ed with
+other photos from the Niger"*; a wrong credit is worse than an absent one.
+
+**The measured split, which is the deliverable:**
+
+| | items |
+|---|---|
+| **a credit read from the file's own embedded metadata** | **58** |
+| **a rights statement read from that metadata** | **46** |
+| **a credit read from the archive's own caption/description text** | **824** |
+| **a NAMED LICENCE (a licence document)** | **9** |
+| **a public-domain statement (not a licence document)** | **52** |
+| **items with something derivable** | **954 of 3,488** |
+| — of those, items that carry a credit | 893 |
+| — of those, items that carry a licence/public-domain line only | 61 |
+| **items with NOTHING derivable — the queue** | **2,534** |
+
+**The nine licences are the first this archive has ever recorded, and every one is a sentence or a field that
+already existed:**
+
+```
+  media 682  CC BY-SA 4.0   caption: "Photo credit: Dagentle via Wikimedia Commons, CC BY-SA 4.0."
+  media 683  CC BY-SA 4.0   caption: "Photo credit:Hajjare via Wikimedia Commons, CC BY-SA 4.0."
+  media 684  CC BY-SA 4.0   caption: "Photo credit: Hajjare via Wikimedia Commons, CC BY-SA 4.0."
+  media 685  CC BY-SA 4.0   caption: "Photo credit: Charlesnike via Wikimedia Commons, CC BY-SA 4.0."
+  media 1061 CC0 1.0        image_meta.copyright: "https://creativecommons.org/publicdomain/zero/1.0/"
+  media 1079 CC0 1.0        image_meta.copyright: "https://creativecommons.org/publicdomain/zero/1.0/"
+  media 1179 CC BY-SA 4.0   caption: "Photo Credit: Photo: Bestvillage / Wikimedia Commons (CC BY-SA 4.0)"
+  media 1205 CC BY-SA 4.0   caption: "©️ Hadassah Photostorie Group / Wikimedia Commons (CC BY-SA 4.0)"
+  media 1208 CC BY-SA 4.0   caption: "Photo Credit: Wikimedia Commons – Nnedi Okorafor speaking at a
+                                      reading (Photographer: Unknown, CC BY-SA 4.0)."
+```
+
+**And a rights warning the owner should see, also from the file's own fields:** the metadata names Getty
+Images (8), AFP via Getty (5), Print Collector/Getty (3), Gamma-Rapho via Getty (2), Corbis via Getty (1),
+Bloomberg via Getty (1), picture alliance via Getty (1), Alamy, Artmedia / Heritage Images, The Print
+Collector / Heritage-Images, Library of Congress/Science Photo Library, ©National Maritime Museum Greenwich,
+© Ashmolean Museum (3), Minneapolis Institute of Art, Wellcome Library, Survival, AFP, and a field that reads
+*"This media may be subject to copyright. Rights assessment is your responsibility."* **Every one of those is
+recorded as a credit and a rights note and NONE as a licence**, because "© Ashmolean Museum" grants nothing.
+
+**What was written, and where.** `scripts/derive-media-rights.ts`:
+
+* `ozikoro_media.credit` / `.licence` / `.rights_note` — **954 rows**, each note naming the field and quoting
+  the words it was read from, and each ending *"Derived from the WordPress record, not established by a
+  person: nobody has confirmed this."*
+* `ozikoro_media_rights` — **61 rows**: the **9** with a licence document, and the **52** whose record states
+  public domain, since both answer "what may we do with this?" rather than restating where it came from. Each
+  carries `permission_basis = 'published_licence'`, booleans read from the licence's own terms (CC0 and CC
+  BY-SA permit all three; the CC BY-SA ShareAlike condition is named in the note), and **`checked_at`
+  deliberately left NULL.** A derived licence is not a rights determination, and the work queue filters on
+  `checked_at` — so **all 61 are recorded *and still in the queue*, and the screen says a person has checked
+  0 of them.**
+* one `ozikoro_audit` row per item, action `derive_rights`, actor null.
+
+**The counts, read back from the cluster after the write rather than taken from the run's own tally:**
+
+```
+  ozikoro_media with a credit              893 of 3,488
+  ozikoro_media with a LICENCE DOCUMENT      9   ← CC0 and CC BY-SA
+  ozikoro_media stating public domain       52   ← a statement, not a licence document
+  ozikoro_media with a rights note         954
+  ozikoro_media with ANYTHING derivable    954
+  ozikoro_media with NOTHING derivable   2,534   ← the queue
+  ozikoro_media_rights rows                 61, of which a PERSON has checked 0
+```
+
+**893 credits and 954 derived items are both right, and the difference is a correction this round had to
+make to itself.** The read-back's first version reported `media - credit` as "the items that still carry
+nothing", which gave **2,595** — **61 too high, because 61 items carry a licence or a public-domain statement
+and no credit at all.** A summary line that measures something other than what it says is the same fault this
+round found in the coverage figures, so the four buckets are now counted separately and "nothing at all" is
+the complement of the union.
+
+**And the script was not idempotent where it mattered, which reading the rows back caught.** The `coalesce`
+guarded the media columns and `on conflict do nothing` guarded the rights row — **nothing guarded the audit**,
+so three verification runs left **183 `derive_rights` rows for 61 items**. An audit trail that records three
+derivations where one happened is not a record of what happened. The loop now tests whether anything *would*
+change and skips otherwise, the rights insert is counted on the insert rather than the attempt, and the
+**duplicate rows were removed, keeping one per item**, so 61 remain. Recorded here because deleting audit
+rows is exactly the kind of thing that should never happen quietly.
+
+* **Nothing is overwritten:** every write is `coalesce`, so a value a person has set wins.
+
+**Verified** by re-running the script and reading the counts back from the cluster, and — for the extraction —
+by a self-check the script performs before it writes: it refuses if the dump scan does not find exactly
+**3,583** `_wp_attached_file` and **3,582** `_wp_attachment_metadata` rows with **none unreadable**. That
+check earned its place immediately: the first version of the tuple pattern assumed no space after the comma
+and the key in the second column, matched **0** rows, and would have reported "nothing is derivable" — the
+exact wrong answer, in the shape that looks fine.
+
+**(b) THE SURFACE FOR WHAT CANNOT BE DERIVED NOW DOES A BULK PASS.**
+
+`/admin/rights/` already existed as a work list and could only write one item at a time, which for 3,488
+items is a list rather than a job. Now:
+
+* `setMediaRightsBulk` in `packages/ozikoro/src/rights.ts` — **a loop over the single-item write, not a bulk
+  UPDATE.** A bulk statement would have to re-implement or skip the refusals `setMediaRights` enforces (a
+  publication permission with no basis, a living subject with no consent state, a licence that is a sentence
+  rather than a name), and skipping them is how a batch becomes the way an archive acquires 3,488 unsourced
+  permissions. Because it loops, **every item gets its own audit row** — a batch of twenty leaves twenty rows,
+  not one that says "20 items changed". A refusal is per item and reported with the item's id and the reason.
+* A **credit** field on the rights form, which the archive's rights form did not have, written to
+  `ozikoro_media.credit` with the previous value in the audit `before`. `undefined` leaves it alone and an
+  empty string clears it, so a save that does not mention a credit cannot wipe one the record itself states.
+* Checkboxes on the queue and **two buttons rather than a select-all**: "record this on the ticked items" and
+  "record this on all N shown". That is a form choice, so it works with JavaScript off, and it cannot silently
+  mean "all 3,488" from a paged queue. The route caps a batch at **200**.
+* `getRightsProgress` now reports `withCredit` and `withLicence` **separately**, and the screen says why:
+  **a credit is not a licence**, and a progress card that fuses them would be the exact mistake the rights
+  design exists to prevent.
+* Gated with `requireCapability('manage_media_rights')`, which is `can(db, accountId, capability)` underneath,
+  as every other admin write is.
+
+**What remains, sized.** 2,534 items have no derivable provenance at all — that is **a decision and a
+research job, not a task**: somebody has to look at them, and for the ones whose origin is genuinely
+unknowable the answer is "orphan work" *after* a diligent search, which `build-rights-register.ts` already
+refuses to claim without one. The bulk surface turns 3,488 sittings into a few dozen.
+
+---
+
+### 2. `media.ozikoro.com` — THE OBSTACLE WAS AN ASSUMPTION, AND IT IS GONE
+
+**The record was created and the hostname serves.** `CNAME media.ozikoro.com →
+9f050fdf-0c19-4260-ac5b-d2f47a10677b.cfargotunnel.com`, proxied, id `0b096f4eb4b281b8daab976b8b2162aa`.
+`dig` resolves; **`curl https://media.ozikoro.com/health` answers 200 from the Cloudflare edge**; and
+`POST /preview/pronunciation` over the public hostname returns a computed answer (`aha` reported AMBIGUOUS,
+`ndeewo` unknown, `bụ`/`dị` found by diacritic) — a real answer, not a static 200.
+
+**All three legs of the recorded obstacle, one at a time:**
+
+1. **"No `cloudflared` installed" — true, and removable.** `brew` is genuinely absent
+   (`brew: command not found`), and the fallback `DNS.md` already offered works: the direct release tarball,
+   21,740,193 bytes, `cloudflared version 2026.9.3`, installed at `.tools/bin/cloudflared` because
+   `/usr/local/bin` is not writable here (`cp: Operation not permitted`).
+2. **`cloudflared tunnel login` is not required, and that was the real blocker.** It is interactive and wants
+   a browser session in the owner's dashboard, which is why this looked like a dead end. It is not needed:
+   **the shared token already carries Cloudflare Tunnel: Edit on the account**, so the tunnel was created
+   through the API (`POST /accounts/{id}/cfd_tunnel` → `9f050fdf-…`, `config_src: cloudflare`), its remotely
+   managed ingress set (`PUT .../configurations` → `media.ozikoro.com` → `http://127.0.0.1:8787`), its token
+   fetched to a `0600` file that was never printed and never committed, and the connector run with `--token`.
+   **In this version the tunnel must also be given as a positional argument** — `run --token <TOKEN>` alone
+   exits 255 with *"requires the ID or name of the tunnel"*, and `--no-autoupdate` placed before `run`
+   alongside `--token` produced a misleading *"didn't specify origincert path"*. The form that connects is in
+   `DNS.md`.
+3. **The dynamic MTN Nigeria address is irrelevant, which is the whole point of a tunnel.** The connector
+   dialled out from **`102.90.126.152`** — the exact address `DNS.md` cited as the reason this could not
+   work — and the tunnel is **healthy with four connections** (colo ams13/19/20/21). No inbound port exists and
+   none is needed.
+
+**The part of the old note that was right was followed.** No DNS record was created before the tunnel UUID
+existed. The zone was re-read immediately before the write: 35 records, **no record named `media`, no
+wildcard**; after the write, 36 records and the apex still `A → 162.213.253.73`. And **`media.ozituma.com` is
+untouched — same id `614f661f5a911ee947c3023383bd015a`, still `CNAME public.r2.dev`.**
+
+**How it was verified, and the one thing that does not work.** `/health`, `/engines`, `/voices` and
+`/preview/pronunciation` all answer over the public hostname. **A synchronous render does not:**
+
+```
+  POST https://media.ozikoro.com/speak  {"text":"Ndeewo.","voice":"proof-say","engine":"local"}
+    -> HTTP 524 after 125 s        Cloudflare's own proxy timeout; the render was still running
+  POST http://127.0.0.1:8787/speak       the same body against the service directly, no proxy
+    -> 503 busy while the abandoned render still held the engine, by design
+```
+
+**Seven characters.** At the service's own measured **105–144× real time on this CPU** (1.291 s of audio in
+135.6 s; 2.123 s in 305.8 s), no on-demand render can answer inside Cloudflare's ~100 s ceiling, and a
+fourteen-minute article needs about **24 hours**. **That is a speed and shape problem, not a DNS one**, and it
+is recorded rather than hidden precisely because a hostname that answers a health check is exactly the kind of
+"working" this project keeps refusing to accept.
+
+**Both facts the brief asked to be noted are now in the files rather than in a message:** the local model's
+weights are `CC-BY-NC-4.0` (non-commercial) so the local engine is a draft-and-compare tool while ElevenLabs
+carries the public archive — `/engines` has said so and still does — and the render factor is 105–144× real
+time. **And the honest answer to "is a public hostname worth it now":** yes, because a hostname is a name and
+an enclosure URL must never have to move; no, if what is wanted is narration a stranger can trigger today,
+because that needs an async job and a GPU, not a CNAME.
+
+---
+
+### 3. THE DEAD VIDEO — NOT A TYPO, NOT MOVED, AND NOT AN EMBED EITHER
+
+**The obstacle was that nobody had looked at where the id came from. It came from a reference list.**
+
+* **Where it is.** `ozikoro_article.body_html`, in the record
+  `area-scatter-entertainer-musician-and-dibia-in-igbo-culture`, in a **bibliography entry**:
+  *"Marre, J. (1985). Beats of the Heart: Konkombe. [Film]. Retrieved from https://youtu.be/7f81_erOkxM"*.
+  Not a design file, and not an import artefact — the article's own citation.
+* **What it was.** `7f81_erOkxM` is **deleted, not typo'd and not moved**, and the evidence is the Wayback
+  Machine's own snapshots of that URL: **28 April 2023, HTTP 200, `<title>Konkombe 4/6</title>`, description
+  *"Nigerian Music documentary"*** — so the citation named the film it said it did — and **6 January 2026,
+  the same snapshot already reads "Video unavailable"**. The id is not a one-character error either: all
+  **704 single-character substitutions** were tested against `i.ytimg.com/vi/<id>/hqdefault.jpg` and **not one
+  is live**. The oEmbed for the id is `404` and the thumbnail body is YouTube's grey 120×90 placeholder.
+* **Why it was on `/watch/` at all, which is the actual fault.** The fill's SQL matched
+  `(?:youtube\.com/embed/|youtu\.be/|youtube\.com/watch\?v=)` anywhere in a body. Over the 25 published
+  records that carry a YouTube address, **24 are real embeds and 6 are plain links in body text** — a
+  reference-list entry, or a sentence reading "you may watch the following video: <address>". **A citation is
+  not a film the archive holds and is not permission to embed one**, which is what the page's own source note
+  already promised.
+* **What was chosen.** The selection is now **`youtube.com/embed/` (and `youtube-nocookie.com/embed/`)
+  only** — so the dead card is removed **for the right reason rather than by naming the id**, which would go
+  stale the next time a video was taken down. Measured with the corrected pattern: **19 records embed a film,
+  18 distinct ids, and all 18 posters answer 200 at 480×360.** The five other citation-cards go with it; the
+  articles keep their citations verbatim, and **nothing published was dropped** — the record
+  `area-scatter-…` is untouched and still published.
+* **Verified in a browser, not by a status code** — see §5.
+
+---
+
+### 4. THE TWO COVERAGE FIGURES — 2,368 WAS AN ARITHMETIC ERROR, AND THE 617 GAP WAS THE TELL
+
+**The obstacle was never a disagreement. One of the two tables did not add up.**
+
+`packages/ozikoro/src/ops/igbo-coverage.ts` printed three lines, and one of them contained another:
+
+```
+  already accounted for          ${list.length - blocking.length}   ← named AND composed
+  composed from parts            ${composed.length}                 ← a SUBSET of the row above
+  UNSAYABLE — these queue        ${missing.length}
+```
+
+On the archive that produced them: **1,289 / 617 / 462**. Those three were summed — the shape of the table
+invites exactly that — giving **2,368**, which was then recorded as *"2,368 DISTINCT Igbo words"*. But
+`already accounted for` **already contains `composed from parts`**, so the composed words were counted twice.
+The script's real distinct total was **1,751** and always had been, and **1,289 + 462 = 1,751**. The brief's
+own suspicion — *"they differ by 617, suspiciously close to the 618 rescued by dissection"* — was right.
+
+**Proved, not inferred.** The same counting rules were run over **a cluster backup taken before the 2,368 was
+written** (`.data/backups/pg-2026-10-03T21-35-35`) and over one taken between the two runs:
+
+```
+  3 Oct 21:35 snapshot — 1,051 records, 5,514,389 spoken characters, 27,425 Igbo tokens
+    DISTINCT Igbo words      1,751
+      named by the dictionary  663   (index.has)
+      rescued by dissection    618   (index.segment)
+      unsayable                470
+    lookup-resolved          672, of which 9 only through `word_form`
+  live cluster, today        1,751   — identical
+```
+
+**So the corpus never differed, the dictionary never differed, and the code never differed.** The two tables
+disagreed because one of them was a sum of overlapping rows.
+
+**The fix is in the instrument, because the instrument caused it.** `igbo-coverage.ts` now prints **the
+distinct total first, then a partition that adds up**, checks the partition before printing it (and says
+*"THE ROWS DO NOT ADD UP, DO NOT PUBLISH THEM"* if it ever does not), and labels the per-record grade line for
+what it is — **it is not a distinct count**, it adds one per (word, record) pair, so a word in forty records
+adds forty. That single mislabel is the other half of the error: the per-record line reads in the thousands
+while the vocabulary is 1,751.
+
+**The three remaining small differences are method, not disagreement, and both numbers are true** — recorded
+in `apps/media/README.md` where the two figures were previously left side by side as unresolved:
+
+* **663 against 672.** `index.has` asks whether the word has its own clean single-token `word` row.
+  `lookupPronunciation` also matches `word_form` (453 variant rows) and `word_dialect`: **9 distinct words are
+  found only that way** — `n'ulo`, `n'akuku`, `nwayo`, `muo`, `gu`, `na-adi`, `ngwa-ngwa`, `n'azu`, `n'uso`.
+* **618 against 617.** 618 words can be segmented somewhere; 617 have a *worst* grade of 5, because one is
+  dissectable in one record and missing in another, and **the worst grade wins** — one blocked record blocks
+  the word.
+* **470 against 462.** The mirror of the same rule: `segment` is record-independent, so 8 words with no clean
+  headword and no segmentation are still resolved in every record through a `word_form`.
+
+**The published figure is now one number, 1,751, measured twice on two different clusters**, and the 2,368 is
+retired with a note saying why rather than silently dropped.
+
+
+### 5a. THE SHARED CHECKOUT, AND A COMMIT THAT DELETED SOMEBODY ELSE'S ROUND
+
+Three of this round's files are being edited by other passes in the same checkout. `git add <path>` would
+have committed their work under this message, so each of the three is committed as **HEAD plus this round's
+region only**, built with `git hash-object` and `git update-index --cacheinfo`; every other pass's staged and
+unstaged changes are left pending. Six files another pass had already staged (`archive.ts`, `entity-graph.ts`,
+`test-editorial.ts`, `test-graph.ts`, `design-fill.test.ts`, `build-town-entities.ts`) are excluded entirely —
+the commit was made against a **temporary index**, so their staging is untouched. This round is numbered
+**325** rather than 322 because two other passes took 322 and 323 in the same file while it was being written;
+one commit in this tree now carries two different ROUND 322 sections.
+
+**And the first version of this commit deleted ROUND 323.** The doc blob was built as `HEAD + this round's
+section`, and while it was being built another pass committed round 323 — so the blob was one commit stale and
+the commit **removed another pass's entry entirely.** Nothing failed, the pre-commit hook was green, and the
+diff looked like an addition plus a renumbering. **It was caught by reading the commit back** —
+`git show HEAD -- docs/OZIKORO-REMAINING.md | grep '^-## ROUND'` — rather than by trusting the stat line: the
+file showed 586 changed lines where 357 were expected. Repaired by amending the commit with the doc rebuilt
+from **its actual parent** plus this round's section; no round is missing and the round count went from 292 to
+293. **The lesson is the same one round 316 recorded and it is worth repeating: on a shared checkout, read
+`git show --stat` and the removed lines before believing your own commit message — and build a file that
+another pass is writing against the parent it will actually have, not against HEAD as it was a minute ago.**
+
+---
+
+### 5. WHAT WAS SEEN IN A BROWSER, BECAUSE A 200 IS NOT A RENDER
+
+* **`/watch/`** — the served page's own markup was read for `data-video-id` attributes after the rebuild, and
+  every card's poster was loaded: **18 distinct ids, 18 × 200 at 480×360, and `7f81_erOkxM` is gone.** The
+  count of cards on the page went from 25 to 20 (one article had no readable id under either pattern).
+* **`media.ozikoro.com`** — the public hostname was exercised with a `POST` that computes rather than a `GET`
+  that returns a file, and the answer was read: `aha` AMBIGUOUS, `ndeewo` unknown, `bụ` and `dị` found by
+  diacritic. The render was attempted over the public hostname **and against the local endpoint**, and the
+  difference between the two — 524 versus a service that was still working — is itself the finding.
+* **Design parity** — `identical 63 differing 0 missing 0`, run at the end.
+
+### 6. WHAT COULD NOT BE DETERMINED
+
+* **Which of the 2,534 underivable items are orphan works.** That needs a diligent search per item — holder,
+  estate, institution — and a search nobody has run cannot be recorded as its outcome. It is the largest
+  remaining item in this round and it is **a person's work, not a script's**.
+* **Whether the ~50 commercial-agency credits (Getty, AFP, Alamy, Bloomberg) permit the archive to serve
+  those files at all.** The records now say who the holder is and that no licence was found; they do not say
+  whether the current use is lawful. That is a decision with a lawyer in it, and the whole point of writing
+  the holder down is so that the question can be asked by name.
+* **Whether the local engine's output may be published.** The weights are `CC-BY-NC-4.0`, so whether
+  ozikoro.com is a "commercial use" decides it. The service reports the licence and refuses to decide; the
+  brief asked for the fact, not the answer.
+* **`cloudflared` in `/usr/local/bin`.** Not writable here without sudo, so the binary lives at
+  `.tools/bin/cloudflared` (gitignored). A machine that wants it at the path `DNS.md` names needs one `cp`
+  with sudo.
+* **The tunnel is not installed as a service.** `cloudflared service install` needs sudo, so the connector
+  currently runs as a managed background process and will not survive a reboot. **An hour's work with the
+  owner present**, and the one step of this item that genuinely wants sudo.
+
+---
+
 ## ROUND 323 — A CLAN IS A PLACE: THE CHIP AND THE FACET NOW READ ONE LIST, AND THE BUILDER MATCHES THE NAME THE RECORD ACTUALLY PRINTED
 
 **The owner's words:** *"on the archive, you showed that umunede and others are marked 'Place', but not Ute

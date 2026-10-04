@@ -210,26 +210,49 @@ respellings, exactly as the earlier round recorded, and no code can do better: a
 recorded by a person or fabricated, and a fabricated one would be spoken in the owner's own cloned voice and
 sound authoritative.
 
-### Coverage of the archive — and a discrepancy stated rather than smoothed over
+### Coverage of the archive — settled, and the 2,368 retired
 
 Measured over all **1,051** published records, from a spoken script of **5,514,389 characters**:
 
-| | this run | previously recorded |
+| | distinct words (this file's figure) | resolution across records |
 |---|---|---|
-| distinct Igbo words | **1,751** | 2,368 |
-| named by the dictionary | **663** | 1,289 |
-| rescued by dissection | **618** | 617 |
-| **genuinely unsayable** | **470** | 462 |
+| **Igbo words in the archive** | **1,751** | one per (word, record) pair, so a word in forty records counts forty |
+| named by the dictionary | **663** | 6,138 |
+| rescued by dissection | **618** | 1,258 |
+| **genuinely unsayable** | **470** | 833 |
 
-**The first two rows do not reproduce the earlier figures and this file will not pretend they do.** The
-distinct-word count is 1,842 if Igbo headwords that are also English words are included, so the counting
-policy does not explain the gap either. The likely cause is a different source corpus or a different
-counting rule in the earlier run, and it is unresolved. **What is reproducible is reproducible**: the 8,728
-dictionary words, the zero recordings, the 1,953 forms, the 1,882 phrases and the 165 collisions all match
-the earlier measurement exactly, and the 5,514,389 spoken characters match it exactly too.
+**There is one distinct-word figure and it is 1,751. The 2,368 was an arithmetic error, not a measurement,
+and it is retired.** The earlier round's own table printed three rows —
 
-The last two rows are close and the direction is the one to be careful about: **470 words cannot be said at
-all** — no dictionary entry and no segmentation into known pieces. They need a person to record them. See
+```
+  already accounted for          1,289      ← named AND composed
+  composed from parts              617      ← a SUBSET of the row above
+  UNSAYABLE — these queue          462
+```
+
+— and the three were added together: **1,289 + 617 + 462 = 2,368**, recorded as *"2,368 DISTINCT Igbo
+words"*. `already accounted for` is the script's own `list.length - blocking.length`, which already contains
+`composed from parts`; the composed words were therefore counted twice. The script's real distinct total was
+1,751 and always had been, and 1,751 reproduces **exactly** on a cluster backup taken *before* the 2,368 was
+written (`.data/backups/pg-2026-10-03T21-35-35`), with the same code and the same 1,051 records — so the
+corpus never differed and the dictionary never differed. **The two tables disagreed because one of them did
+not add up.** The rows are now a checked partition of the total in
+`packages/ozikoro/src/ops/igbo-coverage.ts`, and the per-(word, record) line is labelled as what it is.
+
+Three smaller differences are **method, not disagreement**, and both figures are true:
+
+* **663 against 672.** `index.has(folded)` asks whether the word has its own clean single-token `word` row.
+  `lookupPronunciation` also matches `word_form` (453 variant rows) and `word_dialect` — **9 distinct words
+  are found only that way** (`n'ulo`, `n'akuku`, `nwayo`, `muo`, `gu`, `na-adi`, `ngwa-ngwa`, `n'azu`,
+  `n'uso`). The first number is "it has an entry"; the second is "the dictionary has something for it".
+* **618 against 617.** 618 words can be segmented somewhere; 617 have a worst grade of 5, because one word is
+  dissectable in one record and missing in another, and **the worst grade wins** — one blocked record blocks
+  the word. The first is "sayable at all", the second is "sayable everywhere it is used".
+* **470 against 462.** The mirror of the same rule: `index.segment` is record-independent, and 8 words have
+  no clean headword and no segmentation yet are still resolved in every record through a `word_form`.
+
+**470 words cannot be said at all** — no dictionary entry and no segmentation into known pieces. They need a
+person to record them, and that is the direction to be careful about rather than the counts. See
 `packages/ozikoro/src/missing-words.ts` for the queue.
 
 ### Diacritics are the content, and a bug in this service was destroying them
@@ -307,43 +330,61 @@ authority and this file's figures are the recorded floor, not a fresh reading.
 
 ---
 
-## `media.ozikoro.com` — CHECKED FIRST, AND NOT CHANGED
+## `media.ozikoro.com` — CREATED AND SERVING
 
-**`media.ozikoro.com` does not exist.** Checked against the Cloudflare API before anything else:
-
-```
-$ dig +short media.ozikoro.com A                      # (empty)
-$ curl -s -o /dev/null -w '%{http_code}' https://media.ozikoro.com/    # 000
-$ curl -s -H "Authorization: Bearer $TOK" \
-    "https://api.cloudflare.com/client/v4/zones/1ebe8c1f9ce3dcec95448b6d93d63e00/dns_records?per_page=100"
-  ... 35 records, NONE named media, NO wildcard
-```
-
-**The `CNAME → public.r2.dev` is `media.ozituma.com`, in a different zone**, and it serves the dictionary's
-2,000+ audio recordings. It was **not touched**:
+**`media.ozikoro.com` now exists.** It is a proxied `CNAME` to
+`9f050fdf-0c19-4260-ac5b-d2f47a10677b.cfargotunnel.com`, and the Cloudflare Tunnel `ozikoro-media` runs on
+this host and dials out. Verified:
 
 ```
-CNAME  media.ozituma.com -> public.r2.dev   proxied=true   id=614f661f5a911ee947c3023383bd015a
+$ curl -s -o /dev/null -w '%{http_code}' https://media.ozikoro.com/health          # 200
+$ curl -s https://media.ozikoro.com/health | head -c 120
+  {"ok":true,"service":"ozikoro-media","hostname":"media.ozikoro.com",...
+$ curl -s -X POST https://media.ozikoro.com/preview/pronunciation \
+    -H 'content-type: application/json' -d '{"text":"Ndeewo, aha m bụ Ozikoro."}'
+  ... a computed answer: `aha` AMBIGUOUS, `ndeewo` unknown, `bụ` and `dị` found by diacritic
+$ dig +short media.ozikoro.com                    # Cloudflare anycast, proxied
 ```
 
-The recorded warning that *"`media.ozikoro.com` may already exist and point at ozituma's recordings"* was
-worth checking and turned out to be a zone confusion: **`media.ozikoro.com` is free, and nothing needed
-overwriting.** Breaking the dictionary to save one DNS entry would indeed have been the worst trade
-available, and it was not made.
+### The obstacle was an assumption, and the file that recorded it said so honestly
 
-### Why no record was created
+The earlier note in this file read *"the correct record cannot be verified, because this machine has no public
+ingress"*, and then named three facts: a dynamic MTN Nigeria NAT address, no `cloudflared`, no tunnel config.
+**Two of the three were true and neither mattered.**
 
-**The correct record cannot be verified, because this machine has no public ingress.** It sits behind a
-dynamic NAT address (`102.90.126.152` at the time of writing, an MTN Nigeria mobile range), there is no
-`cloudflared` installed, and no tunnel configuration exists anywhere in the checkout. Any record creatable
-today would be one of:
+* **No `cloudflared` — true, and removable.** `brew` is genuinely absent on this machine, but the fallback the
+  file already named works: the direct `cloudflared-darwin-amd64.tgz` release, `cloudflared version 2026.9.3`.
+  It is installed at `.tools/bin/cloudflared` (`/usr/local/bin` is not writable without sudo).
+* **`cloudflared tunnel login` looked like a dead end and is not required.** Login is interactive and wants a
+  browser session in the owner's Cloudflare dashboard. The **shared token already carries Cloudflare Tunnel:
+  Edit on the account**, so the tunnel is created, configured and run entirely through the API:
+  `POST /accounts/{id}/cfd_tunnel`, `PUT .../configurations`, `GET .../token`, then
+  `cloudflared tunnel run --token … <UUID>`.
+* **The dynamic NAT address is irrelevant, which is the point of a tunnel.** The connector dialled out from
+  `102.90.126.152` — the very address the old note cited — and the tunnel reports **healthy with four
+  connections**. No inbound port exists and none is needed.
 
-* a grey-clouded record pointing at a private address — resolves to something unreachable;
-* an orange-clouded record with no origin — serves **522** on a hostname the owner believes is live;
-* a record pointed at the archive's cPanel host `162.213.253.73` — which serves the archive, not this
-  service, and would be a public promise that is not kept.
+**And the record was still not created before the tunnel existed.** That part of the old note was right and was
+followed: the tunnel came first, the DNS record second, and only after re-reading the zone and confirming 35
+records with no `media` and no wildcard. `media.ozituma.com` was not touched — same id
+`614f661f5a911ee947c3023383bd015a`, still `CNAME public.r2.dev`. The ozikoro.com zone went from 35 records to
+36 and the apex still points at `162.213.253.73`.
 
-**So the exact calls are handed over and were not run.** They are in `apps/media/DNS.md`.
+### What the hostname does NOT yet do, measured rather than assumed
+
+**A synchronous render does not complete over the public hostname on this machine.**
+
+```
+POST https://media.ozikoro.com/speak  {"text":"Ndeewo.","voice":"proof-say","engine":"local"}
+  -> HTTP 524 after 125 s       Cloudflare's own proxy ceiling; the render was still running
+```
+
+Seven characters. At the measured **105–144× real time on this CPU** (1.291 s of audio in 135.6 s; 2.123 s in
+305.8 s) no synchronous render can answer inside Cloudflare's ~100 s proxy timeout, and a fourteen-minute
+article would take about 24 hours. **This is a speed and shape problem, not a DNS one** — `/health`,
+`/engines`, `/voices` and `/preview/pronunciation` all work over the hostname. `POST /speak` needs a job id
+and a poll, a GPU, or a raised proxy timeout before narration is reachable by a stranger. The full argument is
+in `apps/media/DNS.md` §6.
 
 ### Why a subdomain is right, on the record
 
@@ -354,7 +395,7 @@ decisive one: **if audio ever moves hosts, Spotify feed enclosures break for eve
 enclosure URL is a promise made to a listener's podcast app, so **the hostname should be chosen once and be
 permanent** — which is exactly what a subdomain makes possible and a path like `/api/audio` does not.
 
-### The local surface, which does work
+### The local surface, which works
 
 ```bash
 npm -w @ozikoro/media start
@@ -367,7 +408,9 @@ curl -s -X POST http://127.0.0.1:8787/speak -H 'content-type: application/json' 
 
 ## WHAT IS NOT DONE
 
-* **`media.ozikoro.com` does not resolve.** No DNS record was created — see above and `apps/media/DNS.md`.
+* **A render does not complete over `media.ozikoro.com`.** The hostname serves — see the measurement above —
+  but `POST /speak` needs more than ~100 s at this machine's speed, so narration is not reachable by a
+  stranger. An afternoon's work to make it asynchronous; a decision, not a task, to buy a GPU.
 * **The owner's own voice is not cloned yet.** His 13 recordings are staged as voices marked
   `needs_transcript`, because F5-TTS needs the words spoken in the reference clip and this service will not
   guess them. One line of text per clip is the whole remaining step.

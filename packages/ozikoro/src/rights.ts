@@ -57,6 +57,15 @@ export interface MediaRights {
   allowsCommercial: boolean;
   licence: string | null;
   licenceUrl: string | null;
+  /**
+   * The media row's own credit line.
+   *
+   * It is read HERE as well as from `ozikoro_media` because the rights form edits it: a credit and a
+   * licence are set at the same sitting, and the audit row for a change to either must carry the previous
+   * credit or an editor cannot see what they replaced. `scripts/derive-media-rights.ts` writes the same
+   * column from the record's own embedded metadata and caption text; this field is how a person corrects it.
+   */
+  credit: string | null;
   permissionBasis: PermissionBasis | null;
   permissionDate: string | null;
   permissionNote: string | null;
@@ -118,8 +127,9 @@ const RIGHTS_SELECT = `
          r.allows_commercial, r.licence, r.licence_url, r.permission_basis, r.permission_date,
          r.permission_note, r.subject_is_living, r.subject_consent, r.restricted,
          r.restriction_reason, r.takedown_requested_at, r.takedown_resolved_at, r.checked_by,
-         r.checked_at, coalesce(m.display_name, a.display_name, a.email) as checked_by_name
+         r.checked_at, md.credit, coalesce(m.display_name, a.display_name, a.email) as checked_by_name
     from ozikoro_media_rights r
+    left join ozikoro_media md on md.id = r.media_id
     left join account a on a.id = r.checked_by
     left join ozikoro_member m on m.account_id = r.checked_by
 `;
@@ -135,6 +145,7 @@ function rowToRights(row: Record<string, unknown>): MediaRights {
     allowsCommercial: Boolean(row.allows_commercial),
     licence: row.licence ? String(row.licence) : null,
     licenceUrl: row.licence_url ? String(row.licence_url) : null,
+    credit: row.credit ? String(row.credit) : null,
     permissionBasis: row.permission_basis ? (String(row.permission_basis) as PermissionBasis) : null,
     permissionDate: row.permission_date ? new Date(String(row.permission_date)).toISOString().slice(0, 10) : null,
     permissionNote: row.permission_note ? String(row.permission_note) : null,
@@ -250,6 +261,17 @@ export interface RightsProgress {
   takedownOpen: number;
   /** How much published exposure is still on unchecked items — the number that matters. */
   articlesUsingUnchecked: number;
+  /**
+   * The media row's own provenance columns, which are NOT the same as a rights determination.
+   *
+   * `withCredit` counts items whose credit line is recorded — mostly because
+   * `scripts/derive-media-rights.ts` read it out of the file's embedded metadata or the item's own
+   * caption. `withLicence` counts items where a licence is named, which is a smaller and stronger set.
+   * Printing both stops the screen implying that a credit is a licence, which is the mistake the whole
+   * rights design exists to prevent.
+   */
+  withCredit: number;
+  withLicence: number;
 }
 
 export async function getRightsProgress(db: Db): Promise<RightsProgress> {
@@ -267,7 +289,9 @@ export async function getRightsProgress(db: Db): Promise<RightsProgress> {
       (select count(*)::int from ozikoro_article_media am
          join ozikoro_article a on a.id = am.article_id
          left join ozikoro_media_rights r on r.media_id = am.media_id
-        where a.status = 'published' and a.is_page = false and r.checked_at is null) as articles_using_unchecked
+        where a.status = 'published' and a.is_page = false and r.checked_at is null) as articles_using_unchecked,
+      (select count(*)::int from ozikoro_media where credit is not null and credit <> '') as with_credit,
+      (select count(*)::int from ozikoro_media where licence is not null and licence <> '') as with_licence
   `);
   return {
     media: Number(row?.media ?? 0),
@@ -279,6 +303,8 @@ export async function getRightsProgress(db: Db): Promise<RightsProgress> {
     consentWithdrawn: Number(row?.consent_withdrawn ?? 0),
     takedownOpen: Number(row?.takedown_open ?? 0),
     articlesUsingUnchecked: Number(row?.articles_using_unchecked ?? 0),
+    withCredit: Number(row?.with_credit ?? 0),
+    withLicence: Number(row?.with_licence ?? 0),
   };
 }
 
@@ -295,6 +321,14 @@ export interface RightsInput {
   allowsCommercial: boolean;
   licence?: string | null;
   licenceUrl?: string | null;
+  /**
+   * The credit line, written to `ozikoro_media.credit`.
+   *
+   * `undefined` means "do not touch it"; an empty string or null clears it. The distinction matters
+   * because a derivation has already written 954 of these: a save that did not name a credit must not
+   * wipe one that the record itself states.
+   */
+  credit?: string | null;
   permissionBasis?: PermissionBasis | null;
   permissionDate?: string | null;
   permissionNote?: string | null;
@@ -382,18 +416,75 @@ export async function setMediaRights(
 
   // The media row keeps its own licence string so a query that only knows about `ozikoro_media` sees
   // something true rather than null; the rights record is the authority.
-  await db.query(`update ozikoro_media set licence = $2, rights_note = $3, updated_at = now() where id = $1`, [
-    input.mediaId, input.licence ?? null, input.permissionNote ?? null,
-  ]);
+  await db.query(
+    `update ozikoro_media
+        set licence = $2,
+            rights_note = $3,
+            credit = case when $5 then $4 else credit end,
+            updated_at = now()
+      where id = $1`,
+    [input.mediaId, input.licence ?? null, input.permissionNote ?? null, input.credit ?? null, input.credit !== undefined]
+  );
 
   await audit(db, {
     entityType: 'ozikoro_media_rights',
     entityId: input.mediaId,
     action: before?.isChecked ? 'update_rights' : 'record_rights',
-    before: before ? { allowsPublication: before.allowsPublication, licence: before.licence, restricted: before.restricted } : null,
-    after: { allowsPublication: input.allowsPublication, allowsDerivative: input.allowsDerivative, allowsCommercial: input.allowsCommercial, licence: input.licence ?? null, basis: input.permissionBasis ?? null },
+    before: before
+      ? { allowsPublication: before.allowsPublication, licence: before.licence, credit: before.credit, restricted: before.restricted }
+      : null,
+    after: {
+      allowsPublication: input.allowsPublication,
+      allowsDerivative: input.allowsDerivative,
+      allowsCommercial: input.allowsCommercial,
+      licence: input.licence ?? null,
+      credit: input.credit !== undefined ? input.credit : before?.credit ?? null,
+      basis: input.permissionBasis ?? null,
+    },
     actorId: input.actorId,
   });
+}
+
+/**
+ * Record the same rights on many items at once — the bulk pass the queue needs.
+ *
+ * WHY THIS IS A LOOP OVER `setMediaRights` RATHER THAN ONE STATEMENT
+ *
+ * The archive's rule is that **a rights record names who stood behind it**, and that rule is enforced in
+ * `setMediaRights` — a publication permission with no basis is refused, a living subject with no consent
+ * state is refused, a licence that is a sentence rather than a name is refused. A bulk `update` would
+ * have to re-implement all of that or skip it, and skipping it is how a batch operation becomes the way
+ * an archive ends up with 3,488 unsourced permissions. So every item goes through the same validation,
+ * and **every item gets its own audit row**, which is what makes a bulk pass reviewable one row at a time.
+ *
+ * A REFUSAL IS PER ITEM, NOT PER BATCH
+ *
+ * One item that cannot take the change does not roll back the others — the caller gets the count written
+ * and the reasons for the rest. The alternative is an all-or-nothing batch that fails on row 3,488 and
+ * teaches the editor to stop reading the error. The report is the deliverable.
+ */
+export async function setMediaRightsBulk(
+  db: Db,
+  input: Omit<RightsInput, 'mediaId'> & { mediaIds: number[]; actorId: number }
+): Promise<{ written: number; refused: { mediaId: number; reason: string }[] }> {
+  const { mediaIds, ...rest } = input;
+  const unique = [...new Set(mediaIds)].filter((id) => Number.isInteger(id) && id > 0);
+  const refused: { mediaId: number; reason: string }[] = [];
+  let written = 0;
+
+  for (const mediaId of unique) {
+    try {
+      await setMediaRights(db, { ...rest, mediaId });
+      written += 1;
+    } catch (error) {
+      refused.push({
+        mediaId,
+        reason: error instanceof MemberError ? error.message : String(error).slice(0, 200),
+      });
+    }
+  }
+
+  return { written, refused };
 }
 
 /**
