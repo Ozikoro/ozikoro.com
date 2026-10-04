@@ -1164,6 +1164,224 @@ export async function listResearchers(
   }));
 }
 
+// ---------------------------------------------------------------------------
+// The directory: the people who wrote the archive, and the profiles beside them
+// ---------------------------------------------------------------------------
+
+/**
+ * WHY THIS EXISTS BESIDE `listResearchers`.
+ *
+ * `listResearchers` answers a real question — *who has published a research profile* — and gives a
+ * real answer: one account. `/researchers/` asked only that, and so rendered one card while **the
+ * eleven people who wrote every one of the archive's 1,051 published records appeared nowhere on
+ * the page** (round 310). The fault was the definition rather than the query: the page called a
+ * researcher "somebody with a profile" where the archive calls a researcher "somebody whose byline
+ * is on the record".
+ *
+ * So this answers both questions at once and keeps them apart:
+ *
+ *   * `writers` are `ozikoro_contributor` rows with at least one published, non-page record — the
+ *     same people, the same counts and the same `records > 0` rule that `/about/` uses in
+ *     `fillAbout`, so the two pages cannot disagree about who wrote the archive.
+ *   * `profiles` are public, active `ozikoro_member` rows that are NOT already carried on a
+ *     writer's entry. A research profile is an ADDITIONAL thing — institution, interests,
+ *     publications — and the page says so rather than dissolving it into a byline list.
+ *
+ * THE LINK BETWEEN THE TWO IS NOT GUESSED. `ozikoro_contributor.account_id` is written only when a
+ * claim has been approved by an editor (`decideContributorClaim`), and **no contributor has one**:
+ * the owner's profile and the `nze` byline that shares his name are two rows this archive has not
+ * joined. They are returned as two entries rather than merged on a matching name, because
+ * `requestContributorClaim` already states the rule — a name is neither unique nor secret, so only
+ * a human decides whether a claim is true — and a directory that decided from the name would be
+ * inventing precisely the thing this archive forbids. When a claim is approved the profile moves
+ * onto that writer's entry by itself.
+ *
+ * Every figure is a `count(*)` over the record. Nothing here is typed into a page.
+ */
+export interface DirectoryWriter {
+  slug: string;
+  name: string;
+  bio: string | null;
+  /** Published, non-page records under this byline — the number `/author/<slug>/` also shows. */
+  records: number;
+  /** The account behind the byline, once a claim has been approved. Null while it has not. */
+  accountId: number | null;
+  /** True when `accountId` also has a public research profile, shown on this entry. */
+  hasProfile: boolean;
+  headline: string | null;
+  institution: string | null;
+  department: string | null;
+  researchInterests: string[];
+}
+
+/** A published research profile the archive does not carry on a writer's entry. */
+export interface DirectoryProfile {
+  accountId: number;
+  name: string;
+  headline: string | null;
+  institution: string | null;
+  department: string | null;
+  researchInterests: string[];
+}
+
+export interface ResearchDirectoryTotals {
+  /** People with at least one published record under their byline. */
+  writers: number;
+  /** Every published, non-page record in the archive. */
+  records: number;
+  /**
+   * How many of those records carry a byline. Kept apart from `records` so the page can say
+   * "11 people wrote 1,051 of the 1,051 published records" **without overstating** if a record is
+   * ever published with no author: a total is not a byline count, and a page that treated it as one
+   * would claim credit for work nobody is named on.
+   */
+  recordsByWriters: number;
+  writersWithBio: number;
+  /** Public, active research profiles. */
+  profiles: number;
+  /** Profiles the record links to a writer — the ones shown on a writer's entry. */
+  profilesOnWriters: number;
+}
+
+export interface ResearchDirectory {
+  writers: DirectoryWriter[];
+  profiles: DirectoryProfile[];
+  /** Counted over the whole directory, never over a filtered page. */
+  totals: ResearchDirectoryTotals;
+}
+
+export async function listResearchDirectory(
+  db: Db,
+  options: { search?: string | null; limit?: number } = {}
+): Promise<ResearchDirectory> {
+  const limit = Math.min(Math.max(options.limit ?? 200, 1), 500);
+  const search = options.search?.trim() || null;
+
+  /*
+   * THE FILTER IS THE LABEL'S PROMISE. The box says "name, institution or interest", so it reads
+   * exactly those three and not biographies or record text: a search that quietly matched a
+   * biography would answer a question the reader did not ask, and the records' own words are
+   * searched at `/search`. Institutions and interests live on the research profile, so a writer
+   * who has not published one is found by name alone — which the page states above the box.
+   */
+  const writerParams: unknown[] = [];
+  let writerSearch = '';
+  if (search) {
+    writerParams.push(`%${search}%`);
+    const p = `$${writerParams.length}`;
+    writerSearch = `and (c.display_name ilike ${p}
+                         or m.institution ilike ${p}
+                         or exists (select 1 from unnest(m.research_interests) i where i ilike ${p}))`;
+  }
+  writerParams.push(limit);
+
+  const profileParams: unknown[] = [];
+  let profileSearch = '';
+  if (search) {
+    profileParams.push(`%${search}%`);
+    const p = `$${profileParams.length}`;
+    profileSearch = `and (coalesce(m.display_name, ac.display_name, ac.email) ilike ${p}
+                          or m.institution ilike ${p}
+                          or exists (select 1 from unnest(m.research_interests) i where i ilike ${p}))`;
+  }
+  profileParams.push(limit);
+
+  const [writerRows, profileRows, totalRow] = await Promise.all([
+    db.rows<Record<string, unknown>>(
+      `select c.slug, c.display_name as name, c.bio, c.account_id,
+              count(a.id)::int as records,
+              (m.account_id is not null) as has_profile,
+              m.headline, m.institution, m.department,
+              m.research_interests
+         from ozikoro_contributor c
+         left join ozikoro_article a
+                on a.author_id = c.id and a.status = 'published' and a.is_page = false
+         left join ozikoro_member m
+                on m.account_id = c.account_id and m.is_public = true and m.status = 'active'
+        where true ${writerSearch}
+        group by c.id, c.slug, c.display_name, c.bio, c.account_id,
+                 m.account_id, m.headline, m.institution, m.department, m.research_interests
+       having count(a.id) > 0
+        order by records desc, c.display_name
+        limit $${writerParams.length}`,
+      writerParams
+    ),
+    db.rows<Record<string, unknown>>(
+      `select m.account_id, coalesce(m.display_name, ac.display_name, ac.email) as name,
+              m.headline, m.institution, m.department, m.research_interests
+         from ozikoro_member m
+         join account ac on ac.id = m.account_id
+        where m.is_public = true and m.status = 'active'
+          and not exists (
+            select 1 from ozikoro_contributor c
+             where c.account_id = m.account_id
+               and exists (select 1 from ozikoro_article a
+                            where a.author_id = c.id and a.status = 'published' and a.is_page = false)
+          )
+          ${profileSearch}
+        order by name
+        limit $${profileParams.length}`,
+      profileParams
+    ),
+    db.one<Record<string, unknown>>(
+      `select
+         (select count(*)::int from ozikoro_contributor c
+           where exists (select 1 from ozikoro_article a
+                          where a.author_id = c.id and a.status = 'published' and a.is_page = false)) as writers,
+         (select count(*)::int from ozikoro_article where status = 'published' and is_page = false) as records,
+         (select coalesce(sum(n), 0)::int from (
+            select count(a.id)::int as n from ozikoro_contributor c
+              join ozikoro_article a on a.author_id = c.id and a.status = 'published' and a.is_page = false
+             group by c.id) bylined) as records_by_writers,
+         (select count(*)::int from ozikoro_contributor c
+           where c.bio is not null and length(trim(c.bio)) > 0
+             and exists (select 1 from ozikoro_article a
+                          where a.author_id = c.id and a.status = 'published' and a.is_page = false)) as writers_with_bio,
+         (select count(*)::int from ozikoro_member m
+           where m.is_public = true and m.status = 'active') as profiles,
+         (select count(*)::int from ozikoro_member m
+            join ozikoro_contributor c on c.account_id = m.account_id
+           where m.is_public = true and m.status = 'active'
+             and exists (select 1 from ozikoro_article a
+                          where a.author_id = c.id and a.status = 'published' and a.is_page = false)) as profiles_on_writers`
+    ),
+  ]);
+
+  const interests = (value: unknown): string[] =>
+    Array.isArray(value) ? value.map(String) : [];
+
+  return {
+    writers: writerRows.map((r) => ({
+      slug: String(r.slug),
+      name: String(r.name),
+      bio: r.bio ? String(r.bio) : null,
+      records: Number(r.records ?? 0),
+      accountId: r.account_id === null || r.account_id === undefined ? null : Number(r.account_id),
+      hasProfile: Boolean(r.has_profile),
+      headline: r.headline ? String(r.headline) : null,
+      institution: r.institution ? String(r.institution) : null,
+      department: r.department ? String(r.department) : null,
+      researchInterests: interests(r.research_interests),
+    })),
+    profiles: profileRows.map((r) => ({
+      accountId: Number(r.account_id),
+      name: String(r.name),
+      headline: r.headline ? String(r.headline) : null,
+      institution: r.institution ? String(r.institution) : null,
+      department: r.department ? String(r.department) : null,
+      researchInterests: interests(r.research_interests),
+    })),
+    totals: {
+      writers: Number(totalRow?.writers ?? 0),
+      records: Number(totalRow?.records ?? 0),
+      recordsByWriters: Number(totalRow?.records_by_writers ?? 0),
+      writersWithBio: Number(totalRow?.writers_with_bio ?? 0),
+      profiles: Number(totalRow?.profiles ?? 0),
+      profilesOnWriters: Number(totalRow?.profiles_on_writers ?? 0),
+    },
+  };
+}
+
 /** One researcher's public profile, or null when the profile is private or does not exist. */
 export async function getResearcher(db: Db, accountId: number): Promise<(ResearcherCard & { memberSince: string | null }) | null> {
   const row = await db.one<Record<string, unknown>>(

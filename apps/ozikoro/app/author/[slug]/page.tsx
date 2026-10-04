@@ -82,6 +82,15 @@ export default async function AuthorPage({ params }: PageProps) {
           <h1>{name}</h1>
           <p className="small muted">
             {total} {total === 1 ? 'record' : 'records'} in the archive
+            {' · '}
+            {/*
+              THE WAY BACK TO THE DIRECTORY, and the only honest link between the two pages.
+              `/researchers/<id>/` is a research profile and this is a byline; the archive does not
+              record that they are the same person unless a claim has been approved, so neither page
+              asserts the other. Both point at the directory, which lists the people who wrote the
+              archive and states plainly which profiles it cannot join to a byline. See round 310.
+            */}
+            <Link href="/researchers/">The people who wrote the archive</Link>
           </p>
         </header>
 

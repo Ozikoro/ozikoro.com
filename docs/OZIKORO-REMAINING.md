@@ -15531,3 +15531,124 @@ tracked files and untracked files that are not ignored. The dump and the session
 `data/ozikoro-wp/` (`.gitignore:72`) and `.scratch/` (`.gitignore:92`), neither of which is tracked — which is also
 why the dump, carrying `wpc9_users.user_pass` hashes and the salts in `wpc9_options`, is data and must never be
 committed.
+
+---
+
+## ROUND 310 — THE RESEARCHERS DIRECTORY LISTED PROFILES, AND THE ARCHIVE'S AUTHORS WERE NOT ON IT
+
+**The owner, in his own words:** *"where's the researchers page? it seems to be showing only the
+resarchers profile, and it's just one. please figure out the logic, and fix"*.
+
+He was right, and the page was doing exactly what it was told.
+
+### The logic, which was the whole fault
+
+`/researchers/` called `listResearchers`, which lists `ozikoro_member` rows where `is_public = true and
+status = 'active'`. Measured:
+
+    ozikoro_member                1 row — account 199, "Idenze Ezeme", public, active
+    /researchers/                 HTTP 200, 17,570 bytes, one profile link: /researchers/199/
+
+**The query was correct and the definition was wrong.** The page called a researcher *"somebody who has
+chosen a public research profile"*. The archive calls a researcher *"somebody whose byline is on the
+record"* — and those are eleven different people who account for every published record in it. A
+directory of Igbo and African research showed one card and hid all eleven.
+
+    ozikoro_contributor            16 rows, 11 with published records
+    records under those 11 bylines 1,051 of the 1,051 published records (the sum is exact)
+
+**1,051, not 1,057.** The larger figure appears in this file and in two doc comments; the count of
+`status='published' and is_page=false` is 1,051, and the eleven byline counts sum to exactly 1,051, so
+every published record has an author and no record is counted twice.
+
+### What the page is now
+
+One directory, two facts, kept apart and both counted:
+
+    the writers    every ozikoro_contributor with at least one published record, ordered by how much
+                   of the archive they wrote, each linking to /author/<slug>/ which lists their work
+    the profiles   ozikoro_member rows that are public and active — a research profile is an
+                   ADDITIONAL thing (institution, interests, publications), shown as itself
+
+The page renders, read as text with HTML comments stripped: **11 writers** — Chuka Odike (314),
+Kosisochukwu Nzeribe (282), Idenze Ezeme (185), Chukwunwike Ossai (159), Chinemerem Okwuchukwu (59),
+Maduagwu Nzubechi (22), Chizobem Chinedu Opiah (20), Kenechukwu Umeghalu (4), Ozi Ikoro (3), Akachukwu
+Vitalis (2), Juan Beltran (1) — and **1 research profile**, Idenze Ezeme → `/researchers/199/`.
+
+The standing sentence is two numbers with their subject stated, because conflating them is what produced
+the fault: *"11 people wrote 1,051 published records in this archive. 7 have a biography on file; the
+other 4 are named by the work alone. 1 research profile has been published here as well. The archive does
+not record which byline it belongs to — a name is not proof — so it is listed separately rather than
+joined by a guess. A byline is claimed by its owner and approved by an editor. Claim your byline."*
+
+### `/about/` and this page now agree, and the filter is the same one
+
+`/about/` reports the same eleven people with the same counts, and its noticing phrase is reproduced here
+**word for word** — *"7 have a biography on file; the other 4 are named by the work alone"* — so a reader
+comparing the two pages cannot be told two different things about the same people.
+
+`ozikoro_contributor` holds **16** rows and `/about/` shows **11**. **The filter is `records > 0` and it is
+the right one in both places**: a byline with no published record is a name the archive holds no work for,
+and listing it would present a person it can show nothing about. The other five are not hidden by a mistake
+— they have nothing published yet, and they appear on both pages the moment they do. This was checked
+rather than assumed: `/about/`'s query and `listResearchDirectory` use the identical predicate.
+
+### The join that is not in the record, and why it was not written
+
+The brief that prompted this work said the owner's account (199) *"is linked to a contributor record
+(`nze`…)"* and suggested making that join explicit. **It is not linked, and the measurement is
+unambiguous:**
+
+    ozikoro_contributor.account_id   NULL for ALL 16 contributors, including nze
+    ozikoro_contributor_claim        0 rows
+
+`account_id` is written only by `decideContributorClaim`, and `requestContributorClaim` already states the
+reason it is not automatic: **a name is neither unique nor secret, so only a human decides whether a claim
+is true.** Writing `account_id = 199` onto `nze` because two rows share the display name *"Idenze Ezeme"*
+would have been the exact failure this archive is built against — a plausible join standing in for a
+verified one — and it would have been a data change made to make a page look better.
+
+So the page states the true thing now (*the archive does not record which byline the profile belongs to*),
+offers the mechanism that resolves it (`/claims/`, decided at `/admin/claims`), and **merges the profile
+onto the writer's entry by itself** when that claim is approved: `listResearchDirectory` carries a linked
+profile on the writer's card and drops it from the separate list. The record changes; the page needs no
+further edit. A page that heals itself is worth more than one that must be revisited.
+
+### The search box, which had to keep working and say something true
+
+It still filters on exactly what its label promises — **name, institution or research interest** — and the
+page now says where each comes from: *names from the byline; institutions and interests from a published
+research profile, so a person who has not published one is found by name alone*, with a link to `/search`
+for the records' own words. A filter with no match gets its own honest state that says what was searched
+and points at the archive search, rather than showing the directory's empty-state prose as though the
+archive were empty. **The standing counts do not move when a filter is applied** — they are facts about the
+archive, not about the page.
+
+### HOW IT WAS VERIFIED
+
+    npm run typecheck (from the REPOSITORY ROOT)     exit 0, seven workspaces
+    the data functions, on a COPY of the cluster     totals writers 11, records 1,051, bylines 1,051,
+                                                     with-bio 7, profiles 1, profiles-on-writers 0;
+                                                     search by name narrows, search by nonsense empties
+    the rendered page, comments stripped             see the names and the two counts above
+    scripts/verify-round-310.mjs                     reads the page as text, follows every writer link
+                                                     to a 200, checks the profile link, both search
+                                                     states and the counts under a filter
+
+The cluster was **not** contended: the live server held `.data/pg.lock` (pid 54443) throughout the
+measurement, and every database check ran against `.data/scratch-r310/pg`, a copy, which takes its own lock
+by construction. The rebuild that served the page stopped that server with the script's own SIGTERM and
+restarted it on the same port.
+
+**NOT DONE, AND NOT CLAIMED:**
+
+1. **The claim flow was not exercised end to end.** Approving a claim writes `account_id`, and no claim
+   was requested, so the merge-onto-one-card path is verified by reading the query's `not exists` clause
+   and by the totals above (0 profiles-on-writers) rather than by a rendered before and after.
+2. **`check:design-parity` was not re-run.** `/researchers` is a declared exemption (`the design draws
+   researcher-profile, one researcher; an index of them is not that page`), and no file under
+   `public/design/` was touched.
+3. **No portrait, institution, interest or publication was created.** The profile's institution and
+   interests are empty in the record because the owner has supplied none, and the page says the profile
+   is published rather than filling those fields in.
+
