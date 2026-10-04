@@ -2362,20 +2362,98 @@ test('a film’s page does not carry the design’s own "for this design" into a
   };
   assert.doesNotMatch(fillWatchVideo(screen, film), /for this design/);
   assert.doesNotMatch(fillWatchVideo(screen), /for this design/);
-  assert.match(fillWatchVideo(screen, film), /The approved transcript has not been supplied for this film\./);
+  /*
+   * AND THE SENTENCE IS ON EXACTLY ONE OF THE TWO PAGES. It attaches to a reading view, and a film the archive
+   * holds no longer serves one — the owner had the whole section removed, and the description slot that
+   * replaced its purpose carries the record's own words instead. The design's own page (`/watch-video/` with no
+   * `?v=`) keeps the section, so it keeps the sentence.
+   */
+  assert.match(fillWatchVideo(screen), /The approved transcript has not been supplied for this film\./);
+  /*
+   * AND A FILM THE ARCHIVE HOLDS SAYS NOTHING ABOUT A TRANSCRIPT AT ALL. The assertion is on the served
+   * STATEMENTS rather than on the word, because the design's own container class for the band that carries the
+   * related block is `.sx-transcript` — a class name a reader never meets, and the band the design drew the
+   * block inside. What must not survive is a claim: the status line, the eyebrow, the heading, the id.
+   */
+  const held = fillWatchVideo(screen, film);
+  assert.doesNotMatch(held, /transcript status/i, 'a film the archive holds still carries a transcript status line');
+  assert.doesNotMatch(held, /transcript has not been supplied/i, 'a film the archive holds still says no transcript exists');
+  assert.doesNotMatch(held, /id="transcript"/, 'a film the archive holds still serves the transcript id');
+  assert.doesNotMatch(held, /Read when video is difficult to load/, 'the reading heading is still served');
 });
-
 /* ------------------------------------------------------------------------------------------------
- * THE OWNER'S REPORT: "HOW CAN YOU FETCH VIDEO FROM AN ARTICLE, FETCH THE TITLE, BUT CANT FETCH
- * THE ARTICLE?" — THE HOLDING RECORD'S WRITING IN THE READING SLOT, AND NOT CALLED A TRANSCRIPT
+ * THE OWNER'S INSTRUCTION ON `/watch-video/` — THE ARTICLE COMES OFF THE PAGE, THE RECORD'S OWN
+ * DESCRIPTION GOES IN, A CONTROL FOR THE MAIN ARTICLE IS ADDED, AND THE READING SECTION IS
+ * REPLACED BY THE DESIGN'S OWN RELATED BLOCK
  * ---------------------------------------------------------------------------------------------- */
 
-test('a film’s page carries the holding record’s own writing, and never calls it a transcript', () => {
+test('a film’s page carries the record’s own description, and the record’s writing is not on it', () => {
   /*
-   * MEASURED BEFORE THIS: `/watch-video/?v=LL8YX0pXzdI` served 4 paragraphs of interface text inside
-   * `#transcript-copy` and none of the article's own, while the same page already printed the article's
-   * title, its iframe and two links to it. The design's heading promises *"Read when video is difficult to
-   * load"*, so the slot exists to be read in — and it was empty of writing.
+   * WHAT THE OWNER ASKED FOR, IN HIS WORDS: *"on the watch, remove the article showing inside the page. if one
+   * wants to see the article, when you click on 'this film's page', let it open, but not also the article. the
+   * main article is expected to continue being in the original blog posts lists."*
+   *
+   * SO THE RECORD KEEPS ITS OWN ADDRESS AND THIS PAGE DOES NOT DUPLICATE THE WRITING. Round 351 put the
+   * holding record's whole body — eleven to thirty-three paragraphs — into `#transcript-copy`, and it is off the
+   * page again.
+   *
+   * AND THE SENTENCE HE READ THERE WAS NOT THE ARTICLE'S. He took `sx-video-copy`'s *"A sourced viewing page
+   * keeps the film, its publisher, related records and text access together…"* for *"short description from the
+   * article itself"*. **It is the design's fixed interface text** — the screen's own `example-flag` calls it
+   * example material — and it is the same sentence on all eighteen films. His intent is kept and his premise is
+   * not: the slot carries the record's own summary, read from `ozikoro_article.standfirst`.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const film = {
+    id: 'LL8YX0pXzdI',
+    title: 'The War Dance Festival (ILA OSO) In Uzuakoli',
+    titleFrom: 'film' as const,
+    topic: 'Cultural Heritage',
+    records: 1,
+    href: '/the-war-dance-festival-ila-oso-in-uzuakoli/',
+  };
+  const summary = 'The ILA OSO festival is a significant cultural event of the Uzuakoli people, located in '
+    + 'present-day Abia State, Nigeria.';
+  const out = fillWatchVideo(screen, film, [film], {
+    summary,
+    body: '<p>This paragraph is the body and it is NOT on the page, whatever it says.</p>'
+      + '<h3>Historical Background</h3><p>The origins of the festival date back over 200 years.</p>',
+    title: film.title,
+    href: film.href,
+  });
+
+  assert.match(
+    out,
+    new RegExp(`<p class="sx-video-copy">${summary.replace(/[.()]/g, '\\$&')}</p>`),
+    'the description slot does not carry the record’s own summary verbatim'
+  );
+  // The design's interface sentence is not the description, and neither is the platform note that replaced it.
+  assert.doesNotMatch(out, /A sourced viewing page keeps the film/, 'the design’s boilerplate is still the description');
+  assert.doesNotMatch(out, /This film is embedded by a record in the Ozikoro archive/, 'the platform note is still the description');
+
+  // The record's writing is not on the page: no reading column, no body paragraph, no authored heading.
+  assert.doesNotMatch(out, /class="prose"/, 'the record’s body was rendered into a reading column');
+  assert.doesNotMatch(out, /This paragraph is the body/, 'the record’s body is on the film page');
+  assert.doesNotMatch(out, /Historical Background/, 'the record’s own heading came with its body');
+  // And the film is embedded once, as the page's subject, rather than twice.
+  assert.equal(
+    (out.match(/youtube-nocookie\.com\/embed\/LL8YX0pXzdI/g) ?? []).length,
+    1,
+    'the page carries the film more than once'
+  );
+});
+
+test('a record with no summary is described in whole sentences from its own opening paragraph', () => {
+  /*
+   * THE FALLBACK, IN ORDER OF HONESTY. Measured: **all thirteen holding records carry a `standfirst` today**, so
+   * this path is the exception rather than the rule — which is exactly why it is tested: it is the rule for the
+   * first record that arrives without one.
+   *
+   * TWO THINGS IT MUST NOT DO. It must not take a truncated sentence — *"a truncated sentence can assert
+   * something the record does not say"* — so a description stopped mid-sentence is a fault rather than a trim.
+   * And it must not read the body raw: the record's own film embed and a `<script>` are both in the body, and
+   * neither may put a word into the description. Both go through the archive's own sanitiser, which is the one
+   * `prepareArchiveHtml` uses.
    */
   const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
   const film = {
@@ -2386,86 +2464,243 @@ test('a film’s page carries the holding record’s own writing, and never call
     records: 1,
     href: '/the-war-dance-festival-ila-oso-in-uzuakoli/',
   };
-  /*
-   * A body shaped like the archive's own: paragraphs, an authored heading, the record's own film embed, and
-   * a `<script>` the sanitiser must remove. **The embed is the case that matters** — the film is already the
-   * page's subject above, and a second player inside a slot headed "read when video is difficult to load"
-   * would be the opposite of what the slot is for.
-   */
   const out = fillWatchVideo(screen, film, [film], {
-    body: '<p>The ILA OSO festival is a significant cultural event of the Uzuakoli people.</p>'
-      + '<figure><img src="https://ozikoro.com/wp-content/uploads/2025/03/shot.jpg" alt="A photograph" width="719"></figure>'
-      + '<h3>Historical Background</h3><p>The origins of the festival date back over 200 years.</p>'
+    summary: null,
+    body: '<figure><img src="https://ozikoro.com/wp-content/uploads/2025/03/shot.jpg" alt="A photograph" width="719"></figure>'
+      // Under forty characters, so it is a caption or a stray line rather than a description.
+      + '<p>Shot by Gifty-e.</p>'
+      + '<p>The ILA OSO festival is a significant cultural event of the Uzuakoli people. '
+      + 'It is celebrated biennially. A third sentence is left out, because the design’s slot holds a short '
+      + 'description rather than the record.</p>'
       + '<iframe src="https://www.youtube.com/embed/LL8YX0pXzdI" title="ILA OSO"></iframe>'
       + '<script>alert(1)</script>',
     title: 'The War Dance Festival (ILA OSO) In Uzuakoli',
     href: film.href,
-    /*
-     * THE ARCHIVE'S OWN RESOLVER, AND IT MUST RUN BEFORE THE SANITISER. The sanitiser turns an
-     * `ozikoro.com/wp-content/…` address into the path `/wp-content/…`, and the media map is keyed by the
-     * absolute address — so a body sanitised first serves three of this article's photographs as 404s, which
-     * is exactly what the first pass of this fix did.
-     */
-    resolveImage: (url) =>
-      url === 'https://ozikoro.com/wp-content/uploads/2025/03/shot.jpg' ? '/media/ozikoro/1234-shot.jpg' : null,
   });
 
-  const copyAt = out.indexOf('id="transcript-copy"');
-  const relatedAt = out.indexOf('id="related-video"');
-  const wordsAt = out.indexOf('ILA OSO festival is a significant cultural event');
-  assert.ok(copyAt >= 0 && relatedAt > copyAt, 'the design’s reading slot is not where it was');
-  assert.ok(
-    wordsAt > copyAt && wordsAt < relatedAt,
-    'the record’s writing is not inside the design’s own reading slot'
+  const copy = /<p class="sx-video-copy">([\s\S]*?)<\/p>/.exec(out)?.[1];
+  assert.equal(
+    copy,
+    'The ILA OSO festival is a significant cultural event of the Uzuakoli people. It is celebrated biennially.',
+    'the description is not the record’s own first two whole sentences'
   );
-  assert.match(out, /The origins of the festival date back over 200 years/, 'the rest of the record is missing');
-  assert.match(out, /Historical Background/, 'the record’s own heading was dropped');
-  assert.match(out, /class="prose"/, 'the words were not put in the design’s reading markup');
-
-  // The archive's own sanitiser, not a second one: the script goes and the film is not embedded twice.
-  const slot = out.slice(copyAt, relatedAt);
-  assert.doesNotMatch(slot, /<script|alert\(1\)/, 'the record’s body was rendered unsanitised');
-  assert.doesNotMatch(slot, /<iframe/, 'a second player was put inside the reading slot');
+  // Whole sentences only, so nothing past the second is shown and nothing is cut mid-sentence.
+  assert.doesNotMatch(out, /A third sentence is left out/, 'the description ran past the sentences it takes');
+  assert.doesNotMatch(out, /Shot by Gifty-e/, 'a caption was taken for the record’s opening');
+  // And the body went through the archive's own sanitiser: neither the embed nor the script reached the slot.
+  assert.doesNotMatch(copy ?? '', /iframe|youtube|alert\(1\)/, 'the body was read unsanitised');
   assert.equal(
     (out.match(/youtube-nocookie\.com\/embed\/LL8YX0pXzdI/g) ?? []).length,
     1,
-    'the page carries the film more than once'
+    'a second player came in with the record’s body'
   );
-  /*
-   * AND THE RECORD'S OWN PHOTOGRAPHS RESOLVE. Measured without the pre-sanitiser rewrite: the ILA OSO
-   * record's three photographs were served as `/wp-content/uploads/2025/03/…` and the browser asked this
-   * host for them, which is a 404 on every one.
-   */
-  assert.match(slot, /src="\/media\/ozikoro\/1234-shot\.jpg"/, 'the record’s photograph was not resolved');
-  assert.doesNotMatch(slot, /wp-content\/uploads/, 'an unresolved WordPress address survived in the reading slot');
-  // And WordPress's fixed pixel width is off the image, so it cannot run past the design's column.
-  assert.match(slot, /style="max-width:100%;height:auto;"/, 'a fixed WordPress width survived in the reading slot');
-  assert.doesNotMatch(slot, /width="719"/, 'a fixed WordPress width survived in the reading slot');
-
-  /*
-   * THE TRANSCRIPT DISTINCTION. The archive holds no transcript of this film, the sentence that says so is
-   * still there and still true, and the writing is introduced as the RECORD's words rather than as a timed,
-   * speaker-attributed record of the film.
-   */
-  assert.match(out, /The approved transcript has not been supplied for this film\./);
-  assert.match(out, /Transcript status: no publisher-approved transcript has been supplied\./);
-  assert.match(out, /A transcript is a timed, speaker-attributed record of what is said in a film/);
-  assert.match(out, /not a transcript of the film/);
-  assert.match(out, /href="\/the-war-dance-festival-ila-oso-in-uzuakoli\/"/, 'the writing is not attributed');
-  // And the slot is not labelled a transcript, which it would then be contradicting one line later.
-  assert.doesNotMatch(out, /Transcript-first view/, 'the slot is still labelled "Transcript-first view"');
-  assert.match(out, /<p class="eyebrow">Reading view<\/p>/);
-
-  /*
-   * A CALLER THAT PASSES NO WRITING GETS NO WRITING. The route passes nothing for a record it cannot match,
-   * and the design's own page (`/watch-video/` with no `?v=`) has no archive record behind it at all — so
-   * neither may gain a sentence about words that are not there.
-   */
-  const bare = fillWatchVideo(screen, film);
-  assert.doesNotMatch(bare, /class="prose"/, 'words appeared with no record behind them');
-  assert.doesNotMatch(bare, /A transcript is a timed/, 'the reading sentence appeared with no reading');
-  // And a record that really holds no body says so rather than showing an empty column.
-  const empty = fillWatchVideo(screen, film, [film], { body: '', title: 'A Record', href: film.href });
-  assert.match(empty, /carries no written body/, 'an empty record was not stated');
-  assert.doesNotMatch(empty, /class="prose"/, 'an empty record still drew a reading column');
 });
+
+test('a summary field that stops mid-sentence is declined, and the record’s opening is read instead', () => {
+  /*
+   * THE MEASUREMENT THIS RULE EXISTS FOR. All thirteen holding records carry an `ozikoro_article.standfirst`,
+   * and **all thirteen are truncated windows of the body rather than authored summaries** — every one ends in
+   * an ellipsis, and they glue the record's own sub-headings into their sentences:
+   *
+   *   `…the festival is celebrated biennially, alternating with the IZA MBARA AMA…`
+   *   `…life by the river. History of Égwú Àmàlà Égwú…`
+   *
+   * **A field that stops mid-clause is not a description, and showing its good half would be showing a
+   * truncated sentence** — the one thing the instruction forbids. So it is declined and the record's own
+   * opening paragraph is read in whole sentences, which is the same rule's "else" branch and gives the same
+   * opening words.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const film = {
+    id: 'LL8YX0pXzdI',
+    title: 'ILA OSO',
+    titleFrom: 'film' as const,
+    topic: 'Cultural Heritage',
+    records: 1,
+    href: '/the-war-dance-festival-ila-oso-in-uzuakoli/',
+  };
+  const out = fillWatchVideo(screen, film, [film], {
+    summary: 'The ILA OSO festival is a significant cultural event of the Uzuakoli people. It is celebrated '
+      + 'biennially, alternating with the IZA MBARA AMA…',
+    /*
+     * The body is shaped like the archive's own: WordPress's editor splits text into `<span>` runs that carry
+     * their own spaces, so the tags must come off with **nothing** in their place. A tag substituted for a
+     * space puts one in front of the record's own punctuation — measured without that rule, five of the
+     * eighteen served pages read *"the ogene , a metal bell"* and *"in Nigeria , but"*.
+     */
+    body: '<p>The ILA OSO festival is a significant cultural event of the <span>Uzuakoli people</span>'
+      + '<span>.</span> It is celebrated biennially, alternating with the <span>IZA MBARA AMA</span> '
+      + 'masquerade dance. A third sentence is not shown.</p>',
+    title: 'The War Dance Festival (ILA OSO) In Uzuakoli',
+    href: film.href,
+  });
+
+  const copy = /<p class="sx-video-copy">([\s\S]*?)<\/p>/.exec(out)?.[1];
+  assert.equal(
+    copy,
+    'The ILA OSO festival is a significant cultural event of the Uzuakoli people. It is celebrated biennially, '
+      + 'alternating with the IZA MBARA AMA masquerade dance.',
+    'a truncated summary was shown, or the record’s opening was not read'
+  );
+  assert.doesNotMatch(copy ?? '', /…/, 'the description still carries the excerpt’s ellipsis');
+  assert.doesNotMatch(copy ?? '', / ,|\.\./, 'a tag boundary put a space in front of the record’s own punctuation');
+  assert.doesNotMatch(out, /A third sentence is not shown/, 'the description ran past the sentences it takes');
+  // And a complete summary field IS used, so the field is preferred wherever it really is a description.
+  const authored = fillWatchVideo(screen, film, [film], {
+    summary: 'A complete summary of the record, in its own words. A second sentence of the summary follows.',
+    body: '<p>A different opening paragraph that must not be used, whatever it happens to say here.</p>',
+    title: 'The War Dance Festival (ILA OSO) In Uzuakoli',
+    href: film.href,
+  });
+  assert.match(
+    authored,
+    /<p class="sx-video-copy">A complete summary of the record, in its own words. A second sentence of the summary follows\.<\/p>/,
+    'a complete summary field was not preferred over the body'
+  );
+  assert.doesNotMatch(authored, /A different opening paragraph/, 'the body was read over a usable summary');
+});
+
+test('a record with nothing usable for a description says so, and does not get the design’s line back', () => {
+  /*
+   * THE SLOT THE OWNER IS READING. Where the archive holds neither a summary nor an opening sentence, the
+   * honest thing is to state that — **not to put the design's sentence about the platform back and call it the
+   * record's.** A line about the platform in the description slot reads as the record's own words, which is the
+   * fault this whole page is being fixed for.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const film = {
+    id: 'LL8YX0pXzdI',
+    title: 'ILA OSO',
+    titleFrom: 'film' as const,
+    topic: 'Cultural Heritage',
+    records: 1,
+    href: '/the-war-dance-festival-ila-oso-in-uzuakoli/',
+  };
+  const out = fillWatchVideo(screen, film, [film], {
+    summary: '   ',
+    body: '<p></p><figure><img src="https://example.invalid/x.jpg" alt=""></figure><p>Too short.</p>',
+    title: 'The War Dance Festival (ILA OSO) In Uzuakoli',
+    href: film.href,
+  });
+  assert.match(out, /carries no summary and no opening paragraph of its own/, 'an empty record was not stated');
+  assert.doesNotMatch(out, /A sourced viewing page keeps the film/, 'the design’s boilerplate came back');
+  // And with no record passed at all, the page still says which absence it is showing.
+  const bare = fillWatchVideo(screen, film, [film]);
+  assert.match(bare, /The archive supplied no readable record for this film/, 'a missing record was not stated');
+});
+
+test('the reading section is replaced by the design’s own Related viewing block in the place it stood', () => {
+  /*
+   * THE OWNER'S INSTRUCTION: *"then remove from 'On this page' and the entire others below, and replace it with
+   * 'related videos'"*. So the section's aside, its transcript-first copy, its transcript status line and the
+   * `#transcript` id all go, and the design's own related block — which the design draws INSIDE that section —
+   * is what remains, in the design's own markup and its own copy panel.
+   *
+   * AND NO ANCHOR IS LEFT POINTING AT WHAT WENT. The design's own header nav carries
+   * `<a href="#transcript">Transcript</a>`, made absolute to this page by `designScreenLinks` before this fill
+   * runs, so the test drives that order too.
+   */
+  const screen = designScreenLinks(readFileSync(join(SCREENS, 'watch-video.html'), 'utf8'), '/watch-video/?v=LL8YX0pXzdI');
+  const films = extractArchiveFilms([
+    { slug: 'a', title: 'A Film', topic: 'Cultural Heritage', body_html: '<iframe src="https://www.youtube.com/embed/LL8YX0pXzdI"></iframe>' },
+    { slug: 'b', title: 'B Film', topic: 'Cultural Heritage', body_html: '<iframe src="https://www.youtube.com/embed/SHPEwGDOI7c"></iframe>' },
+  ]);
+  const out = fillWatchVideo(screen, films[0]!, films, {
+    summary: 'A sourced summary of A Film, in the record’s own words.',
+    body: '',
+    title: 'A Film',
+    href: '/a/',
+  });
+
+  // Everything the owner asked to be removed is gone — the nav, the transcript copy, the status line, the id.
+  assert.doesNotMatch(out, /On this page/, 'the design’s in-page nav is still on the page');
+  assert.doesNotMatch(out, /id="transcript"/, 'the reading section is still served');
+  assert.doesNotMatch(out, /id="transcript-copy"/, 'the reading column is still served');
+  assert.doesNotMatch(out, /Transcript-first view/, 'the transcript-first eyebrow is still on the page');
+  assert.doesNotMatch(out, /Transcript status/, 'the transcript status line is still on the page');
+  assert.doesNotMatch(out, /Read when video is difficult to load/, 'the reading heading is still on the page');
+
+  // And the design's own related block is what stands in its place, in the design's own wording and markup.
+  assert.match(
+    out,
+    /<section class="sx-transcript"><div class="wrap"><div class="sx-transcript-copy" id="related-video"[^>]*><p class="eyebrow">Related viewing<\/p>/,
+    'the related block is not where the reading section stood'
+  );
+  assert.match(out, /More films under Cultural Heritage/, 'the archive’s own topic does not head the list');
+  assert.match(out, /youtube\.com\/watch\?v=SHPEwGDOI7c/, 'the film from the same topic is not offered');
+
+  /*
+   * EVERY IN-PAGE ANCHOR ON THE SERVED PAGE POINTS AT AN ID THE PAGE CARRIES — followed, not assumed. This is
+   * the check that would have caught the header nav pointing at a section that no longer exists.
+   */
+  const fragments = [...out.matchAll(/href="[^"]*#([^"]+)"/g)].map((m) => m[1] ?? '');
+  assert.ok(fragments.length >= 2, 'the page carries no in-page anchors at all, so this check proves nothing');
+  for (const fragment of fragments) {
+    assert.match(
+      out,
+      new RegExp(`\\bid="${fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`),
+      `an anchor points at #${fragment}, which the served page does not carry`
+    );
+  }
+  assert.doesNotMatch(out, /#transcript/, 'an anchor still names the removed section');
+
+  /*
+   * THE THREE CONTROLS, in the design's own classes. The owner named the two the design draws and asked for a
+   * third for the main article; both inward controls reach the holding record, because **the record is the
+   * low-bandwidth reading of the film** and it is also what he calls "this film's page".
+   */
+  assert.match(
+    out,
+    /<a class="btn btn-gold" href="https:\/\/www\.youtube\.com\/watch\?v=LL8YX0pXzdI">Watch on YouTube ↗<\/a>/,
+    'the outward control is not this film’s own'
+  );
+  assert.match(out, /<a class="btn btn-ghost" href="\/a\/">Low-bandwidth reading<\/a>/, 'the design’s reading control was lost');
+  assert.match(out, /<a class="btn btn-ghost" href="\/a\/">This film’s page<\/a>/, 'the main article has no control');
+  // The header nav names the block it now reaches, in the design’s own wording for that block.
+  assert.match(out, /<a href="\/watch-video\/\?v=LL8YX0pXzdI#related-video">Related viewing<\/a>/, 'the header nav names a section the page does not carry');
+
+  // And the provenance the archive must keep stays exactly where it was, plus the one policy sentence.
+  assert.match(out, /<h2>Source record<\/h2>/, 'the source-record aside went with the reading section');
+  assert.match(out, /<b>Rights and reuse<\/b><br>Not recorded\. Follow the publisher’s terms on YouTube\. Ozikoro does not present an external film as its own production\./);
+});
+
+test('the design’s own page keeps its reading section, because its film has no record to point at', () => {
+  /*
+   * OPTION B, AND IT IS THE ONLY PAGE IT APPLIES TO. `/watch-video/` with no `?v=` is the design's own film —
+   * the home screen links it — and **the archive holds no record for it**: `?v=E3UBv8pmLxE` answers 404. So
+   * "Low-bandwidth reading" has nothing to point at, and removing the section would leave that control and the
+   * design's own header nav anchor both pointing at an id that is gone. That is the fault the instruction
+   * forbids, so the section stays here — and this is therefore also the one page where the truthful sentence
+   * about a missing transcript has something to attach to.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const own = fillWatchVideo(screen);
+
+  assert.match(own, /id="transcript"/, 'the design’s own reading section was removed from the design’s own page');
+  assert.match(own, /The approved transcript has not been supplied for this film\./);
+  assert.match(own, /<a class="btn btn-ghost" href="#transcript">Low-bandwidth reading<\/a>/, 'the design’s control lost its destination');
+  assert.match(own, /Continue with Unspoken Stories/, 'the design’s own related block left the design’s own page');
+  assert.doesNotMatch(own, /This film’s page/, 'a control to a record appeared on a page with no record');
+  assert.doesNotMatch(own, /for this design/, 'the demonstration’s own words survived on the served page');
+  /*
+   * AND NO NAME IS SHARED BETWEEN A CONTROL AND A LABEL THAT IS NOT ONE.
+   *
+   * The owner's report was that a thing called "Reading view" was not clickable. **Measured on the served page
+   * before this change, `Reading view` appeared three times: twice as a link and once as
+   * `<p class="eyebrow">Reading view</p>`, which is text.** The design never did that — its nav reads
+   * `Transcript` and its eyebrow `Transcript-first view` — so the collision was round 351's rename, and the fix
+   * is to stop renaming. Every label this page serves is now the design's own.
+   */
+  assert.match(own, /<p class="eyebrow">Transcript-first view<\/p>/, 'the design’s own eyebrow was renamed');
+  assert.match(own, /<a href="#transcript">Transcript<\/a>/, 'the design’s own nav label was renamed');
+  assert.doesNotMatch(own, /Reading view/, 'a control and a non-clickable label still share one name');
+  const fragments = [...own.matchAll(/href="[^"]*#([^"]+)"/g)].map((m) => m[1] ?? '');
+  for (const fragment of fragments) {
+    assert.match(
+      own,
+      new RegExp(`\\bid="${fragment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`),
+      `an anchor points at #${fragment}, which the served page does not carry`
+    );
+  }
+});
+

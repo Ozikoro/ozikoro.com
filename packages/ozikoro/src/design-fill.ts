@@ -6033,9 +6033,40 @@ ${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB',
  * film is the demonstration's**: the transcript area says the approved transcript has not been supplied, which
  * is the truth, and the related viewing list names three other films.
  *
- * The film's provenance sentence is kept because it is the design telling the truth about a real embed — Ozikoro
- * does not present an external film as its own production — and the two sentences that describe the interface
- * as example material go, because they are about the design rather than about the film.
+ * ── WHAT A FILM THE ARCHIVE HOLDS GETS, ON THE OWNER'S INSTRUCTION (round 352) ─────────────────────
+ *
+ * The page is the film and its provenance, and the RECORD'S WRITING IS NOT ON IT. The owner's words: *"on the
+ * watch, remove the article showing inside the page. if one wants to see the article, when you click on 'this
+ * film's page', let it open, but not also the article. the main article is expected to continue being in the
+ * original blog posts lists."* So the record keeps its own address, stays in `/archive/`, and this page is a
+ * **doorway to it rather than a copy of it** — one address per record.
+ *
+ * That is the shape §3 of the owner's report asks for, and it is three changes on this page:
+ *
+ *   * **the description slot is the record's own words.** `sx-video-copy` carried the design's fixed interface
+ *     sentence — *"A sourced viewing page keeps the film, its publisher, related records and text access
+ *     together…"*, which the screen's own `example-flag` calls example material and which is the same sentence
+ *     on all eighteen films. It now carries the record's own summary, or its own opening sentences, or an
+ *     honest statement that it holds neither. See `filmDescription`.
+ *   * **a third control, and a repointed one.** The design draws "Watch on YouTube ↗" and "Low-bandwidth
+ *     reading" (at `#transcript`). The owner asked for a control for the main article: *"the way it has buttons
+ *     for 'watch on youtube' and 'Low-bandwidth reading', should it have button for the main article"*. **The
+ *     article is also the low-bandwidth reading of the film** — the design's own heading for the slot that
+ *     control reaches was *"Read when video is difficult to load"* — so both point at the holding record, and
+ *     neither points at an anchor this page no longer serves.
+ *   * **the reading section is replaced by the design's own related block.** *"then remove from 'On this page'
+ *     and the entire others below, and replace it with 'related videos'"*. The design already draws that block
+ *     — `<div id="related-video">` with the eyebrow *"Related viewing"* — so it is kept and the archive's own
+ *     neighbours fill it.
+ *
+ * ── AND THE DESIGN'S OWN PAGE, WHICH IS NOT THIS PAGE (Option B) ───────────────────────────────────
+ *
+ * `/watch-video/` with no `?v=` is the design's own film — the home screen links it — and **the archive holds
+ * no record for that film**: `?v=E3UBv8pmLxE` answers 404. There is therefore nothing for "Low-bandwidth
+ * reading" to point at, and removing the section would leave both that control and the design's own header
+ * nav anchor dead. That is the one case §2 of the report allows Option B for, and the reading section is kept
+ * there — which is also where the truthful transcript sentence still attaches, to a page that still offers a
+ * reading view.
  *
  * ── AND THE SAME PAGE, FOR ANY FILM THE ARCHIVE HOLDS (round 338) ──────────────────────────────────
  *
@@ -6062,34 +6093,144 @@ ${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB',
 export type RealFilmPage = RealFilm;
 
 /**
- * The archive's own writing for the record a film is held in.
+ * The record a film is held in — its own short description, and its own writing only where there is none.
  *
  * WHAT THIS IS, AND WHY IT IS NOT A FIELD ON `RealFilm`. `RealFilm` is the facts a card carries: an id, a
- * title, a topic, a count and an address — enough for `/watch/` to draw twenty-four posters. The BODY is what
- * one film's own page reads, and putting it on every card would carry every embedding record's whole text
- * into a list that shows none of it. So it is a separate argument, given only by the one route that already
- * holds the record's own row — and **no new query is written for it**, which is why the type is built from a
- * row the caller has already read rather than fetched here.
+ * title, a topic, a count and an address — enough for `/watch/` to draw twenty-four posters. The record's own
+ * description and body are what one film's own page reads, and putting them on every card would carry every
+ * embedding record's whole text into a list that shows none of it. So they are a separate argument, given only
+ * by the one route that already holds the record's own row — and **no new query is written for them**, which
+ * is why the type is built from a row the caller has already read rather than fetched here.
  */
 export type RealFilmReading = {
-  /** The record's own words, as published. Sanitised by this fill, never by the caller. */
-  body: string;
-  /** The record's title, so the reading slot says whose writing follows. */
-  title: string;
-  /** The record's own address. */
-  href: string;
   /**
-   * The archive's own media resolver, where the caller has one.
+   * THE RECORD'S OWN SHORT DESCRIPTION, WHERE IT HAS ONE — AND ONLY WHERE IT IS ONE.
    *
-   * IT IS APPLIED BEFORE THE SANITISER, WHICH IS THE ORDER THAT MATTERS. `sanitiseArchiveHtml` turns an
-   * `https://ozikoro.com/wp-content/…` address into the path `/wp-content/…` — that is what its
-   * `internalHosts` rule is for — and **the archive's media map is keyed by the absolute `source_url`, so a
-   * body sanitised first can never be resolved afterwards.** `prepareArchiveHtml` therefore rewrites the
-   * media addresses before it sanitises, and this does the same. Measured without it: 3 of the ILA OSO
-   * article's photographs were served as `/wp-content/uploads/2025/03/…` and 404'd.
+   * `ozikoro_article.standfirst`. It is the field the record's own article page already builds its
+   * `<meta name="description">` from, and **it is preferred over the body because a field the archive chose
+   * to describe the record with is better material than a paragraph this fill picked out.**
+   *
+   * IT IS MEASURED, AND IT IS NOT WHAT IT LOOKS LIKE. All thirteen holding records carry a `standfirst`, and
+   * **all thirteen are truncated, tag-stripped windows of the body rather than authored summaries** — every one
+   * ends in an ellipsis, and they glue the record's sub-headings into their sentences:
+   *
+   *   `…the festival is celebrated biennially, alternating with the IZA MBARA AMA…`
+   *   `…life by the river. History of Égwú Àmàlà Égwú…`
+   *
+   * **So the field is used only when it is a complete description** — when every sentence in it ends in
+   * punctuation — because putting a field that stops mid-clause in the description slot is putting a truncated
+   * sentence in front of a reader, which is the one thing this slot must not carry. Where it is truncated the
+   * record's own opening paragraph is read instead, which is the "else" branch of the same rule and gives the
+   * same opening words in whole sentences.
    */
-  resolveImage?: ((url: string) => string | null) | null;
+  summary?: string | null;
+  /**
+   * The record's own words, as published. Sanitised by this fill, never by the caller.
+   *
+   * NOTHING RENDERS IT. The body is not on this page; it is here so that a record whose summary is not a
+   * description can still be described in its own sentences.
+   */
+  body: string;
+  /** The record's title, for the description slot which may have to say whose record carries none. */
+  title: string;
+  /** The record's own address — the main article, and the low-bandwidth reading of the film. */
+  href: string;
 };
+/**
+ * The record's own short description, in whole sentences.
+ *
+ * WHY THIS IS NOT THE DESIGN'S SENTENCE. `watch-video.html`'s `sx-video-copy` reads *"A sourced viewing page
+ * keeps the film, its publisher, related records and text access together. Ozikoro does not present an external
+ * film as its own production."* **That is the design's fixed interface text — the screen's own `example-flag`
+ * calls it example material — and it is about the platform rather than about any film.** So it describes no
+ * record, and it is not what this slot is for.
+ *
+ * WHERE THE WORDS COME FROM, IN ORDER OF HONESTY:
+ *
+ *   1. `ozikoro_article.standfirst` — **but only when it is a complete description rather than a truncated
+ *      excerpt**, which is a measured distinction and not a matter of taste. See `RealFilmReading.summary`:
+ *      all thirteen holding records carry a `standfirst` and all thirteen are truncated windows of the body, so
+ *      today **not one film page takes this branch** — and the first record that arrives with a real summary
+ *      field gets it.
+ *   2. Otherwise the record's first substantive paragraph, read through the archive's own sanitiser — the same
+ *      one `prepareArchiveHtml` uses — so that an `<iframe>`, a `<script>` or a caption cannot put a word into
+ *      the description that the record does not say.
+ *   3. Otherwise NOTHING, and the caller writes the honest absence into the slot instead. **A plausible
+ *      sentence written here would be the invention this archive refuses, and the design's boilerplate is not
+ *      a substitute for it**: putting the demonstration's line back and calling it the record's would be worse
+ *      than an empty slot, because it would read as the record's own words.
+ *
+ * WHOLE SENTENCES ONLY, WHICH IS THE ONE RULE BOTH BRANCHES OBEY. A description stopped mid-sentence can assert
+ * something the record did not say, so `sentencesOf` returns only runs that end in punctuation and this takes
+ * complete sentences from the front of one. **The body's own remainder is left off the page rather than shown
+ * in part**, and the summary branch declines the field entirely where it is truncated rather than showing its
+ * good half — the good half is the body's opening, which step 2 reads in full sentences anyway.
+ */
+function filmDescription(reading: RealFilmReading | null | undefined): string | null {
+  if (!reading) return null;
+
+  const summary = (reading.summary ?? '').replace(/\s+/g, ' ').trim();
+  if (summary) {
+    const field = sentencesOf(decodeEntities(summary));
+    // A field that stops mid-sentence is a truncated excerpt, not a description.
+    if (field.whole.length > 0 && !field.trailing) return field.whole.slice(0, 2).join(' ');
+  }
+
+  /*
+   * THE BODY, THROUGH THE ARCHIVE'S OWN PIPELINE IN THE ARCHIVE'S OWN ORDER: sanitise, move the headings into
+   * the page's outline, tidy. **The sanitiser is the load-bearing step and it is why this reads the body
+   * rather than grepping it**: it drops `<iframe>` with its contents and strips `<script>`, so the film already
+   * playing above cannot become a paragraph of the description and no script text can become the record's
+   * words.
+   *
+   * THE MEDIA-ADDRESS REWRITE THAT USED TO GO FIRST IS NOT HERE, AND THAT IS DELIBERATE. It existed because
+   * the record's whole body was rendered on this page, images and figures included, and the archive's media map
+   * is keyed by the absolute `source_url` while the sanitiser turns such an address into a path — so the
+   * rewrite had to happen before the sanitising or the photographs 404'd. **No photograph of the record is on
+   * this page any more**: the body is read for its sentences, and an image address has no bearing on a
+   * sentence. Keeping it would mean a media-map query per film page for a reader who never sees an image, and
+   * the ordering itself still lives in `prepareArchiveHtml` for the article pages, where the images ARE
+   * rendered. `tidyBody` is still given `null` as the featured image, for the same reason.
+   */
+  const words = tidyBody(normaliseHeadingLevels(sanitiseArchiveHtml(reading.body)), null);
+  for (const paragraph of words.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)) {
+    /*
+     * THE RECORD'S OWN SPACING, WHICH MEANS THE INLINE TAGS COME OFF WITH NOTHING IN THEIR PLACE. WordPress's
+     * editor splits text into `<span>` runs that carry their own spaces, so substituting a space for every tag
+     * inserts one the record never had — measured without this, five of the eighteen pages read *"the ogene , a
+     * metal bell"*, *"from Unubi , a town"* and *"in Nigeria , but"*. **A description that alters the record's
+     * punctuation is not the record's own words**, which is the whole point of reading it here. `<br>` is the
+     * one tag that really is a break, so it becomes the space it stands for.
+     */
+    const text = decodeEntities((paragraph[1] ?? '').replace(/<br\b[^>]*>/gi, ' ').replace(/<[^>]*>/g, ''))
+      .replace(/\s+/g, ' ')
+      .trim();
+    // A caption, a credit line or a stray unit is not a description, and forty characters is well below the
+    // shortest opening paragraph this archive holds.
+    if (text.length < 40) continue;
+    const { whole } = sentencesOf(text);
+    if (whole.length > 0) return whole.slice(0, 2).join(' ');
+  }
+  return null;
+}
+
+/**
+ * The complete sentences in a run of the record's own text, and whether anything followed them.
+ *
+ * **`trailing` is the measurement that matters**, and it is why this returns an object rather than an array: a
+ * run whose last complete sentence is followed by more text is a run that stops without punctuation — a
+ * truncated excerpt in the `standfirst` case, and a paragraph that ends mid-thought in the body case. The two
+ * callers treat that differently on purpose: the body takes the whole sentences and leaves the remainder off
+ * the page, and the summary field is declined entirely, because a field that is not a description should not
+ * be shown as half of one.
+ *
+ * The punctuation kept is the record's own, including a closing quote or bracket after the stop.
+ */
+function sentencesOf(text: string): { whole: string[]; trailing: boolean } {
+  const sentence = /[^.!?]+[.!?]+["'”’)\]]*/g;
+  const whole = [...text.matchAll(sentence)].map((m) => m[0].trim());
+  return { whole, trailing: text.replace(sentence, '').trim().length > 0 };
+}
 
 export function fillWatchVideo(
   html: string,
@@ -6120,71 +6261,57 @@ export function fillWatchVideo(
     'Transcript status: no publisher-approved transcript has been supplied.'
   );
   /*
-   * AND THE SECTION'S OWN LABELS, WHICH CANNOT CALL THE RECORD'S WRITING A TRANSCRIPT.
+   * THE TRANSCRIPT AREA'S OWN LABELS ARE LEFT AS THE DESIGN WROTE THEM, AND THAT IS A FIX RATHER THAN AN
+   * OMISSION (round 352).
    *
-   * The eyebrow reads *"Transcript-first view"* and the two in-page links read *"Transcript"*. **They label
-   * the very slot this function is about to fill with the record's writing**, and the page says two lines
-   * further down that no transcript has been supplied. A label that contradicts the sentence beneath it is
-   * the fault class this round exists to close, so both become `Reading view` — the design's own description
-   * of the slot, next to its own button that already reads "Low-bandwidth reading".
+   * Round 351 renamed the eyebrow *"Transcript-first view"* and the two in-page links *"Transcript"* to
+   * `Reading view`, because the slot then held the record's writing and could not be called a transcript. **That
+   * slot no longer holds any record's writing on any page**: a film the archive holds does not serve the section
+   * at all, and the design's own page holds only the design's own statement that no transcript was supplied. So
+   * the rename has nothing left to be true of.
    *
-   * The `<h2>` the design drew, *"Read when video is difficult to load"*, is kept verbatim: it is the heading
-   * the article goes under, and it does not call the article a transcript.
+   * AND IT WAS PRODUCING A FAULT OF ITS OWN, WHICH THE OWNER REPORTED: *"inside the video page, there's a meny
+   * titled 'reading view' and it is not clickable, please fix"*. Measured on the served
+   * `/watch-video/?v=LL8YX0pXzdI`: `Reading view` appeared three times — twice as a link (the header nav and the
+   * "On this page" nav) and once as `<p class="eyebrow">Reading view</p>`, which is text and does nothing. **A
+   * reader who followed a control called "Reading view" and then met the same words as an unclickable label had
+   * been handed a control that looks pressable and is not** — the fault class this page keeps being fixed for.
+   * Serving the design's own labels removes the shared name, and the restructure below removes the copies of it.
    */
-  out = out.replace(/<p class="eyebrow">Transcript-first view<\/p>/, '<p class="eyebrow">Reading view</p>');
-  out = out.replace(/>Transcript<\/a>/g, '>Reading view</a>');
   if (!film) return out;
 
   /*
-   * THE WRITING THE ARCHIVE HOLDS FOR THIS FILM, IN THE DESIGN'S OWN READING SLOT.
+   * ══ THE RECORD'S OWN SHORT DESCRIPTION, IN THE RECORD'S OWN WORDS ═══════════════════════════════════
    *
-   * WHAT WAS WRONG. The design's heading promises *"Read when video is difficult to load"*, and under it the
-   * page said only that no transcript had been supplied. **The film page already fetched the record that
-   * holds the film, its title, its topic and its address — and then did not show the record's writing.**
-   * Measured on `/watch-video/?v=LL8YX0pXzdI`: four paragraphs of interface text inside `#transcript-copy`
-   * and none of the nine the article at `/the-war-dance-festival-ila-oso-in-uzuakoli/` renders. The owner's
-   * question is the correct one: *"how can you fetch video from an article, fetch the title, but cant fetch
-   * the article?"*
+   * The design fills `sx-video-copy` with a sentence about the platform — *"A sourced viewing page keeps the
+   * film, its publisher, related records and text access together. Ozikoro does not present an external film
+   * as its own production."* The owner read that slot and took it for *"short description from the article
+   * itself"*. **It is not from the article; it is the design's fixed interface text, and it is the same
+   * sentence on all eighteen films.** His intent survives his premise, and it is the right one: the slot
+   * should carry a short description of the film, taken from the record that holds it.
    *
-   * WHAT THIS IS, AND WHAT IT IS NOT — WHICH IS THE PART THAT MATTERS. An article body is **not** a
-   * transcript: a transcript is a timed, speaker-attributed record of what is said in the film, and the
-   * archive holds none for this one. So the sentence that says so stays exactly where it was, and the writing
-   * goes in beside it, under a sentence that states what it is. **Nothing here relabels the article as a
-   * transcript, and no speaker, timestamp or language is invented.**
+   * `filmDescription` reads it from the record, in the order of honesty described there. Where the record has
+   * nothing usable the slot says so — **it does not get the design's boilerplate back**, because a line about
+   * the platform put where a description belongs reads as the record's own words, which is the fault this
+   * whole page is being fixed for.
    *
-   * THE SANITISER IS THE ARCHIVE'S OWN. `sanitiseArchiveHtml` is the function `prepareArchiveHtml` calls for
-   * a published record's body, so there is one allowlist in the codebase rather than a second one here. It
-   * drops `<iframe>` with its contents, and that is a requirement rather than a side effect: the film is
-   * already the page's subject above, and a second player inside a slot headed "read when video is difficult
-   * to load" is the opposite of what the slot is for.
-   *
-   * AND THE ORDER OF THE THREE STEPS IS `prepareArchiveHtml`'s OWN: rewrite the media addresses, sanitise,
-   * then move the authored headings into the page's outline. The images must be rewritten FIRST — the
-   * sanitiser turns an `ozikoro.com/wp-content/…` address into a path, and the archive's media map is keyed
-   * by the absolute address, so a body sanitised first cannot be resolved at all. `tidyBody` then does what
-   * it does on every article page: WordPress's fixed pixel widths come off, so a 719-pixel figure cannot run
-   * past the design's reading column. It is given `null` as the featured image because **this page has no
-   * design figure to duplicate** — the film page draws no photograph of its own, so dropping the record's
-   * would delete a picture that has nowhere else to appear.
+   * The film's provenance is not lost with it: *"Ozikoro does not present an external film as its own
+   * production"* is a policy about reuse, so it moves into the source-record aside's "Rights and reuse" line,
+   * where the archive keeps what it can and cannot say about using the film.
    */
-  if (reading) {
-    const resolved = reading.resolveImage
-      ? rewriteBodyImages(reading.body, reading.resolveImage)
-      : reading.body;
-    const words = tidyBody(normaliseHeadingLevels(sanitiseArchiveHtml(resolved)), null);
-    const record = `<a href="${esc(reading.href)}">${esc(reading.title)}</a>`;
-    const opener = words.trim()
-      ? `<p class="small muted" style="margin-top:var(--s-6);max-width:70ch">`
-        + `A transcript is a timed, speaker-attributed record of what is said in a film, and the archive holds `
-        + `none for this one. What it does hold is the record that embeds the film, ${record}, whose own `
-        + `writing follows as published. Those are the record’s words, not a transcript of the film, and no `
-        + `line of them is attributed to anyone speaking in it.</p>`
-        + `<div class="prose" style="margin-top:var(--s-5)">${words}</div>`
-      : `<p class="small muted" style="margin-top:var(--s-6);max-width:70ch">The record that embeds this `
-        + `film, ${record}, carries no written body, so there is no writing to read here either. Nothing is `
-        + `invented in its place.</p>`;
-    out = out.replace(/(<div id="related-video")/, `${opener}$1`);
-  }
+  const description = filmDescription(reading);
+  /*
+   * The link the absence sentence names. It is built from the reading's own row values where the caller gave
+   * them — that row is the record — and from the card's otherwise, which are the same two values by
+   * construction: `film.href` and `film.title` come from the record's own slug and title in
+   * `extractArchiveFilms`.
+   */
+  const holderLink = `<a href="${esc(reading?.href ?? film.href)}">${esc(reading?.title ?? film.title)}</a>`;
+  const noDescription = reading
+    ? `The record that holds this film, ${holderLink}, carries no summary and no opening paragraph of its `
+      + `own, so there is no description of it to show here. None is written in its place.`
+    : `The archive supplied no readable record for this film, so there is no description of it to show here. `
+      + `None is written in its place.`;
 
   const id = esc(film.id);
   const title = esc(film.title);
@@ -6224,57 +6351,115 @@ export function fillWatchVideo(
       + `<span>${held}</span><span>Captions: check the player</span></p>`
   );
 
-  // The outward link is this film's own YouTube address; the in-page one still reaches the transcript.
+  /*
+   * THE ACTION ROW, WHICH IS THE OWNER'S OWN LIST OF CONTROLS.
+   *
+   * The design draws two: the outward link to the film on YouTube, and "Low-bandwidth reading" — pointed at
+   * `#transcript`, a section this page no longer serves. The owner asked for a third: *"the way it has buttons
+   * for 'watch on youtube' and 'Low-bandwidth reading', should it have button for the main article, as the main
+   * article is expected to continue being in the original blog posts lists."*
+   *
+   * SO BOTH INWARD CONTROLS POINT AT THE HOLDING RECORD, and that is not a duplicate by accident. **The record
+   * IS the low-bandwidth reading of the film**: the design's own heading for the slot the old anchor reached
+   * was *"Read when video is difficult to load"*, and the writing is what a reader who cannot load the film
+   * came for. The third control is the same address under the name the owner gave it — "This film's page" —
+   * which is what makes the article reachable in one click from the film rather than only implied by the
+   * aside's small link. **The class is the row's own: `btn btn-gold` is the design's, `btn btn-ghost` is the
+   * design's, and nothing here invents one.**
+   */
   out = out.replace(
     /<a class="btn btn-gold" href="[^"]*">[^<]*<\/a>/,
     `<a class="btn btn-gold" href="https://www.youtube.com/watch?v=${id}">Watch on YouTube ↗</a>`
   );
+  out = out.replace(
+    /<a class="btn btn-ghost" href="[^"]*">Low-bandwidth reading<\/a>/,
+    `<a class="btn btn-ghost" href="${esc(film.href)}">Low-bandwidth reading</a>`
+      + `<a class="btn btn-ghost" href="${esc(film.href)}">This film’s page</a>`
+  );
 
   /*
-   * THE SENTENCE THAT SAID WHAT THE DESIGN'S FILM WAS. It names a publisher this record does not carry, so it
-   * is replaced by the statement the archive can support: the film is embedded by a record, the archive holds
-   * no publisher or rights information beyond that record, and it is not presented as Ozikoro's own.
+   * THE DESCRIPTION SLOT. The record's own words, or an honest statement that the record holds none — never
+   * the design's sentence about the platform, which is what was there. See `filmDescription`.
    */
   out = out.replace(
     /<p class="sx-video-copy">[\s\S]*?<\/p>/,
-    `<p class="sx-video-copy">This film is embedded by a record in the Ozikoro archive — <a href="${esc(film.href)}">${title}</a> — and the archive holds no publisher, transcript or reuse terms for it beyond what that record says. Ozikoro does not present an external film as its own production.</p>`
+    `<p class="sx-video-copy">${description ? esc(description) : noDescription}</p>`
   );
 
   /*
    * THE SIDE PANEL. The design's whole `<aside>` is about its own film — the publisher, the publisher's terms
    * and a link to the publisher's project page — so it is replaced rather than patched, field by field. What
    * replaces it is the one source the archive actually has: the record that embeds the film.
+   *
+   * AND THE ONE POLICY SENTENCE FROM `sx-video-copy` THAT WAS NOT A DESCRIPTION OF ANY FILM COMES HERE. *"Ozikoro
+   * does not present an external film as its own production"* is a statement about reuse, so it belongs in the
+   * block that says what the archive can and cannot say about using the film — and the description slot must
+   * not carry it, because a policy put beside a record's own words reads as part of the record.
    */
   out = out.replace(
     /<aside class="sx-video-side">[\s\S]*?<\/aside>/,
     `<aside class="sx-video-side"><h2>Source record</h2>`
       + `<p><b>Held in</b><br><a href="${esc(film.href)}">${title}</a></p>`
-      + `<p><b>Rights and reuse</b><br>Not recorded. Follow the publisher’s terms on YouTube.</p>`
+      + `<p><b>Rights and reuse</b><br>Not recorded. Follow the publisher’s terms on YouTube. `
+      + `Ozikoro does not present an external film as its own production.</p>`
       + `<p><b>The film</b><br><a href="https://www.youtube.com/watch?v=${id}" rel="noopener noreferrer">Open it on YouTube ↗</a></p>`
       + `</aside>`
   );
 
   /*
-   * RELATED VIEWING, FROM THE ARCHIVE RATHER THAN FROM THE DESIGN.
+   * THE READING SECTION GOES, AND THE DESIGN'S OWN RELATED BLOCK TAKES ITS PLACE.
    *
-   * The design's block names three films — Onyeso, Unnamed Children, Yainkain, under the heading "Continue with
-   * Unspoken Stories" — and **they are the design's own examples, not this record's neighbours.** Measured:
-   * `/watch-video/?v=NBj1CvaDgbM`, `…?v=3NnklFf2rXA` and `…?v=g1z_-5jqPG0` all answer 404, so the only viewing
-   * page in this archive that could honestly list them is the design's own. On the page of an archive film
-   * they were demonstration material presented as the archive's, which is the same fault as a film card that
-   * names one film and opens another.
+   * The owner's instruction: *"then remove from 'On this page' and the entire others below, and replace it with
+   * 'related videos'"*. So the section's aside ("On this page"), its transcript-first copy and its transcript
+   * status line all go, and what is left is the block the design already draws inside it — kept character for
+   * character from the design's own markup, `<div id="related-video">` with its `<p class="eyebrow">Related
+   * viewing</p>` and its `<h2>`, in the design's own copy panel so it still sits in the design's cream band.
    *
-   * WHAT REPLACES THEM IS THE ARCHIVE'S OWN DEFINITION OF RELATED, **the one `fillArticle` already uses for
-   * `.sx-related-list`: other records from the same topic.** The design draws three links, so at most three are
-   * drawn, and where the topic holds no other film the list says so instead of borrowing three.
+   * HIS WORD IS "VIDEOS" AND THE DESIGN'S EYEBROW IS "Related viewing". **The design's wording is used**, because
+   * the design is where this page's labels come from and because the heading beneath it names the films
+   * themselves — `More films under Cultural Heritage` — so the block says "videos" in the only place that can
+   * say it without inventing a label.
+   *
+   * ── THE TRANSCRIPT STATEMENT WENT WITH THE SECTION IT DESCRIBED, AND THE ROOM FOR A TRANSCRIPT IS HERE ──
+   *
+   * The sentence this fill used to make true — *"The approved transcript has not been supplied for this film"* —
+   * is gone from a film the archive holds, and that is the right outcome rather than a loss: **a page that stops
+   * offering to be a reading view has nothing for a note about a missing reading to attach to.** Measured before
+   * this change: the archive holds no transcript for any film — the eighteen films resolve to thirteen holding
+   * records and all thirteen answer 404 at `/podcast/<record>/transcript.txt`, while three approved EPISODES do
+   * serve real ones. So the page was saying "no transcript" about a slot that no longer existed.
+   *
+   * **AND THE PAGE HAS NOT FORECLOSED ONE.** Three things are left in place for it, and each is checkable:
+   * the design screen still holds `<section id="transcript">` with `#transcript-copy`, untouched and inviolable;
+   * this replace is the only thing that removes it at serve time, so serving a film with an approved transcript
+   * is waiving one statement and nothing else; and the sentences above are already true of a film rather than of
+   * the demonstration, so the section is ready to be served the moment there is something to serve in it. The
+   * archive's one transcript address — `/podcast/<record>/transcript.txt` — is not deleted and is reachable in
+   * one click from this page, because the record that owns it is what both inward controls open. **One address
+   * per record, which is the owner's own rule, is what holds the transcript as well as the writing.**
+   *
+   * WHAT FILLS THE BLOCK IS UNCHANGED FROM ROUND 351: the archive's own definition of related, the one
+   * `fillArticle` already uses for `.sx-related-list` — other films under the same topic, at most three because
+   * the design draws three links, and an honest line where the topic holds no other film. **The design's own
+   * three example films are not borrowed**: measured, `/watch-video/?v=NBj1CvaDgbM`, `…?v=3NnklFf2rXA` and
+   * `…?v=g1z_-5jqPG0` all answer 404, so they are demonstration material and not this record's neighbours.
+   *
+   * `scroll-margin-top` IS SET ON THE BLOCK AND ON THE FILM ABOVE IT, for the reason the article page sets it:
+   * `.sx-reader-header` is `position: sticky; top: 0`, and **the browser scrolls a target to the very top of the
+   * viewport, which is where the header is.** Measured on the served page before this change, in Chrome: the
+   * header is 69 px tall and every fragment jump landed its target at `y = 0`, i.e. underneath it — so the first
+   * line of the section a reader had just asked for was the one line they could not see. This block carries the
+   * design's own in-page address (`#related-video`), so it is a target whether or not this page draws a link to
+   * it.
    */
   const topicName = film.topic;
   const siblings = topicName
     ? (related ?? []).filter((f) => f.id !== film.id && f.topic === topicName).slice(0, 3)
     : [];
   out = out.replace(
-    /<div id="related-video"[\s\S]*?<\/div>/,
-    `<div id="related-video" style="margin-top:var(--s-7)">`
+    /<section[^>]*\bid="transcript"[^>]*>[\s\S]*?<\/section>/,
+    `<section class="sx-transcript"><div class="wrap">`
+      + `<div class="sx-transcript-copy" id="related-video" style="scroll-margin-top:6rem">`
       + `<p class="eyebrow">Related viewing</p>`
       + `<h2 style="margin-top:.4rem">${
           siblings.length > 0
@@ -6290,14 +6475,39 @@ export function fillWatchVideo(
                 .join(' · ')
             : 'The archive holds no other film filed under this topic, so this list is not filled from elsewhere.'
         }</p>`
-      + `</div>`
+      + `</div></div></section>`
+  );
+  // The film itself is a target too — the design's own skip link names it — and it lands the same way.
+  out = out.replace(/<section([^>]*\bid="video"[^>]*)>/, (_m, attrs: string) => `<section${attrs} style="scroll-margin-top:6rem">`);
+
+  /*
+   * AND NOTHING POINTS AT WHAT IS NO LONGER THERE.
+   *
+   * The design's own header nav carries `<a href="#transcript">Transcript</a>`, which `designScreenLinks` has
+   * already made absolute to this page by the time this fill runs. **Removing the section without this would
+   * leave a control that looks pressable and does nothing** — the fault class this page was fixed for in round
+   * 344 — so the anchor is pointed at the block that replaced the section, and it takes the design's own name
+   * for that block. The match requires the closing quote, so `#transcript-copy` cannot be caught by it.
+   *
+   * THE LABEL IS `Related viewing` BECAUSE THAT IS THE DESIGN'S OWN NAME FOR WHAT IT NOW REACHES, and because
+   * **the design never gives a nav item and the eyebrow it lands on the same shape of name**: its nav reads
+   * `Transcript` and `Related viewing`, and its eyebrows read `Transcript-first view` and `Related viewing`. The
+   * collision the owner reported came from round 351 renaming BOTH ends to `Reading view` — nav item and
+   * eyebrow — which the design never did. Matching the nav item to the block it jumps to is the design's own
+   * pattern, not a new one: the design draws exactly that pairing for this block in its "On this page" nav.
+   *
+   * This runs after the replacement, so the only `#transcript` left in the document is the header's.
+   */
+  out = out.replace(
+    /(<a\b[^>]*\shref="[^"]*)#transcript(">)[^<]*(<\/a>)/g,
+    (_m, before: string, close: string, end: string) => `${before}#related-video${close}Related viewing${end}`
   );
 
   // The document's own title and description, which are what a search result and a browser tab show.
   out = out.replace(/<title>[\s\S]*?<\/title>/, `<title>${title} — Watch — Ozikoro</title>`);
   out = out.replace(
     /(<meta name="description" content=")[^"]*(")/,
-    `$1Watch ${title} with its source context, transcript status and the record that embeds it.$2`
+    `$1Watch ${title}, with the record that holds it and the archive’s related films.$2`
   );
   return out;
 }

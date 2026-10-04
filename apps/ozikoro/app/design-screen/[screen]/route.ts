@@ -1769,8 +1769,11 @@ export async function GET(
         const url = new URL(request.url);
         const requested = url.searchParams.get('v');
         if (requested) {
-          const rows = await db.rows<{ slug: string; title: string; topic: string | null; body_html: string | null }>(
-            `select a.slug, a.title, t.name as topic, a.body_html
+          const rows = await db.rows<{
+            slug: string; title: string; topic: string | null; body_html: string | null;
+            standfirst: string | null;
+          }>(
+            `select a.slug, a.title, t.name as topic, a.body_html, a.standfirst
                from ozikoro_article a
                left join ozikoro_topic t on t.id = a.topic_id
               where a.status = 'published' and a.is_page = false
@@ -1781,27 +1784,31 @@ export async function GET(
           const film = films.find((f) => f.id === requested);
           if (!film) return new Response('Not found', { status: 404 });
           /*
-           * THE HOLDING RECORD'S OWN WRITING, TAKEN FROM THE ROW ALREADY IN HAND.
+           * THE HOLDING RECORD'S OWN DESCRIPTION AND ITS OWN WRITING, TAKEN FROM THE ROW ALREADY IN HAND.
            *
            * `rows` above is the same read `extractArchiveFilms` consumes, and it already selects
-           * `a.body_html` — **the film's id is IN that column, which is how the film was found at all.** So
-           * the record's writing is the one value this page already held and did not show, and no sixth read
-           * of `ozikoro_article` is written to fetch it. `film.href` is `/<slug>/`, built by
-           * `extractArchiveFilms` from the record's own slug, so the two cannot disagree about which record
-           * holds this film.
+           * `a.body_html` — **the film's id is IN that column, which is how the film was found at all.** So the
+           * record's writing is the one value this page already held and did not show, and no sixth read of
+           * `ozikoro_article` is written to fetch it. `film.href` is `/<slug>/`, built by `extractArchiveFilms`
+           * from the record's own slug, so the two cannot disagree about which record holds this film.
            *
-           * The fill rewrites the record's media addresses with the archive's own resolver BEFORE it sanitises
-           * with the archive's own `sanitiseArchiveHtml` — which is `prepareArchiveHtml`'s order, and the
-           * order is load-bearing: the sanitiser turns an `ozikoro.com/wp-content/…` address into a path and
-           * the media map is keyed by the absolute address, so a body sanitised first cannot be resolved
-           * afterwards. The resolver is the one the second pass below already uses, built lazily and only
-           * when this record's own body carries an absolute address at all.
+           * `a.standfirst` IS THE SAME READ AND IS THE NEW COLUMN. It is the field the record's own
+           * `<meta name="description">` is built from, and it is what the film page's short description is
+           * read from — so the slot's words and the record's own metadata come from one field rather than two.
+           * Where that field is not a description the fill reads `body_html` instead, which is why both
+           * columns are passed: measured, all thirteen holding records carry a `standfirst` and **all thirteen
+           * are truncated windows of the body rather than authored summaries**, so the body branch is the one
+           * every film page takes today.
+           *
+           * AND NO MEDIA RESOLVER IS BUILT FOR THIS PAGE. The fill used to rewrite the record's media
+           * addresses before sanitising, because the record's whole body was rendered here with its
+           * photographs. **The body is off the page and only its sentences are read**, so an image address has
+           * nothing to resolve for — and `resolveOldSiteImages` below, which resolves the addresses this page
+           * actually renders, is the resolver this page needs. `mediaUrlResolver` is still imported for that
+           * pass.
            */
           const holder = rows.find((r) => `/${r.slug}/` === film.href);
           const body = holder?.body_html ?? '';
-          const resolveImage = CARRIES_ABSOLUTE_IMAGE.test(body)
-            ? (oldSiteImageResolver ??= await mediaUrlResolver(db))
-            : null;
           /*
            * THE WHOLE LIST IS PASSED, NOT ONLY THE FILM.
            *
@@ -1811,7 +1818,7 @@ export async function GET(
            * is built from, so the two surfaces cannot disagree about what a film's topic is.
            */
           html = fillWatchVideo(html, film, films, holder
-            ? { body, title: holder.title, href: film.href, resolveImage }
+            ? { summary: holder.standfirst, body, title: holder.title, href: film.href }
             : null);
         } else {
           html = fillWatchVideo(html);

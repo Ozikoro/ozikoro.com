@@ -23855,3 +23855,260 @@ identical 63 differing 0 missing 0
   `/egwu-amala-the-paddle-dance-of-nigerias-river-communities/`. The media map holds no row for that file, and
   `rewriteBodyImages` leaves an unmatched address exactly as it was rather than substituting one. No image is
   affected: 0 of 18 pages have an unresolved `src` or `srcset`.
+
+---
+
+## ROUND 352 — THE ARTICLE CAME OFF THE FILM PAGE, THE SLOT THAT PROMISED A DESCRIPTION CARRIED INTERFACE TEXT, AND A LABEL AND A CONTROL SHARED ONE NAME
+
+**The owner's words, verbatim:** *"on the watch, remove the article showing inside the page. if one wants to see
+the article, when you click on 'this film's page', let it open, but not also the article. the way it has buttons
+for 'watch on youtube' and 'Low-bandwidth reading', should it have button for the main article, as the main
+article is expected to continue being in the original blog posts lists. all the video page has to have is a
+short description just right after the buttons i mentioned earlier, the place the page wrote something like 'A
+sourced viewing page keeps the film, its publisher, related records and text access together. Ozikoro does not
+present an external film as its own production.', which is short description from the article itself.. then
+remove from 'On this page' and the entire others below, and replace it with 'related videos'"*
+
+**and then, on the same page:** *"also, inside the video page, there's a meny titled 'reading view' and it is not
+clickable, please fix"*
+
+### 1. The page before and after, verbatim
+
+**Before**, `/watch-video/?v=LL8YX0pXzdI` (15,709 bytes), from `sx-video-detail` to the end of `sx-transcript` —
+compressed here to the shape; the record's whole eleven-paragraph body sat inside `<div class="prose">`:
+
+```html
+<div class="sx-video-detail"><div>…<div class="sx-video-actions">
+  <a class="btn btn-gold"  href="https://www.youtube.com/watch?v=LL8YX0pXzdI">Watch on YouTube ↗</a>
+  <a class="btn btn-ghost" href="/watch-video/?v=LL8YX0pXzdI#transcript">Low-bandwidth reading</a></div>
+  <p class="sx-video-copy">This film is embedded by a record in the Ozikoro archive —
+     <a href="/the-war-dance-festival-ila-oso-in-uzuakoli/">The War Dance Festival (ILA OSO) In Uzuakoli</a> —
+     and the archive holds no publisher, transcript or reuse terms for it beyond what that record says.
+     Ozikoro does not present an external film as its own production.</p></div>
+  <aside class="sx-video-side">…</aside></div></section>
+<section class="sx-transcript" id="transcript"><div class="wrap sx-transcript-grid">
+  <aside><p class="eyebrow">On this page</p><nav>
+    <a href="/watch-video/?v=LL8YX0pXzdI#transcript-copy">Reading view</a>
+    <a href="/watch-video/?v=LL8YX0pXzdI#related-video">Related viewing</a>
+    <a href="/collections/">Archive collections</a></nav></aside>
+  <div class="sx-transcript-copy" id="transcript-copy"><p class="eyebrow">Reading view</p>
+    <h2>Read when video is difficult to load</h2>
+    <p …>The approved transcript has not been supplied for this film. …</p>
+    <div class="partial-note" …>Transcript status: no publisher-approved transcript has been supplied.</div>
+    <p class="small muted" …>A transcript is a timed, speaker-attributed record …</p>
+    <div class="prose" …> … the record's 11 paragraphs, 4 photographs and 4 authored headings … </div>
+    <div id="related-video" …>…</div></div></div></section>
+```
+
+**After** (6,039 bytes) — the same span of the served page, verbatim:
+
+```html
+<div class="sx-video-detail"><div><p class="sx-video-kicker">Cultural Heritage</p><h1>The War Dance Festival (ILA OSO) In Uzuakoli</h1><p class="sx-video-facts"><span>Publisher: not recorded</span><span>Platform: YouTube</span><span>Held in one Ozikoro archive record</span><span>Captions: check the player</span></p><div class="sx-video-actions"><a class="btn btn-gold" href="https://www.youtube.com/watch?v=LL8YX0pXzdI">Watch on YouTube ↗</a><a class="btn btn-ghost" href="/the-war-dance-festival-ila-oso-in-uzuakoli/">Low-bandwidth reading</a><a class="btn btn-ghost" href="/the-war-dance-festival-ila-oso-in-uzuakoli/">This film’s page</a></div><p class="sx-video-copy">The ILA OSO festival is a significant cultural event of the Uzuakoli people, located in present-day Abia State, Nigeria. With a history spanning over two centuries, this vibrant festival is deeply rooted in the traditions and historical heritage of the Uzuakoli community.</p></div><aside class="sx-video-side"><h2>Source record</h2><p><b>Held in</b><br><a href="/the-war-dance-festival-ila-oso-in-uzuakoli/">The War Dance Festival (ILA OSO) In Uzuakoli</a></p><p><b>Rights and reuse</b><br>Not recorded. Follow the publisher’s terms on YouTube. Ozikoro does not present an external film as its own production.</p><p><b>The film</b><br><a href="https://www.youtube.com/watch?v=LL8YX0pXzdI" rel="noopener noreferrer">Open it on YouTube ↗</a></p></aside></div></div></section><section class="sx-transcript"><div class="wrap"><div class="sx-transcript-copy" id="related-video" style="scroll-margin-top:6rem"><p class="eyebrow">Related viewing</p><h2 style="margin-top:.4rem">More films under Cultural Heritage</h2><p style="margin-top:var(--s-3)"><a href="https://www.youtube.com/watch?v=SHPEwGDOI7c">Ojeh &amp; Arishi Festival of Aboh Kingdom: A Celebration of Igbo Culture ↗</a> · <a href="https://www.youtube.com/watch?v=jOMjbchyNXg">Mmili Nkisi Day: A Celebration of Culture and Spirituality in Onitsha ↗</a> · <a href="https://www.youtube.com/watch?v=H2Ch-R3EZkA">Égwú Àmàlà: The Paddle Dance of Nigeria’s River Communities ↗</a></p></div></div></section>
+```
+
+### 2. The article comes off the page, and keeps its own address
+
+The owner's reasoning is the structure: *"the main article is expected to continue being in the original blog
+posts lists."* So `/the-war-dance-festival-ila-oso-in-uzuakoli/` is unchanged, stays in `/archive/`, and this page
+is a doorway to it rather than a copy of it. **One address per record.**
+
+The whole of round 351's `.prose` block is removed from `/watch-video/?v=`, and what remains of the section is
+the design's own related block. Measured on all 18 film pages: 0 carry `class="prose"`, 0 carry
+`id="transcript-copy"`, 0 carry the "On this page" nav, 0 carry the transcript status line, 0 carry
+`Read when video is difficult to load`.
+
+**And the work that made round 351 correct is not lost.** The record's body is still read through the archive's
+own `sanitiseArchiveHtml` — which is what drops `<iframe>` with its contents and strips `<script>`, so the film
+already playing above cannot become a sentence of the description — then `normaliseHeadingLevels` and `tidyBody`.
+**The one step dropped is the media-address rewrite before the sanitiser**, because nothing renders the record's
+photographs any more: the body is read for its sentences, and an image address has no bearing on a sentence.
+Keeping it would have meant a media-map query per film page for a reader who sees no image. The ordering itself
+still lives in `prepareArchiveHtml` for the article pages, where the images *are* rendered, and
+`resolveOldSiteImages` still resolves the addresses this page does render.
+
+### 3. The description: read from the record, and the field is not what it looks like
+
+`sx-video-copy` carried the design's fixed sentence. The screen's own `example-flag` calls its interface text
+*"example material"*, it is the same sentence on all eighteen films, and the owner read it as *"short description
+from the article itself"*. **His premise was wrong and his instruction was right**: the slot now carries the
+record's own words.
+
+**Where they are read from, measured.** The archive's summary field is `ozikoro_article.standfirst`, and all
+**13** holding records carry one — and **all 13 are truncated, tag-stripped windows of the body rather than
+authored summaries**. Every one ends in an ellipsis, and they glue the record's own sub-headings into their
+sentences:
+
+```
+…the festival is celebrated biennially, alternating with the IZA MBARA AMA…
+…life by the river. History of Égwú Àmàlà Égwú…
+…rigin of Atilogwu The Atilogwu dance has its roots in Ezeagu, Anambra…
+```
+
+**So the field is used only when it is a complete description** — when nothing follows its last complete
+sentence — and where it is truncated the record's own opening paragraph is read instead, in whole sentences.
+That is not a preference but the instruction's own rule: a description put in front of a reader must not be a
+sentence that stops mid-clause. **Today every one of the 18 film pages takes the body branch**, and the first
+record that arrives with a real summary field gets it — there is a test for each branch.
+
+All 18 descriptions were read back off the served pages: **0 end in an ellipsis, 0 end without punctuation, 0
+carry an injected space**, and each is the record's own opening in its own words. Two of them, verbatim:
+
+```
+/the-war-dance-festival-ila-oso-in-uzuakoli/
+  The ILA OSO festival is a significant cultural event of the Uzuakoli people, located in present-day Abia
+  State, Nigeria. With a history spanning over two centuries, this vibrant festival is deeply rooted in the
+  traditions and historical heritage of the Uzuakoli community.
+
+/carabali-isuama-preserving-igbo-heritage-in-afro-cuban-culture/
+  The Carabalí Isuama is a notable Afro-Cuban cabildo (mutual aid society) with deep roots in the African
+  diaspora, specifically among Afro-Cuban communities. Originating from the Isuama region in south-central
+  Igboland, Nigeria, the Carabalí Isuama people were among those forcibly taken to Cuba during the transatlantic
+  slave trade.
+```
+
+**One correction found by reading the served text rather than the code:** substituting a space for every inline
+tag inserted one the record never had. Five of the eighteen pages read *"the ogene , a metal bell"*, *"from
+Unubi , a town"*, *"in Nigeria , but"* — WordPress's editor splits text into `<span>` runs that carry their own
+spaces. The tags now come off with nothing in their place, and `<br>` becomes the one space it stands for.
+
+**And where a record has no usable description the slot says so**, rather than getting the design's sentence
+back: *"The record that holds this film, <a>…</a>, carries no summary and no opening paragraph of its own, so
+there is no description of it to show here. None is written in its place."* A plausible line written here would
+be the invention this archive refuses, and the design's boilerplate is not a substitute for it — putting the
+demonstration's sentence where a description belongs reads as the record's own words.
+
+The one sentence of the design's that was **not** a description of any film is kept, in the block that owns it:
+*"Ozikoro does not present an external film as its own production"* is a statement about reuse, so it moved into
+the source-record aside's "Rights and reuse" line. `sx-video-side` is otherwise untouched.
+
+### 4. The three controls, each followed
+
+| control | href as served | destination's `<h1>` |
+|---|---|---|
+| `Watch on YouTube ↗` (`btn btn-gold`) | `https://www.youtube.com/watch?v=LL8YX0pXzdI` | external — not fetched |
+| `Low-bandwidth reading` (`btn btn-ghost`) | `/the-war-dance-festival-ila-oso-in-uzuakoli/` | `The War Dance Festival (ILA OSO) In Uzuakoli` (200) |
+| `This film’s page` (`btn btn-ghost`) | `/the-war-dance-festival-ila-oso-in-uzuakoli/` | `The War Dance Festival (ILA OSO) In Uzuakoli` (200) |
+
+The same three on `?v=SHPEwGDOI7c`: the two inward controls answer 200 at
+`/ojeh-arishi-festival-of-aboh-kingdom-a-celebration-of-igbo-culture/`, whose `<h1>` is `Ojeh & Arishi Festival
+of Aboh Kingdom: A Celebration of Igbo Culture`.
+
+**Both inward controls point at the holding record, and that is the instruction's own resolution rather than a
+duplication by accident.** "Low-bandwidth reading" pointed at `#transcript`, and the design's heading for the
+slot that anchor reached was *"Read when video is difficult to load"* — so the writing is what it was for, and
+the writing is the record. The third control is the same address under the name the owner gave it. The classes
+are the row's own: `btn btn-gold` and `btn btn-ghost`, both the design's, nothing invented.
+
+### 5. Related videos, in the design's own words
+
+The owner said *"replace it with 'related videos'"*; the design's eyebrow is `Related viewing`. **The design's
+wording is used**, because the design is where this page's labels come from and because the `<h2>` beneath it
+names the films themselves — `More films under Cultural Heritage`. The block is the design's own markup, kept
+character for character and moved into the design's own copy panel inside the design's cream band:
+
+```html
+<section class="sx-transcript"><div class="wrap">
+  <div class="sx-transcript-copy" id="related-video" style="scroll-margin-top:6rem">
+    <p class="eyebrow">Related viewing</p>
+    <h2 style="margin-top:.4rem">More films under Cultural Heritage</h2>
+    <p style="margin-top:var(--s-3)">…links…</p></div></div></section>
+```
+
+What fills it is unchanged from round 351: the archive's own definition of related, the one `fillArticle` uses —
+other films under the same topic, at most three because the design draws three links, and an honest line where
+the topic holds no other film. The design's own three example films are still not borrowed: `?v=NBj1CvaDgbM`,
+`?v=3NnklFf2rXA` and `?v=g1z_-5jqPG0` all answer 404.
+
+### 6. "Reading view" was two links and one label — both faults, both fixed
+
+The owner reported a "meny titled 'reading view'" that "is not clickable". **Measured on the served page he was
+looking at: `Reading view` appeared three times, and only two of them were links.**
+
+```html
+<nav aria-label="Primary"><a href="…/watch-video/?v=LL8YX0pXzdI#transcript">Reading view</a></nav>   ← a link
+<nav><a href="…/watch-video/?v=LL8YX0pXzdI#transcript-copy">Reading view</a></nav>                  ← a link
+<div class="sx-transcript-copy" id="transcript-copy"><p class="eyebrow">Reading view</p>             ← TEXT
+```
+
+**So it is (A): a label and a control shared one name**, and the non-clickable one was the eyebrow — which sits
+directly under the nav item that had just taken the reader there. **And (B) was real underneath it**, observed
+rather than reasoned: driven over CDP in Chrome against the served page, every fragment control *did* move the
+viewport (`#transcript` → `scrollTop 1252`, `#transcript-copy` → `1466`), **but the target landed at
+`y = 0` under a 69-pixel sticky header**, so the first line of the section a reader had just asked for was the
+one line they could not see.
+
+**The design never made this collision — round 351 did.** Its nav reads `Transcript`, its eyebrow
+`Transcript-first view`; round 351 renamed both ends to `Reading view`. This round stops renaming, so the served
+page carries the design's own labels on the one page that still serves the section:
+
+* **A film the archive holds**: the section and its eyebrow are removed with it, and the design's header nav item
+  is pointed at the block that replaced the section and takes the design's own name for it —
+  `<a href="/watch-video/?v=LL8YX0pXzdI#related-video">Related viewing</a>`. The string `Reading view` occurs
+  **0** times on the page, and no control and label share a name.
+* **The design's own page** (`/watch-video/`, no `?v=`): `Transcript-first view` eyebrow and `Transcript` nav
+  item, exactly as the design wrote them. `Reading view` occurs **0** times there too.
+* **The scroll offset**: `scroll-margin-top:6rem` is set on `#related-video` and on the film section, the shape
+  the article page already uses, because `.sx-reader-header` is `position: sticky; top: 0`. Re-observed over
+  CDP on the new page: `#related-video` now lands at `y = 117` — 48 px clear of the 69-pixel header — where it
+  landed at `y = 0` before.
+
+### 7. The transcript statement, and the room left for one
+
+**It went, with the section it described, and that is the honest outcome.** A page that stops offering to be a
+reading view has nothing for a note about a missing reading to attach to. Measured before the change: the
+archive holds no transcript for any film — 18 films over 13 holding records, and all 13 answer 404 at
+`/podcast/<record>/transcript.txt` — while three approved *episodes* do serve real ones.
+
+**The page has not foreclosed one**, in three checkable ways: the design screen still holds
+`<section id="transcript">` with `#transcript-copy`, untouched and inviolable; the fill's replace is the only
+thing that removes it at serve time, so serving a film with an approved transcript is waiving one statement; and
+the sentences it would carry are still in the fill, already true of a film rather than of the demonstration. The
+archive's one transcript address, `/podcast/<record>/transcript.txt`, is a click away — both inward controls
+open the record that owns it.
+
+### 8. Option B, and why it applies to exactly one page
+
+`/watch-video/` with no `?v=` is the design's own film (the home screen links it) and **the archive holds no
+record for it**: `?v=E3UBv8pmLxE` answers 404. So "Low-bandwidth reading" has nothing to point at there, and
+removing the section would leave that control and the design's own header nav anchor pointing at an id that is
+gone. The section stays on that page — which is also the only page where a sentence about a missing transcript
+still attaches to a reading view. Verified: `id="transcript"` present, `Transcript-first view` present,
+`Transcript` nav present, every in-page fragment resolves, no control to a record.
+
+### 9. Every anchor, followed
+
+On all 18 film pages the only in-page fragments are `#video` (the design's skip link) and `#related-video`. **0
+anchors point at an id the page does not carry, and `#transcript` and `#transcript-copy` are referenced by
+none.** On the design's own page the fragments are `#video`, `#transcript`, `#transcript-copy` and
+`#related-video`, and all four ids are present.
+
+### 10. The design parity, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+`design/calm-comfort-construct/public/design` and `apps/ozikoro/public/design` are byte-identical, and nothing
+under either is in the commit.
+
+### 11. What does not work
+
+* **`npm run typecheck` exits 0 from the repository root**, and `node --test packages/ozikoro/src/design-fill.test.ts`
+  is **89 pass, 0 fail**.
+* **Two uncommitted files belong to another agent working in this checkout and are NOT in this commit:**
+  `packages/ozikoro/package.json` (new `./chunking`, `./publication-files`, `./entity-graph`, `./follows` export
+  entries and a `test:graph` script) and `packages/ozikoro/src/seo.ts` (the clan-register URLs added to
+  `listIndexableUrls`), plus an untracked `packages/ozikoro/src/chunking.ts`. Named here because the instruction
+  asked for anything carried; nothing of theirs is staged.
+* **The Eboe Town film page's description begins "It existed until the mid-19th century…"**, because that is
+  exactly how the record's own opening paragraph begins. The pronoun's antecedent is in the `<h1>` directly
+  above. It is the record's own words and is deliberately not rewritten.
+* **`/egwu-amala-the-paddle-dance-of-nigerias-river-communities/` still renders a `<video>` whose `<source>` is
+  an unresolved `https://ozikoro.com/wp-content/uploads/2025/01/AQPzVi8x…mp4`** — carried from round 351, still
+  true, and unaffected by this change: the film page no longer renders the record's media at all.
+* **The `Ojeh & Arishi` record's `<h1>` on its own article page reads `Ojeh &amp;#038; Arishi`**, a
+  double-encoded entity in the title column. It is pre-existing, it is not on the film page (whose `<h1>` is
+  correct because `extractArchiveFilms` decodes entities), and it is not touched here.
+* **Chrome could only be driven with `--no-sandbox`** in this session; the sandboxed launch died with
+  `sandbox initialization failed: Operation not permitted`. The scroll readings above are from the
+  `--no-sandbox` run.
