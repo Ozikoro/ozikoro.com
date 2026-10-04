@@ -701,6 +701,32 @@ test('the archive’s own verification of the account is stated, not omitted', (
   assert.match(out, /Which claim rests on which reference/);
 });
 
+/**
+ * `/market-days/` IS A SEPARATE, OLDER SCREEN AND THE FILL SERVES BOTH.
+ *
+ * The task that added this account named both addresses, and **they are not the same file**: `market-days.html`
+ * is smaller, has no full-year grid, and states its basis in different words — *"The supplied helper sets 1
+ * January 2026 as Orie…"*. A fill written only against `igbo-calendar` would leave that screen with the design
+ * talking about its own helper, so both sentences are asserted here rather than assumed to be shared.
+ */
+test('the other screen that loads this script states its anchor too', () => {
+  const out = fillIgboCalendar(screen('market-days'));
+  assert.match(out, /This page reckons the cycle from a fixed anchor: 1 January 2026 taken as Orie, repeating the four-day cycle\./);
+  assert.match(out, /It is this archive's demonstration of one reckoning/);
+  assert.match(out, /verify the anchor, the community basis, the timezone, the spellings and whether the day changes at sundown\./);
+  assert.ok(!out.includes('The supplied helper sets'), 'the design is still talking about its own helper');
+  // The account arrives on this screen too, and the page-specific wording is not used on it.
+  assert.match(out, /<section class="wrap section sx-cal-account">/);
+  assert.ok(!out.includes('Below the calendar above'), 'the account still assumes the full-year screen');
+  assert.ok(out.includes('the reckoning above'), 'the account no longer refers to the page at all');
+  // Its own content survives: the day cards, the lookup and the month view are the design's.
+  for (const hook of ['data-market-day', 'data-date-input', 'data-calendar-grid', 'data-prev-month']) {
+    assert.ok(out.includes(hook), `market-days lost ${hook}`);
+  }
+  // This screen has no year grid in its design, so no year-grid extension is claimed for it.
+  assert.ok(!out.includes('data-year-grid'), 'market-days is not the screen with the full-year grid');
+});
+
 test('the year grid’s months are made expandable, and the reckoning is untouched', () => {
   const base = readFileSync(SCRIPT, 'utf8');
   const once = extendMarketDaysScript(base);

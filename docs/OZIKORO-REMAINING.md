@@ -15281,3 +15281,129 @@ grid and the `/design/market-days.js` URL are all checkable with no server at al
 **One thing this round did not verify:** the production standalone build carrying the final contrast fix was
 never served, because the build output was overwritten before a server could hold it. What was verified is the
 same source through the dev server, which is the same fill and the same route.
+
+## ROUND 311 — THE IGBO CALENDAR PAGE NOW CARRIES THE ACCOUNT BEHIND IT, AND SAYS WHOSE ACCOUNT IT IS
+
+The owner sent the full text of Wikipedia's "Igbo calendar" article with an instruction about where it goes and
+how: *"you should also at the igbo calendar page itself and update more information there. don't just scatter it
+everywhere, maybe keep it fine like the full year calendar, which you can easily click and it will expand, or
+build something fancy or find a way to put these things below there."* Three things were fixed by that
+sentence: **the page, not the site**; **the full-year calendar made clickable**; and **the material below what
+was already there.**
+
+### THE DIFFICULTY, WHICH WAS PROVENANCE RATHER THAN LAYOUT
+
+This is a real cultural system described by a tertiary source, on an archive whose first rule is that it never
+invents and whose second is that provenance has a designed home. So every claim added names where it came from
+at the point of use:
+
+- **the article is named as the source**, with its revision (`1370565297`, 18 February 2026) so a reader can
+  fetch the exact text, and its own "needs more citations" banner is reproduced rather than hidden;
+- **Onwuejeogwu (1981) is named where the article attributes the month names and their Gregorian ranges to it**,
+  and `Udeani (2007)` for the timekeepers and the birth-day naming, `Isichei (1997)` for the cardinal points,
+  the 1979 `Aṅụ Magazine` for the eight-day cycle, and Onuigbo (2001) for the sentence that matters most;
+- **the Nri account is marked as Nri's**, in the table's caption, a column of its own and all thirteen rows —
+  the article says its months-and-meanings section "may differ from other Igbo calendars in terms of naming,
+  rituals, and ceremonies", and presenting that as "the Igbo calendar" would be the universalising this page
+  forbids;
+- **what the archive cannot substantiate is stated, not omitted.** Eleven claims were put to the archive's own
+  records and each is printed as substantiated or not, with the records behind it. **"The archive can
+  substantiate this" is defined on the page as one of the archive's own catalogued records stating it
+  independently of the article** — a weaker thing than proof, and worded that way.
+
+### THE ARTICLE AGREES WITH THE PAGE, WHICH IS THE MOST IMPORTANT SENTENCE IN IT
+
+*"The calendar is neither universal nor synchronized, so various groups will be at different stages of the
+week, or even year."* That is what `fillIgboCalendar`'s existing caveat already said, so the two are set beside
+each other as reinforcement — **and the caveat was not weakened to accommodate the new material.**
+
+### THE FOUR RECORDS THE ARCHIVE TURNS OUT TO HOLD
+
+The verification was not a matter of saying no. The archive's own catalogued article data holds **five records
+that bear directly on this account**, four of them on the calendar itself: *Traditional Igbo calendar and
+lunar/solar alignments*, *Iguaro: The Igbo Calendar, Culture, and Cosmology*, *Igu Aro: The Sacred
+Proclamation of the Igbo Lunar Year from Nri*, *Symbolism of the Four Market Days in Igbo Culture*, and
+*Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture* for the naming practice.
+
+**Two of them substantiate claims independently of the article** — the four market days and their local
+spellings, and the cardinal correspondence with the 28-day month and the 13-month year. **The check was made
+against the archive's own catalogue by name and not by a live query**, and the page says so, because the
+difference between "the archive holds this" and "a query returned this" is the difference this archive exists
+to keep.
+
+### THE EXPANDABLE YEAR, AND WHY THE BUILDER IS REPLACED RATHER THAN WRAPPED
+
+The design already draws the year grid inside a `<details>`, so the control was native and keyboard-operable —
+but **the grid inside it is built by `market-days.js`, so with JavaScript off the element the owner asked to
+expand expands onto nothing.** Two things were done:
+
+1. **the twelve months are also written into the markup**, each stating its day count and that every date in it
+   falls on one of the four days under the anchor the page states. That is the year's shape, not a day-by-day
+   cycle: computing the cycle in TypeScript would be a second reckoning of the one cycle the page already
+   reckons once. The script replaces the container when it runs.
+2. **each month card becomes a native `<details>`/`<summary>`**, with the month's own `<h3>` moved into the
+   summary rather than copied, so the month is a heading once and the control is the heading. **No script is
+   needed for the expansion, the keyboard behaviour or the open and closed state** — all three are properties
+   of the element.
+
+**Six attempts to splice a call into the minified one-line `renderYear()` all put it in the wrong place.** After
+the function's closing brace it runs before the grid exists; before the `for`'s brace it runs once per month;
+a miscounted brace does not parse at all. **Every one of them left the served page's markup perfectly correct**,
+so only parsing the script could tell — which is what the test now does. The builder is therefore reconstructed
+readably, exactly as the design wrote it — same anchor, same `Intl` format, same `marketDay()` call, same
+`data-market` day span — with the card append wrapped. The route's `extendMarketDaysScript` refuses to
+half-apply: it throws when the builder is not where it expects it, and the route catches that and serves the
+design's own script rather than a broken one.
+
+### `/market-days/` IS NOT THE SAME FILE, WHICH THE TASK SAID IT WAS
+
+The brief named both addresses as serving "the same design file". Measured: **they are different screens.**
+`market-days.html` is 3,772 bytes against `igbo-calendar.html`'s 4,844, it has no full-year grid, and it states
+its basis in different words — *"The supplied helper sets 1 January 2026 as Orie…"*, which is the design
+talking about its own file rather than the page talking to a reader. A fill written only against
+`igbo-calendar` would have left that screen unaltered. Both sentences are now replaced, the account's own
+wording was made page-neutral (`the calendar above` → `the reckoning above`), and a test asserts that screen
+too.
+
+### AND A SECOND ORDERING BUG, WHICH THE FIRST FIX MASKED
+
+The new script address is `/design-screen-assets/market-days.js`, because the extension cannot be written into
+the inviolable deliverable and `public/` is served statically before routing. The rewrite of the script tag was
+placed beside the `../name.js` rewrite at the top of the route — **and `/cultural-calendar/` does not have that
+tag in its markup at all, because `fillCulturalCalendar` INSERTS it, after the rewrite had already run.** So
+the cultural calendar kept the design's own script while the two calendar screens took the extended copy, and
+the served pages disagreed about which script they used with nothing in the markup to show it. The rewrite now
+runs after the fills, covers all three screens, and logs when a screen that should have the script does not.
+
+### HOW IT WAS VERIFIED
+
+    npm run typecheck, from the repository root     exit 0, seven workspaces
+    design parity (the required check)             identical 63 differing 0 missing 0
+    design-fill tests (now 24 in the file)         ALL PASS, including seven new for this work
+    /igbo-calendar/ over HTTP                      200, 52,877 bytes, account inside <main> after the year grid
+    /market-days/ over HTTP                        200, account present, its own basis note rewritten
+    /cultural-calendar/ over HTTP                  200, now on the extended script too
+    the extended script                            parses, is idempotent, and leaves the design's file untouched
+    the extended script, executed against a DOM    12 month cards, each a <details> whose <summary> reads the
+                                                   month's name and whose body holds the month's day cells,
+                                                   computed by the design's own marketDay()
+
+### WHAT COULD NOT BE VERIFIED, AND WHAT WAS DONE INSTEAD
+
+**The browser pass could not be run.** Headless Chrome was started three ways — with a user-data-dir, with the
+GPU stack disabled, and through the DevTools protocol on port 9222 — and each died the same way:
+
+    FATAL:content/browser/gpu/gpu_data_manager_impl_private.cc:417] GPU process isn't usable. Goodbye.
+
+`--dump-dom` produced no output and `curl http://127.0.0.1:9222/json/version` returned nothing. The sandbox
+permits the binary to start and not to render, so **no claim is made here about focus rings, about tab order,
+or about what a real browser does when a reader presses Enter on a month.** What was done instead: the
+extended script was executed in Node against a minimal DOM, and it produced the twelve `<details>` cards with
+the correct summary text and day counts — the same evidence the previous round's offline pass produced for a
+browser it also could not run. `scripts/verify-round-309-offline.mjs` reads the fill and applies the route's
+own rewrites, and `node --test packages/ozikoro/src/design-fill.test.ts` parses the extended script, which is
+the check that caught the six placement faults.
+
+**The `knowledge.test.ts` suite fails in this working tree, and it is not this work.** Its failure is
+`REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT … holder argv … next/dist/server/lib/start-server.js`
+— another checkout's `next dev` holds `.data/pg`, and the guard was respected rather than removed.
