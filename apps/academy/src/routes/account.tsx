@@ -3,7 +3,7 @@ import { useState } from "react";
 import { AcademyShell } from "@/components/academy-shell";
 import { Button } from "@/components/ui/button";
 import { OzikoroMark } from "@/components/ozikoro-mark";
-import { currentUser, signIn, signUp } from "@/backend/functions";
+import { currentUser, signIn, signOut, signUp } from "@/backend/functions";
 
 export const Route = createFileRoute("/account")({
   head: () => ({
@@ -54,6 +54,19 @@ function AccountPage() {
             </p>
             <Button className="w-full" size="lg" onClick={() => navigate({ to: "/my-learning" })}>
               Go to My Learning
+            </Button>
+            <Button
+              variant="ghost"
+              className="mt-2 w-full"
+              type="button"
+              onClick={async () => {
+                await signOut();
+                // Full navigation, not a router transition: the cookie has just been cleared on the
+                // server and every cached loader still holds the signed-in result.
+                window.location.assign("/");
+              }}
+            >
+              Sign out
             </Button>
             <Link className="mt-6 block text-center text-xs" to="/">
               Return to Academy
