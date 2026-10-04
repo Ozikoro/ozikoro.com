@@ -20,7 +20,9 @@ import {
   sessionMaxAgeSeconds,
 } from "./session.ts";
 import { clearedCookie, readCookie, serialiseCookie } from "./cookies.ts";
+import { masteryFromRecord, type ConceptRecord, type MasteryLevel } from "./mastery.ts";
 import {
+  conceptRecords,
   enrol,
   learningSummary,
   listProgress,
@@ -306,3 +308,35 @@ export const courseProgress = createServerFn({ method: "GET" })
       return failure(error);
     }
   });
+
+// ---------------------------------------------------------------------------
+// Mastery
+// ---------------------------------------------------------------------------
+
+/**
+ * Every concept, with the learner's real state in it.
+ *
+ * Returns the record alongside the level so a page can say WHY a concept sits where it does — "4 of
+ * 5 correct" is accountable, a bare badge is not. Signed-out callers get the level "Not started" for
+ * everything rather than a refusal, because the mastery page is readable without an account and
+ * should show what it would look like.
+ */
+export const myMastery = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{
+    signedIn: boolean;
+    concepts: Record<string, { level: MasteryLevel; record: ConceptRecord | null }>;
+  }> => {
+    const session = await resolveSession(sessionToken());
+
+    if (!session) {
+      return { signedIn: false, concepts: {} };
+    }
+
+    const records = await conceptRecords(session.id);
+    const concepts: Record<string, { level: MasteryLevel; record: ConceptRecord | null }> = {};
+    for (const [slug, record] of Object.entries(records)) {
+      concepts[slug] = { level: masteryFromRecord(record), record };
+    }
+    return { signedIn: true, concepts };
+  }
+);

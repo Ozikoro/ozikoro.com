@@ -7,6 +7,7 @@
  * accident. The only caller is `./functions.ts`, which resolves the session first and passes the id.
  */
 import { one, query, rows, transaction } from "./db.ts";
+import { masteryFromRecord, type ConceptRecord } from "./mastery.ts";
 
 export interface Enrolment {
   courseSlug: string;
@@ -315,3 +316,74 @@ export async function learningSummary(accountId: number): Promise<{
     };
   });
 }
+
+// Mastery, derived from evidence
+
+// ---------------------------------------------------------------------------
+
+/**
+ * How well a learner knows each concept, counted from what they actually answered.
+ *
+ * THE SCORE ON AN ATTEMPT CANNOT ANSWER THIS. "3 of 5" does not say which of the five concepts to
+ * revisit, and that is the only useful thing an assessment produces. So each attempt stores a
+ * per-concept breakdown in `answers`, and mastery is aggregated from those — which is why the
+ * breakdown is written at all.
+ *
+ * The evidence is read back through `answers_json` rather than a dedicated table. That is a
+ * deliberate trade for this stage: the shape of a question is still moving, and a table would have
+ * to be migrated every time it does. A concept-mastery table with a state history is the right
+ * destination and is noted in the README as work not done.
+ */
+interface AnswerConcept {
+  concept?: unknown;
+  slug?: unknown;
+  correct?: unknown;
+}
+
+export async function conceptRecords(accountId: number): Promise<Record<string, ConceptRecord>> {
+  const found = await rows<Record<string, unknown>>(
+    `select answers, created_at
+       from academy_attempt
+      where account_id = $1 and answers is not null
+      order by created_at desc
+      limit 200`,
+    [accountId]
+  );
+
+  const records: Record<string, ConceptRecord> = {};
+
+  for (const row of found) {
+    // `pg` returns jsonb already parsed; a string only appears if the driver was configured
+    // differently, so both are accepted rather than assuming one and failing silently.
+    let parsed: unknown = row.answers;
+    if (typeof parsed === "string") {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        continue;
+      }
+    }
+
+    const list = (parsed as { concepts?: unknown })?.concepts;
+    if (!Array.isArray(list)) continue;
+
+    for (const entry of list as AnswerConcept[]) {
+      // A concept is keyed by its slug when the question could be matched to one. An unmatched
+      // concept is skipped rather than bucketed under its title, because two questions naming the
+      // same concept differently would then count as two concepts.
+      const slug = typeof entry?.slug === "string" ? entry.slug : null;
+      if (!slug) continue;
+
+      const record = (records[slug] ??= {
+        attempts: 0,
+        correct: 0,
+        lastAnsweredAt: String(row.created_at),
+      });
+      record.attempts += 1;
+      if (entry.correct === true) record.correct += 1;
+    }
+  }
+
+  return records;
+}
+

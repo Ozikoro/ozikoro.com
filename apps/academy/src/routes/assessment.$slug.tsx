@@ -1,1 +1,39 @@
-import { createFileRoute,Link } from "@tanstack/react-router";import { useState } from "react";import { CheckCircle2,ChevronRight } from "lucide-react";import { AcademyShell } from "@/components/academy-shell";import { Button } from "@/components/ui/button";export const Route=createFileRoute("/assessment/$slug")({head:()=>({meta:[{title:"Practice assessment — Ozikoro Academy"},{name:"description",content:"Check your understanding with guided practice."},{property:"og:title",content:"Practice assessment — Ozikoro Academy"},{property:"og:description",content:"Guided academic practice and feedback."},{property:"og:type",content:"website"},{name:"twitter:card",content:"summary"}]}),component:A});function A(){const{slug}=Route.useParams();const[a,setA]=useState("");const[done,setDone]=useState(false);return <AcademyShell><section className="assessment-wrap"><div className="assessment-card"><div className="flex items-center justify-between text-xs text-muted-foreground"><span className="font-bold uppercase tracking-caps text-primary">Listening practice</span><span>Question 1 of 5</span></div><div className="mt-4"><div className="h-1 bg-surface-sunk"><div className="h-full w-1/5 bg-primary"/></div></div>{done?<div className="py-14 text-center"><CheckCircle2 className="mx-auto size-12 text-primary"/><h1 className="mt-5 text-3xl">Practice complete</h1><p className="mx-auto mt-3 max-w-md text-muted-foreground">Your answer has been reviewed. Revisit the lesson or continue to your learning record.</p><div className="mt-7 flex justify-center gap-3"><Button asChild variant="outline"><Link to="/learn/$slug" params={{slug}}>Review lesson</Link></Button><Button asChild><Link to="/my-learning">View My Learning <ChevronRight/></Link></Button></div></div>:<><h1 className="mt-10 text-3xl">Which statement best describes lexical tone?</h1><p className="mt-3 text-muted-foreground">Choose one answer.</p><div className="mt-8 grid gap-3">{["It changes only the emotion of a sentence.","It can distinguish the meaning of otherwise similar words.","It appears only in songs and formal speech.","It replaces written vowels in Igbo."].map((x,i)=><label className={`answer-option ${a===x?'selected':''}`} key={x}><input type="radio" name="a" checked={a===x} onChange={()=>setA(x)}/><span>{String.fromCharCode(65+i)}</span><p>{x}</p></label>)}</div><div className="mt-8 flex justify-end"><Button disabled={!a} onClick={()=>setDone(true)}>Check answer <ChevronRight/></Button></div></>}</div></section></AcademyShell>}
+import { createFileRoute } from "@tanstack/react-router";
+import { AcademyShell } from "@/components/academy-shell";
+import { PageIntro } from "@/components/academy-ui";
+import { Quiz } from "@/components/academy-learn";
+import { meta } from "@/lib/meta";
+
+export const Route = createFileRoute("/assessment/$slug")({
+  head: () => meta("Practice assessment", "Check your understanding with guided feedback — hints are available before you answer."),
+  component: Page,
+});
+
+/**
+ * THE ASSESSMENT IS NO LONGER A PAGE OF ITS OWN, AND THAT IS THE FIX.
+ *
+ * It used to render a single hardcoded multiple-choice question under a header reading "Question 1 of
+ * 5", then announce "Your answer has been reviewed" — for an answer nothing had reviewed and a set
+ * that had four more questions nowhere. It recorded nothing, and the count was simply untrue.
+ *
+ * It now runs the same questions, feedback and recording as practice, diagnostic and challenge,
+ * which is also what makes "assessments work" a statement about the product rather than about one
+ * screen.
+ */
+function Page() {
+  const { slug } = Route.useParams();
+  return (
+    <AcademyShell>
+      <PageIntro
+        eyebrow="Practice assessment"
+        title="Check your understanding"
+        description="Guided feedback after each answer, and a result that is saved to your learning record."
+      />
+      <section className="section-pad">
+        <div className="site-wrap max-w-3xl">
+          <Quiz title="Practice assessment" mode="assessment" courseSlug={slug} />
+        </div>
+      </section>
+    </AcademyShell>
+  );
+}

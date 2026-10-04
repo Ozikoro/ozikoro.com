@@ -11,22 +11,38 @@ There is deliberately no XP, streak, leaderboard or marketplace economy.
 
 ## What is real, and what is still representative
 
-**Accounts, enrolment and progress are real and persisted.** A learner registers against the shared
-`account` table — the same one the dictionary uses — signs in, enrols in a course, and their progress
-and assessment attempts survive a reload and follow them between devices. "My Learning" reads that
-record; the lesson reader shows their actual position and offers completion only when a lesson is not
-already done.
+**Accounts, enrolment, progress, assessments and mastery are real and persisted.** A learner
+registers against the shared `account` table — the same one the dictionary uses — signs in, enrols in
+a course, and their progress, results and mastery survive a reload and follow them between devices.
+
+- **Practice, assessment, diagnostic and challenge all record their results.** They share one
+  question component, so "assessments work" is a statement about the product rather than about one
+  screen. The assessment page used to show a single hardcoded question under a header reading
+  "Question 1 of 5" and record nothing.
+- **Mastery is computed from those results**, per concept, on the five states the brief names. Each
+  concept previously carried a hardcoded label in the seed data, so every visitor — including one who
+  had answered nothing — was shown "Mastered" on lexical tone. The rule and its thresholds are in
+  `src/backend/mastery.ts` and are covered by `src/test/mastery.test.ts`.
+- **The transcript and certificates are generated from the learner's own rows.** Both previously
+  reported fixed figures to everybody, including a certificate number (`OZK-2026-0142`) that was the
+  same for every visitor.
 
 **The rest of the front end is still representative content**, and it is worth being precise about
 which parts, because the pages look equally finished:
 
-- **Mastery, certificates and the academic record** are illustrative. The spec's mastery engine has
-  not been built. `academy_attempt` is deliberately a log rather than a single mutable score, so it
-  is the history that engine will read.
+- **Mastery is a stated rule, not yet a model.** It is derived by counting correct answers per
+  concept (`src/backend/mastery.ts`), which satisfies "mastery updates reliably" but is not the
+  brief's full engine: there is no mastery HISTORY, no decay, no spaced-review scheduling, and the
+  evidence lives in `academy_attempt.answers` rather than a concept-state table with its own
+  timeline. Moving it there is the next step and the reason the per-concept breakdown is recorded at
+  all.
+- **Certificates are records of completion, not verifiable credentials.** The reference is derived
+  from the account and course rather than issued from a counter, but there is no verification
+  endpoint and the brief explicitly rules out implying accreditation. The page says so.
 - **The catalogue lives in code** (`src/data/academy.ts`), not in the database, so enrolment
   references courses by slug. Moving it into `learn_course` is a migration and a foreign key, and
   enrolments do not change meaning when it happens.
-- **Onye Ozi answers from a fixed reply**, not from approved sources.
+- **Onye Ozi answers from a fixed reply**, not from approved sources. It records nothing.
 - **Sources, culture profiles, maps, timelines, comparisons and the classroom system** are the
   spec's remaining entities; none is persisted.
 - Several controls are presentational: the sort selector, the certificate download, the reading-list
