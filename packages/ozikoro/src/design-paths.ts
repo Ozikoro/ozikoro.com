@@ -153,6 +153,16 @@ export function designScreenLinks(html: string, at?: string): string {
     // screen rather than the archive**, and the archive's own page is one segment away.
     'archive-index.html': '/archive/',
     /*
+     * `towns.html` IS THE MENU'S NAME FOR THE REGISTER, AND THE REGISTER HAS MOVED.
+     *
+     * **17 references across 14 of the deliverable's files** name `towns.html` — the masthead menu on
+     * every screen, the front page, and the foot of the screens that list places. The design is inviolable,
+     * so none of them can be edited; without this entry the generic fallback would resolve each one to
+     * `/towns/`, which is now a 301 to the page. This entry makes it one hop, and it is the same treatment
+     * `archive-index.html` and `dashboard-account.html` already get above.
+     */
+    'towns.html': '/clan-towns/',
+    /*
      * `researcher-profile.html` IS ONE PERSON'S PAGE AND EVERY LABEL ON IT IS A DIRECTORY'S.
      *
      * The design's profile screen is a demonstration of a profile, and the person in it — "Dr Chinwe

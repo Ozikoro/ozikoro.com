@@ -232,6 +232,33 @@ export function middleware(request: NextRequest) {
      * THE REDIRECT SITS BEFORE THE REWRITE, and before the walkthrough branch, because both of those
      * answer with a 200 at the file's own name — which is the whole fault.
      */
+    /*
+     * `/towns/` IS NOW `/clan-towns/`, AND SO IS `/clans/`, AND THESE ARE THE ONE HOPS.
+     *
+     * The owner: *"add them all to the /towns page, and maybe rename it to /clan-towns to accommodate
+     * both."* So the register has one address. Every spelling of the old one — `/towns`, `/towns/` and
+     * `/towns.html` — is a 301 to it **with its query string carried**, because a paged or filtered
+     * register is an address a reader may have bookmarked: `/towns?page=3&clan=ika` becomes
+     * `/clan-towns?page=3&clan=ika`, not the unfiltered first page.
+     *
+     * **AND `/clans/` IS THE SECOND ENTRY BECAUSE IT WAS THE SECOND REGISTER.** Measured before this:
+     * `/clans/` rendered the same 188 published rows out of the same `listPlaces`, with its own cards, its
+     * own note and its own finder — one index under two addresses, which is the thing the owner rejected
+     * when he called the clans page "an entirely different clans page". Its filters are not lost: `/clans/`
+     * accepted `kind`, `tribe` and `region`, and `/clan-towns/` accepts all three. **Its per-entry pages are
+     * a different page and are left alone** — `/clans/<slug>/`, `/clans/tribes/` and `/clans/regions/` are
+     * not the index, so they keep their addresses and only the `/clans` they link back to now redirects.
+     *
+     * IT IS PLACED BEFORE THE `DESIGN_FILES` BRANCH ON PURPOSE. That branch turns `/towns.html` into
+     * `/towns/`, which would make the deliverable's own file name a two-hop redirect on the one address
+     * the design's menu points at. `towns` stays in `DESIGN_FILES` so this file's own name is still
+     * recognised as a name the deliverable ships; it is simply resolved here first.
+     */
+    if (single === 'towns' || single === 'clans') {
+      const to = new URL('/clan-towns/', request.url);
+      to.search = search;
+      return NextResponse.redirect(to, 301);
+    }
     if (hadFileSuffix && DESIGN_FILES.has(single)) {
       const to = new URL(single === 'home' ? '/' : `/${single}/`, request.url);
       to.search = search;
@@ -345,6 +372,73 @@ export function middleware(request: NextRequest) {
   if (authorAddress) {
     const target = RETIRED_AUTHOR_ADDRESSES[authorAddress[1] ?? ''];
     if (target) return NextResponse.redirect(new URL(target, request.url), 301);
+  }
+
+  /*
+   * ── THE PUBLISHED WORDPRESS PAGES WHOSE CONTENT HAS A SUCCESSOR AT ANOTHER ADDRESS ────────────────
+   *
+   * §7.10 of the reconciliation named four of the six published WordPress pages as 404s, and the owner's
+   * rule from the beginning of this project is that *"every record keeps the address it was published
+   * at."* All six rows are in the cluster, each with the `legacy_url` it was published at — the importer
+   * asked the REST API for `pages?status=publish`, which is why all six came across.
+   *
+   * WHAT ACTUALLY SERVES `/about/` AND `/home/`, READ RATHER THAN GUESSED: it is neither a redirect nor
+   * `legacy_url`. `DESIGN_SCREENS` above rewrites both to `/design-screen/<screen>`, which fills the
+   * deliverable's own screen from the archive. So the two that answer do so because the design drew a
+   * screen for them, and a rewrite is not available for a page the design never drew.
+   *
+   * TWO OF THE REMAINING FOUR HAVE A SUCCESSOR HERE, AND THEY ARE THE TWO REDIRECTED BELOW. Each was
+   * decided from what the page is, not from its slug, and the other two are stated in the same breath:
+   *
+   *   * `/authors/` — WordPress page 455, "Authors": the "Our Team" directory, Founder Idenze Ezeme and
+   *     four Writers, each card a link to `/author/<slug>/`. `/researchers/` is this archive's directory
+   *     of the people who wrote it, and **all five of those bylines are on it** — verified by fetching it
+   *     and reading the ten `/author/<slug>/` links it draws. So the address goes to the directory that
+   *     holds the same thing and holds more of it.
+   *
+   *   * `/privacy-policy/` — WordPress page 477, "Privacy Policy", Ozi Ikoro's own 2020 notice: 626
+   *     words, `contact@ozikoro.com`, and a description of "cookies or analytics tools", newsletters and
+   *     a mailing address. `/privacy/` is this platform's notice, built from what the platform actually
+   *     does, and **it is the one that is true of this site** — there is no analytics script and no
+   *     newsletter to disclose. Two notices in competition would be worse than either, so the record
+   *     keeps its address by a permanent redirect and the canonical stays on `/privacy/`, which is where
+   *     `/privacy/`'s own `<link rel="canonical">` already points.
+   *
+   * ── AND THE TWO THAT ARE NOT REDIRECTED, WHICH IS THE OTHER HALF OF THE DECISION ─────────────────────
+   *
+   *   * `/construction/` — WordPress page 11024, "Construction". **Its content is empty**: 0 bytes of
+   *     `post_content`, 0 words, `_elementor_data` is `[]`, `_elementor_css` records `status: empty`. It
+   *     is a placeholder, so it stays a 404 — **an address with nothing behind it is not the same fault
+   *     as an address whose page exists**, and a notice would have to be invented for it.
+   *
+   *   * `/nze/` — WordPress page 10980, title "nze", 1,155 words. **It is not the author page**, which is
+   *     what its slug suggests: its content is a complete self-contained HTML document titled "A Question
+   *     for Your Journey", with its own inline styles and script, and it says nothing about the archive.
+   *     `301 /nze/ → /author/nze/` would therefore have been a WRONG DESTINATION — the fault this
+   *     repository has already recorded as a link that opens a stranger's profile — so it is served at
+   *     its own address from its own row instead, by the page branch in `app/[slug]/route.ts`. A reader
+   *     who follows `/about/`'s byline still reaches `/author/nze/`, which is the byline's page and never
+   *     was this address's content.
+   *
+   * A 301 rather than a 308, for the reason already given for a retired byline: both are `GET` addresses
+   * and a permanent redirect is what a reader of an archive expects. The check sits here, beside the
+   * retired byline and BEFORE the attachment fallback and routing, because both would otherwise answer
+   * first — the fallback rewrites an unknown two-segment path to `/attachment/<slug>/`, and routing would
+   * reach `app/[slug]/route.ts` and find no article.
+   *
+   * BOTH SPELLINGS ARE MATCHED, because `trailingSlash: true` makes `/<name>/` the form the router serves
+   * and a reader who types `/authors` is served by the slash-less REWRITE below — a rewrite does not come
+   * back through this function, so a lookup on `pathname` alone would leave `/authors` a 404.
+   */
+  const RETIRED_PAGE_ADDRESSES: Record<string, string> = {
+    '/authors/': '/researchers/',
+    '/privacy-policy/': '/privacy/',
+  };
+  const retiredPage = RETIRED_PAGE_ADDRESSES[pathname.endsWith('/') ? pathname : `${pathname}/`];
+  if (retiredPage) {
+    const to = new URL(retiredPage, request.url);
+    to.search = search;
+    return NextResponse.redirect(to, 301);
   }
 
   /*

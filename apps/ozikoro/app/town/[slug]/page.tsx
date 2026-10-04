@@ -84,7 +84,7 @@ export default async function TownPage({ params }: { params: Promise<{ slug: str
     <>
       <section className="sx-town-hero">
         <div className="wrap">
-          <Link href="/towns">← All towns</Link>
+          <Link href="/clan-towns">← All towns</Link>
           <p className="eyebrow">
             {placeKindSingular(clan.kind)} in the archive
           </p>

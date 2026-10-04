@@ -182,10 +182,33 @@ test('every non-dashboard screen in the transform is free of placeholder links t
   for (const { name, html } of screens) {
     const before = (html.match(/href="#"/g) ?? []).length;
     const after = fillDashboardLinks(html, name);
-    const left = (after.match(/href="#"/g) ?? []).length;
+    /*
+     * ── THE ONE `href="#"` THAT IS NOT A PLACEHOLDER, AND WHY IT IS COUNTED OUT ───────────────────
+     *
+     * THE OWNER'S REPORT: *"Open on YouTube is written, not built."* `/watch/`'s
+     * `<a id="inline-player-external" href="#" target="_blank" rel="noopener">Open on YouTube ↗</a>` is not
+     * a control waiting for a page — **it is a control waiting for a film**, and the design's own `watch.js`
+     * gives it one: `externalEl.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(id)`.
+     * `fillDashboardLinks` therefore leaves it exactly as the design wrote it, and this assertion counts it
+     * out rather than pretending the screen no longer carries a `href="#"`.
+     *
+     * **THE EXEMPT CONTROL IS NAMED AND COUNTED.** One anchor is exempt on `/watch/` and no other screen
+     * carries it, so a second placeholder appearing anywhere still fails here.
+     */
+    const scriptFilled = (
+      after.match(/id="inline-player-external"[^>]*href="#"|href="#"[^>]*id="inline-player-external"/g) ?? []
+    ).length;
+    const left = (after.match(/href="#"/g) ?? []).length - scriptFilled;
     totalBefore += before;
 
     assert.equal(left, 0, `${name}: ${left} of ${before} placeholder links survived the transform`);
+    if (name === 'watch') {
+      assert.equal(
+        scriptFilled,
+        1,
+        'the inline player’s external link must keep the design’s own href="#" — watch.js fills it with the film’s address'
+      );
+    }
     if (before > 0) {
       const marked = (after.match(/>— Not built yet<\/span>/g) ?? []).length;
       assert.ok(
@@ -1465,7 +1488,7 @@ test('each tile gets its own town, and no two tiles share one address', () => {
 test('a tile whose record the register does not hold goes to the register, never back to the design screen', () => {
   const hrefs = stripHrefs(fillHomeTowns(HOME, [{ label: 'Igbodo', href: '/town/igbodo-northern-ika/' }]));
   assert.equal(hrefs[0], '/town/igbodo-northern-ika/');
-  for (const href of hrefs.slice(1)) assert.equal(href, '/towns/');
+  for (const href of hrefs.slice(1)) assert.equal(href, '/clan-towns/');
   assert.ok(!hrefs.includes('/town/'), 'an unresolved name must not fall back to the single-town screen');
 });
 
@@ -2252,4 +2275,92 @@ test('the inline player carries the way to the film’s own page', () => {
   assert.match(out, /id="inline-player-page" href="\/watch-video\/"[^>]*hidden/, 'the player has no way to a film’s page');
   /* The archive's cards carry the address; the design's do not, and the script hides the control for those. */
   assert.match(out, /data-video-page="\/watch-video\/\?v=LL8YX0pXzdI"/, 'an archive film’s card carries no page address');
+});
+
+/* ------------------------------------------------------------------------------------------------
+ * THE OWNER'S REPORT: "Open on YouTube IS WRITTEN, NOT BUILT" — AND A FILM PAGE'S OWN NEIGHBOURS
+ * ---------------------------------------------------------------------------------------------- */
+
+test('the inline player’s YouTube link is built, so it is filed in no unbuilt table', () => {
+  /*
+   * THE FAULT THE OWNER NAMED. `/watch/` carried `<a aria-disabled="true" title="Not built yet — waiting on
+   * the inline player’s own film; the player is opened by script and no film is playing">Open on YouTube ↗
+   * <span class="small muted">— Not built yet</span></a>`. **A built control was wearing the mark of an
+   * unbuilt one**, and the reason given — no film is playing — is true of the page at load and false of
+   * every film the design's own `watch.js` opens.
+   */
+  const base = readFileSync(join(SCREENS, 'watch.html'), 'utf8');
+  const out = fillDashboardLinks(base, 'watch');
+
+  // The design's own anchor, unchanged — a real link with the attributes `watch.js` expects to find.
+  assert.match(
+    out,
+    /<a class="btn btn-ghost" id="inline-player-external" href="#" target="_blank" rel="noopener">Open on YouTube ↗<\/a>/,
+    'the design’s own external link was rewritten instead of left alone'
+  );
+  // And the marker is nowhere beside it.
+  assert.doesNotMatch(
+    out,
+    /Open on YouTube[^<]*<span class="small muted">— Not built yet/,
+    'a control that works is still printed as "Not built yet"'
+  );
+  assert.ok(
+    !('Open on YouTube ↗' in DASHBOARD_UNBUILT_MAP),
+    'a built control is still filed in the table of unbuilt ones'
+  );
+
+  /*
+   * AND THE ADDRESS IT GETS IS THE FILM'S OWN, WHICH IS WHY IT IS BUILT. The line is the design's, served
+   * extended from `/design-screen-assets/watch.js`; the id comes off the card the reader clicked and nothing
+   * is invented for a film the archive does not hold.
+   */
+  const script = extendWatchScript(
+    readFileSync(join(HERE, '..', '..', '..', 'design', 'calm-comfort-construct', 'public', 'design', 'watch.js'), 'utf8')
+  );
+  assert.match(script, /externalEl\.href = "https:\/\/www\.youtube\.com\/watch\?v=" \+ encodeURIComponent\(id\)/);
+});
+
+test('a film’s page offers the archive’s own neighbours, never the design’s example films', () => {
+  /*
+   * The design's "Related viewing" block names Onyeso, Unnamed Children and Yainkain under "Continue with
+   * Unspoken Stories". **Measured: `/watch-video/?v=NBj1CvaDgbM`, `…?v=3NnklFf2rXA` and `…?v=g1z_-5jqPG0`
+   * all answer 404**, so they are the design's own examples and are not this record's neighbours. On an
+   * archive film's page they were demonstration material presented as the archive's.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const films = extractArchiveFilms([
+    { slug: 'a', title: 'A Film', topic: 'Cultural Heritage', body_html: '<iframe src="https://www.youtube.com/embed/LL8YX0pXzdI"></iframe>' },
+    { slug: 'b', title: 'B Film', topic: 'Cultural Heritage', body_html: '<iframe src="https://www.youtube.com/embed/SHPEwGDOI7c"></iframe>' },
+    { slug: 'c', title: 'C Film', topic: 'Biography', body_html: '<iframe src="https://www.youtube.com/embed/jOMjbchyNXg"></iframe>' },
+  ]);
+  const out = fillWatchVideo(screen, films[0]!, films);
+
+  assert.doesNotMatch(out, /Unspoken Stories/, 'the design’s own series name is presented as this record’s');
+  assert.doesNotMatch(out, /NBj1CvaDgbM|3NnklFf2rXA|g1z_-5jqPG0/, 'a design example film is offered as related');
+  assert.match(out, /More films under Cultural Heritage/, 'the archive’s own topic does not head the list');
+  assert.match(out, /youtube\.com\/watch\?v=SHPEwGDOI7c/, 'the film from the same topic is not offered');
+  assert.doesNotMatch(out, /jOMjbchyNXg/, 'a film from another topic was offered as related');
+
+  /* The design's own page — no `?v=` — keeps the design's own block, because it is true of that page. */
+  assert.match(fillWatchVideo(screen), /Continue with Unspoken Stories/);
+
+  /* And a topic holding no other film says so rather than borrowing three. */
+  const alone = fillWatchVideo(screen, films[0]!, [films[0]!]);
+  assert.match(alone, /No other film under Cultural Heritage/);
+  assert.doesNotMatch(alone, /youtube\.com\/watch\?v=(?!LL8YX0pXzdI)/);
+});
+
+test('a film’s page does not carry the design’s own "for this design" into a real record', () => {
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const film = {
+    id: 'LL8YX0pXzdI',
+    title: 'ILA OSO',
+    titleFrom: 'film' as const,
+    topic: 'Cultural Heritage',
+    records: 1,
+    href: '/ila-oso-a-traditional-dance/',
+  };
+  assert.doesNotMatch(fillWatchVideo(screen, film), /for this design/);
+  assert.doesNotMatch(fillWatchVideo(screen), /for this design/);
+  assert.match(fillWatchVideo(screen, film), /The approved transcript has not been supplied for this film\./);
 });

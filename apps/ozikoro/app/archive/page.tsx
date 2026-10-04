@@ -255,7 +255,7 @@ export default async function ArchivePage({
                 </ul>
               )}
               <p className="small">
-                <Link href="/towns">All towns and clans &rarr;</Link>
+                <Link href="/clan-towns">All towns and clans &rarr;</Link>
               </p>
             </fieldset>
 

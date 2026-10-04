@@ -576,7 +576,6 @@ code {
   overflow-x: auto;
 }
 
-
 .mono {
   font-family: var(--font-mono);
   font-size: 0.85rem;
@@ -587,6 +586,195 @@ code {
   * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Igbo text in the Latin script with the dotted vowels and the tone marks.
+ *
+ * `.oz-igbo` is the class the dictionary marks Igbo text with, and the owner's
+ * rule for this section is that Igbo text carries it alongside `lang="ig"`.
+ * The class does not exist in the design deliverable — the dictionary defines
+ * it in its own stylesheet — so it is defined here, which is what this file is
+ * for: the layout comment says globals.css "holds only what the design does not
+ * cover".
+ *
+ * ONE DECLARATION, AND WHY NOT THE DICTIONARY'S WHOLE RULE
+ *
+ * The dictionary's rule is four declarations: `font-family: var(--font-igbo)`,
+ * weight 600, letter-spacing -0.015em and line-height 1.2. Only the family is
+ * load-bearing here. `--font-igbo` does not exist on this site; the design's
+ * `--font-serif` is Noto Serif, loaded from Google Fonts by `layout.tsx`, and it
+ * is the face the deliverable's own notes require because it carries ị ọ ụ ṅ and
+ * the tone marks at every weight, roman and italic. Copying the other three
+ * declarations would re-set the weight and the leading of headings the design
+ * has already specified (`.sx-town-grid strong` is `600 2rem var(--font-serif)`,
+ * `h1` on the town hero is `clamp(3.5rem, 9vw, 7rem)`) — that is restyling the
+ * design, which is the one thing this work must not do.
+ *
+ * So: the family, from the design's own token, and nothing else.
+ * ------------------------------------------------------------------------- */
+.oz-igbo {
+  font-family: var(--font-serif);
+}
+
+/* ---------------------------------------------------------------------------
+ * The register's four-step finder — `.sx-reg-finder`, `.sx-reg-steps`,
+ * `.sx-reg-search`, `.sx-reg-levels`.
+ *
+ * THESE FOUR CLASSES ARE NOT IN THE DESIGN AT ALL — AND THE PARAGRAPH THAT STOOD HERE SAID OTHERWISE
+ *
+ * Everything else the finder uses is already the design's and is used here
+ * unchanged: `.btn`, `.btn-gold` and `.btn-quiet` from `showcase.css` and
+ * `main.css`, `.small`, `.muted`, `.wrap` and `.section` from `main.css`,
+ * `.sr-only` from `showcase.css`. Checked rather than assumed: `sx-reg-search`,
+ * `sx-reg-levels`, `sx-reg-finder` and `sx-reg-steps` are in **none of the 52
+ * files** under `design/calm-comfort-construct/public/design/` — not in
+ * `screens/towns.html`, and not in either stylesheet. So the four are written
+ * here, which is what this file is for: the layout comment says it "holds only
+ * what the design does not cover".
+ *
+ * **This comment used to say the classes came from "a later build of the design
+ * than the stylesheets delivered with this app", whose `towns.html` links a
+ * `main.css` and a `showcase.css` that "neither … is in this repository". Both
+ * halves of that were false and it is the sentence that let a finder which is
+ * nowhere in the demo be described as the demo's.** The deliverable's own
+ * `towns.html` is in this repository and draws `form.search` with `#tq` and a
+ * gold `Find` — no steps, no selects — and `public/design/styles/main.css` and
+ * `public/design/styles/showcase.css` are both here and both served. The finder
+ * is the archive's invention, which is why it now lives on `/clans/`, the
+ * register's own screen, while `/towns/` shows the design's own form.
+ *
+ * The rule for writing them is the rule the design already follows, and it is
+ * why nothing here is a new token: every colour, space, radius and type size is
+ * the design's own custom property, so these four rules move with the design
+ * instead of being pinned to a value copied out of it. The arrangement is
+ * derived from the rest of the design rather than invented — the finder sits on
+ * the dark discovery hero, so its inputs take the `--on-night` ground and the
+ * gold rule that `.sx-watch-search` gives the watch hero's search box, and its
+ * labels take the `--gold-bright` caps that `.sx-discovery-hero .eyebrow`
+ * already sets on that ground.
+ *
+ * `.sx-reg-steps` and `.sx-reg-levels` are the same four-column rhythm, so they
+ * share a rule; the definitions below the hero are on paper and are left with
+ * the body's own ink and the muted grey this file already uses for secondary
+ * prose.
+ * ------------------------------------------------------------------------- */
+
+.sx-reg-finder {
+  margin-top: var(--s-6);
+}
+
+.sx-reg-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-4);
+}
+
+.sx-reg-steps label {
+  display: block;
+  margin-bottom: var(--s-2);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-caps);
+  color: var(--gold-bright);
+}
+
+/* The step's number, as the design writes it — a digit before the word. */
+.sx-reg-steps label b {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--on-night-muted);
+  margin-right: var(--s-1);
+}
+
+.sx-reg-steps select {
+  width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid rgba(201, 168, 76, 0.5);
+  border-radius: 2px;
+  background: var(--on-night);
+  color: var(--night);
+  font-size: var(--t-sm);
+}
+
+/*
+ * The name search, and the two buttons beside it.
+ *
+ * `--rule-firm` on the quiet button is the design's own light-ground rule, and
+ * on this dark hero it is a line the reader cannot see; `.sx-event-day-panel
+ * .btn-quiet` in `showcase.css` fixes the same problem the same way, so this is
+ * that treatment rather than a new one.
+ */
+.sx-reg-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--s-2);
+  align-items: center;
+  max-width: 46rem;
+  margin-top: var(--s-4);
+}
+
+.sx-reg-search input[type='search'] {
+  min-width: 0;
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid rgba(201, 168, 76, 0.5);
+  border-radius: 2px;
+  background: var(--on-night);
+  color: var(--night);
+  font-size: var(--t-base);
+}
+
+.sx-reg-search input[type='search']::placeholder {
+  color: var(--ink-faint);
+}
+
+.sx-reg-search .btn-quiet {
+  color: var(--on-night);
+  border-color: rgba(243, 234, 214, 0.45);
+}
+
+.sx-reg-search .btn-quiet:hover {
+  background: rgba(243, 234, 214, 0.1);
+  color: #fff;
+}
+
+/* The four definitions, under the hero, on paper. */
+.sx-reg-levels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s-5);
+}
+
+.sx-reg-levels b {
+  display: block;
+  margin-bottom: var(--s-2);
+  font-family: var(--font-serif);
+  font-size: var(--t-lg);
+  color: var(--text-heading);
+}
+
+.sx-reg-levels p {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+  color: var(--text-muted);
+}
+
+/* Four columns is a desktop arrangement; below it they pair, then stack. */
+@media (max-width: 60rem) {
+  .sx-reg-steps,
+  .sx-reg-levels {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 40rem) {
+  .sx-reg-steps,
+  .sx-reg-levels,
+  .sx-reg-search {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

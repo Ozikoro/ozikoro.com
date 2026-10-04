@@ -1024,7 +1024,7 @@ const HOME_STRIP_OPEN = '<div class="sx-strip reveal">';
  * ── AN UNRESOLVED NAME GOES TO THE REGISTER, NOT BACK TO THE SINGLE-TOWN SCREEN ──────────────────
  *
  * If a name is not in `links` — the row was renamed or unpublished since `MARQUEE_PLACES` was
- * measured — the card is pointed at `/towns/`, which is the register and lists every entry the
+ * measured — the card is pointed at `/clan-towns/`, which is the register and lists every entry the
  * archive holds. **It is deliberately NOT left at `/town/`**, because that is the fault: a tile named
  * after one town must not open a page that is about the register while claiming to be about that
  * town.
@@ -1052,7 +1052,7 @@ export function fillHomeTowns(html: string, links: readonly MarqueeLink[]): stri
       if (!strong) return whole;
       // The design writes `Oko &amp; Okwe`; the map's label is the name a reader sees.
       const name = strong[1]!.replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
-      const target = href.get(name) ?? '/towns/';
+      const target = href.get(name) ?? '/clan-towns/';
       return `<a${before}href="${esc(target)}"${after}>${body}</a>`;
     }
   );
@@ -2780,7 +2780,28 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   Next: 'paging over the archive index; the route serves one page of records and no offset',
   Replace: 'an upload or replace endpoint for archive files; the archive has no write path for media',
   'Save as draft': 'an upload endpoint that stores a draft; the design’s upload form posts nowhere',
-  'Open on YouTube ↗': 'the inline player’s own film; the player is opened by script and no film is playing',
+  /*
+   * `Open on YouTube ↗` HAS LEFT THIS TABLE, AND IT MUST NOT COME BACK.
+   *
+   * The owner's report, verbatim: *"Open on YouTube is written, not built"*. The served `/watch/` carried
+   * `<a aria-disabled="true" title="Not built yet — waiting on the inline player’s own film; the player is
+   * opened by script and no film is playing">Open on YouTube ↗ <span class="small muted">— Not built
+   * yet</span></a>` — a built control wearing the mark of an unbuilt one.
+   *
+   * **The reason was true of the page at load and false of every film the player opens.** The design's own
+   * `watch.js` — inside the inviolable deliverable, and served extended from
+   * `/design-screen-assets/watch.js` — already writes
+   * `externalEl.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(id)` inside `open(card)`, so
+   * the control carries the film's real YouTube address from the moment a reader chooses a film. Measured
+   * in headless Chrome by clicking each of the nine archive cards on `/watch/`: every one set
+   * `#inline-player-external.href` to that card's own id, e.g. `…?v=LL8YX0pXzdI`.
+   *
+   * So the entry is removed and the transform leaves the design's anchor exactly as the design wrote it.
+   * `#inline-player` is `hidden` until a film is chosen, so the bare `href="#"` the design carries is never
+   * reachable: by the time the reader can click this label the script has given it a real address.
+   * `design-fill.test.ts` asserts both halves — the label is in no unbuilt map, and no served watch screen
+   * prints "Not built yet" beside it.
+   */
   'Precolonial market systems': 'a topic record for this name; the archive’s fourteen topics do not include it',
   'Oral historiography': 'a topic record for this name; the archive’s fourteen topics do not include it',
   'Igbo ritual office': 'a topic record for this name; the archive’s fourteen topics do not include it',
@@ -3036,6 +3057,28 @@ export function fillDashboardLinks(html: string, screen: string): string {
     const { start, end, attrs, inner } = remaining[i]!;
     const text = inner.replace(/<[^>]+>/g, '').trim();
     const dest = destinationFor(screen, decodeEntities(text));
+
+    /*
+     * ── A CONTROL THE PAGE'S OWN SCRIPT FILLS IS NOT A PLACEHOLDER ────────────────────────────────
+     *
+     * THE OWNER'S REPORT: *"Open on YouTube is written, not built."* The served `/watch/` carried
+     * `<a aria-disabled="true" title="Not built yet — …">Open on YouTube ↗ <span class="small muted">— Not
+     * built yet</span></a>` — and it had been that way because the label sat in `DASHBOARD_UNBUILT_MAP`.
+     *
+     * **REMOVING THE MAP ENTRY ALONE DID NOT FIX IT, and that is the trap this branch closes.** The map
+     * supplies only the *reason*; this loop rewrites every `href="#"` it finds whether or not the label is
+     * in the map — measured, the anchor came back `aria-disabled="true" title="Not built yet"` with the
+     * reason gone and the fault intact.
+     *
+     * So the exclusion is by the control's own `id`, which is the thing the design's script looks up.
+     * `watch.js` ends `open(card)` with
+     * `externalEl.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(id)`, so by the time this
+     * anchor is reachable — `#inline-player` is `hidden` until a film is chosen — it carries the film's own
+     * address. **The design's `href="#"` is left exactly as the design wrote it, and nothing is invented
+     * for a film the archive does not hold**, because the script builds the address from the id the reader
+     * clicked.
+     */
+    if (/\bid="inline-player-external"/.test(attrs)) continue;
 
     /*
      * A LINK WHOSE CONTENT IS AN IMAGE OR NESTED MARKUP WITH NO READABLE LABEL IS LEFT ALONE.
@@ -6017,8 +6060,25 @@ ${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB',
  */
 export type RealFilmPage = RealFilm;
 
-export function fillWatchVideo(html: string, film?: RealFilmPage | null): string {
+export function fillWatchVideo(
+  html: string,
+  film?: RealFilmPage | null,
+  related?: readonly RealFilmPage[] | null
+): string {
   let out = clearExampleMaterial(html);
+  /*
+   * THE TRANSCRIPT AREA, SAYING ONLY WHAT IS TRUE OF A FILM.
+   *
+   * The design's paragraph opens *"The approved transcript has not been supplied for this design."* — **the
+   * words "for this design" are the demonstration talking about itself** — and the first pass replaced only
+   * the sentence after them, so a real film's page read "The approved transcript has not been supplied for
+   * this design" above a paragraph about the publisher. Both sentences go together now, and the one fact
+   * they carry is kept: no transcript has been supplied, and none is invented in its place.
+   */
+  out = out.replace(
+    /The approved transcript has not been supplied for this design\.\s*In the live platform, this area would carry the complete timed transcript, speaker names and language information—not invented text\./,
+    'The approved transcript has not been supplied for this film. This area carries the complete timed transcript, speaker names and language information when the publisher supplies one, and none is invented in its place.'
+  );
   out = out.replace(
     /In the live platform, this area would carry the complete timed transcript, speaker names and language information—not invented text\./,
     'This area carries the complete timed transcript, speaker names and language information when the publisher supplies one. No transcript has been supplied for this film, and none is invented in its place.'
@@ -6095,6 +6155,45 @@ export function fillWatchVideo(html: string, film?: RealFilmPage | null): string
       + `<p><b>Rights and reuse</b><br>Not recorded. Follow the publisher’s terms on YouTube.</p>`
       + `<p><b>The film</b><br><a href="https://www.youtube.com/watch?v=${id}" rel="noopener noreferrer">Open it on YouTube ↗</a></p>`
       + `</aside>`
+  );
+
+  /*
+   * RELATED VIEWING, FROM THE ARCHIVE RATHER THAN FROM THE DESIGN.
+   *
+   * The design's block names three films — Onyeso, Unnamed Children, Yainkain, under the heading "Continue with
+   * Unspoken Stories" — and **they are the design's own examples, not this record's neighbours.** Measured:
+   * `/watch-video/?v=NBj1CvaDgbM`, `…?v=3NnklFf2rXA` and `…?v=g1z_-5jqPG0` all answer 404, so the only viewing
+   * page in this archive that could honestly list them is the design's own. On the page of an archive film
+   * they were demonstration material presented as the archive's, which is the same fault as a film card that
+   * names one film and opens another.
+   *
+   * WHAT REPLACES THEM IS THE ARCHIVE'S OWN DEFINITION OF RELATED, **the one `fillArticle` already uses for
+   * `.sx-related-list`: other records from the same topic.** The design draws three links, so at most three are
+   * drawn, and where the topic holds no other film the list says so instead of borrowing three.
+   */
+  const topicName = film.topic;
+  const siblings = topicName
+    ? (related ?? []).filter((f) => f.id !== film.id && f.topic === topicName).slice(0, 3)
+    : [];
+  out = out.replace(
+    /<div id="related-video"[\s\S]*?<\/div>/,
+    `<div id="related-video" style="margin-top:var(--s-7)">`
+      + `<p class="eyebrow">Related viewing</p>`
+      + `<h2 style="margin-top:.4rem">${
+          siblings.length > 0
+            ? `More films under ${esc(topicName!)}`
+            : topicName
+              ? `No other film under ${esc(topicName)}`
+              : 'Related viewing'
+        }</h2>`
+      + `<p style="margin-top:var(--s-3)">${
+          siblings.length > 0
+            ? siblings
+                .map((f) => `<a href="https://www.youtube.com/watch?v=${esc(f.id)}">${esc(f.title)} ↗</a>`)
+                .join(' · ')
+            : 'The archive holds no other film filed under this topic, so this list is not filled from elsewhere.'
+        }</p>`
+      + `</div>`
   );
 
   // The document's own title and description, which are what a search result and a browser tab show.

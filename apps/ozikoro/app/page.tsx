@@ -238,7 +238,7 @@ export default async function HomePage() {
             <span className="gold-rule" />
           </div>
           <div className="sx-doors">
-            <Link className="sx-door reveal" href="/towns">
+            <Link className="sx-door reveal" href="/clan-towns">
               <span className="num">01</span>
               <strong>Find my family name or town</strong>
               <span>Start from a clan or a place and follow it through the record.</span>
@@ -276,7 +276,7 @@ export default async function HomePage() {
               <h2>Explore by town</h2>
             </div>
             <span className="gold-rule" />
-            <Link className="btn btn-quiet" href="/towns">
+            <Link className="btn btn-quiet" href="/clan-towns">
               All towns
             </Link>
           </div>

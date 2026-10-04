@@ -23056,3 +23056,111 @@ will meet them.
 
 **`CPANEL_PASSWORD` in `.env.local` must be rotated.** It is in no commit and no transcript, it was not read,
 not printed and not used by this round, and nothing here can make it safe. It is the owner's to rotate.
+
+## ROUND 349 — THE FILM PAGE WAS ALREADY COMPLETE, "OPEN ON YOUTUBE" WAS MARKED UNBUILT WHILE THE SCRIPT BUILT IT, AND THE REGISTER IS ONE PAGE AT `/clan-towns/`
+
+The owner reported four things. **One of them was measured and the measurement contradicted his description, so
+this round's first job was to find out what he actually saw.**
+
+### 1. `/watch-video/?v=LL8YX0pXzdI` — NOT the fault, and that is the finding
+
+He said *"even the 'this film's page' is not work … instead of the actual content the video is in."* All three
+candidate faults were measured and **none of them is it**:
+
+* **(a) under-filled — FALSE.** The served page carries **every section and every class the design's
+  `watch-video.html` draws**: `sx-video-stage` (breadcrumbs, `sx-player`, `sx-video-detail` with `sx-video-kicker`,
+  `<h1>`, `sx-video-facts`, `sx-video-actions`, `sx-video-copy`), `sx-video-side`, and the whole `sx-transcript`
+  section with `sx-transcript-grid`, `#transcript-copy`, the `partial-note` and `#related-video`. A mechanical
+  element+class diff of design against served differs by **exactly one node: the `example-flag`, deliberately
+  removed.** The page is 6,591 bytes against the design file's own 3,904 — it is *larger* than the thing it was
+  called "nearly empty" against.
+* **(b) wrong link — FALSE.** All **nine** archive cards on `/watch/` were checked twice: statically (card
+  `data-video-page` → destination `<h1>`) and behaviourally (clicked in headless Chrome, reading the revealed
+  `#inline-player-page` href). **Nine of nine match.** The six design cards correctly carry no address.
+* **(c) unknown id falls back — FALSE, it 404s.** `/watch-video/?v=` for each of the six design ids and for a
+  nonsense id all answer **404**.
+
+And the film plays: the page was rendered in headless Chrome and the YouTube frame loaded — *Ila Oso Uzuakoli
+2017* by Nwokedi Nworisara, the film the archive record embeds — with zero console errors and a 389px player. The
+design's own embeddability was confirmed independently (`youtube.com/oembed` → 200). **What the page could not
+say was what the two remaining design-demonstration sentences said about it:**
+
+* *"The approved transcript has not been supplied **for this design**"* — the demonstration talking about itself,
+  left behind by a pass that replaced only the sentence after it. Both sentences are replaced together now.
+* *"Related viewing — Continue with Unspoken Stories"* named **the design's three example films** (Onyeso, Unnamed
+  Children, Yainkain), all three of which 404 at `/watch-video/`. On a real film's page they were demonstration
+  material presented as the archive's. They are now the archive's own neighbours — other films **from the same
+  topic**, the rule `fillArticle` already uses for `.sx-related-list` — with an honest line where the topic holds
+  none, and the design's own page (no `?v=`) keeps the design's own block.
+
+### 2. "Open on YouTube IS WRITTEN, NOT BUILT" — and removing the map entry was not enough
+
+`/watch/` carried `<a aria-disabled="true" title="Not built yet — …">Open on YouTube ↗ <span class="small
+muted">— Not built yet</span></a>`, with `'Open on YouTube ↗'` in `DASHBOARD_UNBUILT_MAP`. Its reason — *"the
+player is opened by script and no film is playing"* — is true of the page at load and false of every film: the
+design's own `watch.js` ends `open(card)` with `externalEl.href = "https://www.youtube.com/watch?v=" +
+encodeURIComponent(id)`. Measured in Chrome by clicking each archive card: every one set that href to the card's
+own id.
+
+**Deleting the map entry changed the anchor to `aria-disabled="true" title="Not built yet"` — reason gone, fault
+intact.** The map supplies only the *reason*: `fillDashboardLinks` rewrites every `href="#"` it finds regardless.
+So the transform now **excludes the control the design's own script fills, by its `id`** (`inline-player-external`),
+leaves the design's anchor byte-for-byte, and the count of placeholder-free screens is held by an assertion that
+names the single exempt control so a second placeholder cannot hide behind the rule. Verified in the browser:
+`href="https://www.youtube.com/watch?v=LL8YX0pXzdI"`, label `Open on YouTube ↗`, no `aria-disabled`, and the string
+`— Not built yet` absent from the whole page.
+
+### 3. The images
+
+* **The two refused hotlinks resolve, and the measurement is on one page**: `/ichi-mark-the-igbo-scarification/`.
+  `…/Igbo-Men-with-Ichi-Scarification-Thomas-W.-Northcote-642x317.png` → `/media/ozikoro/3780-…-300x148.png`;
+  `…/questioning8c86e7b5…-768x461.jpg` → `/media/ozikoro/1616-questioning8c86e7b5…-scaled.jpg`. **Zero
+  `https://ozikoro.com/wp-content` addresses survive in any `src` or `srcset` on that page.** The second depends
+  on the `-scaled` alias another round added to `mediaUrlMap` in the same working tree; the first resolves by the
+  name the archive itself holds.
+* **The towns-card photographs: the premise was wrong, and here is the evidence.** Seven photographs are drawn on
+  **sixteen** cards across sixteen distinct entries (not fourteen: `10234-…jpeg` is on three cards and
+  `5850-Okposi-Salt-Lake-1.webp` on three, which is where the count differs). Every one of those seven was traced
+  to its supplying record and the record's own page was read: **each record names the place on the card.**
+  "The Nsukka Industrial Complex: Lejja and Opi" names `Clan Nsukka`, `Town Lejja`, `Town Opi`; "The Igbo-Egu-Nkalu
+  War…" names `Clan Afikpo` and `Clan Nkalu`; "The History and Origins of Arondizuogu" names `Clan Ndizuogu` and
+  `Ethnic group Aro`; "Ije Udo Onicha Mmili" names `Clan Onicha` and `Town Onicha`; the Okposi salt-lake record
+  names `Clan Uburu`, `Town Okposi`, `Town Uburu`; and "Igbodo: A Community Formed by Convergence" names
+  `Clan Igbodo` and `Town Igbodo` beside `11219-obi-of-igbodo.jpg`. **The count of cards showing a photograph
+  belonging to a different place is therefore 0** — the picture is the record's, and the record names this place
+  too. What the card could not say is *which record*, so it now does, on exactly the cards whose record names more
+  than one thing, in the design's own `<small>` line. Restricting the picture to single-place records was rejected
+  deliberately: it would strip the obi of Igbodo off the Ika town's card, and that photograph is correct for it.
+
+### 4. The register: one page, `/clan-towns/`, with both controls and 18 to a page
+
+The owner corrected this round's own brief: *"add them all to the /towns page, and maybe rename it to /clan-towns
+to accommodate both. **there's a reason the towns section have an option to select ethnicities, clans, tribes, and
+towns**"*, and *"you built an entirely different clans page, but no, that is not what i want."* So:
+
+* **Both controls live on the one page, each exactly as its author wrote it.** The design's own
+  `form.search` — `sr-only` label for `#tq`, `<input id="tq" name="q" type="search" placeholder="Find a town or
+  community">`, `<button class="btn btn-gold">Find</button>` — and the register's four-step `#register-finder`
+  (`sx-reg-steps`: ethnicity, division, tribe/clan, town). Each carries the other's answer as hidden inputs, so
+  neither submission discards the reader's choice. The false head comment that claimed `sx-reg-finder` was copied
+  from `towns.html` is corrected in both places it stood (the page and `globals.css`): **the classes are in none
+  of the 52 design files**, and the finder is the owner's own instruction for this section.
+* **18 to a page in `?page=`**, the `/watch/` idiom, with the archive index's own pager markup. Measured: page 1
+  holds 18 of 188, page 11 holds the last 8 ("Showing 181–188 of 188 entries · page 11 of 11"), and **page 12 is
+  the honest end state** — "There is no page 12.", with links to page 1 and the last — not an empty grid. A
+  filtered Next was followed: `?division=western-igbo` matches 25 entries in 2 pages and its Next is
+  `/clan-towns?ethnic=Igbo&division=western-igbo&page=2`, which returns the filtered second page.
+* **`/clan-towns/` is canonical and the old addresses are 301s**: `/towns`, `/towns/`, `/towns.html` and
+  `/clans`, `/clans/`, all measured 301 with the query carried (`/towns?page=3&clan=ika` →
+  `/clan-towns/?page=3&clan=ika`). The deliverable names `towns.html` **17 times across 14 files** and is
+  inviolable, so `designScreenLinks` resolves that name to `/clan-towns/` at serve time; every served screen was
+  read and **no page emits a `/towns` link**.
+* **`/clans/` was a second register of the same rows** — the same 188 out of the same `listPlaces`, with its own
+  cards, its own note and its own finder — so its index is folded in. Its filters (`kind`, `tribe`, `region`) are
+  accepted by `/clan-towns/`, so an address that used to work still filters. Its per-entry pages
+  (`/clans/<slug>/`, `/clans/tribes/`, `/clans/regions/`) are a different page and keep their addresses.
+
+**The one thing this round leaves as measured rather than fixed**: the ethnicity step always carries a value, so
+pager links read `?ethnic=Igbo&page=2` even from an address that did not set it. It is honest — that is the
+finder's own state — but it is a wart, and `?clan=ika` is dropped rather than applied because the cascade resolves
+`clan` against the register's entries and `ika` is a division, not one of them.

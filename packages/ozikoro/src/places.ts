@@ -142,6 +142,36 @@ export interface PlaceSummary {
    * call for the design screen since it was written; this is the same fact for the app's own page.
    */
   imageKey: string | null;
+  /**
+   * The record the photograph above comes from, and how many places that record names — or null.
+   *
+   * ── WHY THE PHOTOGRAPH IS NOT SIMPLY "THIS PLACE'S" ────────────────────────────────────────────────
+   *
+   * Measured on the served "/towns/": **seven photographs are drawn on sixteen cards across sixteen
+   * distinct entries** (`11196-izuogu-town.jpg` on Ndizuogu and Aro; `10234-5E0E1409-….jpeg` on Edda,
+   * Abam and Ohafia; `5850-Okposi-Salt-Lake-1.webp` on Okposi and both Uburus; `11219-obi-of-igbodo.jpg`
+   * on both Igbodos; and three more on two cards each). The mechanism is one row: a record may be linked
+   * to more than one entry through "ozikoro_article_entity", and its **own** featured media is then drawn
+   * on each linked entry's card.
+   *
+   * **The Igbodo pair was read end to end and the record names both places on its own page** —
+   * "/igbodo-a-community-formed-by-convergence/" carries `<a href="/entities/igbodo/">Clan Igbodo</a>` and
+   * `<a href="/entities/igbodo-northern-ika/">Town Igbodo</a>` beside the figure
+   * "/media/ozikoro/11219-obi-of-igbodo.jpg". So the picture is the record's, and the record names the
+   * place the card names. **What a reader cannot see from the card is which record the picture came
+   * from**, and that is what these two fields let the card say.
+   *
+   * "links" counts the DISTINCT entities the supplying record names — every card in the seven groups was
+   * checked against its record's own page, and each record names the place on the card beside the others:
+   * "The Nsukka Industrial Complex: Lejja and Opi" names `Clan Nsukka`, `Town Lejja` and `Town Opi`;
+   * "The Igbo-Egu-Nkalu War…" names `Clan Afikpo` and `Clan Nkalu`; "The History and Origins of
+   * Arondizuogu" names `Clan Ndizuogu` and `Ethnic group Aro`; "Ije Udo Onicha Mmili" names `Clan Onicha`
+   * and `Town Onicha`; and the Okposi salt-lake record names `Clan Uburu`, `Town Okposi` and `Town Uburu`.
+   * **So the count is of things named, not of entries with a "clan_id"** — an "Ethnic group" chip is a
+   * name the record carries too, and counting only clan rows would have let the Aro card draw the picture
+   * with no attribution at all. It is 1 for a record that names one thing, which is the ordinary case.
+   */
+  imageRecord: { slug: string; title: string; links: number } | null;
 }
 
 /** One place: an entry, its towns, the names borne there, and where else it is recorded. */
@@ -239,6 +269,14 @@ function toSummary(row: Record<string, unknown>): PlaceSummary {
         : null,
     matchedTown: row.matched_town == null ? null : String(row.matched_town),
     imageKey: row.image_key == null ? null : String(row.image_key),
+    imageRecord:
+      row.image_key == null || row.photo_slug == null
+        ? null
+        : {
+            slug: String(row.photo_slug),
+            title: String(row.photo_title ?? ''),
+            links: Number(row.photo_links ?? 1),
+          },
   };
 }
 
@@ -334,30 +372,45 @@ export async function listPlaces(
               where ct.clan_id = c.id and ct.name ilike ${patternAt}
               order by ct.is_head desc, ct.name limit 1) as matched_town,
             /*
-             * A PHOTOGRAPH THE ARCHIVE LINKS TO THIS ENTRY, OR NOTHING.
+             * A PHOTOGRAPH THE ARCHIVE LINKS TO THIS ENTRY, OR NOTHING — AND THE RECORD IT CAME FROM.
              *
              * The design's town card leads with an image and the register's cards carried none, so the
              * served page was missing a shape the design draws. The image is the featured media of a
              * published record linked to this entry — the same "ozikoro_article_entity" link the
              * article cards read — which is a photograph the archive already asserts belongs here.
              *
-             * A CORRELATED SUBQUERY AND NOT A JOIN, ON PURPOSE. "ozikoro_entity" can hold more than
-             * one row for a "clan_id" — "getPlace" reads it with "limit 1" for exactly that reason —
-             * and a join would multiply the register's rows, which is a wrong list rather than a
-             * missing picture. "order by" makes the choice stable run to run rather than whatever the
-             * planner returns first, and "limit 1" keeps it one value per entry.
+             * A LATERAL AND NOT A PLAIN JOIN, ON PURPOSE. "ozikoro_entity" can hold more than one row for
+             * a "clan_id" — "getPlace" reads it with "limit 1" for exactly that reason — and a join would
+             * multiply the register's rows, which is a wrong list rather than a missing picture. "order
+             * by" makes the choice stable run to run rather than whatever the planner returns first, and
+             * "limit 1" keeps it one value per entry. A lateral is what lets the ONE chosen row bring
+             * back three columns; three copies of the same correlated subquery would be three chances for
+             * them to name different records.
+             *
+             * "photo_links" IS WHY THE CARD CAN BE HONEST. It counts the DISTINCT entities the supplying
+             * record names, because a record may be linked to several — measured, seven of the register's
+             * photographs are drawn on sixteen cards that way — so the card can say which record the
+             * picture came from when the picture also stands for a differently named place. See
+             * "PlaceSummary.imageRecord" for the measurement.
              */
-            (select m.storage_key
-               from ozikoro_article a
-               join ozikoro_media m on m.id = a.featured_media_id
-              where a.status = 'published' and a.is_page = false
-                and a.id in (select ae.article_id from ozikoro_article_entity ae
-                              where ae.entity_id in (select id from ozikoro_entity where clan_id = c.id))
-              order by a.published_at desc nulls last, a.id desc
-              limit 1) as image_key
+            photo.storage_key as image_key, photo.record_slug as photo_slug,
+            photo.record_title as photo_title, photo.record_links as photo_links
        from clan c
        left join tribe t on t.id = c.tribe_id
        left join clan p on p.id = c.parent_id
+       left join lateral (
+         select m.storage_key, a.slug as record_slug, a.title as record_title,
+                (select count(distinct ae2.entity_id)::int
+                   from ozikoro_article_entity ae2
+                  where ae2.article_id = a.id) as record_links
+           from ozikoro_article a
+           join ozikoro_media m on m.id = a.featured_media_id
+          where a.status = 'published' and a.is_page = false
+            and a.id in (select ae.article_id from ozikoro_article_entity ae
+                          where ae.entity_id in (select id from ozikoro_entity where clan_id = c.id))
+          order by a.published_at desc nulls last, a.id desc
+          limit 1
+       ) photo on true
        ${where}
       order by t.position nulls last, c.position, c.name
       limit $${values.length + 1} offset $${values.length + 2}`,
