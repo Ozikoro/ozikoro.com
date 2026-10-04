@@ -2568,7 +2568,7 @@ test('a film’s page offers the archive’s own neighbours, never the design’
 
 test('a related row is a thumbnail and a title on this archive’s own page, and says only what is held', () => {
   /*
-   * THE OWNER'S INSTRUCTION, ROUND 357: *"i expected to be smaller with a thumbnail on the left, the title on
+   * THE OWNER'S INSTRUCTION, ROUND 359: *"i expected to be smaller with a thumbnail on the left, the title on
    * the right type of thing, so redesign it and make it look better"*. Before this the block was one `<p>` of
    * three links separated by middots — no thumbnail, no row, no hierarchy.
    *
@@ -2593,7 +2593,7 @@ test('a related row is a thumbnail and a title on this archive’s own page, and
    * YouTube no longer holds answers 404 with a 120x90 grey placeholder JPEG that Chrome paints as though it
    * were a poster. So the element removes itself on either, which is why the markup is asserted here — the
    * frame, the hairline and the label those handlers leave behind are in `watch-video.css` and are measured in
-   * a real browser by `scripts/verify-round-357.mjs`.
+   * a real browser by `scripts/verify-round-359.mjs`.
    */
   const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
   const films = extractArchiveFilms([

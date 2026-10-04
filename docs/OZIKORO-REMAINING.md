@@ -25936,3 +25936,255 @@ tests:
   name begins with a word-joiner, which `trim()` does not remove and which is not `[A-Z]`. It is a data fault
   and not a fragment fault — nothing links to it wrongly — so this round reports it and does not touch the
   editorial path another agent is in.
+
+## ROUND 359 — THE RELATED VIEWING WAS ONE LINE OF LINKS THAT SENT THE READER OFF TO YOUTUBE, AND IT IS NOW A ROW: THUMBNAIL LEFT, TITLE RIGHT
+
+### 1. The owner's words, and what stood there
+
+> *"thank you for fixing the watch video page like 'http://127.0.0.1:3110/watch-video/?v=la4vThM0MUo', but i have a
+> problem with the way you presented the related viewing. i expected to be smaller with a thumbnail on the left,
+> the title on the right type of thing, so redesign it and make it look better"*
+
+What stood there was **one `<p>` of three links separated by middots** — no thumbnail, no row, no hierarchy — and
+the titles are long enough that it wrapped into a wall. Measured on `/watch-video/?v=la4vThM0MUo` before this
+round: the block's whole body was a single paragraph, and every link in it went to
+`https://www.youtube.com/watch?v=…`, i.e. **off the archive**.
+
+### 2. Before and after, verbatim from the served page
+
+**Before** — the block as served, fetched from `http://127.0.0.1:3110/watch-video/?v=la4vThM0MUo`:
+
+```html
+<div class="sx-transcript-copy" id="related-video" style="scroll-margin-top:6rem"><p class="eyebrow">Related viewing</p><h2 style="margin-top:.4rem">More films under Cultural Heritage</h2><p style="margin-top:var(--s-3)"><a href="https://www.youtube.com/watch?v=LL8YX0pXzdI">The War Dance Festival (ILA OSO) In Uzuakoli ↗</a> · <a href="https://www.youtube.com/watch?v=SHPEwGDOI7c">Ojeh &amp; Arishi Festival of Aboh Kingdom: A Celebration of Igbo Culture ↗</a> · <a href="https://www.youtube.com/watch?v=jOMjbchyNXg">Mmili Nkisi Day: A Celebration of Culture and Spirituality in Onitsha ↗</a></p></div>
+```
+
+**After** — the same block, from the same address, after this round's build:
+
+```html
+<div class="sx-transcript-copy" id="related-video" style="scroll-margin-top:6rem"><p class="eyebrow">Related viewing</p><h2 style="margin-top:.4rem">More films under Cultural Heritage</h2><div style="margin-top:var(--s-3)"><a class="sx-video-row" href="/watch-video/?v=LL8YX0pXzdI"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/LL8YX0pXzdI/hqdefault.jpg" alt="" width="128" height="72" loading="lazy" onerror="this.remove()" onload="if(this.naturalWidth&lt;320)this.remove()"></span><span class="sx-video-row-copy"><span class="sx-video-row-title">The War Dance Festival (ILA OSO) In Uzuakoli</span><span class="sx-video-row-meta">Held in one Ozikoro archive record</span></span></a><a class="sx-video-row" href="/watch-video/?v=SHPEwGDOI7c"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/SHPEwGDOI7c/hqdefault.jpg" alt="" width="128" height="72" loading="lazy" onerror="this.remove()" onload="if(this.naturalWidth&lt;320)this.remove()"></span><span class="sx-video-row-copy"><span class="sx-video-row-title">Ojeh &amp; Arishi Festival of Aboh Kingdom: A Celebration of Igbo Culture</span><span class="sx-video-row-meta">Held in one Ozikoro archive record</span></span></a><a class="sx-video-row" href="/watch-video/?v=jOMjbchyNXg"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/jOMjbchyNXg/hqdefault.jpg" alt="" width="128" height="72" loading="lazy" onerror="this.remove()" onload="if(this.naturalWidth&lt;320)this.remove()"></span><span class="sx-video-row-copy"><span class="sx-video-row-title">Mmili Nkisi Day: A Celebration of Culture and Spirituality in Onitsha</span><span class="sx-video-row-meta">Held in 2 Ozikoro archive records</span></span></a></div></div></div>
+```
+
+### 3. The row's numbers, and why each one is the one it is
+
+The row is the design's own related entry, one step smaller. **`showcase.css` already draws a related item as a
+grid with the image in one track and the words in the next** — `.sx-related-list a` is `grid-template-rows: 9rem
+1fr`, and at `max-width: 60rem` the design turns that same entry into exactly the row asked for,
+`grid-template-columns: 8rem 1fr`. Everything below is read off that block or off `.sx-video-thumb`; nothing is
+invented and no colour, font or radius is new.
+
+| | Value | Where it comes from |
+|---|---|---|
+| thumbnail | **8rem wide, 128x72 px**, `aspect-ratio: 16/9` | the design's own `.sx-video-thumb`, sized from the row's first grid track. 8rem is the small end of the range the brief allowed **and** the design's own narrow number for this entry — the whole complaint is that the block is too big, so it errs small |
+| gap | `var(--s-4)` (16 px) | the design's spacing token |
+| title | `600 1rem/1.35 var(--font-serif)` = 16 px | copied from `.sx-related-list strong`, the design's own title for a related item. Not the `1.2rem` of `.sx-video-card h3`, which is the size being complained about |
+| meta | `700 var(--t-xs)/var(--lh-ui) var(--font-sans)`, uppercase, `--ls-caps`, in **`var(--bronze)` `#8a5a2b`** | the design's own small label in `.sx-related-list small` (which is `#8a5a2b`), in the shape of `.sx-video-meta` (uppercase, 700, .72rem) |
+| frame | `--night-2` ground, `1px solid rgba(201,168,76,.22)` | `.sx-video-thumb`'s own declarations, not restated |
+| hover | `transform: scale(1.035)` on the image; the title to `var(--link)` | the design's own `.sx-video-card:hover img`. The alternative the design also draws — `.sx-related-list a:hover`'s `translateY(-3px)` **with a shadow** — is a card lift, and this is not a card |
+| at ≤40rem | thumbnail `6rem`, gap `var(--s-3)` | `.sx-related-list a{grid-template-columns:6rem 1fr}`, the design's own narrow step |
+
+No shadow, no gradient, no radius and no animation beyond the transform the design already applies to this exact
+image class.
+
+**The tokens, and the one place the brief's list does not apply.** The brief for this change named
+`--on-night`/`--on-night-muted`, which are the design's *video-card* colours. They are wrong **here**, because
+this block is not on the night ground: the fill puts it inside `<section class="sx-transcript">`, which
+`showcase.css` declares `background: var(--cream); color: var(--text)`, inside `.sx-transcript-copy`
+(`background: var(--paper-raised)`). `--on-night` is `#f3ead6`; on `#fffdf8` that is about **1.2:1**, i.e.
+invisible. So the text takes the design's tokens for the surface it is actually on — `--text-heading` for the
+title, `--bronze` for the label, both of which the design itself uses on this cream band — and
+`--on-night-muted` is used only where the design's own video atom puts it: **inside the dark `--night-2` frame**,
+for the label a missing image reveals.
+
+### 4. Where a row sends a reader — the decision
+
+**A row goes to `/watch-video/?v=<id>`: the archive's own film page.** Three answers were defensible and this is
+the one chosen, for a reason that is a fact about the data rather than a preference:
+
+* **Every film that can appear here is an archive film.** `siblings` is filtered out of the same
+  `extractArchiveFilms` result that `/watch/` is drawn from and that this page's own `?v=` was resolved against,
+  so each one already has a viewing page on this origin. Measured this round — followed, not assumed:
+  `/watch-video/?v=LL8YX0pXzdI`, `…?v=SHPEwGDOI7c` and `…?v=jOMjbchyNXg` all answer **200**, and each `<h1>` is
+  the row's own title, word for word.
+* **The inline player was wrong for a row.** The design's card plays in place because it is a `<button>`; a row
+  is a link, and making it play in place would mean reusing the card's mechanics the owner has just asked to
+  move away from.
+* **The old YouTube destination was only right for a film the archive does not hold**, and no such film can
+  reach this block. A reader sent to YouTube leaves a page that could have said what the archive holds about the
+  film, to arrive at a page that cannot.
+
+**The design's six example films are unaffected, and that is worth stating because the brief asked about them.**
+`/watch-video/?v=NBj1CvaDgbM`, `…?v=3NnklFf2rXA` and `…?v=g1z_-5jqPG0` are 404 — round 351 removed them from
+this block and replaced them with the archive's own topic rule, and this round changes the destination of the
+films that rule produces, not which films it produces. **Which films actually appear, and where each goes:**
+
+| Row | Title | Destination (followed) |
+|---|---|---|
+| 1 | The War Dance Festival (ILA OSO) In Uzuakoli | `/watch-video/?v=LL8YX0pXzdI` → 200, `<h1>` matches |
+| 2 | Ojeh & Arishi Festival of Aboh Kingdom: A Celebration of Igbo Culture | `/watch-video/?v=SHPEwGDOI7c` → 200, `<h1>` matches |
+| 3 | Mmili Nkisi Day: A Celebration of Culture and Spirituality in Onitsha | `/watch-video/?v=jOMjbchyNXg` → 200, `<h1>` matches |
+
+**The meta line carries only what is true.** The design's card fills its small-caps slot with `Archive film ·
+Plays on this page`. **The second half of that is false for a row** — a row navigates rather than playing in
+place — so it is not copied, and the block's own heading already names the topic, so repeating that on every row
+would be noise. What is left is the one fact the archive holds about each of these films and the block does not
+already say: how many records carry it, in the same sentence the facts line above the block uses. The repetition
+of that sentence across rows is the design's own behaviour rather than an oversight — `renderFilmCard` prints one
+fixed meta line on every archive card. **No publisher, no duration and no claim about playing anywhere are
+written, because the archive records none of them.** The third row's meta reads `Held in 2 Ozikoro archive
+records`, so the line is doing real work rather than sitting there identically.
+
+**The whole row is one link.** One `<a>`, so one tab stop and one accessible name built from the title and the
+meta; the design's own global `:focus-visible { outline: 3px solid var(--focus) }` from `main.css` draws the ring,
+so no focus style is added and no `tabindex` is needed. Nothing says "opens a page" because a link that stays on
+this origin does not have to announce a departure.
+
+### 5. The thumbnail that fails — and a second failure the brief did not predict
+
+The poster address is derived from a video id by the design's own convention
+(`https://i.ytimg.com/vi/<id>/hqdefault.jpg`), and `next.config.ts` names `i.ytimg.com` in `img-src`. **The fill
+derives the address rather than fetching it, so it cannot know whether the film is still there — and neither can
+the markup alone.** Two failures were measured in Chrome, and the second is not the one the obvious answer
+covers:
+
+* **An image that cannot be fetched at all** — an offline reader, a blocked host, a network that gives up — fires
+  `error`. **`alt=""` alone does NOT stop the browser painting its broken-image icon in the frame**: photographed
+  at 8x, the torn-page glyph sat in the corner of every frame. The `<img>` therefore carries
+  `onerror="this.remove()"`.
+* **An id YouTube no longer holds is not a broken image either.** Measured: `hqdefault.jpg` for an unknown id
+  answers **404 with a 120x90 grey placeholder JPEG, and Chrome paints it as though it were a poster**. Every
+  real poster the archive draws was measured at **480x360**, so the `<img>` also carries
+  `onload="if(this.naturalWidth&lt;320)this.remove()"` — a threshold with a fourfold margin rather than a guess,
+  and a poster below it is not a poster.
+
+With the image gone, both cases leave the same thing: **the design's own `--night-2` frame and its gold hairline,
+sized by `.sx-video-thumb`'s `aspect-ratio: 16/9` rather than by the image, with `No thumbnail` in
+`--on-night-muted` painted inside it.** The label is the frame's `::after` and the image is given the stacking
+position that covers it while a poster is on screen, so a reader sees the poster when there is one and the label
+when there is not. Measured with `i.ytimg.com` blocked at the protocol level: `images left in the frame = 0`,
+`frame = 128x72` (unchanged), `label "No thumbnail" in rgb(185,173,148) on rgb(28,24,19)`, hairline
+`rgba(201,168,76,0.22)`. **No broken-image icon, no grey platform placeholder, no hole — and no script tag
+added.** The page still loads `mobile-nav.js` and nothing else; the two handlers are attributes on the image,
+which `script-src 'self' 'unsafe-inline'` admits and which `scripts/verify-round-344.mjs` already counts as a
+wired control.
+
+### 6. 320 px, measured
+
+`scripts/verify-round-359.mjs` drives real Chrome over the served page at three widths and reads
+`documentElement.scrollWidth` against `clientWidth` — the instrument the repository uses everywhere else. It
+also measures each row's own right edge:
+
+```
+@1440  client=1440 scroll=1440  columns=128px 974px  gap=16px  title=16px     row.right=1279
+@390   client=390  scroll=390   columns=96px 200px   gap=12px  title=16px     row.right=349
+@320   client=320  scroll=320   columns=96px 130px   gap=12px  title=16px     row.right=279
+```
+
+**Nothing scrolls sideways at any width, and the row never leaves the viewport.** The reason is structural
+rather than lucky: the text track is `minmax(0, 1fr)` rather than `1fr`, which is the correction `a11y.css`
+already makes to the design's own tracks (WCAG 2.2 SC 1.4.10) — a `1fr` track's `auto` minimum is the item's
+min-content width, so a long title would otherwise push the page wide. At 320 px the row keeps its shape with a
+96x60 thumbnail and a 130 px text column, and the title wraps to three and five lines rather than shrinking
+below the design's own size. The title also carries `overflow-wrap: anywhere`, the same correction `a11y.css`
+carries for a migrated title with no space in it; on ordinary prose it does nothing.
+
+### 7. Every address the block appears on
+
+The block is drawn by `fillWatchVideo` in `packages/ozikoro/src/design-fill.ts`, and **only one screen in the
+whole deliverable carries `id="related-video"`** — `design/screens/watch-video.html`, grepped across all fifty-two
+screens. So it appears at exactly three addresses, and the inventory is unchanged by this round:
+
+| Address | Before | After |
+|---|---|---|
+| `/watch-video/?v=<a film the archive holds>` | three YouTube links in one `<p>` | three rows, each on this origin |
+| `/watch-video/` (bare) | `No related film can be named` — the page has no topic | **unchanged**, `rows=0`, the sentence still served |
+| `/watch-video/?v=<an id the archive does not hold>` | 404, no block | **unchanged**, 404, no block |
+| `/watch/` | no `#related-video`, no rows | **unchanged** — `id="related-video"=false`, `class="sx-video-row"=false` |
+
+The bare page's block is the one this round must not disturb, and it is asserted both ways: the served bare page
+carries **0** rows and still carries the sentence. `/watch/` is checked too, because `/watch/` and
+`/watch-video/` are the two surfaces `extractArchiveFilms` feeds and it would be easy to leak a row into the
+index.
+
+### 8. Why the rules are not in `globals.css`, which the brief suggested
+
+**`apps/ozikoro/app/globals.css` is not on this page, so a rule written there would be dead code that reads as
+live.** The fifty-two design screens are served by a route handler
+(`apps/ozikoro/app/design-screen/[screen]/route.ts`) that writes its own `<head>` through `seoHead`, and the
+sheets it names are `/design/styles/main.css`, `/design/styles/showcase.css`, `/a11y.css` and the generated
+`/design-theme.css`. Measured on the served page: those four, and nothing from the application's own stylesheet.
+The route's own sheet is therefore where the rules go — a new `apps/ozikoro/public/watch-video.css`, **appended
+to that list for the `watch-video` screen only**, so the other fifty-one screens keep exactly the head they had
+(verified: `/about/` does not link it). It loads after `showcase.css` on purpose, because the row sizes the
+design's own `.sx-video-thumb` from the outside rather than redeclaring it.
+
+**`apps/ozikoro/public/design/` was not touched.** The design keeps `sx-video-card` as a 16:9 tile in a
+three-column grid; the row lives in a stylesheet the archive owns, and the parity check below is the proof.
+
+### 9. The design parity, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+### 10. The tests, and the instrument
+
+* `packages/ozikoro/src/design-fill.test.ts`: **94 pass, 0 fail** — one test added this round, and two
+  assertions in existing tests repointed from the YouTube address to the archive's own. The new test asserts the
+  row's address, the design's own poster convention and frame class, the two failure handlers, the title, the
+  holding meta, that no row claims to play in place, and that **no related row hands the reader to YouTube**.
+* `npm run typecheck` from the repository root, read from its own exit code: **0**.
+* `npm -w @ozikoro/platform run test`: **286 pass, 1 fail** — the failure is `src/knowledge.test.ts`, which needs
+  the PGlite cluster the review server holds. Exact message: `REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER
+  PROCESS HOLDS IT.` … `holder argv …/.next/standalone/apps/ozikoro/server.js`. **Every design suite passes under
+  it**, and this is the same known condition recorded in round 356.
+* `node scripts/verify-round-359.mjs`: **PROBLEMS: 0** — the instrument this round adds, and the evidence for
+  §3, §4, §5, §6 and §7. It photographs the block at 1440 and 320 px and photographs the blocked-thumbnail
+  frame; the screenshots are `/tmp/rv357/related-1440.png`, `related-320.png` and `related-failed.png`.
+
+### 11. What does not work, with the exact reason
+
+* **The bare `/watch-video/` page has no rows to verify, and that is the page's own truth.** It carries no
+  topic, so no sibling can be named and the block keeps its sentence. The instrument asserts that rather than
+  inventing a fixture for it.
+* **`Chrome` writes no screenshot with `--headless --screenshot` in this sandbox, and `scripts/dsh-shot.sh`
+  therefore produces nothing.** Measured twice: the helper's run exits after its 80-second wait with
+  `NO SCREENSHOT`, and a hand-rolled `--headless --screenshot` run never terminates (its own log ends at the
+  `crashpad` and `CVDisplayLink` denials, all of which are non-fatal). **The screenshots in §10 are taken over
+  the DevTools protocol instead** (`--headless=new` plus `Page.captureScreenshot`), which is the recipe
+  `scripts/lib/overflow-probe.mjs` already uses and which works here.
+* **`Page.captureScreenshot`'s `clip` is not usable in this setup, and this was measured rather than assumed.**
+  A document-coordinate clip at the block wrote a **2,188-byte blank PNG**; a viewport-coordinate clip wrote the
+  top of the page. The instrument therefore scrolls the block into the middle of the viewport and photographs
+  the viewport, which is why the screenshots carry the page around the block.
+* **The `naturalWidth &lt; 320` guard is a fact about YouTube's placeholder today, not a guarantee.** Measured
+  this round: real posters 480x360, the placeholder for an unknown id 120x90. If the platform ever serves a
+  full-size placeholder, a removed film will show a grey rectangle and the guard will not fire — a benign
+  degradation, and the guard is asserted in the test so that removing it is a decision rather than an edit.
+* **Nothing here measures whether a poster is the RIGHT film.** The poster is derived from the id the record
+  embeds, so it is the film the archive recorded; whether the archive's record and YouTube agree about the
+  content of that film is not something this round can check.
+* **`apps/ozikoro/app/design-screen/[screen]/route.ts` gained one conditional entry and one comment.** It was
+  clean in the shared index when this round began — the appearance editor's round had just committed it — so
+  nothing of anyone else's work travelled with the change.
+
+### 12. The commit this round did not make, and the round number it could not keep
+
+* **The code change was committed by another agent, and it carries that agent's own work in the same two
+  files.** `2ccff93` — *"A related film was a run-on line of links that left the archive, and it is now a row you
+  can scan"* — holds `design-fill.ts`, `design-fill.test.ts`, `route.ts` and `watch-video.css`, and **it also
+  carries the dead-anchor/footnote round's uncommitted hunks in `design-fill.ts` and its test**, which that
+  round had written minutes before this one began. This round had prepared a private-index commit that would
+  have staged only its own hunks; the tree was committed from the working tree before that could happen, so the
+  row change and the footnote change share one commit. **Named here because the brief for this round asked for
+  anything carried to be named, and this is the carry.**
+* **This round's own commit adds only this section and the verification script.** Both were still untracked
+  when `2ccff93` was made, and both are committed from a private index built with `read-tree HEAD`, with the
+  shared index re-synced to `HEAD` immediately afterwards, so the next agent's `git add` cannot turn it into a
+  revert.
+* **The round number collided and this record lost it.** This work was written as round 357 and the code
+  comments and the script said so — but while it was still measuring, the red-gate round published
+  `## ROUND 357 — THE RED GATE ON /watch/` (commit `f7e8c92`) and the dead-anchor round took 358 (commit
+  `20e1257`). **So this work is recorded as 359, the two comment references in `design-fill.ts` and its test
+  were renumbered to match, and the verification script was renamed** rather than leaving a comment that points
+  a reader at another round's section.
+
