@@ -15407,3 +15407,212 @@ the check that caught the six placement faults.
 **The `knowledge.test.ts` suite fails in this working tree, and it is not this work.** Its failure is
 `REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT … holder argv … next/dist/server/lib/start-server.js`
 — another checkout's `next dev` holds `.data/pg`, and the guard was respected rather than removed.
+
+## ROUND 312 — THE PUBLICATION THE BROWSER COULD NOT DISPLAY, THE SHARE BUTTON THAT WAS NEVER LOADED, AND A NARRATION A THIRD TOO FAST
+
+Three faults, reported by the owner in one sentence each, and **all three are the same shape**: a correct
+response that is unusable in a browser. The PDF was served with the right content type and could not be shown;
+the article page returned 200 with four dead controls in it; the narration was a real recording at the wrong
+pace. Every status code was right in all three cases.
+
+### 1. THE PDF: `object-src 'none'` FORBIDS THE VIEWER, NOT THE DOCUMENT
+
+Measured first: `GET /how-tortoise-got-his-bumpy-shell/pdf` → `200`, `application/pdf`, 155,030 bytes,
+`content-disposition: inline`. The document was correct. The response headers were:
+
+```
+Content-Security-Policy: … frame-ancestors 'none'; … object-src 'none'
+X-Frame-Options: DENY
+```
+
+A browser displays a PDF through a plugin or an internal viewer frame, so **`object-src 'none'` forbids the
+instrument rather than the file**, and `X-Frame-Options: DENY` independently stops the framing the viewer
+needs. The reader gets a download prompt, a blank tab, or nothing.
+
+The headers come from `headers()` in `apps/ozikoro/next.config.ts`, applied by the `/:path*` rule that covers
+every route. **The exception had to be scoped, because `object-src 'none'` and `frame-ancestors 'none'` are
+correct for every HTML page** and removing them globally to fix one download would trade a broken reader for a
+real vulnerability.
+
+**HOW A SCOPED EXCEPTION IS ACTUALLY POSSIBLE, WHICH IS NOT OBVIOUS AND WAS READ OUT OF NEXT'S OWN SOURCE.**
+`next/dist/server/lib/router-utils/resolve-routes.js` merges the matching header rules with
+
+```js
+resHeaders[key] = value;        // plain assignment, not append
+```
+
+and iterates them in the order the configuration returned them. **So the LAST matching rule wins per header
+name**, and a rule placed after `/:path*` replaces exactly the keys it names and leaves the rest of that
+response untouched. That is what makes naming only two headers correct rather than incomplete — and it is worth
+recording here because the natural assumption is that config entries append, and a second
+`Content-Security-Policy` would then be enforced as the *intersection*, which would have silently changed
+nothing at all.
+
+So `/:slug/pdf` carries `object-src 'self'` and `frame-ancestors 'self'` with `X-Frame-Options: SAMEORIGIN`,
+both derived from the strict policy by substitution —
+
+```js
+const pdfCsp = csp
+  .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+  .replace("object-src 'none'", "object-src 'self'");
+```
+
+— so the other nine directives cannot drift out of step with the site-wide policy. One source covered both
+spellings: measured with Next's own `tryToParsePath`, `/:slug/pdf` compiles to
+`^(?:\/([^\/#\?]+?))\/pdf[\/#\?]?$`, whose final `[\/#\?]?` makes the trailing slash optional, so a second
+rule for `/…/pdf/` would have been a manifest entry that could never match.
+
+**AND IT WAS SHOWN IN A BROWSER, BECAUSE A HEADER IS NOT A DISPLAYED PAGE.** The same PDF bytes were rendered
+twice in Chrome with the only difference being the two headers. **With the strict headers the document
+collapses into a broken thumbnail in the corner of a blank page** — no toolbar, no pagination, no page — and
+**with the scoped exception Chrome's full viewer draws it**: the toolbar, "1 / 5", the thumbnail rail, and the
+publication's cover page. The screenshots are kept beside this repository at
+`../pdf-verification/before-strict-headers.png` and `../pdf-verification/after-fixed-headers.png`.
+
+The counterfactual needed care to be worth anything. Chrome was given the old headers by intercepting the
+response over the DevTools Protocol, and **the interception was proved to work with a control** — the same hook
+serving `text/plain` instead, which rendered as text. Without that control the two screenshots came back
+byte-identical, which would have read as "the headers make no difference" rather than as "the override did not
+apply". `afinfo` is not the only instrument in this round that had to be checked before it was believed.
+
+### 2. THE SHARE BUTTON: A REWRITE THAT WAS FIXED IN ONE OF THE TWO ROUTES THAT NEED IT
+
+The five checks, in the order asked for:
+
+1. **Does the article page still 404 `reader.js`? YES — and it was the cause.** `article.html` loads its
+   behaviour as `<script src="../reader.js">` and `<script src="../mobile-nav.js">`, which are correct at
+   `/design/screens/article.html` and wrong at every clean address. Measured on the running server before the
+   fix: the article served `../reader.js` and `../mobile-nav.js`, and `/reader.js` → **404** while
+   `/design/reader.js` → 200.
+2. **`design-screen/[screen]/route.ts` had the rewrite; `app/[slug]/route.ts` did not.** The article screen is
+   a different route serving the same deliverable, and it had no copy of the rule — so the fix that removed
+   this fault from the calendar left it on all 1,051 records. **`reader.js` is the article's share button, its
+   copy-link button, its print button and its browser read-aloud control: four controls, one missing file.**
+3. **The buttons exist and carry `data-share`** (`facebook` and `x`), and the page has a status element —
+   `<p class="sx-copy-status" data-copy-status aria-live="polite">` — which is what a message can be written
+   into.
+4. **`window.open` can be blocked, and its `null` return was discarded**, so a blocked share did nothing and
+   said nothing. The feature string was also non-standard: `noopener,noreferrer,width=720,height=560` mixes
+   real features with `width`/`height`, which the standard does not define.
+5. **A `<button>` with no handler is a dead control.**
+
+What was changed, none of it inside `public/design/`:
+
+- the rewrite moves into **`designScriptPaths`** in `@ozikoro/platform`, called by **both** routes, and
+  `design-paths.test.ts` **reads both route files and fails if either stops calling it** — a shared function
+  cannot assert that about itself, and a third route is the way this fault would come back;
+- **`apps/ozikoro/public/article-share.js`** claims the click in the capture phase, exactly as
+  `audio-listen.js` claims the listen button, so the design's own handler does not open a second window. It
+  opens a plain new tab and severs the opener, and **when the window does not open it copies the article's
+  address and says so in the design's own status line**, rather than leaving a click that appears to have done
+  nothing;
+- the two share controls are **served as anchors**, carrying the record's canonical address on `SITE_ORIGIN`,
+  so **the control works when the script does not run** instead of working only because the script is present.
+  The replacement is anchored to the design's exact markup, so a page whose buttons have changed shape keeps
+  its buttons rather than gaining an anchor somewhere it was never designed to be. The only property needing
+  restoration was the design's own `a{text-decoration:underline}`, hence `style="text-decoration:none"`.
+
+### THE SHARE WAS CLICKED, IN A BROWSER, AND THAT FOUND A BUG IN THIS ROUND'S OWN CODE
+
+Reading the handler was not enough to know it worked, and this is why. The first version of `article-share.js`
+opened the window with `'noopener,noreferrer'` in the feature string and used `window.open`'s return value to
+decide whether it had been blocked. **The standard says that when `noopener` is present `window.open` returns
+`null` BY DESIGN**, so the return value never means "blocked" in that form — and **the control announced "your
+browser blocked the share window" on every share that SUCCEEDED.** Clicking the button in Chrome showed it
+immediately: `Page.windowOpen` fired with the right URL while the status line said the window had been blocked.
+The window is now opened without `noopener` and the opener is severed straight afterwards, which is the same
+protection a moment later and leaves a return value that means what it says.
+
+Four things are asserted in the browser now, on the article screen as served:
+
+| | result |
+|---|---|
+| `reader.js` is executing at all | clicking the copy-link control wrote the URL to a stubbed clipboard and set the status to "Article link copied." — **so the 404 is fixed, not merely redirected** |
+| share, popup allowed | `Page.windowOpen` fired **once**, with `https://www.facebook.com/sharer/sharer.php?u=…ozikoro.com/ute-okpu…`, and **the main frame did not navigate** — one action, not two |
+| share, popup blocked | `window.open` forced to return `null`: the status read the blocked message **and the article's address was on the clipboard** |
+| the design's own handler is not double-firing | the single `windowOpen` event above, from a capture-phase listener that stops the other one |
+
+**And the script is served by the article route now.** Measured before and after on the same URL: before,
+`../reader.js` and `../mobile-nav.js` resolved to `/reader.js` and `/mobile-nav.js`, both **404**; after, all
+four scripts — `/design/reader.js`, `/design/mobile-nav.js`, `/article-share.js`, `/audio-listen.js` — answer
+**200**, and no `<button data-share>` is left on the page.
+
+### 3. THE NARRATION: 186.2 WORDS PER MINUTE AGAINST THE OWNER'S 140.3
+
+The owner supplied a recording of the same article as the target. Both were measured, and **the ratio between
+them needs no word count at all**:
+
+| | duration | source |
+|---|---|---|
+| the render | **501.812 s** | the file's own frames, agreeing with its `Info` header's 19,210 |
+| the owner's reading | **665.966 s** | the file's own frames |
+
+**665.966 / 501.812 = 1.327.** The render was a third faster than the person whose voice it imitates.
+**0.75 × 186.2 = 139.6 wpm** against the owner's 140.3 — within a word per minute — and the predicted duration
+is **669 s (11m 09s)** against his **666 s (11m 06s)**. The exact reciprocal is 0.7535; 0.75 is the nearest the
+setting comes, and it leaves 0.7 in reserve.
+
+**The word counts, with their provenance**, because the two figures in this repository disagree and only one of
+them is the render: the episode's own transcript — the words actually sent, now readable at
+`/podcast/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/transcript.txt` — is **1,557 words**, while
+`data/episodes/ute-okpu-….script.txt` holds **1,538**. **The script was revised after the proposal**, which an
+earlier round's own record confirms: it logged this episode as "1,538 spoken words · 10m 36s". Neither figure
+changes the ratio, which is why the ratio is what the setting was decided from.
+
+`NARRATION_SETTINGS` in `apps/ozikoro/lib/elevenlabs.ts` **had no `speed` key at all**, so the render ran at the
+API's default and the pace was never a decision anybody made. Confirmed against the live API rather than
+assumed — `GET /v1/voices/settings/default` returns
+`{"stability":0.5,"use_speaker_boost":true,"similarity_boost":0.75,"style":0.0,"speed":1.0}` — and `speed` is
+valid for `eleven_multilingual_v2` on the REST API from **0.25 to 4.0** (the 0.7–1.2 range is the agents
+platform's restriction, not this endpoint's), so **0.7 is still available if the owner wants it slower again.**
+**No credits were spent and nothing was re-rendered**: `speed` is a request parameter, so the next render is
+the test.
+
+The cause is speed and not scripting, which was checked before anything was changed. `toSpokenScript` ends
+headings with a full stop and separates paragraphs with a blank line, and `chunkScript` cuts only at paragraph
+boundaries, so the text keeps its pauses. One real seam remains and is reported below rather than fixed.
+
+**AND THE NUMBER THAT HID IT.** `duration_seconds` was written from `estimateNarrationSeconds` — the word count
+at an assumed 145 words per minute — so the owner was shown **10m 36s** under the player for a file that is
+**8m 22s**. The estimate *understated* the length while the narration ran fast: two faults describing each
+other, and neither visible while the number was invented. The archive's own 145 wpm assumption is the second
+independent confirmation of the target pace — 145 / 186.2 = 0.78 — and the render now agrees with the estimate
+instead of contradicting it.
+
+**The fix is a measurement, not a second estimate.** `packages/ozikoro/src/mp3.ts` walks the MP3 frames, which
+is what the file actually is, so no bitrate is assumed and a VBR file is measured correctly. It agrees with
+`afinfo` to the millisecond on four files and **beats it on a fifth** (below). `render-episode.ts` stores the
+measured length, and records `duration_source: 'measured' | 'estimated'` in `voice_settings` — because a render
+can still fail to be measured, and **a caller has to be able to tell which kind of number it is holding**.
+`proposeNarration` records `estimated` and says so, since no audio exists yet.
+
+A note for whoever changes the speed next: **the settings object is written out twice.** `narration.ts` cannot
+import `NARRATION_SETTINGS` from `apps/ozikoro/lib/elevenlabs.ts` — the dependency runs the other way, so an
+import would be a cycle — and that copy had **already drifted, missing `speed` entirely**, which is why a
+proposal recorded nothing about pace at all. It now carries the same 0.75, and the comment there says the two
+must move together.
+
+### WHAT DOES NOT WORK, AND WHAT WAS NOT FIXED
+
+- **`speak()` embeds an `ID3v2` tag in the middle of a multi-chunk episode, and the tag's own `Info` frame then
+  describes only the first segment.** `Buffer.concat` joins the chunks the API returns, and each arrives as a
+  whole MP3 with its own tag. The folklore collection is exactly that: tags at bytes 0 and 6,524,804, declaring
+  15,610 frames (**407.771 s**) and 4,825 (**126.041 s**). The real playable length is the sum, **533.812 s**,
+  and **`afinfo` reports only 407.771 s because it stops at the second tag** — so here the frame walk is right
+  and the reference was wrong, which is only knowable because both numbers were read. PyAV refuses the file
+  outright (`InvalidDataError` on the first packet). **Not fixed**, because changing it changes rendered audio
+  and the owner has paused narration. The fix is to strip the duplicated tag when joining, and it should be
+  made before the next multi-chunk render.
+- **Two of the three generated episodes do not correspond to their transcripts at any plausible pace, and this
+  is unresolved.** The transcripts are now readable at `/podcast/<slug>/transcript.txt`: ute-okpu **1,557 words
+  in 501.812 s = 186.2 wpm**; how-tortoise **632 words in 144.379 s = 262.6 wpm**; folklore **2,072 words in
+  533.812 s = 233.2 wpm**. 262 wpm is not narration. The three MP3s also share an mtime to the second
+  (23:33:49–50), which three separate renders cannot, so **they were placed together rather than each written
+  by its own render** — and `storageKey` is fixed per slug, so a file can outlive the script it was made from.
+  A syllable-rate cross-check is inconclusive. **The pace setting does not depend on resolving this**, because
+  the ratio that justifies 0.75 is a duration ratio for one article read twice.
+- **`npm -w @ozikoro/platform run test` has one failure that is not this work's**: `src/knowledge.test.ts`
+  needs the database, and the live server holds the PGlite cluster. The new tests, `mp3.test.ts` (6) and
+  `design-paths.test.ts` (3), pass; `npm run typecheck` exits 0 from the repository root.
+- **`afinfo` cannot be trusted as the reference for a concatenated episode.** Recorded above because it cost a
+  wrong number to find out.

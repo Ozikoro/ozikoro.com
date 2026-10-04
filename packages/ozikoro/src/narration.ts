@@ -397,7 +397,24 @@ export async function proposeNarration(
       article.id, article.slug, article.title, script, article.standfirst,
       narratorKindFor(voice), narrationDisclosure(voice), seconds,
       characters, estimatedCredits, voice, input.actorId, note,
-      JSON.stringify({ stability: 0.7, similarity_boost: 0.8, style: 0.1, use_speaker_boost: true }),
+      /*
+       * THE SETTINGS A PROPOSAL RECORDS, AND WHY THEY ARE TYPED OUT RATHER THAN IMPORTED.
+       *
+       * The same object lives in `apps/ozikoro/lib/elevenlabs.ts` as `NARRATION_SETTINGS`, and this package
+       * cannot reach it — the dependency runs the other way, so an import here would be a cycle. **That makes
+       * this a copy, and a copy that had already drifted: it was missing `speed` entirely, so a proposal
+       * describing a render that ran at the API's default of 1.0 recorded nothing at all about pace.** It now
+       * carries the same 0.75, and the drift is worth naming because **the next person to change the speed must
+       * change it here too, or the row will describe a render that never happened.**
+       *
+       * `duration_source` is honestly `estimated` here and says so: no audio exists yet, so there is nothing to
+       * measure, and the figure beside it is the word count at 145 words per minute. The render replaces both
+       * once it has a file — see `mp3DurationSeconds`.
+       */
+      JSON.stringify({
+        stability: 0.7, similarity_boost: 0.8, style: 0.1, use_speaker_boost: true, speed: 0.75,
+        duration_source: 'estimated',
+      }),
     ]
   );
   if (!episode) throw new MemberError('not_saved', 'The proposal could not be recorded.');

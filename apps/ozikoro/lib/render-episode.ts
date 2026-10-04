@@ -27,6 +27,7 @@ import {
   estimateNarrationSeconds,
   findNarrationEpisode,
   isNarrationVoice,
+  mp3DurationSeconds,
   narrationDisclosure,
   narratorKindFor,
   narrationPronunciationGate,
@@ -187,8 +188,34 @@ export async function renderProposedNarration(
   const storageKey = `ozikoro/episodes/${episode.slug}.mp3`;
   await getStorage().put(storageKey, audio, 'audio/mpeg');
 
-  const durationSeconds = estimateNarrationSeconds(script);
-  const settings = NARRATION_SETTINGS;
+  /*
+   * THE LENGTH IS MEASURED FROM THE FILE, NOT PREDICTED FROM THE SCRIPT.
+   *
+   * This line used to be `estimateNarrationSeconds(script)` and nothing else, so `duration_seconds` — a column
+   * that reads as a measurement and is shown to a reader under the player — carried a figure derived from the
+   * word count at an assumed 145 words per minute. **The owner was told an episode was 10m 36s long and the
+   * audio was 8m 22s.** He had no way to tell the difference, which is the fault: a number that describes the
+   * thing rather than the thing itself, presented as the reading.
+   *
+   * So the file is walked now. `mp3DurationSeconds` reads the frames, which is what the file actually is; it
+   * needs no bitrate assumption and it is exact — it agrees with the `Info` header's own frame count to the
+   * millisecond on the three episodes in `.data/media/ozikoro/episodes/`.
+   *
+   * THE ESTIMATE IS NOT DELETED, IT IS LABELLED. A render can still fail to be measured, and a caller has to
+   * be able to tell which kind of number it is holding — **so `duration_source` is recorded beside the
+   * duration in `voice_settings`.** The estimate remains the fallback because a failed measurement must not
+   * destroy a render that has already been paid for; what it must not do is pass itself off as a measurement.
+   * The column's own comment is that it holds what produced the audio, and which kind of duration this is
+   * belongs in exactly that record.
+   */
+  const measuredSeconds = mp3DurationSeconds(new Uint8Array(audio));
+  const durationSeconds = measuredSeconds === null
+    ? estimateNarrationSeconds(script)
+    : Math.round(measuredSeconds);
+  const settings = {
+    ...NARRATION_SETTINGS,
+    duration_source: measuredSeconds === null ? 'estimated' : 'measured',
+  };
 
   await db.query(
     `update ozikoro_episode

@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, seoHead, withSeoHead, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, seoHead, withSeoHead, designScriptPaths, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -167,6 +167,61 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         : null,
     });
     /*
+     * THE DESIGN'S OWN SCRIPTS, AT THE PATH THEY ARE ACTUALLY SERVED FROM — AND THE FAULT THIS FIXES.
+     *
+     * `article.html` loads its behaviour as `<script src="../reader.js">` and `<script src="../mobile-nav.js">`.
+     * Those are correct RELATIVE to the deliverable's own address — `/design/screens/article.html` — and wrong
+     * at every address this route serves, where the same link resolves one level shallower:
+     *
+     *     /how-tortoise-got-his-bumpy-shell/ + ../reader.js  ->  /reader.js   ->  404
+     *
+     * **`reader.js` is the article screen's share button, its copy-link button, its print button and its
+     * browser read-aloud control.** Every one of them was a control with no handler, on every one of 1,051
+     * records, while the page itself rendered perfectly — the exact shape of the market-day fault, where a
+     * screen returned 200 with correct markup and its one dynamic value never arrived.
+     *
+     * `design-screen/[screen]/route.ts` already rewrites this for the screens it serves. The article route is
+     * a different route and had no copy of it, which is why the fault survived that fix. **The rule lives in
+     * `designScriptPaths` now, called from both routes, so there is no second copy to drift** — and
+     * `design-paths.test.ts` asserts that both call it.
+     */
+    filled = designScriptPaths(filled);
+
+    /*
+     * THE SHARE CONTROL IS A LINK FIRST AND A BUTTON SECOND.
+     *
+     * The design draws Facebook and X as `<button data-share="…">`, and a button whose handler is in a script
+     * is **a dead control wherever that script does not run** — with JavaScript disabled, or if `reader.js`
+     * ever fails to load again. The address a share goes to is known here, at serve time, and does not depend
+     * on any script: the record's own canonical address on `SITE_ORIGIN`.
+     *
+     * So the two share controls are served as anchors. **With JavaScript the anchor is never followed** —
+     * `article-share.js` claims the click in the capture phase and opens the popup instead — and without it
+     * the anchor is simply a working link. That order matters: **the control works if the script is missing,
+     * rather than only working because the script is present.**
+     *
+     * `style="text-decoration:none"` is the one property the design's own `a{text-decoration:underline}` would
+     * otherwise add to a round icon button. Every other declaration comes from the design's `.sx-icon-action`
+     * class, which is unchanged — the element is swapped, the design is not.
+     *
+     * The replacement is anchored to the design's exact markup on purpose: **a page whose buttons have changed
+     * shape keeps them as buttons** and is left to `article-share.js`, rather than having an anchor fitted
+     * somewhere it was never designed to be.
+     */
+    const shareHref = (network: string): string => {
+      const address = encodeURIComponent(`${SITE_ORIGIN}/${clean}/`);
+      return network === 'facebook'
+        ? `https://www.facebook.com/sharer/sharer.php?u=${address}`
+        : `https://twitter.com/intent/tweet?url=${address}&amp;text=${encodeURIComponent(article.title)}`;
+    };
+    filled = filled.replace(
+      /<button class="sx-icon-action" type="button" data-share="(facebook|x)"([^>]*)>([\s\S]*?)<\/button>/g,
+      (_match, network: string, rest: string, inner: string) =>
+        `<a class="sx-icon-action" data-share="${network}"${rest} href="${shareHref(network)}"`
+        + ` target="_blank" rel="noopener noreferrer" style="text-decoration:none">${inner}</a>`
+    );
+
+    /*
      * THE HEAD IS REPLACED, NOT APPENDED TO.
      *
      * The design's article page carries the walkthrough's own `<title>` and description — **so every one of
@@ -180,10 +235,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
      * does nothing at all on a page without `[data-listen-audio]`**, which is every page whose episode has not
      * been approved. So the script tag is only written when an episode is present, and a page with no recording
      * is byte-for-byte the page it was before.
+     *
+     * `article-share.js` IS UNCONDITIONAL, because the share control is: it does nothing on a page with no
+     * `[data-share]`, and on a page that has one it is what turns a blocked popup into a visible outcome
+     * instead of a click that appears to do nothing.
      */
-    if (episode) {
-      filled = filled.replace('</body>', '<script src="/audio-listen.js" defer></script></body>');
-    }
+    const extraScripts = ['<script src="/article-share.js" defer></script>'];
+    if (episode) extraScripts.push('<script src="/audio-listen.js" defer></script>');
+    filled = filled.replace('</body>', `${extraScripts.join('')}</body>`);
 
     /*
      * THE DOWNLOAD LINK, PUT INTO THE DESIGN'S OWN READING TOOLS.

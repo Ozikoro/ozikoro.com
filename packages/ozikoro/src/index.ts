@@ -59,9 +59,11 @@ export * from './redirects.ts';
 
 export * from './knowledge.ts';
 export * from './design-fill.ts';
+export * from './design-paths.ts';
 export * from './seo-head.ts';
 export * from './spoken.ts';
 export * from './narration.ts';
+export * from './mp3.ts';
 /*
  * THE IGBO PRONUNCIATION PIPELINE, in the order the owner described it:
  *

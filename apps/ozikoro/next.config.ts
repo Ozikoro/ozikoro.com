@@ -125,6 +125,30 @@ const nextConfig: NextConfig = {
      *
      * `'unsafe-eval'` is added in development ONLY, because hot reload needs it. It is never in a
      * production policy.
+     *
+     * ── EXCEPT FOR THE PUBLICATION, WHERE `object-src 'none'` IS A FALSE FRIEND ──────────────────────
+     *
+     * **`object-src 'none'` forbids the browser's own PDF viewer, and that is not the document being
+     * forbidden — it is the instrument that shows it.** A browser renders a PDF through a plugin or an
+     * internal viewer frame, so `object-src 'none'` and `frame-ancestors 'none'` (with `X-Frame-Options:
+     * DENY` on top) leave a `/<slug>/pdf` response that is correct in every respect and cannot be
+     * displayed: measured at 200, `application/pdf`, 155,030 bytes, `content-disposition: inline` — and
+     * the reader gets a download prompt, a blank tab, or nothing. **A 200 is not a working page**, and
+     * this is the third fault in this repository that returned every correct status code and was
+     * unusable in a browser.
+     *
+     * SO THE EXCEPTION IS SCOPED TO THE PUBLICATION AND THE POLICY IS NOT WEAKENED ANYWHERE ELSE.
+     *
+     * `object-src 'self'` and `frame-ancestors 'self'` are NOT a relaxation of the site's rule; they are
+     * the correct rule for a route whose whole purpose is to hand a document to a viewer on this origin.
+     * Every HTML page keeps `'none'` for both, and **that must stay true** — these two directives are
+     * what stop a plugin or a third-party frame being injected into a page. Removing them globally to
+     * fix this one route would trade a broken download for a real vulnerability.
+     *
+     * The two policies are DERIVED, not copied. The exception leaves `default-src`, `script-src`,
+     * `style-src`, `font-src`, `img-src`, `media-src`, `connect-src`, `base-uri` and `form-action`
+     * exactly as the strict policy has them and differs in precisely the two directives the viewer
+     * needs — so **there is no second policy to drift out of step with the first.**
      */
     const isDev = process.env.NODE_ENV !== 'production';
 
@@ -143,6 +167,14 @@ const nextConfig: NextConfig = {
     ].join('; ');
 
     /*
+     * The publication's policy: the strict policy above, with ONLY the two directives the browser's PDF
+     * viewer needs changed. Derived by substitution so the other nine directives cannot drift.
+     */
+    const pdfCsp = csp
+      .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+      .replace("object-src 'none'", "object-src 'self'");
+
+    /*
      * HSTS is conditional on purpose. Sending it from a local http server pins a browser to https for
      * localhost, which is a well-known way to stop a developer's own machine working. It belongs on
      * the real origin over real TLS and nowhere else.
@@ -159,9 +191,36 @@ const nextConfig: NextConfig = {
         : [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' }]),
     ];
 
+    /*
+     * THE PUBLICATION'S TWO HEADERS, AND WHY THERE ARE ONLY TWO.
+     *
+     * Next applies every matching rule in order and the LAST value wins per header name, so a rule placed
+     * after `/:path*` OVERWRITES the keys it names and leaves the rest of `common` in place. Naming only
+     * the two headers that must differ is therefore not an omission — it is what makes the exception
+     * legible: **`Content-Security-Policy` and `X-Frame-Options` are the complete list of what a PDF needs
+     * that an HTML page must not have, and nothing else about the response changes.**
+     *
+     * `frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN` rather than removal: the viewer frames the
+     * document, and this origin is the only thing allowed to. Clickjacking protection stays.
+     */
+    const pdfHeaders = [
+      { key: 'Content-Security-Policy', value: pdfCsp },
+      { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+    ];
+
     return [
       // Every route, including the HTML.
       { source: '/:path*', headers: common },
+      /*
+       * The publication. One source covers both spellings: Next compiles `/:slug/pdf` to
+       * `^(?:\/([^\/#\?]+?))\/pdf[\/#\?]?$` — measured with its own `tryToParsePath` — where the final
+       * `[\/#\?]?` makes the trailing slash optional. **So `/…/pdf/` needs no second rule**, and a second rule
+       * would have been a manifest entry that could never be the one that matched.
+       *
+       * It is deliberately anchored to ONE segment before `pdf`, which is exactly the shape of the route
+       * (`app/[slug]/pdf/route.ts`). A deeper `/a/b/c/pdf` is not this route and does not match here.
+       */
+      { source: '/:slug/pdf', headers: pdfHeaders },
       {
         source: '/api/spotify/:path*',
         headers: [

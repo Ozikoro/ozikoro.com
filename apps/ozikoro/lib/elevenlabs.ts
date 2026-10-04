@@ -57,12 +57,43 @@ export function configured(): boolean {
  * history asserted. The archive's register is a person telling you what the record says.
  *
  * `similarity_boost` is high, because the point of cloning the owner's voice is that it is his.
+ *
+ * ── `speed` AT 0.75, AND THE MEASUREMENT IT COMES FROM ─────────────────────────────────────────────
+ *
+ * **There was no `speed` here at all, so the render ran at the API's default of 1.0 and the pace was never a
+ * decision anybody made.** The owner heard it and said so: *"the audio generated for the article is too fast,
+ * and not reading it normal"*. Two numbers say he was right, and both were measured rather than estimated.
+ *
+ *   * THE RENDER. The episode's own transcript — the words that were sent, readable at
+ *     `/podcast/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/transcript.txt` — is **1,557 words**, 9,958
+ *     characters. The MP3 rendered from it is **501.812 s** (measured from the file's own frames, and agreeing
+ *     with its `Info` header's declared 19,210 frames). That is **186.2 words per minute.**
+ *   * THE OWNER'S OWN READING of the same article — `Ute Okpu 2.mp3`, the record he supplied as the target —
+ *     is **665.966 s** for the same words. That is **140.3 words per minute.**
+ *
+ * **The ratio between them needs no word count at all: 665.966 / 501.812 = 1.327.** The render was a third
+ * faster than the person whose voice it is imitating, and a third faster than the pace he calls normal. The
+ * value that answers it is its reciprocal, **0.7535**, and **0.75 is the nearest the setting comes**:
+ * 186.2 × 0.75 = 139.6 wpm against his 140.3, and 501.812 / 0.75 = **669 s (11m 09s)** against his **11m 06s**.
+ *
+ * The value is independently confirmed by the archive's own assumption. `estimateNarrationSeconds` in
+ * `@ozikoro/platform` divides by **145 wpm**, and that is the figure the owner was shown — "10m 36s" for an
+ * episode whose audio is **8m 22s**. 145 / 186.2 = 0.78, so the archive's own arithmetic asks for a value
+ * between 0.75 and 0.78, and the owner's recording decides which end. **The estimate was right and the render
+ * was fast**; slowing it makes the audio agree with the estimate instead of contradicting it.
+ *
+ * 0.75 and not the floor: the REST API accepts `speed` from **0.25 to 4.0** (the 0.7–1.2 range is the agents
+ * platform's restriction, not this endpoint's), and the model here is `eleven_multilingual_v2`, which supports
+ * `speed` — the v4 models do not. **So 0.7 is still available if the owner wants it slower again**, and this
+ * change costs no credits: `speed` is a request parameter, so the next render is the test, not a re-render.
  */
 export const NARRATION_SETTINGS = {
   stability: 0.7,
   similarity_boost: 0.8,
   style: 0.1,
   use_speaker_boost: true,
+  // Measured against the owner's own reading of the same article. See the note above for the two numbers.
+  speed: 0.75,
 } as const;
 
 /** The model documented for long-form narration in many languages. */

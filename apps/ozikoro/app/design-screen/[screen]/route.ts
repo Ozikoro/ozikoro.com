@@ -29,6 +29,7 @@ import {
   fillMasthead,
   fillAbout,
   fillDashboardLinks,
+  designScriptPaths,
   LINKED_SCREENS,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
@@ -242,8 +243,14 @@ export async function GET(
      * so the fix reached fourteen screens and missed the rest. It belongs here, where every screen
      * passes. The rule is deliberately narrow — a bare sibling filename with no path segment — because
      * that is the whole grammar the deliverable uses for its own scripts.
+     *
+     * IT LIVES IN `designScriptPaths` NOW, AND NOT HERE, WHICH IS THE POINT. This line was correct and the
+     * ARTICLE screen — a different route serving the same deliverable — had no copy of it, so `reader.js`
+     * 404'd on all 1,051 records and the share, copy-link, print and read-aloud controls were dead. **The
+     * second route is the whole argument for one implementation**, and `design-paths.test.ts` asserts that
+     * both routes call it so a third cannot repeat the omission.
      */
-    html = html.replace(/src="\.\.\/([^"/]+\.js)"/g, 'src="/design/$1"');
+    html = designScriptPaths(html);
 
     /*
      * THE MENU SAYS WHO THE READER IS, ON EVERY SCREEN.
