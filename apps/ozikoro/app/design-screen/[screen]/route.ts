@@ -60,6 +60,7 @@ import {
   fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
   fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
   extractArchiveFilms,
+  COLLECTION_CAMERA_SIGN,
   MARQUEE_PLACES,
   MARKET_DAY_ANCHOR,
   narratorPhrase,
@@ -971,25 +972,32 @@ export async function GET(
                   count(*) filter (where kind = 'document')::int docs
              from ozikoro_media`
         );
-        const hero = await db.one<{ img: string | null }>(
-          `select storage_key as img from ozikoro_media
-            where kind = 'image' and storage_key is not null order by id limit 1`
-        );
+        /*
+         * THE PHOTOGRAPHS CARD CARRIES A CAMERA, NOT A PHOTOGRAPH.
+         *
+         * WHY THE QUERY THAT CHOSE ONE IS GONE WITH THE IMAGE
+         *
+         * This card used to be illustrated by `select storage_key from ozikoro_media where kind = 'image' and
+         * storage_key is not null order by id limit 1` — **the archive's OLDEST image record, which is a
+         * photograph belonging to some article and not a picture of the collection at all.** The card for
+         * 3,462 photographs was therefore illustrated by one arbitrary photograph while the other three cards
+         * were illustrated by a sign saying what they hold, which is the inconsistency the owner reported.
+         *
+         * **Nothing was deleted and no media record was touched**: that photograph is still served on
+         * `/photographs/` and in its own article, and this card simply stops borrowing it. The query goes with
+         * it rather than staying behind, because a query whose result nothing reads is a round trip on every
+         * request to this page.
+         *
+         * THE EARLIER FAULT ON THIS SAME SLOT, KEPT BECAUSE THE LESSON OUTLIVES THE IMAGE: the key is
+         * `ozikoro/11234-ute-king.webp` — where the file sits on disk — and **as a `src` it was a RELATIVE
+         * address**, so the browser asked `/collections/ozikoro/11234-ute-king.webp` and got a 404 with
+         * `naturalWidth === 0`, `complete === true` and no CSP violation. Every other fill in this file goes
+         * through `mediaPath` for that reason.
+         */
         const collections: RealCollection[] = [
           { label: 'Visual archive', name: 'Photographs', href: '/photographs',
             cta: `${(counts?.images ?? 0).toLocaleString('en-GB')} image records`,
-            /*
-             * `mediaPath`, NOT THE BARE `storage_key`.
-             *
-             * The key is `ozikoro/11234-ute-king.webp` — where the file sits on disk — and **as a `src` it is
-             * a RELATIVE address**, so the browser resolved it against `/collections/` and asked for
-             * `/collections/ozikoro/11234-ute-king.webp`, which 404s. Measured in Chrome before this line:
-             * one image on the collections page, `naturalWidth === 0`, `complete === true`, **and no CSP
-             * violation at all** — a different fault from the hotlinks, on the same page, and one that no
-             * policy check would ever have caught. Every other fill in this file already goes through
-             * `mediaPath`; this was the one that did not.
-             */
-            image: hero?.img ? mediaPath(hero.img) : null, glyph: null },
+            image: null, glyph: null, drawnGlyph: COLLECTION_CAMERA_SIGN },
           { label: 'Written archive', name: 'Documents & maps', href: '/documents',
             cta: `${(counts?.docs ?? 0).toLocaleString('en-GB')} document records`, image: null, glyph: '≡' },
           { label: 'Recorded archive', name: 'Oral recordings', href: '/listen',

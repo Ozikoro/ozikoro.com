@@ -1255,15 +1255,69 @@ export function fillTowns(html: string, towns: RealTown[]): string {
   return out;
 }
 
+/**
+ * THE CAMERA THE PHOTOGRAPHS CARD CARRIES, DRAWN BY HAND BECAUSE NO FONT HERE HAS ONE.
+ *
+ * WHY THIS IS AN SVG AND NOT A CHARACTER LIKE THE OTHER THREE
+ *
+ * `≡`, `◉` and `◈` are typed characters, and **there is no camera character to type beside them**: Unicode has
+ * no monochrome camera in the blocks a text font covers, and the one it does have — U+1F4F7 — is an EMOJI.
+ * Measured in Chrome at this card's own `4rem` before this was written: the three typed signs are painted by
+ * three different system fallbacks (`≡` by Symbol, `◉` by Hiragino Mincho ProN, `◈` by AppleMyungjo), all
+ * monochrome and all taking the design's `--gold-bright`; **U+1F4F7 is painted by Apple Color Emoji, ignores
+ * `color` entirely, and landed as a grey-and-steel photographic camera beside three gold line drawings.** On a
+ * machine with no emoji font it is worse than that — a tofu box, which is the outcome the card was told to
+ * avoid. So the sign is drawn.
+ *
+ * HOW IT SITS IN THE DESIGN'S OWN SLOT
+ *
+ * **No icon font is used or added.** There is none in this repository to draw from — `find apps/ozikoro/public
+ * -name '*.woff*' -o -name '*.ttf' -o -name '*.otf'` returns nothing, and no stylesheet here declares
+ * `@font-face` beyond the three Google families the design links. The markup goes inside the design's own
+ * unchanged `<span class="sx-collection-glyph">`, so it inherits that rule's `display:grid; place-items:center`,
+ * its emerald ground and its `font: 400 4rem`, and **no new rule is needed anywhere**: `width`/`height` are
+ * `1em`, so the em IS the design's 4rem, and the stroke is `currentColor`, so the gold is the design's
+ * `--gold-bright` token rather than a copy of its value.
+ *
+ * SIZE, MEASURED AGAINST THE OTHERS IN THE SAME BROWSER AT THE SAME `4rem`: the drawing fills 23.1 × 18.5 of
+ * the 24-unit box, painting about **62 × 49 px** against **56.3 px** for `◉` and **52.5 px** for `◈`. A camera
+ * is wider than it is tall, and the width is what makes it read as the same size rather than a smaller one.
+ */
+export const COLLECTION_CAMERA_SIGN =
+  '<svg class="sx-collection-sign" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path d="M3 6.6h4.4l1.7-3h5.8l1.7 3H21a1.8 1.8 0 0 1 1.8 1.8v10.4A1.8 1.8 0 0 1 21 20.6H3a1.8 1.8 0 0 1-1.8-1.8V8.4A1.8 1.8 0 0 1 3 6.6z"/><circle cx="12" cy="13.6" r="4.3"/><rect x="18.4" y="8.8" width="3.1" height="2.1" rx=".7"/></svg>';
+
 /** One collection card. */
-export type RealCollection = { label: string; name: string; href: string; cta: string; image: string | null; glyph: string | null };
+export type RealCollection = {
+  label: string;
+  name: string;
+  href: string;
+  cta: string;
+  image: string | null;
+  glyph: string | null;
+  /**
+   * A SIGN THAT HAS TO BE DRAWN RATHER THAN TYPED, AS MARKUP.
+   *
+   * `glyph` is a character and is escaped; **this is inserted as markup and must only ever be a constant from
+   * this module** — `COLLECTION_CAMERA_SIGN` is the one that exists. A collection whose sign no font here can
+   * draw sets this and leaves `image` null, which is how the Photographs card stopped being a photograph.
+   */
+  drawnGlyph?: string | null;
+};
 
 /** One collection card, in the design's `a` markup inside `.sx-collection-showcase`. */
 export function renderCollection(c: RealCollection): string {
-  // The design uses a photograph on some cards and a glyph on others; whichever the archive can supply.
-  const visual = c.image
-    ? `<img src="${esc(c.image)}" alt="" loading="lazy">`
-    : `<span class="sx-collection-glyph" aria-hidden="true">${esc(c.glyph ?? '≡')}</span>`;
+  /*
+   * The design uses a photograph on some cards and a glyph on others, and a card that names a `drawnGlyph` takes
+   * the glyph slot because that is the only slot that can hold a drawn sign. **The drawn sign wins over the
+   * image deliberately and is not a fallback**: a card carrying one is a card whose collection is better named
+   * by a sign than illustrated by one arbitrary record, and the caller leaves `image` null so the two cannot
+   * disagree. The record keeps its own photograph wherever else it is shown.
+   */
+  const visual = c.drawnGlyph
+    ? `<span class="sx-collection-glyph" aria-hidden="true">${c.drawnGlyph}</span>`
+    : c.image
+      ? `<img src="${esc(c.image)}" alt="" loading="lazy">`
+      : `<span class="sx-collection-glyph" aria-hidden="true">${esc(c.glyph ?? '≡')}</span>`;
   return `<a href="${esc(c.href)}">${visual}<span><small>${esc(c.label)}</small><strong>${esc(c.name)}</strong><em>${esc(c.cta)} <span aria-hidden="true">→</span></em></span></a>`;
 }
 

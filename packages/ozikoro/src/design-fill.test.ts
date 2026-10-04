@@ -34,6 +34,7 @@ import { dirname, join } from 'node:path';
 import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillDashboardLinks } from './design-fill.ts';
 import { MARQUEE_PLACES, fillHome, fillMarquee } from './design-fill.ts';
 import { extractArchiveFilms, fillWatch, renderFilmCard } from './design-fill.ts';
+import { COLLECTION_CAMERA_SIGN, renderCollection } from './design-fill.ts';
 import {
   AFRICAN_COUNTRIES,
   AFRICAN_COUNTRY_COUNT,
@@ -1645,3 +1646,37 @@ test('/listen/ is a linked screen, so its own menu stops 404ing', () => {
   }
 });
 
+test('the Photographs card carries a drawn camera and not a photograph', () => {
+  /*
+   * THE OWNER'S FAULT, AS AN ASSERTION. The card for the 3,462 photographs was illustrated by one arbitrary
+   * photograph out of the media table — the archive's oldest image record, which is a picture belonging to an
+   * article and not a picture of the collection — while the other three cards carried a sign naming what they
+   * hold. He asked for the sign.
+   *
+   * THIS IS TESTED ON `renderCollection` AND NOT ON THE ROUTE, because the route needs a database and the
+   * decision worth protecting is the renderer's: **a card that names a drawn sign must not render an `img`,
+   * even when it is handed an image.** The card below is deliberately given one, so the precedence is asserted
+   * rather than assumed.
+   *
+   * THE EMOJI IS ASSERTED AGAINST BY NAME. U+1F4F7 is the only camera character Unicode has, and Chrome paints
+   * it with Apple Color Emoji: measured on this page at `4rem` it is a grey-and-steel camera that ignores the
+   * design's `color` and sits beside three gold line drawings. On a machine without an emoji font it is a tofu
+   * box. `stroke="currentColor"` is the assertion that the sign takes the design's colour rather than its own,
+   * and `width="1em"` is the one that ties its size to the design's own `font: 400 4rem`.
+   */
+  const card = renderCollection({
+    label: 'Visual archive',
+    name: 'Photographs',
+    href: '/photographs',
+    cta: '3,462 image records',
+    image: '/media/ozikoro/11234-ute-king.webp',
+    glyph: null,
+    drawnGlyph: COLLECTION_CAMERA_SIGN,
+  });
+  assert.ok(!card.includes('<img'), 'the photographs card must not carry a photograph');
+  assert.match(card, /<span class="sx-collection-glyph" aria-hidden="true"><svg /, 'the sign must sit in the design\'s own glyph slot');
+  assert.ok(!card.includes('\u{1F4F7}'), 'the sign must not be the camera emoji, which renders in colour');
+  assert.match(card, /stroke="currentColor"/, 'the sign must take the design\'s colour, not one of its own');
+  assert.match(card, /width="1em" height="1em"/, 'the sign must size itself from the design\'s font-size');
+  assert.ok(card.includes('href="/photographs"'), 'the card must still lead where it led');
+});

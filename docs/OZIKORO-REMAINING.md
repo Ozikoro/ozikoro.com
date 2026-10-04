@@ -20190,3 +20190,176 @@ standalone holds **52** design screens where the source holds 52, and the brief'
   control nobody clicked.
 * **`/favicon.ico` answers 404.** It is the only console `404` the browser probe recorded, no page links it,
   and it predates this round.
+
+## ROUND 334 — THE PHOTOGRAPHS CARD CARRIES A CAMERA, AND WHAT IT CARRIED INSTEAD WAS AN ARTICLE'S OLDEST IMAGE
+
+**The owner, verbatim:** *"on the explore page 'http://127.0.0.1:3110/collections', please, the photographs
+should not be image from the article, rather, replace it with icons or favicon showing camera sign, same way
+the remaining four shows signs relating to the contents it carries"*
+
+### 1. WHAT THE DESIGN DRAWS, AND WHAT `.sx-collection-glyph` ACTUALLY IS
+
+`design/calm-comfort-construct/public/design/screens/collections.html` draws **four** cards inside one
+`.sx-collection-showcase`, and it uses **two different treatments**:
+
+| # | the design's markup | treatment |
+|---|---|---|
+| 1 | `<a href="photographs.html"><img src="https://ozikoro.com/…/Northcote_Thomas_Igbo_photograph_album_vol_3_string_games-680x541.jpg" alt="Historic photograph of string games">` | a **photograph** |
+| 2 | `<a href="documents.html"><span class="sx-collection-glyph">≡</span>` | a **glyph** |
+| 3 | `<a href="listen.html"><span class="sx-collection-glyph">◉</span>` | a **glyph** |
+| 4 | `<a href="material-culture.html"><img src="https://ozikoro.com/…/Ikoro-Drum-Amongst-the-Igbos-G.T-Basden-1921.webp" alt="Historic photograph of an ikoro drum">` | a **photograph** |
+
+**So the design drew the Photographs card as a showcase, and it never drew a camera for it.** The "signs" the
+owner means are not images and not SVG — **the design contains zero `<svg>` elements** — they are **typed
+Unicode characters inside a `<span class="sx-collection-glyph">`**, and the whole of that class is one line of
+`design/styles/showcase.css`:
+
+```css
+.sx-collection-glyph{display:grid!important;place-items:center!important;padding:0!important;background:var(--emerald-deep);color:var(--gold-bright);font:400 4rem var(--font-serif)}
+```
+
+**A character at the design's own `4rem`, gold on the deep emerald panel, centred by `place-items`.** There is
+no icon font behind it: `find apps/ozikoro/public -name '*.woff*' -o -name '*.ttf' -o -name '*.otf'` returns
+nothing, and no stylesheet in the repository declares `@font-face` beyond the three Google families the design
+links. **Which means the three signs are painted by whichever system font happens to own the character**, and
+that was measured over the DevTools protocol (`CSS.getPlatformFontsForNode`) rather than assumed:
+
+```
+FONTS ≡ : Symbol          FONTS ◉ : Hiragino Mincho ProN
+FONTS ◈ : AppleMyungjo    FONTS 📷 : Apple Color Emoji
+```
+
+**THE COUNT, BECAUSE THE OWNER SAID "THE REMAINING FOUR" AND THERE ARE THREE.** The design draws four cards,
+the page served four before this round, and **three of them carried a sign while one carried a photograph**.
+The signs are `≡` (documents), `◉` (oral recordings) and `◈` (material culture — **added by the fill** in an
+earlier round, because the design had drawn that card with the Basden drum photograph). With the camera there
+are now four signs and **four cards, no fifth card anywhere on the page**.
+
+### 2. WHERE THE PHOTOGRAPH WAS COMING FROM, AND WHAT IT WAS
+
+Not from the design's markup — the design's own two `<img>` cards are both replaced by `replaceContainer` in
+`fillCollections`. The photograph on the Photographs card was **chosen from the database by the route**,
+`apps/ozikoro/app/design-screen/[screen]/route.ts`:
+
+```ts
+const hero = await db.one<{ img: string | null }>(
+  `select storage_key as img from ozikoro_media
+    where kind = 'image' and storage_key is not null order by id limit 1`
+);
+…
+image: hero?.img ? mediaPath(hero.img) : null, glyph: null },
+```
+
+**`order by id limit 1` — the archive's OLDEST image record.** It resolved to `/media/ozikoro/11234-ute-king.webp`
+(served, `naturalWidth 719`), a photograph belonging to an article: the card for **3,462 photographs** was
+illustrated by one arbitrary photograph while the three cards beside it were illustrated by a sign naming what
+they hold. That is the inconsistency the owner reported. The design's own `alt` for that slot — *"Historic
+photograph of string games"* — describes a **different** photograph from the one being served, and never
+reached a reader in any case, because the fill has always written `alt=""` on this card.
+
+**NO CAPTION OR CREDIT WAS DROPPED, BECAUSE THE SLOT NEVER HAD ONE.** The design's card carries an `alt` and
+nothing else — no `<figcaption>`, no credit line, no `[class*=credit]` — and neither did the served card, in
+the markup or in the browser. **The photograph's own record is untouched**: `ozikoro_media` still holds it,
+`/photographs/` still serves it and its article still carries it; only this card's presentation changed.
+**The query was removed with the image** rather than left behind, because a query whose result nothing reads
+is a round trip on every request to `/collections/`.
+
+### 3. HOW THE CAMERA WAS MADE, AND WHY IT IS DRAWN RATHER THAN TYPED
+
+**The glyph font does not carry a camera, and the one character that exists is not usable.** U+1F4F7 is the
+only camera in Unicode, and it is an emoji: measured in Chrome in the design's own font stack at this card's
+own `4rem` it is painted by **Apple Color Emoji**, **ignores `color` entirely**, and landed as a grey-and-steel
+photographic camera beside three gold line drawings (screenshot taken before anything was changed; ink
+**67 × 67 px** against 56.3 for `◉` and 52.5 for `◈`). On a machine with no emoji font it is a tofu box, which
+is worse than the photograph was. So the sign is **drawn by hand**:
+
+* **No new dependency, no icon font, no downloaded asset, no external image** — a 24-unit `viewBox` path, a
+  lens circle and a flash, written out as `COLLECTION_CAMERA_SIGN` in `packages/ozikoro/src/design-fill.ts`
+  and handed to the card through a new optional `drawnGlyph` field, which is markup where `glyph` is a
+  character and stays escaped.
+* **It uses the design's existing mechanism rather than a new one.** The markup goes inside the design's own
+  unchanged `<span class="sx-collection-glyph">`, so it inherits `display:grid; place-items:center`, the
+  emerald ground and `font: 400 4rem`. `width`/`height` are `1em`, so its size **is** the design's `4rem`, and
+  the stroke is `currentColor`, so its gold **is** the design's `--gold-bright` token.
+* **No new stylesheet rule was needed and none was added.** `apps/ozikoro/public/a11y.css` was read before
+  deciding that; it is the established home for a correction layered over the design, and this needed no
+  correction — it needed the design's own rule, which it gets by inheritance.
+
+Measured on the served page over the DevTools protocol: the camera's `<svg>` box is **64 × 64** (the design's
+`4rem`), its stroke and its colour both `rgb(232, 199, 102)`, and the glyph cell's computed style is
+`font: 64px "Noto Serif", …; colour: rgb(232, 199, 102); background: rgb(6, 46, 34)` — **the same values the
+three typed glyphs report**, because it is the same rule. Optical size against the others at the same `4rem`:
+the camera paints about **62 × 49 px** against **56.3 px** for `◉` and **52.5 px** for `◈`. A camera is wider
+than it is tall, and the width is what makes it read as the same size rather than a smaller one.
+
+### 4. THE FOUR CARDS, AND THE FOUR DESTINATIONS, MEASURED IN A BROWSER
+
+| card | label | sign | destination | `h1` the click lands on |
+|---|---|---|---|---|
+| Photographs | Visual archive | a hand-drawn camera (SVG, 64 × 64) | `/photographs/` | `Photographs` |
+| Documents & maps | Written archive | `≡` U+2261, the design's own | `/documents/` | `Published work, ready to read.` |
+| Oral recordings | Recorded archive | `◉` U+25C9, the design's own | `/listen/` | `Histories for the ear.` |
+| Material culture | Material archive | `◈` U+25C8, the fill's own | `/material-culture/` | `Material culture` |
+
+**The other three were checked and none is wrong in the way the owner reported** — each is a sign, none is a
+photograph, and none is missing. How well each sign names its collection, said plainly: the camera is a
+photograph of nothing and names the collection exactly; `≡` reads as a stack of written lines; `◉` reads as a
+disc, which is the recorded archive; **`◈` is the weakest of the four** — a diamond outline is a generic
+"object" mark and carries nothing about material culture in particular. It is the fill's own choice from an
+earlier round rather than the design's, and it is **reported and left alone**, because it is not the fault
+this round was sent to fix.
+
+### 5. VERIFIED
+
+* **The served page**: 4 cards, **4 glyph slots, 0 `<img>`**, the camera SVG present, and **no U+1F4F7
+  anywhere** in the response.
+* **A screenshot of the served `/collections/` read back as an image**: the camera renders as a camera —
+  body, viewfinder hump, lens and flash — in the same gold on the same emerald panel as `≡`, `◉` and `◈`, at
+  the same optical weight. **No tofu box and no colour emoji**, which were the two ways this could have gone
+  wrong.
+* **Every card was clicked in headless Chrome** and each landed on the page named above, read from the `h1`
+  rather than the status code.
+* **`node --test packages/ozikoro/src/design-fill.test.ts`**: **65 tests, 65 pass, 0 fail** — one added here,
+  asserting that a card handed both a photograph and a drawn sign renders the sign and never an `<img>`, that
+  the sign sits in the design's own glyph span, that it is not the emoji, and that it takes `currentColor` and
+  `1em` from the design rather than carrying a size or a colour of its own.
+* **`npm run typecheck`** from the repository root, read from its own exit code and not a pipe's: **exit 0**.
+* **The build**: `bash scripts/serve-review.sh --rebuild`, **exit 0**, built into `.next-next` and swapped in,
+  artefact asserted complete — **`server.js` present, 52 design screens** in the standalone, against 52 in
+  `apps/ozikoro/public/design/screens/`.
+* **The design is inviolable.** `git status --porcelain design/ apps/ozikoro/public/design/` returns nothing,
+  and the brief's own parity check prints `identical 63 differing 0 missing 0`, below verbatim.
+
+### 6. WHAT DOES NOT WORK
+
+* **THE FRESHNESS CHECK CALLED A BUILD CURRENT THAT DID NOT CONTAIN THE CHANGE — AND THIS ROUND MET IT HEAD
+  ON.** My edits landed at 14:38:41 and 14:38:57 while another agent's build was running (it started at
+  14:38:19 and wrote `BUILD_ID` at 14:42:01). `serve-review.sh` then reported *"the build is CURRENT: every
+  source file is older than `.next/BUILD_ID`"* — true by mtime, and wrong: the served page still carried the
+  photograph and one `<img>`, and `--rebuild` was needed to put the camera in it. **`BUILD_ID` is written at
+  the END of a build, so a source file edited *during* a build is always older than it and is always cleared**,
+  whether or not the compiler read it before or after the edit. **This is already fixed at HEAD: `5565f8e`
+  ("Rebuild when a source was edited while the build was running") moves the reference to `.next.build-started`,
+  touched immediately before `next build`, and carries a nine-case test that runs the comparison as it was and
+  asserts the two disagree.** Recorded here because this round measured it from the other side — a real change,
+  a real served page that did not have it, and a check that said it did. It is also why every claim in §4 and §5
+  above was read off the served bytes and a browser rather than off the check.
+* **The review site was unreachable for about ten minutes and the cause was contention, not this change.**
+  From 14:54 to 15:04 `http://127.0.0.1:3110/collections/` answered nothing (`ERR_CONNECTION_REFUSED` in the
+  browser probe, `curl` code `000`), because another agent's `serve-review.sh --rebuild` held the lock and the
+  server is stopped for the swap. **The lock's recorded pid had exited while its build was still running**
+  (`kill -0` said dead, `.next-next/BUILD_ID` was written 45 seconds later), so the lock was neither obviously
+  live nor obviously stale. It was left alone as instructed; the site came back by itself, with this round's
+  camera in the page.
+* **The design still draws the Photographs card as a photograph.** That is deliberate and correct — the design
+  is inviolable — but it means **if the screen is ever re-cut from the deliverable, the Northcote album
+  photograph comes back** unless the design itself is amended. The serve-time fill is the only thing standing
+  between that card and a photograph.
+* **The three typed signs are painted by three different system fonts, and the design does not control that.**
+  `≡` by Symbol, `◉` by Hiragino Mincho ProN, `◈` by AppleMyungjo on this machine — not by `Noto Serif`, which
+  the rule names. They render gold because the rule sets `color`, and they render at all because this machine
+  has those fonts. **On a machine without them the same page would draw different shapes or tofu**, and the
+  camera is now the only sign whose appearance is fixed by the repository rather than by the reader's fonts.
+  Reported, not fixed: fixing it means giving the other three drawn signs as well, which is a design decision.
+* **`/collections/` no longer reads `ozikoro_media` for the card's image**, so the page makes one fewer query
+  than it did. Not a fault; recorded so the next reader of that block does not go looking for the query.
