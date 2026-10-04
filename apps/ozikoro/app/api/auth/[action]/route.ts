@@ -47,8 +47,9 @@ import {
   resetPasswordWithToken,
 } from '@ozituma/db/passwords';
 import { sendMail, siteAddress } from '@ozituma/core';
+import { capabilitiesFor } from '@ozikoro/platform';
 import { sessionCookie, sessionMaxAgeSeconds } from '@/lib/session';
-import { sameOrigin } from '@/lib/access';
+import { mayEnterBackOffice, sameOrigin } from '@/lib/access';
 import { clientKey, rateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
@@ -466,14 +467,29 @@ export async function POST(
     });
 
     /*
-     * A signed-in account that is not an administrator is sent to the sign-in page with a
-     * plain explanation rather than into an admin area it cannot use. The credentials were
-     * valid, so this is not a failed sign-in and is not worded like one.
+     * WHO THIS DOOR ADMITS, WHICH IS NO LONGER ONLY AN ADMINISTRATOR.
+     *
+     * It used to be `isAdmin(account.role)` and nothing else: a valid password on an account that was not the
+     * dictionary's administrator produced **"That account is not an administrator on this site."** and sent
+     * the person back to the sign-in page. **That made the owner's rule unusable from a browser**, because an
+     * archive editor holds twenty-four capabilities and had no way in through the front door at all: the
+     * editor role lives in `ozikoro_member_role`, not in the platform's `account_role`, so `isAdmin` is false
+     * for every one of them.
+     *
+     * The admission test is now the SAME ONE THE BACK OFFICE ITSELF USES — `mayEnterBackOffice`, which the
+     * admin layout has always applied. **A sign-in that admits somebody the layout then refuses would be a
+     * page that redirects in a loop; a sign-in that refuses somebody the layout admits is a role that cannot
+     * be used.** One function, asked in both places, is what stops the two answers diverging.
+     *
+     * The credentials were valid in every case here, so a refusal is still not worded like a failed sign-in —
+     * and an account with no archive role at all still gets one, because the archive is not their door.
      */
-    const destination = isAdmin(account.role) ? next : '/signin';
-    const params: Record<string, string> = isAdmin(account.role)
+    const capabilities = await capabilitiesFor(db, account.id);
+    const admitted = isAdmin(account.role) || mayEnterBackOffice(account.role, capabilities);
+    const destination = admitted ? next : '/signin';
+    const params: Record<string, string> = admitted
       ? { welcome: '1' }
-      : { error: 'That account is not an administrator on this site.' };
+      : { error: 'That account has no role in this archive. Sign in at ozituma.com, or ask the archive for a role.' };
 
     const response = redirectTo(destination, params);
     const cookie = sessionCookie(sessionMaxAgeSeconds());

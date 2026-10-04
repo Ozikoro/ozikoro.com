@@ -26,9 +26,10 @@
  *
  * WHAT IT DOES NOT DO
  *
- * No upload, no replace, no delete, no alt-text edit. **The archive has no write path for media at all** —
- * the files were migrated once — and offering a control that posts nowhere is the fault this pass exists to
- * remove. The screen says so rather than leaving the absence to be discovered.
+ * No upload, no replace, no delete. **This register is a list, not an editor** — one item's own description
+ * is edited at `/admin/media/[id]`, which is where the "Edit the record" link on each row leads. The file
+ * itself has no write path anywhere in the archive: 3,443 objects against 3,488 rows, and 307 files with no
+ * row at all whose keys were deliberately not invented.
  */
 import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
@@ -233,6 +234,9 @@ export default async function MediaRegisterPage({
                             Open the file
                           </a>
                         ) : null}
+                        <Link className="btn btn--sm btn--primary" href={`/admin/media/${item.id}`}>
+                          Edit the record
+                        </Link>
                         <Link className="btn btn--sm" href={`/admin/rights/?filter=all&item=${item.id}`}>
                           Record rights
                         </Link>
@@ -256,13 +260,20 @@ export default async function MediaRegisterPage({
         )}
       </Card>
 
-      <Card title="What this screen cannot do" quiet>
+      <Card title="What this screen can and cannot do" quiet>
         <p>
-          It is read-only. There is no upload, no replace, no delete and no alt-text editing, because
-          <strong> the archive has no write path for media</strong> — the files were migrated once from
-          WordPress and nothing since has added one. Recording a permission is a different job and lives in
-          the <Link href="/admin/rights/">rights queue</Link>, which is where an item links to when its rights
-          need deciding.
+          <strong>The register itself is a list.</strong> The write path is per record:{' '}
+          <strong>Edit the record</strong> opens one item&apos;s own name, caption, alternative text,
+          description, creator and credit, behind <span className="mono">edit_entity</span> — the same
+          permission that edits a history. Recording a permission is a different job, on a different
+          capability, and lives in the <Link href="/admin/rights/">rights queue</Link>.
+        </p>
+        <p>
+          <strong>No file is uploaded, replaced or deleted anywhere.</strong> There are 3,443 objects in the
+          bucket against 3,488 records, and a further 307 files in
+          <span className="mono"> data/media/ozikoro-wp</span> with no record at all. Keying those was
+          deliberately declined — it would mean inventing keys — and an upload control here is how they would
+          get invented by accident.
         </p>
       </Card>
     </>

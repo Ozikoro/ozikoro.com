@@ -13,44 +13,59 @@
 import { getDb } from '@ozituma/db/client';
 import { MemberError } from '@ozikoro/platform';
 import {
+  ARTICLE_DECISION_LABEL,
   attachEntity,
   attachSource,
   createSource,
+  decideArticleStatus,
   detachEntity,
   detachSource,
   findOrCreateEntity,
+  restoreArticle,
+  trashArticle,
+  updateArticleContent,
   updateArticleFacets,
+  type ArticleDecision,
   type EntityKind,
   type EntityRole,
   type EvidenceType,
   type SourceKind,
   type SourceType,
 } from '@ozikoro/platform';
-import { redirectTo, requireCapability, sameOrigin, jsonError } from '@/lib/access';
+import { redirectTo, requireCapability, sameOrigin, jsonError, formBody } from '@/lib/access';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request): Promise<Response> {
-  const form = await request.formData();
-
   /*
-   * Cross-site form submissions are refused.
+   * THE ORDER OF THESE THREE LINES IS THE POINT, AND IT WAS NOT THIS ORDER.
    *
-   * The session cookie is `SameSite=Lax`, which already stops a browser sending it on a cross-site
-   * POST — so this is defence in depth rather than the only protection. It is added because the four
-   * Spotify and auth endpoints already do exactly this, and a state-changing route that omits it
-   * relies entirely on a cookie attribute continuing to be set correctly in every environment.
+   * This route read `request.formData()` FIRST. `formData()` **throws a `TypeError` when the request has no
+   * body and no content type**, and an uncaught throw out of a route handler is a 500 — so a bare
+   * `curl -X POST` to the one endpoint that edits every record in the archive answered "Internal Server
+   * Error" instead of the refusal it should give, and before any permission had been asked for. Measured on
+   * the sibling routes and recorded in `requireCapability`: **a 500 where a 307 belongs** reads as a broken
+   * server when nothing is broken. `formBody` is the helper that exists for exactly this, and the origin and
+   * capability checks now come first, as the plan requires: nothing reads a parameter before the guard.
+   *
+   * The guard's `returnTo` is the queue rather than the record, because the record's id has not been read
+   * yet — reading it would mean reading the body first, which is the fault above. A refused caller is sent
+   * to the editorial queue, which is where they can act on the refusal; the per-record redirects below are
+   * for calls that PASSED the guard.
    */
   if (!sameOrigin(request)) return jsonError(403, 'cross_origin', 'That request did not come from this site.');
 
-  const articleId = Number(form.get('articleId'));
-  const backTo = Number.isInteger(articleId) && articleId > 0 ? `/admin/archive/${articleId}` : '/admin/archive';
-
   // First, always. Nothing below runs for an account without the capability.
-  const guard = await requireCapability('edit_entity', { returnTo: backTo });
+  const guard = await requireCapability('edit_entity', { returnTo: '/admin/archive' });
   if (!guard.ok) return guard.response;
   const actorId = guard.account.account.id;
+
+  const form = await formBody(request);
+  if (!form) return jsonError(415, 'unsupported_body', 'That form did not arrive as a form.');
+
+  const articleId = Number(form.get('articleId'));
+  const backTo = Number.isInteger(articleId) && articleId > 0 ? `/admin/archive/${articleId}` : '/admin/archive';
 
   const text = (name: string, max = 400) => String(form.get(name) ?? '').trim().slice(0, max);
   const num = (name: string): number | null => {
@@ -67,6 +82,11 @@ export async function POST(request: Request): Promise<Response> {
 
     if (action === 'save-facets') {
       const sourceType = text('sourceType', 40) as SourceType | '';
+      /*
+       * NO `status`. The record's publication state is not part of this form any more — see
+       * `updateArticleFacets`'s note and `decideArticleStatus`. The parameter is gone from the function, so
+       * this route could not pass one if it tried.
+       */
       await updateArticleFacets(db, {
         articleId,
         topicId: num('topicId'),
@@ -74,10 +94,95 @@ export async function POST(request: Request): Promise<Response> {
         periodLabel: text('periodLabel', 120) || null,
         periodStart: num('periodStart'),
         periodEnd: num('periodEnd'),
-        ...(text('status', 20) ? { status: text('status', 20) as 'draft' | 'review' | 'published' | 'archived' } : {}),
         actorId,
       });
       return redirectTo(backTo, { saved: 'Saved. The record now says this about itself.' });
+    }
+
+    /**
+     * THE REVIEW DECISION — the tick that publishes an article, and the three decisions that are not it.
+     *
+     * `guard.capabilities` is passed down rather than re-fetched, and `decideArticleStatus` re-checks
+     * `publish` itself. **The rule is enforced in the write, not only at the door**, because a second caller
+     * — a script, a future route — would otherwise be a way to publish without the capability, which is the
+     * shape migration 0043 exists to prevent. One extra check costs a Set lookup.
+     */
+    if (action === 'decide-status') {
+      const decision = text('decision', 20) as ArticleDecision;
+      const result = await decideArticleStatus(db, {
+        articleId,
+        decision,
+        note: text('decisionNote', 400) || null,
+        actorId,
+        capabilities: guard.capabilities,
+      });
+
+      const selfNote = result.selfApproved
+        ? ' You approved a record carrying your own revision, and the trail says so.'
+        : '';
+      return redirectTo(backTo, {
+        saved: `${ARTICLE_DECISION_LABEL[result.decision]}: ${result.from} → ${result.to}.${selfNote}`,
+      });
+    }
+
+    if (action === 'save-content') {
+      /*
+       * THE RECORD'S OWN WORDS.
+       *
+       * `MAX_ARTICLE_BODY` is named in the refusal the editor gets, so it is imported from the module that
+       * enforces it rather than repeated here — a second copy of a ceiling is a second ceiling.
+       *
+       * The body is read with its own ceiling check rather than through `text()`, because `text()` TRUNCATES
+       * to its maximum and **a truncated body silently saved over a record is the worst outcome this route
+       * can produce.** `updateArticleContent` refuses an over-long body and changes nothing; it must be given
+       * the whole thing to be able to refuse it.
+       */
+      const bodyHtml = String(form.get('bodyHtml') ?? '');
+      const standfirstRaw = String(form.get('standfirst') ?? '').trim();
+
+      const result = await updateArticleContent(db, {
+        articleId,
+        // Untruncated, so `updateArticleContent`'s refusal can state the real length rather than a cut one.
+        title: String(form.get('title') ?? ''),
+        standfirst: standfirstRaw === '' ? null : standfirstRaw,
+        bodyHtml,
+        note: text('note', 400) || null,
+        actorId,
+      });
+
+      /*
+       * THE NOTICE SAYS WHAT HAPPENED, INCLUDING WHAT THE ARCHIVE DID TO THE TEXT.
+       *
+       * A save that quietly dropped a `<script>` and answered "Saved" would leave the editor believing the
+       * record holds what they pasted. `sanitised` is returned by the write rather than recomputed here, so
+       * the sentence cannot describe a comparison the write did not make.
+       */
+      const kept = `Kept revision ${result.revisionId} of what it said before. ${result.wordCount.toLocaleString('en-GB')} words.`;
+      return redirectTo(backTo, {
+        saved: result.sanitised
+          ? `Saved. Some markup a reader must not be shown was removed: script tags, embedded frames and inline event handlers are not stored. ${kept}`
+          : `Saved. ${kept}`,
+      });
+    }
+
+    if (action === 'trash') {
+      /*
+       * A DELETE IS A MOVE. Gated on `edit_entity` like every other edit, because the owner has said an
+       * editor deletes content — and `trashArticle` destroys nothing, so this is not the act that needed a
+       * capability of its own. The purge, which does destroy, is `purge_trash` and lives on `/api/admin/trash`.
+       */
+      const result = await trashArticle(db, { articleId, actorId, note: text('note', 400) || null });
+      return redirectTo(backTo, {
+        saved:
+          `Moved to the trash from ${result.from}. Nothing was destroyed: the record is not served at its own ` +
+          'address, its entities, sources and revisions are where they were, and it can be restored from ' +
+          'the trash.',
+      });
+    }
+
+    if (action === 'restore') {
+      const result = await restoreArticle(db, { articleId, actorId });
+      return redirectTo(backTo, { saved: `Restored to ${result.to}, which is the state it was taken out of.` });
     }
 
     if (action === 'attach-place') {

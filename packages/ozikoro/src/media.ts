@@ -27,6 +27,7 @@ import { slugVariants } from './archive.ts';
  * it starts 404ing on one screen and not another** — that fault is already recorded in this repository.
  */
 import { mediaPath } from './design-fill.ts';
+import { MemberError } from './members.ts';
 
 export interface MediaRecord {
   id: number;
@@ -262,7 +263,16 @@ export interface MediaListOptions {
 }
 
 function mediaWhere(options: MediaListOptions): { clause: string; params: unknown[] } {
-  const conditions: string[] = ['m.mime_type is not null'];
+  /*
+   * A TRASHED RECORD IS NOT A RECORD A READER MAY MEET.
+   *
+   * `m.deleted_at is null` is the whole of the trash's effect on this list, and it is here rather than in
+   * each caller for the reason migration 0056 gives for using a STATUS on articles and a FLAG here: media
+   * has no status column, so every read path has to know about the flag, and **the way to make that safe is
+   * to have as few of them as possible and to put them in one file.** There are five, they are all in this
+   * file, and they are named in the round's report.
+   */
+  const conditions: string[] = ['m.mime_type is not null', 'm.deleted_at is null'];
   const params: unknown[] = [];
 
   if (options.kind && options.kind !== 'all') {
@@ -299,7 +309,7 @@ export async function countMedia(db: Db, options: MediaListOptions = {}): Promis
 }
 
 export async function getMediaBySlug(db: Db, slug: string): Promise<MediaRecord | null> {
-  const row = await db.one<Record<string, unknown>>(`${MEDIA_SELECT} where m.slug = any($1::text[]) limit 1`, [slugVariants(slug)]);
+  const row = await db.one<Record<string, unknown>>(`${MEDIA_SELECT} where m.slug = any($1::text[]) and m.deleted_at is null limit 1`, [slugVariants(slug)]);
   return row ? rowToMedia(row) : null;
 }
 
@@ -411,6 +421,7 @@ export async function getMediaStats(db: Db): Promise<MediaStats> {
       count(*) filter (where exists (select 1 from ozikoro_article_media am where am.media_id = ozikoro_media.id))::int as used_by,
       coalesce(sum(filesize_bytes), 0)::bigint as bytes
     from ozikoro_media
+    where deleted_at is null
   `);
   return {
     total: Number(row?.total ?? 0),
@@ -471,7 +482,8 @@ export interface MediaRegisterItem extends MediaRecord {
 }
 
 function registerWhere(options: MediaRegisterOptions): { clause: string; params: unknown[] } {
-  const conditions: string[] = [];
+  // The register is a catalogue, and a trashed record has left the catalogue. See `mediaWhere`.
+  const conditions: string[] = ['m.deleted_at is null'];
   const params: unknown[] = [];
 
   if (options.kind && options.kind !== 'all') {
@@ -489,8 +501,9 @@ function registerWhere(options: MediaRegisterOptions): { clause: string; params:
     conditions.push(`not exists (select 1 from ozikoro_media_rights r where r.media_id = m.id and r.checked_at is not null)`);
   }
 
-  // No condition at all is valid here — "everything" is a real question about a register.
-  return { clause: conditions.length > 0 ? `where ${conditions.join(' and ')}` : '', params };
+  // `m.deleted_at is null` is always present, so the clause is never empty; "everything" now means
+  // everything the archive still holds, which is what the register is for.
+  return { clause: `where ${conditions.join(' and ')}`, params };
 }
 
 export async function countMediaRegister(db: Db, options: MediaRegisterOptions = {}): Promise<number> {
@@ -667,5 +680,232 @@ export async function mediaUrlResolver(db: Db): Promise<MediaUrlResolver> {
       where source_url is not null and storage_key is not null`
   );
   return mediaUrlMap(rows);
+}
+
+// ---------------------------------------------------------------------------
+// Writes — the record's own description, and nothing else
+// ---------------------------------------------------------------------------
+
+/** The longest text each descriptive field accepts, and why each number is what it is. */
+export const MEDIA_TEXT_LIMITS = {
+  title: 400,
+  caption: 1_000,
+  altText: 1_000,
+  description: 5_000,
+  creator: 300,
+  credit: 300,
+} as const;
+
+export interface MediaEditRecord {
+  id: number;
+  slug: string;
+  kind: string;
+  reference: string;
+  title: string | null;
+  caption: string | null;
+  altText: string | null;
+  description: string | null;
+  creator: string | null;
+  credit: string | null;
+  licence: string | null;
+  rightsNote: string | null;
+  held: boolean;
+  /** Whether a rights record exists at all, so the form can say a licence is decided elsewhere. */
+  rightsRecorded: boolean;
+}
+
+/**
+ * One media record's descriptive fields, read for the editor's form.
+ *
+ * The stored title is returned as it is, nulls included, rather than through `MediaRecord.title`'s
+ * "Untitled photograph" substitution — **a form that pre-filled a title the row does not have would write
+ * that invented string into the row the first time somebody pressed Save without touching it.** The page
+ * shows the substituted name separately, as what a reader currently sees.
+ *
+ * The rights fields are read so the form can SAY that a licence is decided elsewhere and show what is
+ * currently recorded, without offering an editor a control that this path would refuse.
+ */
+export async function getMediaForEdit(db: Db, mediaId: number): Promise<MediaEditRecord | null> {
+  const row = await db.one<Record<string, unknown>>(
+    `select m.id, m.slug, m.kind, m.title, m.caption, m.alt_text, m.description, m.creator, m.credit,
+            m.licence, m.rights_note, m.storage_key,
+            exists (select 1 from ozikoro_media_rights r where r.media_id = m.id) as rights_recorded
+       from ozikoro_media m where m.id = $1`,
+    [mediaId]
+  );
+  if (!row) return null;
+  const kind = String(row.kind);
+  return {
+    id: Number(row.id),
+    slug: String(row.slug),
+    kind,
+    reference: referenceFor(kind, Number(row.id)),
+    title: row.title ? String(row.title) : null,
+    caption: row.caption ? String(row.caption) : null,
+    altText: row.alt_text ? String(row.alt_text) : null,
+    description: row.description ? String(row.description) : null,
+    creator: row.creator ? String(row.creator) : null,
+    credit: row.credit ? String(row.credit) : null,
+    licence: row.licence ? String(row.licence) : null,
+    rightsNote: row.rights_note ? String(row.rights_note) : null,
+    held: Boolean(row.storage_key),
+    rightsRecorded: Boolean(row.rights_recorded),
+  };
+}
+
+/** What a save changed, so a route can say it rather than implying it. */
+export interface MediaDescriptionChange {
+  changed: { field: string; from: string | null; to: string | null }[];
+}
+
+/**
+ * Change what a media record SAYS about itself — the name, the caption, the alt text, the description, and
+ * the creator and credit it states.
+ *
+ * WHERE THE LINE IS, AND WHY IT IS THERE
+ *
+ * This is the archive's editorial description of an object, and it is the same kind of work as dating a
+ * record or linking it to a clan: an editor correcting the catalogue. **It is not a rights decision.** The
+ * licence, the permission basis, the living-subject consent and the restriction live in
+ * `ozikoro_media_rights` and are written by `setMediaRights`, which is gated on `manage_media_rights` and is
+ * admin-only on the archive's own stated reasoning — *"rights are a legal matter, not editorial"*
+ * (`docs/OZIKORO-REMAINING.md`, round 45). So this function has no parameter that could set a permission, and
+ * that is deliberate: **a function that cannot express a rights decision cannot be talked into making one.**
+ *
+ * `creator` and `credit` are here rather than in the rights record because they are statements of
+ * attribution the catalogue holds — who made the thing, and how it should be credited — not a claim that
+ * anybody permitted anything. `setMediaRights` also writes `credit` when it is told to, and leaves it alone
+ * otherwise, so the two paths cannot silently overwrite each other.
+ *
+ * WHY AN EMPTY FIELD CLEARS RATHER THAN KEEPS
+ *
+ * `setMediaRights` draws the opposite distinction for `credit` — `undefined` means "do not touch" — and it
+ * is right there, because a bulk rights pass must not wipe a credit the record already states. **A form is
+ * not a bulk pass.** The editor is looking at the current value in a text box; emptying the box is a
+ * statement that the record has no caption, and keeping the old text would make the control a lie.
+ *
+ * WHAT IT CANNOT DO, WHICH IS THE POINT OF SAYING SO
+ *
+ * It cannot change the file. There is no parameter for `storage_key`, `source_url`, `mime_type`, `width` or
+ * `height`, and no path in this archive replaces or deletes an object. **3,443 objects are in the bucket and
+ * there are 3,488 rows; 307 files sit in `data/media/ozikoro-wp` with no row at all**, and a round measured
+ * that keying those would mean inventing keys for them. An upload control beside this form is how those keys
+ * would get invented by accident, so the form has none and says why. See the round's report for the scope.
+ */
+export async function updateMediaDescription(
+  db: Db,
+  input: {
+    mediaId: number;
+    title: string | null;
+    caption: string | null;
+    altText: string | null;
+    description: string | null;
+    creator: string | null;
+    credit: string | null;
+    actorId: number;
+  }
+): Promise<MediaDescriptionChange> {
+  if (!Number.isInteger(input.actorId) || input.actorId <= 0) {
+    throw new MemberError('no_actor', 'An edit must name the account that made it.');
+  }
+
+  const before = await getMediaForEdit(db, input.mediaId);
+  if (!before) throw new MemberError('no_media', 'That record does not exist.');
+
+  /**
+   * A field is trimmed and an empty one becomes null.
+   *
+   * Null and the empty string are different things in this table — `storedTitle: null` is a record with no
+   * title, and `''` is a title somebody cleared — and `mediaName` branches on exactly that difference. So a
+   * cleared box is stored as null and nothing else is.
+   */
+  const field = (name: keyof typeof MEDIA_TEXT_LIMITS, raw: string | null): string | null => {
+    const text = (raw ?? '').trim();
+    if (text.length === 0) return null;
+    if (text.length > MEDIA_TEXT_LIMITS[name]) {
+      throw new MemberError(
+        'too_long',
+        `The ${name === 'altText' ? 'alternative text' : name} is ${text.length.toLocaleString('en-GB')} ` +
+          `characters and the archive accepts ${MEDIA_TEXT_LIMITS[name].toLocaleString('en-GB')}. Nothing was changed.`
+      );
+    }
+    return text;
+  };
+
+  const title = field('title', input.title);
+  const caption = field('caption', input.caption);
+  const altText = field('altText', input.altText);
+  const description = field('description', input.description);
+  const creator = field('creator', input.creator);
+  const credit = field('credit', input.credit);
+
+  const changed: MediaDescriptionChange['changed'] = [];
+  const compare = (name: string, from: string | null, to: string | null) => {
+    if ((from ?? null) !== (to ?? null)) changed.push({ field: name, from: from ?? null, to: to ?? null });
+  };
+  compare('title', before.title, title);
+  compare('caption', before.caption, caption);
+  compare('altText', before.altText, altText);
+  compare('description', before.description, description);
+  compare('creator', before.creator, creator);
+  compare('credit', before.credit, credit);
+
+  if (changed.length === 0) return { changed };
+
+  await db.query(
+    `update ozikoro_media
+        set title = $2, caption = $3, alt_text = $4, description = $5, creator = $6, credit = $7,
+            updated_at = now()
+      where id = $1`,
+    [input.mediaId, title, caption, altText, description, creator, credit]
+  );
+
+  await mediaAudit(db, {
+    entityType: 'ozikoro_media',
+    entityId: input.mediaId,
+    action: 'update_description',
+    before: Object.fromEntries(changed.map((c) => [c.field, c.from])),
+    after: Object.fromEntries(changed.map((c) => [c.field, c.to])),
+    actorId: input.actorId,
+    note: `The record's own description of ${before.reference} (${before.slug}).`,
+  });
+
+  return { changed };
+}
+
+/**
+ * The audit row, written the way every other module in this package writes one.
+ *
+ * A failed audit insert does not undo the write, and it is logged rather than thrown: the archive's rule is
+ * that a change is recorded, and the alternative — refusing a legitimate edit because the trail table had a
+ * bad moment — would make the trail the thing that stops the work rather than the thing that witnesses it.
+ * The same choice is made in `editorial.ts`, `rights.ts` and four other modules.
+ */
+async function mediaAudit(
+  db: Db,
+  event: {
+    entityType: string;
+    entityId: number;
+    action: string;
+    before?: unknown;
+    after?: unknown;
+    actorId: number | null;
+    note?: string | null;
+  }
+): Promise<void> {
+  try {
+    await db.query(
+      `insert into ozikoro_audit (entity_type, entity_id, action, before, after, actor_id, note)
+       values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7)`,
+      [
+        event.entityType, event.entityId, event.action,
+        event.before === undefined ? null : JSON.stringify(event.before),
+        event.after === undefined ? null : JSON.stringify(event.after),
+        event.actorId, event.note ?? null,
+      ]
+    );
+  } catch (error) {
+    console.error('[ozikoro/media] could not record audit event:', String(error).slice(0, 160));
+  }
 }
 

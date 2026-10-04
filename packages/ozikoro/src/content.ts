@@ -412,14 +412,32 @@ export function summarise(html: string, maxLength = 220): string {
 }
 
 /**
+ * The words in a body, counting prose rather than markup.
+ *
+ * WHY THIS IS A FUNCTION OF ITS OWN RATHER THAN A LINE INSIDE `readingMinutes`
+ *
+ * `ozikoro_article.word_count` is a real column that the migration filled and that a page can print, so an
+ * edit to a body has to maintain it. Two expressions for "how many words" — one inside the reading-time
+ * calculation and one in the write path — is the drift this repository keeps naming: the number on the page
+ * and the number stored would agree until one of them was corrected. `readingMinutes` calls this, so there
+ * is one count.
+ *
+ * What it counts is text between tags, split on whitespace. It does not decode entities first, so `&amp;`
+ * is one word either way; a body of pure markup counts zero rather than one, which is the honest answer for
+ * a record that states nothing.
+ */
+export function wordCount(bodyHtml: string): number {
+  return bodyHtml.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+}
+
+/**
  * Reading time, at 200 words a minute.
  *
  * Computed rather than taken from WordPress, whose own word count is a rough estimate over the
  * raw markup including the page builder's wrapper text.
  */
 export function readingMinutes(bodyHtml: string): number {
-  const words = bodyHtml.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.round(words / 200));
+  return Math.max(1, Math.round(wordCount(bodyHtml) / 200));
 }
 
 /** The citation the design's `.cite-block` shows, in Chicago-ish form. */

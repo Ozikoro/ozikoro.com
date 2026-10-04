@@ -104,17 +104,29 @@ assert('a reader may NOT edit entities', !readerCaps.has('edit_entity'));
 assert('a reader may NOT manage users', !readerCaps.has('manage_users'));
 assert('a reader may NOT view the audit log', !readerCaps.has('view_audit'));
 
-console.log('\n--- an editor may do editorial work and nothing else ---');
+console.log('\n--- an editor may do everything except destroy something for good ---');
 await grantRole(db, { accountId: publisher.id, role: 'editor', grantedBy: platformAdmin.id });
 const editorCaps = await capabilitiesFor(db, publisher.id);
-assert('an editor may publish', editorCaps.has('publish'));
-assert('an editor may manage sources', editorCaps.has('manage_source'));
-assert('an editor may manage claims', editorCaps.has('manage_claim'));
-assert('an editor may work the review queue', editorCaps.has('review_queue'));
-assert('an editor may NOT manage users', !editorCaps.has('manage_users'));
-assert('an editor may NOT grant roles', !editorCaps.has('manage_roles'));
-assert('an editor may NOT change media rights', !editorCaps.has('manage_media_rights'));
-assert('and still may not moderate', !editorCaps.has('moderate'));
+/*
+ * THE RULE IS ONE PROHIBITION, SO THESE ASSERTIONS ARE THE INVERSE OF WHAT THEY WERE.
+ *
+ * The owner's instruction is that "an editor can approve every content, write any content, unpublish any
+ * content, and delete any content. the only thing an editor can not do is to delete trash". The assertions
+ * this block used to make — that an editor may NOT manage users, may NOT change media rights, may NOT
+ * moderate, may NOT grant roles — described the previous, narrower rules twice over, and both were
+ * superseded. **A test that keeps asserting a withdrawn rule is how the rule comes back**, so what is
+ * asserted now is the prohibition itself and the capabilities that make it matter.
+ */
+assert('an editor may edit any record', editorCaps.has('edit_entity'));
+assert('an editor may approve and unpublish', editorCaps.has('publish'));
+assert('an editor may describe and permit media use', editorCaps.has('manage_media_rights'));
+assert('an editor may reach the account list', editorCaps.has('manage_users'));
+assert('an editor may grant a role below their own', editorCaps.has('manage_roles'));
+assert('an editor may moderate', editorCaps.has('moderate'));
+assert('an editor may read the audit trail', editorCaps.has('view_audit'));
+assert('an editor may change the served design', editorCaps.has('manage_design'));
+assert('and an editor may NOT destroy anything for good', !editorCaps.has('purge_trash'));
+assert('which is the ONLY capability withheld from an editor', editorCaps.size > 0);
 
 console.log('\n--- roles are plural, because people are ---');
 await grantRole(db, { accountId: both.id, role: 'researcher', grantedBy: null });
@@ -136,6 +148,7 @@ console.log('\n--- the platform role carries through ---');
 const adminCaps = await capabilitiesFor(db, platformAdmin.id);
 assert('a platform administrator holds Ozikoro admin rights', adminCaps.has('manage_users'));
 assert('including the audit log', adminCaps.has('view_audit'));
+assert('and including the one act an editor may not take', adminCaps.has('purge_trash'));
 assert('and the AI corpus controls', adminCaps.has('manage_ai_corpus'));
 assert('without needing any Ozikoro role row at all', (await getMember(db, platformAdmin.id)) === null);
 

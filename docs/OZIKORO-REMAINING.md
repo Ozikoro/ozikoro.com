@@ -25163,3 +25163,190 @@ and one is new:
   `?v=` pages, which read `Publisher: not recorded`.
 * **The review server is shared and was rebuilt twice by other agents while this round was being verified**,
   which is why the numbers in §1 and §2 carry the moment they were taken.
+
+---
+
+## ROUND 356 — EVERY PART OF THE DESIGN WAS ALREADY EDITABLE EXCEPT THE WORDS INSIDE A FORM, MOST OF THE PAGE WAS BEHIND A 150-ITEM WALL, AND A SITE-WIDE EDIT COST 52 OF THEM
+
+**The owner's request, twice over:** *"you should check the wordpress blog, and see that almost everything on the
+website design, including colours and texts could be changed in the admin. please make sure one can be able to
+edit every part of the design on 'appearance' in the admin"* — and, in the same breath — *"then scan every link
+when you deploy the website to be sure they are all working."*
+
+**The design editor at `/admin/design/` is not a new screen and this round did not build one.** It already held
+the owner's edits as rows in `ozikoro_design_override`, applied at serve time on top of the rendered deliverable,
+individually undoable and attributed. What this round did was **measure what it could not reach**, which turned
+out to be three things, and then make the link scan a step a deploy can fail on rather than a report somebody
+reads afterwards.
+
+### 1. WHAT WAS ALREADY THERE, COUNTED FROM THE SERVED PAGE
+
+Read out of the editor's own inventory against the review server's `/about/`, after the fills had run:
+
+| | count |
+|---|---|
+| design screens | 52 |
+| colour tokens, with the number of rules that read each | 42 (18 of them carry meaning rather than decoration) |
+| type, spacing and shape tokens | 35 |
+| editable places on `/about/` | **308** |
+| of those, text places | 156 (element content) |
+| photographs | 9 |
+| links | 78 |
+| blocks that may be hidden without deleting anything | 116 |
+| the deliverable | 63 files, byte-identical to the handover copy |
+
+Colours, type, images with their credit line, links with their label, block visibility, contrast measured per
+token with the ratio printed in red when a pair fails, an element list built from the **served** page rather
+than the file, an individually attributed undo, and a preview that goes through the same serve step as a stored
+value. **That is more than most appearance screens do, and the reasoning for each was already written down.**
+
+### 2. THE THREE THINGS IT COULD NOT REACH
+
+**(a) THE WORDS INSIDE A FORM CONTROL WERE NOT EDITABLE AT ALL.** A `text` override replaced an element's
+*content*, and `placeholder` is not content: `innerHtml` never sees it. Measured on the deliverable: **81
+`input` elements across 18 of the 52 screens carry a `placeholder`**, and `/archive-index/`'s — *"Search
+histories"* — is the first sentence a reader meets on that page. So a text place is now **either the element's
+own content or one attribute of it**, the key names which (`#aq@@placeholder`), and the check refuses any
+attribute but the one a reader reads.
+
+**AND `value` IS DELIBERATELY NOT OFFERED.** Every `value` in this deliverable belongs to a control whose value
+is *data*: 31 checkbox and radio facet keys on `/archive-index/` (`igbo`, `pre1500`), the calendar's default
+year, and the search field's example query. **Offering them would let the owner rename a filter key and silently
+empty the filter** — a fault dressed as a feature. The design's button labels are `<button>` elements, whose
+content was already a text place.
+
+**(b) THE DOCUMENT TITLE WAS NOT EDITABLE.** The words in the browser tab and the heading of a search result,
+written by `seoHead` at serve time. It is offered now as a text-only place — editable, and never hideable,
+because a hidden `<title>` is a blank tab rather than a hidden block.
+
+**(c) MOST OF THE PAGE WAS BEHIND A WALL LABELLED "STILL EDITABLE THROUGH THE SAME ROUTE".** `/about/` holds
+**308 places on the served page** and the editor drew 150 of them, saying the rest *"are still editable through
+the same route; this is a limit on one page of the editor"* — while no address reached them. **A limit that
+cannot be walked past is not a limit, it is a wall.** The list is paged now (`?from=150`), and the three pages of
+`/about/` are 150 + 150 + 8 = 308.
+
+### 3. ONE EDIT, OR FIFTY-TWO — THE QUESTION THE BRIEF ASKED, ANSWERED BY MEASURING
+
+The header, the menu and the footer are the same markup in every one of the 52 screen files, so the wording in
+them is on 52 screens at once. **An element edit could only be filed under one screen**: `setDesignOverride`
+refused `screen = '*'` for anything but a token, with the sentence *"A text, image, link or visibility edit
+belongs to one screen."* The table and the serve path had always supported it — `listDesignOverrides` returns
+`screen = $1 OR screen = '*'` for any screen — so the mechanism existed and the editor refused it.
+
+So `*` is now allowed for every kind, and the meaning is narrow and stated: **apply this wherever this key names
+exactly one element.** `selectorReach` measures that in the deliverable's own files, and the editor prints the
+count beside a second button. Measured, from the design files:
+
+| key | screens where it names one element |
+|---|---|
+| `a.wordmark span:nth-of-type(1)` | 35 of 52 |
+| `a.wordmark b:nth-of-type(1)` | 33 of 52 |
+| `div.wrap h1:nth-of-type(1)` | 31 of 52 |
+
+**AND THE MEASUREMENT FOUND THE TRAP IN THE FEATURE WHILE IT WAS BEING BUILT.** A place is a position, not a
+sentence: `a.wordmark span:nth-of-type(1)` says **"History & Archive" on 34 of those 35 screens and "Watch" on
+`/watch/`** — verified by applying one row and reading all three pages back. A button saying "change everywhere
+it appears" would therefore have rewritten a different caption on one screen, silently. So the count is now
+**two** numbers — the screens the place is on, and how many of them hold exactly these words — and the row says,
+in words, which screens hold something else and that `Save on /about/` is the way to change one page alone.
+
+### 4. WHAT WAS VERIFIED, AND HOW — A SECOND SERVER ON A DATABASE OF ITS OWN
+
+**The review server's `/admin/design/` needs `manage_design` and no session on this machine holds it**, and a
+parallel round (354) was granting editors that capability at the same time. Rather than report the stored path
+as unverified, this round built a **separate PGlite cluster** (`.data` is configurable through
+`process.env.OZITUMA_DB_PATH`), replayed all 56 migrations into it from empty, created the owner account in it,
+and ran the built standalone on **port 3111** against it. Every check below is against real HTTP on a real
+server with a real database, and the review server on 3110 was untouched.
+
+- **A colour, end to end.** Posted `--accent = #0b3d6b` through `/api/admin/design`; the **served**
+  `/design-theme.css` then read `:root { --accent: #0b3d6b; }`, and the served page's own `<head>` links that
+  sheet after `main.css`, `showcase.css` and `a11y.css`, which is what makes it win the cascade. Undone; the
+  served sheet read `/* no design overrides are set */` again.
+- **A text written by a fill, end to end — the failure the brief named.** `#give-state` on `/donate/` is written
+  by `fillDonate`. Before: *"**Donations cannot be taken yet.** No payment provider is connected…"*. After the
+  override: *"Every gift is recorded in the public ledger, and the ledger is being audited."* **The override beat
+  the fill, which is the ordering rule doing its job** — an override applied before the fills would have been
+  overwritten a moment later. Undone; the fill's own sentence returned.
+- **The document title, end to end.** `Donate — Ozikoro` became `Support the archive — Ozikoro`, read from the
+  served page's `<title>`. Undone.
+- **A `placeholder`, end to end.** `#aq@@placeholder` changed the search field from `placeholder="Search
+  histories"` to `placeholder="Search the histories"` **in the served markup, as an attribute and not as
+  content**. `#aq@@href` was refused: *"“href” is not an attribute a reader reads as text."*
+- **One edit on 35 screens, end to end.** One row with `scope=all` changed the wordmark's subtitle on `/about/`,
+  `/donate/` **and `/watch/`** — the third being the screen whose wording differed. The notice read: *"The design
+  carries this place on 35 of 52 screens … 1 of them carried DIFFERENT wording at that place."* One Undo
+  restored all three.
+- **The contrast warning, measured.** `--accent` set to `#f5eeb0` produced *"Contrast fails — Links in body copy:
+  **1.05:1** (needs 4.5:1) · Links and marks on a card: **1.16:1** (needs 4.5:1)"* on the token's own row, *"2
+  pairs FAIL as the palette stands"* on the contrast card, and `--accent` on `--cream` **1.05 :1** failing in the
+  table. Undone.
+- **The preview, and its gate.** `/admin/design/preview` answered 303 to
+  `/about/?ozpreview=…`; fetching that address **with the session** rendered the pending heading on the real
+  served page, fetching it **without** the session rendered the design's own `<h1>` — and the editor's list of
+  edits in force was unchanged, because a preview is never written down.
+- **Paging.** `/admin/design/?screen=about` → 150 rows; `&from=150` → 150 more (151–300); `&from=300` → 8
+  (301–308). Nothing is lost and nothing is doubled.
+
+**A FAULT IN THE SAVE PATH WAS FOUND THIS WAY, AND IT IS THE CLASS THIS SCREEN EXISTS TO REMOVE.** The colour
+row posts two fields — a native `<input type="color" name="value">` and a text box named `value_text` — and the
+**preview** route has always preferred the box, because a colour picker cannot express `rgba(…)`, `hsl(…)` or a
+gradient. **The save route read `value` only**, so an owner who typed into the box and pressed Save wrote the
+picker's colour instead of his own: a text field that silently did nothing. Found by posting the form's own
+fields; the two routes now read the same field in the same order.
+
+### 5. THE LINK SCAN, AND WHERE IT SITS IN THE DEPLOY
+
+The instrument existed — `scripts/verify-round-344.mjs`, whose full sweep covered 112 pages, 3,178 references
+and 879 distinct addresses at `PROBLEMS: 0`, and `scripts/verify-round-344-chrome.mjs`, which clicks the
+controls in a real browser. **Neither was a deploy step: neither had an exit code, and the crawl took twelve
+minutes.**
+
+Both are addressed without a second implementation of anything:
+
+- **`--gate`** makes a problem the exit code. `scripts/check-deploy-links.mjs` is the deploy step's name for it
+  (`npm run check:deploy-links`), and `scripts/verify-live.sh` runs it beside the other live checks.
+- **`--sample N`** (the default, and what the deploy runs) reads the **front page's own navigation** rather than
+  a hand-written list of important pages, caps it at 24 destinations, and still follows everything those pages
+  link to. Measured on the review site: **21 pages, 1,768 references, 457 distinct addresses, 171 seconds** —
+  under three minutes. `--full` is the release sweep and is still ten to twelve minutes.
+- **THE CONTENT TYPE**, which is the first of the two faults a status cannot see: a `btn` on `/watch/` led to a
+  `text/plain` file and answered 200. A navigation link must land on a document, or say it is a file in its own
+  address (an extension that matches what came back) or with `download`.
+- **THE IDENTITY A CONTROL CARRIES**, the second: a link that discarded its own `?v=` and showed a different
+  film, also at 200. Where an element names a record in a `data-` attribute and a link on it carries a query
+  string, **the value has to be in that query string**. The element tree comes from `scanElements` in
+  `@ozikoro/platform` — the same scanner the design editor uses — so there is no second parser of the served
+  markup. The weaker case, an identity-bearing card whose link carries no query at all, is listed for a person
+  rather than asserted.
+- **AND THE GATE FAILS ON AN UNMEASURED PAGE, WHICH IT DID NOT AT FIRST.** Run while another agent's build had
+  the site down, every page came back `0 no response`, the crawl found no targets, and it printed
+  `PROBLEMS: 0 — GATE PASSED`. **A checker that cannot reach the site reported the site as working.** A page
+  that does not answer is now a problem in its own right, with the by-design answers named so they are decisions
+  rather than silent passes (403 on the eleven role dashboards, 405 on the POST-only API routes, 500 on
+  `/admin/*` signed-out — the last recorded by round 344 as a fault of its own and not a link fault).
+
+**AND ONE RULE WAS TOO STRICT, FOUND BY RUNNING THE GATE.** The scan reported `/watch/`'s *"Open on YouTube ↗"*
+as an unwired `href="#"` — but the design's own `watch.js` looks up `#inline-player-external` and sets its
+`href` when a film is opened, and round 349 recorded exactly that. The old test counted only inline `on*=`
+handlers. A hook is now an inline handler, a `data-` attribute, or an `id`; a bare `href="#"` with none of the
+three is still a fault, and the hooked ones are listed for a person.
+
+### 6. WHAT WAS NOT DONE, AND WHY
+
+- **Nothing writes to `apps/ozikoro/public/design/`.** The 63-file parity is unchanged; the verbatim output is in
+  §7. The edits are rows, which is what makes them undoable and attributable — the property WordPress's
+  file-and-serialised-theme-mod design gives up, and the one this archive will not trade.
+- **No file-writing path was added, and none is needed.** Every edit in §4 landed through
+  `ozikoro_design_override` and was read back out of the served page. A file mutated in place cannot be undone
+  one row at a time, cannot be compared, and cannot be attributed.
+- **The admin navigation still calls the screen "The design".** The screen's own heading is **Appearance** now, but
+  the nav item is one line in `apps/ozikoro/app/admin/layout.tsx`, and a parallel round (354) held that file
+  while this work was done — so the rename was left to whoever commits that file rather than staged by carrying
+  their change.
+- **The screen is not admin-only, and that is the parallel round's decision, not this one's.** Migration 0055
+  grants `editor` every capability except `purge_trash`, `manage_design` named among them, and states why. The
+  gate here is `requireCapabilityOrRedirect('manage_design', …)` — the capability, not a role — so the two rounds
+  agree by construction once the migration is applied.
+- **The eleven role dashboards remain unverified as a reader**, for the same reason as every previous round: no
+  signed-out session may reach them. The scan names their 403 as by design and does not pretend to have read them.

@@ -145,11 +145,23 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/users">Users</Link>
           <Link href="/admin/audit">Audit trail</Link>
           {/*
+            THE TRASH SITS WITH THE QUEUES, NOT BESIDE SPOTIFY.
+
+            Restoring a deleted record is an editor's work — the owner's rule is that an editor "can recover or
+            do anything" — so the screen is part of the editorial round rather than an owner's tool. **Only the
+            destroy button on it is not the editor's**, and that is a control the screen withholds rather than
+            the screen itself, which is why this link is not hidden from an editor.
+          */}
+          <Link href="/admin/trash">Trash</Link>
+          {/*
             THE DESIGN EDITOR IS LAST BUT NOT LEAST.
 
-            It is the screen the OWNER uses, and it is the only one whose edits are visible to every reader
-            rather than to the archive's own queues — so it sits beside Spotify, which is the other screen that
-            is the owner's rather than an editor's.
+            It is the only screen whose edits are visible to every reader rather than to the archive's own
+            queues — so it sits beside Spotify, which is the other screen that changes the site rather than its
+            content. **Under the owner's current rule an editor may reach it too**: the rule is "everything
+            except purging the trash", and migration 0055 grants `manage_design` accordingly. An earlier and
+            narrower instruction would have made it admin-only; that instruction was withdrawn, and a parallel
+            round that decided otherwise is flagged in the round's report so the two agree.
           */}
           <Link href="/admin/design">The design</Link>
           <Link href="/admin/spotify">Spotify</Link>

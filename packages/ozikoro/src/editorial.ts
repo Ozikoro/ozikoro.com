@@ -26,6 +26,12 @@
  */
 import type { Db } from '@ozituma/db/client';
 import { MemberError } from './members.ts';
+/*
+ * The sanitiser, imported rather than re-implemented, for the same reason `media.ts` imports `mediaPath`:
+ * a second copy of an allowlist is a second allowlist, and the one that is not updated is the one that lets
+ * something through. See `updateArticleContent` for where this is applied and why there as well as on read.
+ */
+import { sanitiseArchiveHtml, wordCount } from './content.ts';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -543,6 +549,15 @@ export async function getArticleFacets(db: Db, articleId: number): Promise<Artic
  * The five things the brief requires are validated rather than trusted: `sourceType` must be one of
  * the five, the period must be an ordered range, and the topic must exist. A form is not a schema,
  * and the plan requires input validation on the server.
+ *
+ * ── AND IT NO LONGER MOVES THE RECORD'S STATUS, WHICH IS THE POINT OF ITS OWN SHAPE ─────────────────
+ *
+ * This function used to take a `status` and write it, so **publishing was a side effect of editing a
+ * period**: one press could change the series AND put an unsigned draft in front of readers, and the audit
+ * row for both said `update_facets`. The parameter is GONE rather than merely left unused, so a caller
+ * cannot pass one and the compiler names every place that used to try — the same reasoning migration 0044
+ * uses for stating the owner's capabilities as a list rather than a wildcard. A publication decision is
+ * `decideArticleStatus`, which has its own transition table, its own refusals and its own audit action.
  */
 export async function updateArticleFacets(
   db: Db,
@@ -553,7 +568,6 @@ export async function updateArticleFacets(
     periodLabel?: string | null;
     periodStart?: number | null;
     periodEnd?: number | null;
-    status?: 'draft' | 'review' | 'published' | 'archived';
     actorId: number;
   }
 ): Promise<void> {
@@ -578,7 +592,6 @@ export async function updateArticleFacets(
         period_label = $4,
         period_start = $5,
         period_end = $6,
-        status = coalesce($7, status),
         updated_at = now()
       where id = $1`,
     [
@@ -588,7 +601,6 @@ export async function updateArticleFacets(
       input.periodLabel ?? null,
       input.periodStart ?? null,
       input.periodEnd ?? null,
-      input.status ?? null,
     ]
   );
 
@@ -597,10 +609,527 @@ export async function updateArticleFacets(
     entityType: 'ozikoro_article',
     entityId: input.articleId,
     action: 'update_facets',
-    before: { sourceType: before.sourceType, periodLabel: before.periodLabel, topicId: before.topicId, status: before.status },
-    after: { sourceType: after?.sourceType ?? null, periodLabel: after?.periodLabel ?? null, topicId: after?.topicId ?? null, status: after?.status ?? null },
+    before: { sourceType: before.sourceType, periodLabel: before.periodLabel, topicId: before.topicId },
+    after: { sourceType: after?.sourceType ?? null, periodLabel: after?.periodLabel ?? null, topicId: after?.topicId ?? null },
     actorId: input.actorId,
   });
+}
+
+// ---------------------------------------------------------------------------
+// The record's own words — title, summary and body
+// ---------------------------------------------------------------------------
+
+/**
+ * The largest body this archive accepts from a person, in characters.
+ *
+ * 400,000, and the number is not a guess: it is the ceiling the WordPress revision backfill already applies
+ * (`--max-body-bytes`, default 400,000) after measuring that the largest revision body in the dump is about
+ * 237 KB. A limit larger than anything the archive has ever held would not be a limit; a smaller one would
+ * refuse a record the archive already carries. **The same ceiling in both write paths is the point** — a
+ * body the importer accepted must not be one an editor cannot save.
+ */
+export const MAX_ARTICLE_BODY = 400_000;
+
+/** The title ceiling. `ozikoro_article.title` is `text`, so this is a judgement and is stated as one. */
+const MAX_TITLE = 300;
+
+export interface ArticleContent {
+  id: number;
+  slug: string;
+  title: string;
+  standfirst: string | null;
+  /** The stored body, VERBATIM. This is what the archive holds, not what a reader is shown. */
+  bodyHtml: string;
+  status: string;
+  wordCount: number;
+}
+
+/**
+ * One record's editable text, read for the editor's form.
+ *
+ * Deliberately a different read from `getArticleFacets`, which answers "what has been decided about this
+ * record". This answers "what does it say", and the two are separate forms on the same screen because they
+ * are separate decisions made at different moments.
+ *
+ * **THE BODY IS RETURNED AS STORED, NOT AS RENDERED.** A form that showed the sanitised body would silently
+ * save the sanitiser's output back over the record the first time an editor pressed Save on a form they had
+ * not touched — turning a read-time transformation into a write. The page renders the sanitised body
+ * separately, as a preview.
+ */
+export async function getArticleContent(db: Db, articleId: number): Promise<ArticleContent | null> {
+  const row = await db.one<Record<string, unknown>>(
+    `select id, slug, title, standfirst, body_html, status, word_count
+       from ozikoro_article where id = $1`,
+    [articleId]
+  );
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    slug: String(row.slug),
+    title: String(row.title ?? ''),
+    standfirst: row.standfirst ? String(row.standfirst) : null,
+    bodyHtml: String(row.body_html ?? ''),
+    status: String(row.status),
+    wordCount: Number(row.word_count ?? 0),
+  };
+}
+
+/**
+ * THE WORDS, COUNTED IN SQL, SO A REVISION'S COUNT AND THE COLUMN CANNOT DISAGREE.
+ *
+ * The count is taken from each body inside the one statement that writes both, rather than computed in
+ * TypeScript from a value read a moment earlier. **A read-then-write count is a number that can describe a
+ * body the row no longer holds**, and the column exists precisely so a list can show how much text a
+ * revision carries without loading it.
+ */
+function wordsOf(expression: string): string {
+  const text = `trim(regexp_replace(coalesce(${expression}, ''), '<[^>]*>', ' ', 'g'))`;
+  return `case when ${text} = '' then 0 else array_length(regexp_split_to_array(${text}, '\\s+'), 1) end`;
+}
+
+/**
+ * Save a record's title, summary and body — the first write path into the words themselves.
+ *
+ * WHY THIS FUNCTION EXISTS AT ALL
+ *
+ * Until now the archive could edit what a record was *about* — its facets, its entities, its sources — and
+ * not what it *said*. `ozikoro_article.body_html` was import-only, and the record's own title and summary had
+ * no write path from the site. A record with a mangled body, or a summary that is a truncated window of the
+ * body rather than a summary, could be read and not corrected.
+ *
+ * WHAT IT GUARANTEES, IN ORDER OF IMPORTANCE
+ *
+ * 1. **THE PREVIOUS TEXT IS KEPT BEFORE THE NEW TEXT IS WRITTEN.** The revision and the update are one
+ *    statement, so there is no instant in which the record has been changed and the thing it replaced has
+ *    not been recorded. The brief asks for "a revision before the change, not after" and the failure it
+ *    names is a half-written body: **one statement has no half.** If it fails, the old record stands and no
+ *    revision exists — which is the truthful outcome, because nothing happened. A revision written for a
+ *    change that was never applied would be the archive lying about its own history.
+ *
+ *    The statement's own `before` CTE reads the row through the statement's snapshot, so it copies the OLD
+ *    values even though the update sits beside it. That is what makes the order a property of the language
+ *    rather than of the sequence of statements a caller happens to write.
+ *
+ * 2. **THE ACTOR IS NAMED.** `ozikoro_article_revision.actor_id` and `ozikoro_audit.actor_id` both carry the
+ *    account. An edit with no actor is refused before anything is written: `actorId` is a required argument
+ *    and there is no branch that omits it, because a human edit is a decision by a person.
+ *
+ * 3. **THE STORED BODY IS SANITISED.** See `updateArticleContent`'s note on the sanitiser below. The
+ *    *revision* keeps the old body verbatim, so nothing that was published is lost by this.
+ *
+ * 4. **A PAGE IS NOT A RECORD.** `is_page = true` rows are published WordPress pages, not histories, and the
+ *    editorial screen has never listed them. This function refuses them by count rather than trusting the
+ *    caller's id, so a form posted at a page's id changes nothing.
+ */
+export async function updateArticleContent(
+  db: Db,
+  input: {
+    articleId: number;
+    title: string;
+    standfirst: string | null;
+    bodyHtml: string;
+    note?: string | null;
+    actorId: number;
+  }
+): Promise<{ revisionId: number; wordCount: number; sanitised: boolean }> {
+  const title = input.title.trim();
+  if (title.length === 0) throw new MemberError('no_title', 'A record needs a title. It is what a citation names.');
+  if (title.length > MAX_TITLE) {
+    throw new MemberError('title_too_long', `A title of ${title.length} characters is longer than this archive accepts (${MAX_TITLE}).`);
+  }
+  if (input.bodyHtml.length > MAX_ARTICLE_BODY) {
+    throw new MemberError(
+      'body_too_long',
+      `That body is ${input.bodyHtml.length.toLocaleString('en-GB')} characters and the archive accepts ` +
+        `${MAX_ARTICLE_BODY.toLocaleString('en-GB')}. Nothing was changed.`
+    );
+  }
+  if (!Number.isInteger(input.actorId) || input.actorId <= 0) {
+    throw new MemberError('no_actor', 'An edit must name the account that made it.');
+  }
+
+  /*
+   * SANITISED ON WRITE, AND ON READ AS WELL — TWO GUARDS FOR TWO DIFFERENT JOBS.
+   *
+   * The archive's rule is that a body is kept verbatim and sanitised when rendered (0035, and 0053 for the
+   * revisions). **That rule was written for the import**, where the bytes are the evidence of what WordPress
+   * published and rewriting them would destroy the evidence. A person typing a body today is not evidence of
+   * a historical publication: they are writing the record now, and what they meant to publish is the
+   * sanitised form. So the sanitiser runs here, and the *revision* takes the previous body untouched — no
+   * published text is lost by this, because the previous text is what the revision holds.
+   *
+   * The read path's own sanitiser is not made redundant by this. 1,051 imported bodies were stored verbatim
+   * and were never near this function, so **read is the only guard those records have** — and the served
+   * article route was measured this round to be missing it. Both run; neither is trusted alone.
+   *
+   * A `<script>` pasted into the form does not reach the row. `sanitiseArchiveHtml` drops `script`, `style`,
+   * `iframe`, `object`, `embed`, `form` and their contents outright, drops every `on*` attribute, and refuses
+   * `javascript:` and `data:` URLs — so what is stored is what a reader may safely be shown, and the caller is
+   * told the text was altered rather than being left to discover it.
+   *
+   * ── AND THE SANITISER IS TOLD NOT TO REWRITE ADDRESSES, WHICH IS A BUG FIX RATHER THAN A PREFERENCE ──
+   *
+   * `sanitiseArchiveHtml` also does a FIDELITY job: an internal host is rewritten to a relative path, so
+   * `https://ozikoro.com/wp-content/uploads/x.jpg` becomes `/wp-content/uploads/x.jpg`. On the READ path that
+   * happens AFTER `rewriteBodyImages` has already resolved the address to `/media/<key>`, so the rewrite has
+   * nothing left to do.
+   *
+   * On the WRITE path there is no resolver, and the rewrite is actively destructive. **Measured, on record 1,
+   * by saving its own body back unchanged and diffing the served page:** the stored address became
+   * `/wp-content/uploads/2026/09/ute-king.webp`, `rewriteBodyImages` could no longer match it — its map is
+   * keyed by the full `source_url` — so the image 404'd **and** `tidyBody`'s de-duplication stopped recognising
+   * it as the featured image, so the reader met the same photograph twice. A page that grew an image and lost
+   * its resolution is not a sanitising question; it is the write path doing the read path's job with the wrong
+   * tools.
+   *
+   * `internalHosts: []` turns that one behaviour off and leaves every safety rule on. **The write path's job
+   * is to make the text safe; resolving where a file now lives is the read path's job, and it has the
+   * media table to do it with.**
+   */
+  const sanitisedBody = sanitiseArchiveHtml(input.bodyHtml, { internalHosts: [] });
+  const standfirst = input.standfirst === null ? null : input.standfirst.trim() || null;
+
+  const row = await db.one<Record<string, unknown>>(
+    `with target as (
+       select id, title, standfirst, body_html
+         from ozikoro_article where id = $1 and is_page = false
+     ), rev as (
+       insert into ozikoro_article_revision
+         (article_id, title, standfirst, body_html, revised_at, word_count, actor_id, note, carries_unique_text)
+       select t.id, t.title, t.standfirst, t.body_html, now(), ${wordsOf('t.body_html')}, $5, $6, false
+         from target t
+       returning id
+     ), upd as (
+       update ozikoro_article
+          set title = $2,
+              standfirst = $3,
+              body_html = $4,
+              word_count = ${wordsOf('$4')},
+              updated_at = now()
+        where id = (select id from target)
+       returning id, word_count
+     )
+     select (select id from rev) as revision_id,
+            (select id from upd) as updated_id,
+            (select word_count from upd) as word_count,
+            (select title from target) as before_title,
+            (select standfirst from target) as before_standfirst`,
+    [input.articleId, title, standfirst, sanitisedBody, input.actorId, input.note ?? null]
+  );
+
+  /*
+   * NOTHING WAS WRITTEN IS THE ONLY OTHER POSSIBLE ANSWER, AND IT IS SAID PLAINLY.
+   *
+   * `updated_id` is null when the target matched no row — either the record does not exist or it is a page.
+   * `target` already excludes pages, so **neither the revision nor the update happened for a page**: the two
+   * CTEs read the same filtered set, which is what stops a refused write from leaving a revision behind.
+   * The refusal distinguishes the two cases, because "that is a page, not a history" is something the editor
+   * can act on and "no such record" is not.
+   */
+  const updatedId = row?.updated_id === null || row?.updated_id === undefined ? null : Number(row.updated_id);
+  if (updatedId === null) {
+    const page = await db.one<{ is_page: boolean }>(`select is_page from ozikoro_article where id = $1`, [input.articleId]);
+    if (page?.is_page) throw new MemberError('is_page', 'That is a published page, not an archive record. Pages are served from their own document and are not edited here.');
+    throw new MemberError('no_article', 'That record does not exist.');
+  }
+  const revisionId = Number(row?.revision_id);
+  const newWordCount = Number(row?.word_count ?? wordCount(sanitisedBody));
+
+  /*
+   * WHAT THE AUDIT HOLDS, AND WHY IT DOES NOT HOLD THE BODY.
+   *
+   * The audit answers "who changed this, and when" and the revision answers "what did it say before". Putting
+   * a megabyte of superseded prose into `before`/`after` would duplicate the revision table inside the audit
+   * table and make `/admin/audit/`, which lists rows, carry documents. So the audit carries the title and the
+   * summary as they were and as they now are — the two fields a list can show — plus the sizes and the
+   * revision's id, which is the pointer to the text.
+   *
+   * **THE BEFORE VALUES COME OUT OF THE WRITE STATEMENT, NOT FROM A QUERY AFTER IT.** A read issued once the
+   * update had committed would return the new title and the audit would report a change from a value to
+   * itself. The write statement is the only place that has both states in hand, so it returns them.
+   */
+  await audit(db, {
+    entityType: 'ozikoro_article',
+    entityId: input.articleId,
+    action: 'update_content',
+    before: { title: row?.before_title ?? null, standfirst: row?.before_standfirst ?? null },
+    after: {
+      title,
+      standfirst,
+      revisionId,
+      bodyBytes: sanitisedBody.length,
+      wordCount: newWordCount,
+      // Stated in the row rather than left for a reader to infer from a byte count.
+      sanitised: sanitisedBody !== input.bodyHtml,
+    },
+    actorId: input.actorId,
+    note: input.note ?? null,
+  });
+
+  return { revisionId, wordCount: newWordCount, sanitised: sanitisedBody !== input.bodyHtml };
+}
+
+// ---------------------------------------------------------------------------
+// The review decision — approving an article, and the three decisions that are not
+// ---------------------------------------------------------------------------
+
+export type ArticleDecision = 'submit' | 'approve' | 'send_back' | 'unpublish' | 'retire';
+
+/** What each decision is called on a screen and in an audit row. */
+export const ARTICLE_DECISION_LABEL: Record<ArticleDecision, string> = {
+  submit: 'Send for review',
+  approve: 'Approve and publish',
+  send_back: 'Send back to draft',
+  unpublish: 'Unpublish — return to draft',
+  retire: 'Retire from the archive',
+};
+
+/**
+ * THE TRANSITIONS.
+ *
+ * The design's publishing workflow draws six states — Draft, Submitted, Review, Revision, Approved,
+ * Published — and this table stores four plus the bin: `draft`, `review`, `published`, `archived`,
+ * `trashed`. The mapping is stated rather than assumed: `draft` is Draft, `review` is
+ * Submitted/Review/Revision, `published` is Approved+Published (the archive publishes on approval — there is
+ * no separate approved-but-not-live state, and inventing one would put a record in a state no screen or route
+ * understands), `archived` is retired from the live archive, and `trashed` is in the bin.
+ *
+ * **AN EDITOR MAY UNPUBLISH, AND THIS TABLE NOW SAYS SO.** That is the owner's latest instruction —
+ * *"an editor can approve every content, write any content, unpublish any content"* — and it reversed the
+ * decision this table carried an hour earlier, when an editor edited and approved and nothing more. The
+ * `unpublish` decision is what changed, and it is a decision rather than the absence of one because the
+ * consequences are different: **approving puts a live address in front of readers and `unpublish` takes it
+ * away.** `/[slug]/` answers 404 for a record that is not `published`, so this is the act that breaks a
+ * shared link — permitted, and recorded, and refused nothing, because the owner has said whose it is.
+ *
+ * `trashed` is deliberately in no `from` list: a record in the bin is recovered, not decided, and
+ * `restoreArticle` puts it back in the state it came from. **Deciding a trashed record's status instead of
+ * restoring it would make the bin a second way to publish something nobody looked at.**
+ */
+const DECISION_TRANSITIONS: Record<ArticleDecision, { from: string[]; to: string; needsPublish: boolean }> = {
+  submit: { from: ['draft'], to: 'review', needsPublish: false },
+  approve: { from: ['draft', 'review', 'archived'], to: 'published', needsPublish: true },
+  send_back: { from: ['review'], to: 'draft', needsPublish: false },
+  unpublish: { from: ['published'], to: 'draft', needsPublish: true },
+  retire: { from: ['draft', 'review', 'published'], to: 'archived', needsPublish: true },
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  draft: 'Draft', review: 'In review', published: 'Published', archived: 'Archived', trashed: 'In the trash',
+};
+
+/** Which decisions this record can take right now, so a screen offers only what would be accepted. */
+export function decisionsAvailable(status: string): ArticleDecision[] {
+  return (Object.keys(DECISION_TRANSITIONS) as ArticleDecision[]).filter((decision) =>
+    DECISION_TRANSITIONS[decision].from.includes(status)
+  );
+}
+
+/** What a decision did, so a route can say it rather than implying it. */
+export interface ArticleDecisionResult {
+  from: string;
+  to: string;
+  decision: ArticleDecision;
+  /**
+   * True when the person approving is the person whose revision the record currently carries.
+   *
+   * ALLOWED AND LABELLED, NOT FORBIDDEN. See `decideArticleStatus` for why a second-actor rule is not
+   * enforced here, and why the fact is recorded instead.
+   */
+  selfApproved: boolean;
+  publishedAt: string | null;
+}
+
+/**
+ * APPROVE, SEND BACK, SUBMIT OR RETIRE — an article's publication state, as a decision by a named person.
+ *
+ * WHY THIS IS A FUNCTION AND NOT A FIELD ON THE FACETS FORM
+ *
+ * The record's status used to be one more `<select>` in the facets form, saved along with the source type and
+ * the period, through `updateArticleFacets`. That made publishing a side effect of filling in a form: an
+ * editor changing a period could move a draft to `published` in the same press, and **the audit row said
+ * `update_facets` — the same action name as a change of series.** The owner has now said the approval is the
+ * editor's central act, so it gets its own transition table, its own refusals, its own audit action and its
+ * own control. `updateArticleFacets` refuses a status change for that reason; see its note.
+ *
+ * WHAT IS ENFORCED, AND WHAT IS ONLY RECORDED
+ *
+ * Enforced: the record exists and is not a page; the transition is one this table allows; a `publish`
+ * decision carries the `publish` capability; and the actor is a real account id. Everything else is refused
+ * with a `MemberError` the editor can act on, and **a refused decision writes nothing at all** — not even an
+ * audit row, because a row saying a decision was attempted would be indistinguishable in the trail from one
+ * saying it was made.
+ *
+ * RECORDED, NOT ENFORCED: **an editor may approve their own edit.** There is no separation of duties here and
+ * this is a decision, not an oversight:
+ *
+ *   * the schema holds no "submitted by" on `ozikoro_article`, so a second-actor rule would have to be
+ *     reconstructed from the newest human revision — which is a rule built on a field that a record with no
+ *     human revision does not have, so the FIRST approve of every migrated record would be unrestrained
+ *     anyway;
+ *   * the archive holds ONE account today, and migration 0046 already settled what a rule like this does to
+ *     it: *"admin must never be locked out of a decision"*. **A two-person rule over a one-person archive is
+ *     not a safeguard; it is the feature not working**, and its practical effect would be that nothing could
+ *     ever be published;
+ *   * so the fact is LABELLED instead. `selfApproved` is computed from the newest human revision's actor and
+ *     written into the audit row and the visible note, which is the same answer `mayApprovePronunciation`
+ *     reached for the same problem: *"the owner checked his own work" is a fact the audit trail can carry.*
+ *     **An approval whose provenance is indistinguishable from an independent review is what this flag
+ *     exists to prevent.**
+ *
+ * A PUBLISHED RECORD GETS ITS DATE HERE, AND NOWHERE ELSE
+ *
+ * `published_at` was never set by any write path — the migration filled it and `updateArticleFacets` did not
+ * — so a record published from this archive would have been live with a null publication date, sorted last in
+ * every list and printing nothing where the design prints "Published". The approval sets it, once, with
+ * `coalesce` so re-approving a record does not move its publication date.
+ */
+export async function decideArticleStatus(
+  db: Db,
+  input: {
+    articleId: number;
+    decision: ArticleDecision;
+    note?: string | null;
+    actorId: number;
+    /** The caller's capability set, resolved by the guard. The rule is checked HERE as well as there. */
+    capabilities: Set<string>;
+  }
+): Promise<ArticleDecisionResult> {
+  const transition = DECISION_TRANSITIONS[input.decision];
+  if (!transition) {
+    throw new MemberError('bad_decision', 'That is not a decision this archive records.');
+  }
+  if (!Number.isInteger(input.actorId) || input.actorId <= 0) {
+    throw new MemberError('no_actor', 'A decision must name the account that made it.');
+  }
+  if (transition.needsPublish && !input.capabilities.has('publish')) {
+    throw new MemberError(
+      'forbidden',
+      'Approving an article publishes it to readers, which needs the “publish” permission. That one is not yours.'
+    );
+  }
+
+  const current = await db.one<{ status: string; published_at: Date | null; is_page: boolean }>(
+    `select status, published_at, is_page from ozikoro_article where id = $1`,
+    [input.articleId]
+  );
+  if (!current) throw new MemberError('no_article', 'That record does not exist.');
+  if (current.is_page) {
+    throw new MemberError('is_page', 'That is a published page, not an archive record. Pages are not decided here.');
+  }
+
+  const from = String(current.status);
+  /*
+   * A TRANSITION THE TABLE DOES NOT ALLOW IS REFUSED BY NAME, AND THE REFUSAL SAYS WHAT WOULD BE ACCEPTED.
+   * A disabled button teaches nothing; a sentence naming the states a decision applies to is something the
+   * editor can act on.
+   */
+  if (!transition.from.includes(from)) {
+    throw new MemberError(
+      'bad_transition',
+      `“${ARTICLE_DECISION_LABEL[input.decision]}” is not available to a record that is ${STATUS_LABEL[from] ?? from}. ` +
+        `It applies to ${transition.from.map((s) => STATUS_LABEL[s] ?? s).join(' or ')}.`
+    );
+  }
+
+  /*
+   * WHO LAST CHANGED THIS RECORD'S WORDS, SO THE APPROVAL CAN SAY WHETHER IT IS THE APPROVER'S OWN.
+   *
+   * The newest HUMAN revision only — `wp_revision_id is null` — because an imported revision's `actor_id` is
+   * null by construction and asking "did the importer approve this" is not a question. Null when the record
+   * has no human revision, which is the honest answer for the 1,051 migrated records and is not the same as
+   * "somebody else changed it".
+   */
+  const lastEditor = await db.one<{ actor_id: number | null; email: string | null }>(
+    `select r.actor_id, a.email
+       from ozikoro_article_revision r
+       left join account a on a.id = r.actor_id
+      where r.article_id = $1 and r.wp_revision_id is null
+      order by r.created_at desc, r.id desc
+      limit 1`,
+    [input.articleId]
+  );
+  const selfApproved = lastEditor?.actor_id !== null && lastEditor?.actor_id !== undefined
+    && Number(lastEditor.actor_id) === input.actorId;
+
+  const updated = await db.one<{ published_at: Date | null }>(
+    `update ozikoro_article
+        set status = $2,
+            published_at = case when $2 = 'published' then coalesce(published_at, now()) else published_at end,
+            updated_at = now()
+      where id = $1 and is_page = false
+      returning published_at`,
+    [input.articleId, transition.to]
+  );
+
+  /*
+   * THE AUDIT ROW, WHICH IS THE WHOLE POINT OF APPROVING BEING A DECISION.
+   *
+   * Its action names the decision (`approve_article`, not `update_facets`), so `/admin/audit/` reads as a
+   * list of decisions rather than a list of forms. The note carries the two facts a reader of the trail needs
+   * and cannot get from the status pair: **whether the approver approved their own work**, and, when they are
+   * somebody else, who last changed the words.
+   */
+  const noteParts: string[] = [];
+  if (selfApproved) {
+    noteParts.push('Approved by the same account whose revision the record currently carries — a self-approval.');
+  } else if (lastEditor?.email) {
+    noteParts.push(`The record's words were last changed by ${String(lastEditor.email)}.`);
+  } else {
+    noteParts.push('The record carries no revision written in this archive, so it is as the migration left it.');
+  }
+  if (input.note) noteParts.push(input.note.trim());
+
+  await audit(db, {
+    entityType: 'ozikoro_article',
+    entityId: input.articleId,
+    action: `${input.decision === 'send_back' ? 'send_back' : input.decision}_article`,
+    before: { status: from },
+    after: {
+      status: transition.to,
+      decision: input.decision,
+      publishedAt: updated?.published_at ? new Date(String(updated.published_at)).toISOString() : null,
+      selfApproved,
+    },
+    actorId: input.actorId,
+    note: noteParts.join(' '),
+  });
+
+  return {
+    from,
+    to: transition.to,
+    decision: input.decision,
+    selfApproved,
+    publishedAt: updated?.published_at ? new Date(String(updated.published_at)).toISOString() : null,
+  };
+}
+
+/** Every revision a PERSON has saved on a record. Imported revisions are excluded by their WordPress id. */
+export async function listHumanRevisions(
+  db: Db,
+  articleId: number,
+  limit = 20
+): Promise<{ id: number; title: string | null; standfirst: string | null; bodyBytes: number; wordCount: number; actorEmail: string | null; note: string | null; createdAt: string }[]> {
+  const rows = await db.rows<Record<string, unknown>>(
+    `select r.id, r.title, r.standfirst, r.word_count, r.note, r.created_at, a.email as actor_email,
+            coalesce(octet_length(r.body_html), 0)::int as body_bytes
+       from ozikoro_article_revision r
+       left join account a on a.id = r.actor_id
+      where r.article_id = $1 and r.wp_revision_id is null
+      order by r.created_at desc, r.id desc
+      limit $2`,
+    [articleId, Math.min(Math.max(limit, 1), 100)]
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    title: r.title ? String(r.title) : null,
+    standfirst: r.standfirst ? String(r.standfirst) : null,
+    bodyBytes: Number(r.body_bytes ?? 0),
+    wordCount: Number(r.word_count ?? 0),
+    actorEmail: r.actor_email ? String(r.actor_email) : null,
+    note: r.note ? String(r.note) : null,
+    createdAt: new Date(String(r.created_at)).toISOString(),
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -1009,6 +1538,16 @@ export interface ArticleRevisionSummary {
   bodyBytes: number;
   /** What the revision opens with, for a list that has to be readable at a glance. */
   opening: string | null;
+  /**
+   * The account that saved this revision, for a revision written here. NULL for an imported one.
+   *
+   * The `author` field above is the BYLINE — who wrote the article — and this is who made the revision.
+   * They are different people every time an editor corrects somebody else's record, and the list shows both
+   * rather than offering one number where two facts are held. See migration 0054.
+   */
+  actorEmail: string | null;
+  /** True for a WordPress revision, false for one a person saved in this archive. `wp_revision_id` decides. */
+  imported: boolean;
 }
 
 /** The history of a record, newest first — the order an editor reads it in. */
@@ -1026,11 +1565,12 @@ export async function listArticleRevisions(
 
   const rows = await db.rows<Record<string, unknown>>(
     `select r.id, r.wp_revision_id, r.wp_parent_post_id, r.title, r.revised_at, r.word_count,
-            r.carries_unique_text, c.display_name as author,
+            r.carries_unique_text, c.display_name as author, acc.email as actor_email,
             coalesce(octet_length(r.body_html), 0)::int as body_bytes,
             left(regexp_replace(coalesce(r.body_html, ''), '<[^>]*>', ' ', 'g'), 180) as opening
        from ozikoro_article_revision r
        left join ozikoro_contributor c on c.id = r.author_id
+       left join account acc on acc.id = r.actor_id
       where ${conditions.join(' and ')}
       order by r.revised_at desc nulls last, r.id desc
       limit $${params.length - 1} offset $${params.length}`,
@@ -1040,9 +1580,10 @@ export async function listArticleRevisions(
 }
 
 function rowToRevisionSummary(r: Record<string, unknown>): ArticleRevisionSummary {
+  const wpRevisionId = r.wp_revision_id === null || r.wp_revision_id === undefined ? null : Number(r.wp_revision_id);
   return {
     id: Number(r.id),
-    wpRevisionId: r.wp_revision_id === null || r.wp_revision_id === undefined ? null : Number(r.wp_revision_id),
+    wpRevisionId,
     wpParentPostId: r.wp_parent_post_id === null || r.wp_parent_post_id === undefined ? null : Number(r.wp_parent_post_id),
     title: r.title ? String(r.title) : null,
     revisedAt: r.revised_at ? new Date(String(r.revised_at)).toISOString() : null,
@@ -1051,6 +1592,8 @@ function rowToRevisionSummary(r: Record<string, unknown>): ArticleRevisionSummar
     carriesUniqueText: Boolean(r.carries_unique_text),
     bodyBytes: Number(r.body_bytes ?? 0),
     opening: r.opening ? String(r.opening).replace(/\s+/g, ' ').trim() : null,
+    actorEmail: r.actor_email ? String(r.actor_email) : null,
+    imported: wpRevisionId !== null,
   };
 }
 
@@ -1081,11 +1624,12 @@ export async function getArticleRevision(
 ): Promise<(ArticleRevisionSummary & { bodyHtml: string | null }) | null> {
   const row = await db.one<Record<string, unknown>>(
     `select r.id, r.wp_revision_id, r.wp_parent_post_id, r.title, r.revised_at, r.word_count,
-            r.carries_unique_text, r.body_html, c.display_name as author,
+            r.carries_unique_text, r.body_html, c.display_name as author, acc.email as actor_email,
             coalesce(octet_length(r.body_html), 0)::int as body_bytes,
             left(regexp_replace(coalesce(r.body_html, ''), '<[^>]*>', ' ', 'g'), 180) as opening
        from ozikoro_article_revision r
        left join ozikoro_contributor c on c.id = r.author_id
+       left join account acc on acc.id = r.actor_id
       where r.id = $1 and ($2::bigint is null or r.article_id = $2::bigint)`,
     [revisionId, articleId ?? null]
   );

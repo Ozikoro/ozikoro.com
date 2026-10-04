@@ -106,24 +106,29 @@ const progress = await getEditorialProgress(db);
 assert('the archive has records to work on', progress.records >= 1000, `${progress.records} records`);
 assert('and reports how many carry sources', progress.withSources >= 0, `${progress.withSources} with sources`);
 /*
- * THE TWO HALVES ARE NOW DIFFERENT, AND ONLY ONE IS STILL THE PROBLEM.
+ * THE TWO HALVES ARE NOW DIFFERENT, AND NEITHER IS STILL EXACTLY ZERO.
  *
  * This asserted that the migration arrived with neither sources nor entities and called that "the whole
- * problem". Round 259 attached 205 articles to the towns named in their titles, so the entity half is no
- * longer zero — and the source half still is.
+ * problem". Round 259 attached 205 articles to the towns named in their titles, so the entity half stopped
+ * being zero. **The source half has moved as well, and the thing that moved it is the reason this assertion
+ * is now a report rather than a failure**: the record `the-rivers-that-made-us` was written and seeded WITH
+ * its cited sources. The old assertion — `withSources === 0` — made the whole suite fail because somebody
+ * did the work the editorial desk exists for. **A test that fails when the archive improves is a test that
+ * gets deleted rather than fixed**, so both halves are now progress figures.
  *
- * Sources are the claim that matters: a record with a source can be checked, and a record with a place link
- * cannot. So that half stays exact and the entity half becomes a report of progress rather than a failure
- * when it moves.
+ * What is still exact is asserted where it can be: `target` above is SELECTED for a record with no source
+ * link, so the writes below are genuinely creating something rather than overwriting it, and the cleanup
+ * restores the facets it found.
  */
 assert(
-  'the migrated archive still arrived with NO source attached, which is the real problem',
-  progress.withSources === 0,
+  'the archive reports how much of it is sourced, as progress rather than as a fixed figure',
+  progress.withSources >= 0,
   `${progress.withSources} sourced`
 );
 console.log(
-  `  note: ${progress.withEntities} record(s) now carry a place link. That is progress, not provenance — a ` +
-    'town link says which place a record is about and says nothing about whether its claims are sourced.'
+  `  note: ${progress.withEntities} record(s) now carry a place link and ${progress.withSources} carry a ` +
+    'source. That is progress, not provenance — the migration attached neither, so every one of those rows ' +
+    'is a person having done the work.'
 );
 
 const queue = await listEditorialQueue(db, { limit: 10 });

@@ -363,6 +363,74 @@ code {
   margin: 0.35rem 0 0;
 }
 
+/*
+ * THE FIELDS THE EDITORIAL FORMS ARE ACTUALLY BUILT FROM, WHICH HAD NO STYLESHEET HERE.
+ *
+ * `.wpfield`, `.wpgrid` and `.wphelp` are the archive's own markup for a labelled field, and they are what
+ * `app/submit/page.tsx` — the page that serves the design's `upload.html` — and every `/admin/` form were
+ * already written with. **The rules for them live in `apps/web/app/admin/admin.css`, which is the
+ * dictionary's application and is not loaded here**, so on this site a `.wpfield` rendered as a label and a
+ * borderless input stacked with no spacing. That is the fault this block answers; it is a translation of the
+ * dictionary admin's own rules into Ozikoro's palette, not a new control shape.
+ *
+ * The design does not draw an editorial edit form — its dashboards are navigation and status surfaces, and
+ * the only form its own screens draw is `upload.html`'s deposit flow, whose served form here is
+ * `submit/page.tsx`. That page is written in these classes, so a new form in the same classes is the same
+ * control the owner can already see working.
+ */
+.wpgrid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+  align-items: start;
+}
+
+.wpfield {
+  margin-bottom: 1rem;
+}
+
+.wpfield > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+  font-size: 0.9rem;
+}
+
+.wpfield .wphelp {
+  color: var(--ink-faint);
+  font-size: 0.82rem;
+  margin: 0.3rem 0 0;
+  line-height: 1.5;
+}
+
+.wpfield input[type='text'],
+.wpfield input[type='url'],
+.wpfield input[type='number'],
+.wpfield input[type='email'],
+.wpfield select,
+.wpfield textarea,
+.wpfield input:not([type]) {
+  width: 100%;
+  max-width: 40rem;
+  padding: 0.5rem 0.6rem;
+  font: inherit;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+.wpfield textarea {
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+/* The body editor gets the full width of its panel; a 40rem measure is wrong for markup. */
+.wpfield--wide input:not([type]),
+.wpfield--wide textarea {
+  max-width: none;
+}
+
 .actions {
   display: flex;
   gap: 0.75rem;
