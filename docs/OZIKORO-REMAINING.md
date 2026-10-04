@@ -26177,10 +26177,11 @@ identical 63 differing 0 missing 0
   have staged only its own hunks; the tree was committed from the working tree before that could happen, so the
   row change and the footnote change share one commit. **Named here because the brief for this round asked for
   anything carried to be named, and this is the carry.**
-* **This round's own commit adds only this section and the verification script.** Both were still untracked
-  when `2ccff93` was made, and both are committed from a private index built with `read-tree HEAD`, with the
-  shared index re-synced to `HEAD` immediately afterwards, so the next agent's `git add` cannot turn it into a
-  revert.
+* **This round's own commit (`e51f5e7`) adds this section, the verification script and the two comment
+  renumberings in the bullet below — and nothing else.** The section and the script were still untracked when
+  `2ccff93` was made, and all four paths were committed from a private index built with `read-tree HEAD`, with
+  the shared index re-synced to `HEAD` immediately afterwards, so the next agent's `git add` cannot turn it into
+  a revert.
 * **The round number collided and this record lost it.** This work was written as round 357 and the code
   comments and the script said so — but while it was still measuring, the red-gate round published
   `## ROUND 357 — THE RED GATE ON /watch/` (commit `f7e8c92`) and the dead-anchor round took 358 (commit
