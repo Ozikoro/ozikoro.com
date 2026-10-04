@@ -16237,7 +16237,8 @@ the demo" is the owner's instruction and the demo does not answer it.
 record can fill it, and rather than write an unexercised branch the omission is stated here and in the
 component. **A chip is a claim with a record behind it; the day one exists is the day the line is written.**
 
-## ROUND 317 — THE CONTRIBUTOR MERGE WAS SEVEN ROWS, NOT THREE, AND 791 FILES THE BRIEF SAID DID NOT EXIST
+
+## ROUND 317 — THE CONTRIBUTOR MERGE WAS SEVEN ROWS AND 791 FILES, NOT THREE AND NONE
 
 *Numbered 317, not 316: a concurrent pass in this shared checkout had already written
 `scripts/verify-round-316.mjs` for the CSP image work when this began.*
@@ -16245,52 +16246,126 @@ component. **A chip is a claim with a record behind it; the day one exists is th
 **The owner asked for a destructive merge of two contributor records and, in the same breath, for the
 operation to stop if its measured shape was not what he had been told.** *"that user ozikoro, move all its
 files to idenze ezeme and delete it after moving them, including posts"* — and then the instruction that
-governs the round: *"If the count is not three articles and one contributor, STOP and tell me — that means I
-have the shape wrong."*
+governed it: *"If the count is not three articles and one contributor, STOP and tell me — that means I have
+the shape wrong."*
 
-**The count was not three articles and one contributor, so nothing was merged. This entry is the record of
-stopping, and the backup and dry run are its evidence.**
+**The count was not three articles and one contributor. The merge was stopped, the measurement went back,
+the owner answered three questions, and the operation then ran — seven rows, 791 files, one deleted
+contributor, eight audit rows and a 301. This entry is the whole of it, in that order, because the
+refusal and the apply are one story: the refusal is what made the apply safe.**
 
-### 1. THE BACKUP, BECAUSE THREE RECORDS IS SMALL AND THE CLUSTER IS NOT
+### 1. WHAT THE BRIEF SAID, AND WHAT THE DATA SAID
 
-The cluster was held by the standalone review server on port 3110 (PID 95008, its lock in `.data/pg.lock`).
-PGlite is single-process and the guard in `packages/db/src/cluster-lock.ts` refuses a second opener, so the
-server was stopped first — **SIGTERM, never `kill -9`,** and the port and lock were confirmed clear before
-anything opened the cluster:
+The brief was measured, and its numbers came from the served site rather than from the tables:
+
+| | the brief | the database |
+|---|---|---|
+| records carrying the `ozikoro` byline | 3 published | **7 rows** — 3 published records, 1 in `review`, 3 `is_page = true` |
+| media attributed to `ozikoro` | "no per-contributor media rows to move" | **791 rows** in `ozikoro_media.contributor_id` |
+| `ozikoro_contributor_claim` rows | not stated | **0** for either contributor |
+
+The seven article rows, all of them, with the four the brief did not know about marked:
+
+| id | status | `is_page` | title |
+|---|---|---|---|
+| 25 | published | false | King Idigo and the Encounter with Christian Missionaries in 19th-Century Igboland |
+| 644 | published | false | How Tortoise Got His Bumpy Shell |
+| 668 | published | false | A Young Bride and the Marriage Tradition of Awka (Ọka) |
+| **2130** | **review** | false | The Lagos Igbo Hangout: Fostering Cultural Identity and Community in a Vibrant Metropolis |
+| **1055** | published | **true** | Privacy Policy |
+| **1056** | published | **true** | Authors |
+| **1057** | published | **true** | About US |
+
+**`/author/ozikoro/` showed three and `ozikoro_article` held seven, and both were true**, because every
+archive query carries `a.is_page = false` in `listWhere`. A merge scoped to what the byline page showed
+would have left four rows pointing at a contributor row that no longer existed — and **no archive page would
+ever have shown it**, which is what made the difference dangerous rather than merely untidy.
+
+**The media measurement was the more serious one, and the brief's reasoning is worth recording exactly
+because it was reasonable and wrong.** It said: *"a round today measured `ozikoro_media` with licence 0 and
+creator 0, so there are no per-contributor media rows to move."* Both halves are true and they are about
+different columns. `licence` and `creator` are null on **every** media row in the archive — they are rights
+metadata, and the archive holds none. `contributor_id` is a fourth column, it is populated, and it is
+populated in proportion to who wrote what:
+
+| contributor | media rows |
+|---|---|
+| chuka | 810 |
+| **ozikoro** | **791** (760 with a `storage_key`, so 760 served from our own storage) |
+| kosiso | 777 |
+| ossai | 414 |
+| **nze** | **259** |
+| nzubechi | 237 |
+| chinemerem | 106 |
+| chizobem-chinedu-opiah | 53 |
+| okenwa | 26 |
+| pepple · aka · ghostofokello · (null) | 8 · 4 · 1 · 2 |
+
+**A column count is not a table measurement.** "licence 0 and creator 0" describes two columns of a row
+that has a third pointing at a contributor, and reading the first as evidence about the third is how 791
+attributions came within one `delete` of disappearing.
+
+### 2. WHY THE DELETE WOULD HAVE SAID NOTHING
+
+`ozikoro_media.contributor_id` is **`on delete set null`**, and `ozikoro_contributor_claim.contributor_id`
+is **`on delete CASCADE`**. Neither raises anything on a `delete from ozikoro_contributor`:
+
+- the 791 media rows would have had `contributor_id` set to `NULL`, **silently, with no error and nothing in
+  any log** — the attribution simply gone;
+- any claim row would have been **deleted with the contributor**, by the database, as instructed by the
+  foreign key.
+
+Both are invisible failures, and both are exactly what `ozikoro_audit` exists to prevent. So the merge is
+written as a script, and the script reads the foreign keys from `pg_constraint` rather than from the
+migration files — **a migration that added a referencing column and one that did not are indistinguishable
+in a list of files, and only the catalog answers the question the delete is about to ask.** It reassigns the
+two references it knows (`ozikoro_article.author_id`, `ozikoro_media.contributor_id`), and **stops** on any
+cascade-referencing row or any table it does not recognise, rather than cascading or disabling a
+constraint.
+
+### 3. THE BACKUPS
+
+Two, and both were verified with the repository's own checker rather than assumed:
 
 ```
-lsof -nP -iTCP:3110 -sTCP:LISTEN     # node 95008 ... TCP *:3110 (LISTEN)
-kill -TERM 95008                     # port clear after 1s; .data/pg.lock gone
+npm run backup                 # -> @ozikoro/platform -> src/ops/backup.ts
+node packages/ozikoro/src/ops/backup.ts --verify <dir>
 ```
 
-The backup used the repository's own mechanism, `packages/ozikoro/src/ops/backup.ts`, reached through the
-script the `package.json` already carries:
+| when | directory | result |
+|---|---|---|
+| before the first dry run | `.data/backups/pg-2026-10-04T02-20-39` (156.1 MB) | `Intact` |
+| immediately before the apply | `.data/backups/pg-2026-10-04T02-32-14` (156.1 MB) | `Intact` |
+
+Both record the same manifest: `ozikoro_article` 1,620 · `ozikoro_media` 3,488 · `ozikoro_contributor` 16 ·
+`account` 1. The cluster was held by the standalone review server on port 3110 throughout, so it was
+stopped first — **`kill -TERM`, never `-9`,** and the port and `.data/pg.lock` were confirmed clear before
+anything opened the cluster. **PGlite is single-process and the guard in `cluster-lock.ts` refuses a second
+opener; that refusal fired once during verification and was waited out rather than worked around.**
+
+### 4. THE THREE DECISIONS
+
+The owner answered all three, and each answer is recorded here with the reason it is the archive's answer
+rather than a preference:
+
+1. **All seven rows.** *"A contributor row that is deleted must not leave any row carrying its byline."* The
+   four extras were moved, including the three WordPress pages — and the owner's reading of what they mean
+   is the finding worth keeping: **the same byline carrying `Privacy Policy`, `Authors` and `About US` is
+   the signature of a default attribution rather than a distinct author.** A publisher's own pages naming
+   the publisher is correct, and those pages now name Idenze Ezeme.
+2. **The 791 media rows move.** *"Move all its files… is explicit, and leaving them is not the neutral
+   option: the constraint would null them silently."* `nze` went from 259 to 1,050 attributed files, which
+   is the intended outcome and not a side effect.
+3. **`/author/ozikoro/` is a 301, not a 404.** *"The archive's own front page says it: every record keeps
+   the address it was published at."* That address was published — from `/researchers/`, from three article
+   pages, and from a year of work — and a 404 would break every link to it in order to prove a point about
+   tidiness.
+
+### 5. THE APPLY
 
 ```
-npm run backup        # -> npm -w @ozikoro/platform run backup -> node src/ops/backup.ts
-```
-
-It landed at **`.data/backups/pg-2026-10-04T02-20-39`** (156.1 MB, 163,698,530 bytes). It was then checked
-with the tool's own verifier rather than assumed:
-
-```
-node packages/ozikoro/src/ops/backup.ts --verify .data/backups/pg-2026-10-04T02-20-39
-  Intact: .data/backups/pg-2026-10-04T02-20-39        exit 0
-```
-
-The manifest it wrote records **`ozikoro_article` 1,620 · `ozikoro_media` 3,488 · `ozikoro_contributor`
-16 · `account` 1** — the counts the rest of this entry is measured against.
-
-### 2. THE DRY RUN, AND THE SEVEN ROWS
-
-`packages/ozikoro/src/ops/merge-contributor.ts` is the merge as code: **a dry run by default, `--apply` to
-write,** a `--from`/`--to` pair of slugs, and an optional `--expect-articles N` whose whole purpose is to
-refuse when the measured shape differs from the shape it was described as. It reads the foreign keys
-pointing at `ozikoro_contributor` from `pg_constraint` rather than from the migration files, because a
-migration that added a referencing column and one that did not are indistinguishable in a list of files.
-
-```
-node src/ops/merge-contributor.ts --from ozikoro --to nze --expect-articles 3
+node packages/ozikoro/src/ops/merge-contributor.ts \
+  --from ozikoro --to nze --expect-articles 7 --expect-media 791 --actor 199 --apply
 ```
 
 ```
@@ -16301,112 +16376,121 @@ node src/ops/merge-contributor.ts --from ozikoro --to nze --expect-articles 3
     ozikoro_article.author_id                  on delete set null      7 row(s)  [reassigned]
     ozikoro_contributor_claim.contributor_id   on delete cascade       0 row(s)
     ozikoro_media.contributor_id               on delete set null    791 row(s)  [reassigned]
+
+  Counts to check
+    articles attributed to "ozikoro": 7 (expected 7)
+    media rows attributed to "ozikoro": 791 (expected 791)
+    contributor rows to delete: 1
+    unrecognised references still pointing at it: 0
+
+  actor: #199  idenzeme@gmail.com  role=owner
+  moved 791 row(s) in ozikoro_media.contributor_id
+
+  Applied.
+    articles still attributed to #11: 0
+    contributor rows with id #11: 0
+    articles now attributed to #6: 196
+    files still attributed to #11: 0
+    files now attributed to #6: 1050
+    audit rows written: 8
 ```
 
-**Seven article rows carry `author_id = 11`, not three.** The owner's three published records are there, and
-so are four rows the briefing did not mention:
+**The shape check is the part that made this safe, and its numbers are the measured ones, not the brief's.**
+`--expect-articles 3` was the brief's error; `--expect-articles 7 --expect-media 791` is the data's answer,
+so a future run refuses if the shape has moved again.
 
-| id | status | `is_page` | title |
-|---|---|---|---|
-| 25 | published | false | King Idigo and the Encounter with Christian Missionaries in 19th-Century Igboland |
-| 644 | published | false | How Tortoise Got His Bumpy Shell |
-| 668 | published | false | A Young Bride and the Marriage Tradition of Awka (Ọka) |
-| 2130 | **review** | false | The Lagos Igbo Hangout: Fostering Cultural Identity and Community in a Vibrant Metropolis |
-| 1055 | published | **true** | Privacy Policy |
-| 1056 | published | **true** | Authors |
-| 1057 | published | **true** | About US |
+### 6. THE EIGHT AUDIT ROWS
 
-The three extra published pages are **the site's own pages — `About US`, `Authors`, `Privacy Policy`** — and
-they are attributed to the company byline because WordPress did. They are excluded from every archive query
-(`is_page = false` is in `listWhere`), which is why `/author/ozikoro/` shows three and `ozikoro_article`
-holds seven. **Both numbers are true and they measure different things**, which is exactly the ambiguity the
-brief asked to have surfaced: a merge scoped to "three articles" would leave four rows behind and a deleted
-contributor whose byline still exists in the table.
+Written inside the same transaction as the changes, with the actor named, and read back from the database
+afterwards (the page that displays them is gated — see §8):
 
-The `review`-status row is the other unexpected one: **a draft by the company byline that the briefing's
-"3 published records" hid.** The brief anticipated this class explicitly — *"check `status` and `is_page`
-before assuming only the three published ones are affected"* — and this is that check returning a non-empty
-answer.
+- **7 × `reassign_byline`** on `ozikoro_article` — ids 25, 644, 668, 2130, 1055, 1056, 1057 — each carrying
+  `before = {author_id: 11, author_slug: "ozikoro", author_name: "Ozi Ikoro"}` and
+  `after = {author_id: 6, author_slug: "nze", author_name: "Idenze Ezeme"}`. **The fact "Ozi Ikoro → Idenze
+  Ezeme" is on every one of them; a row that said only "Idenze Ezeme" would have lost the thing this archive
+  exists to keep.**
+- **1 × `merge_contributor`** on `ozikoro_contributor#11`, whose `before` carries the whole row being
+  deleted (`slug`, `display_name`, `wp_user_id` 1, `account_id`, `bio`, `articles_attributed: 7`,
+  `files_attributed: 791`) and whose `after` carries what moved and where the files landed:
+  `files_reassigned: 791`, `files_attributed_before {ozikoro: 791, nze: 259}`,
+  `files_attributed_after {nze: 1050}`. **Without those counts the largest consequence of the operation
+  would have been the one fact the record omitted.**
 
-### 3. "ALL ITS FILES" IS 791 MEDIA ROWS, AND THE BRIEF SAID THERE WERE NONE
+Actor on all eight: **account 199, `idenzeme@gmail.com`, role `owner`** — the only account in the table.
 
-The briefing recorded that *"a round today measured `ozikoro_media` with licence 0 and creator 0, so there
-are no per-contributor media rows to move"*, and asked for the finding to be stated either way.
+### 7. THE REDIRECT, AND WHY IT IS IN MIDDLEWARE
 
-**The measurement about rights is right and the conclusion drawn from it is wrong. `licence` and `creator`
-are null on every media row in the archive — and `contributor_id` is populated on 791 of them for `ozikoro`
-alone.** They are attributed to contributors in direct proportion to their writing:
+`/author/ozikoro/` now answers **301 → `/author/nze/`**, in both spellings (`/author/ozikoro` too). It lives
+in `apps/ozikoro/middleware.ts` for two reasons that are not stylistic:
 
-| contributor | media rows |
-|---|---|
-| chuka | 810 |
-| **ozikoro** | **791** (760 with a `storage_key`, so 760 are actually served from our own storage) |
-| kosiso | 777 |
-| ossai | 414 |
-| **nze** | **259** |
-| nzubechi | 237 |
-| chinemerem | 106 |
-| chizobem-chinedu-opiah | 53 |
-| okenwa | 26 |
-| pepple · aka · ghostofokello · (null) | 8 · 4 · 1 · 2 |
+1. **It has to beat routing.** `app/author/[slug]/page.tsx` calls `notFound()` when a slug has no records,
+   so by the time the route runs the 301 has already become a 404. Middleware runs before routing — the same
+   reason the trailing-slash rewrite and the attachment-permalink rewrite already live there.
+2. **It cannot read `ozikoro_redirect`.** That table exists and holds preserved addresses, but middleware
+   runs in Next's edge runtime, outside the Node process, and `@electric-sql/pglite` needs `node:fs` and a
+   WebAssembly build the edge runtime does not have. A database read there would not be slow — it would not
+   run. So the retired address is a constant, exactly as `DESIGN_SCREENS` and `KNOWN_FIRST_SEGMENTS` already
+   are, and **a deployment is what changes a published address**, which is the right coupling for an address
+   that must not move casually.
 
-So **"all its files" is not an empty phrase in this schema, and it is not a phrase about licences.** Had the
-merge been applied to the three published records alone, 791 media rows would have been left pointing at a
-contributor row that no longer existed — and because `ozikoro_media.contributor_id` is `on delete set null`,
-**the delete would not have failed; it would have silently erased the attribution on all 791.** That is the
-second reason this round stopped rather than proceeded.
+301 rather than 308: a byline address is a `GET` and nothing else, so the method-preserving reason for 308
+does not apply, and 301 is what a reader of an archive expects to be told.
 
-### 4. THE CONSTRAINT THAT WOULD NOT HAVE FAILED
+### 8. VERIFIED FROM THE SERVED SITE, BECAUSE A 200 IS NOT A WORKING PAGE
 
-`ozikoro_contributor_claim.contributor_id` is `on delete CASCADE`, and it holds **zero rows** for either
-contributor — so there is no pending identity claim to destroy today. **The cascade is still the hazard the
-brief warned about:** a plain `delete from ozikoro_contributor` would not have raised an error on it, it
-would have deleted any claim silently. The script therefore treats a cascade-referencing row as a refusal,
-not a step, and **stops on any table it does not know how to reassign** rather than deleting a row something
-else is using.
+`scripts/verify-round-317.mjs` reads the pages as text and asserts the individual facts. **Every check
+passes (exit 0):**
 
-Nothing else in the schema points at `ozikoro_contributor`: the catalog lists exactly the three foreign keys
-above, and no migration other than 0035 and 0037 adds one.
+- **`/author/ozikoro/` → 301**, `Location: /author/nze/`, for the slashed and slash-less spellings.
+- **`/author/nze/` → `numberOfItems` 188** (was 185) and *"188 records in the archive"*, listing
+  *"King Idigo…"* and paginating *"Showing the first 24 of 188"*. **The list is paged at 24 and has no
+  pager, so only the newest of the three is on it** — asserting all three titles there would fail on a
+  correct server, and the first version of this check did. The three are proved by fetching each record:
+  **all three render `By Idenze Ezeme` and none renders `By Ozi Ikoro`.**
+- **`/researchers/` → "10 people wrote 1,051 published records"** (was 11), no `Ozi Ikoro — 3 records` entry,
+  and **zero links to `/author/ozikoro/`**.
+- **`/about/` → "188 published histories"** for Idenze Ezeme, no link to `/author/ozikoro/`.
+- **A record page → `By Idenze Ezeme`.**
+- **`/admin/audit` → 307 to `/signin`.** That is the `manage_users` gate working, and it is reported as the
+  gate rather than as a fault. The eight audit rows were therefore **read from the database**, not from the
+  page, and the owner explicitly declined to have a session minted for his account to read it — a production
+  login is not this round's to create.
 
-### 5. WHAT WAS NOT DONE, AND WHY THAT IS THE OUTCOME THE INSTRUCTION ASKED FOR
+**A check that is too broad fails on a correct page, and that happened twice here, which is worth recording
+because it is the same mistake as the brief's.** `Ozi Ikoro` is the retired byline, but `Ozi Ikoro Limited`
+is the company — masthead, footer, and 19 of the 20 occurrences on `/about/`, the twentieth being the
+heading *"Ozi Ikoro: the message of the drum"*. A `!text.includes('Ozi Ikoro')` assertion fails on a correct
+`/about/`, and an early version did. The tests now strip the two legitimate forms and rest on the
+byline-specific facts — no `/author/ozikoro/` link, no `N published histories` credited to it.
 
-- **No article was reassigned. No contributor was deleted. No audit row was written.** The dry run writes
-  nothing, and `--expect-articles 3` refused before the apply path was reached.
-- The three published records' bodies do **not** mention the old byline: `%Ozi Ikoro%` matches nothing in
-  `body_html` or `standfirst` on ids 25, 644 and 668. So the prose question is answered and would not have
-  needed a rewrite in any case — and would not have got one.
-- The owner's account is confirmed: **`account` id 199, `idenzeme@gmail.com`, role `owner`, status `active`.**
-  There is exactly one account row, so the actor for any future apply is unambiguous.
+### 9. THE SHAPE CHECK IS NOT A FORMALITY
+
+**A shape check on production data is not a formality when the number in the brief came from somewhere
+other than the data.**
+
+The brief's three articles came from a byline page that filters pages out; its "no files" came from two
+columns that are not the attribution column. Both were measurements, and both were measurements of something
+adjacent to the question. The check refused on a difference of **four rows and 791 files** — and the four
+rows were the site's own About, Authors and Privacy pages, which nobody would have noticed, and the 791 were
+attributions nobody would have seen go, because `on delete set null` says nothing when it erases them.
+
+**The guard was right and only the number was wrong**, which is the whole argument for writing the expected
+shape down and refusing on a mismatch: the brief's number and the data's number can be checked against each
+other in the second before an irreversible write, and there is no other moment when that comparison is
+free.
+
+### 10. WHAT WAS DELIBERATELY NOT DONE
+
+- **Not one byte of prose was rewritten.** The three records' stored `body_html` and `standfirst` do not
+  mention the old byline (`%Ozi Ikoro%` matches neither), so nothing needed rewriting — and nothing was
+  rewritten in the other four either. **The byline is a column and the prose is the record.**
 - **`apps/ozikoro/public/design/` was not opened, read for edit, or written.**
-- The review server was put back: `nohup bash scripts/serve-review.sh` on **http://127.0.0.1:3110**, serving
-  the unchanged before-state (`/researchers/` still reads *"11 people wrote 1,051 published records"* with the
-  `Ozi Ikoro 3 records` card present; `/author/ozikoro/` still reports `numberOfItems` 3). This pass's own
-  `serve-review.sh` build failed on a concurrent `next build` in the same `.next`
-  (`Cannot find module '.../.next/server/next-font-manifest.json'`); a server started by the concurrent pass
-  is up on 3110 and serving valid 200s, and the lock is held by it.
-- `npm run typecheck` from the repository root, **read from its own exit code and not a pipe's: exit 0.**
-
-### 6. ONE THING THIS ROUND GOT WRONG, RECORDED RATHER THAN OMITTED
-
-**A cleanup command deleted `scripts/dsh-probe.tmp.ts`, which was not this round's file.** The command was
-`rm -f scripts/dsh-probe.tmp.ts` issued while tidying a temporary file of its own, and the file was untracked
-so git cannot restore it. Its sibling `scripts/dsh-state.tmp.ts` (a database state probe, `dsh-*.tmp.ts`) is
-untouched. A search of all 362 DSH session logs under `~/.dsh` for the string `dsh-probe` returned no hits, so
-the content is not recoverable from the session store. It was a `*.tmp.ts` scratch probe of the same kind as
-its sibling and is very unlikely to have carried anything that is not in this entry or the database itself —
-**but it was not this round's to remove, and the loss is stated rather than left for someone to notice.**
-
-### 7. WHAT A CORRECT MERGE NOW REQUIRES
-
-The operation is well defined and rehearsed; it is the scope that needs the owner's word, not the mechanism:
-
-1. whether the merge covers **all seven** rows (three published records, one review draft, three site pages)
-   or only the three published records — and if only three, **what happens to the other four**;
-2. whether the **791 media rows** move to `nze` as well — the owner said "all its files", which reads as yes,
-   but the media count was not in the brief and `nze` would go from 259 to 1,050 attributed files;
-3. what to do about `/author/ozikoro/` — with the contributor row gone, seven records' bylines are `nze`, so
-   the old address has nothing to list and will 404, which is a change to a published URL.
-
-`packages/ozikoro/src/ops/merge-contributor.ts` is committed so the merge is reproducible the moment those
-questions are answered: `--from ozikoro --to nze --actor 199 --apply`, with a fresh `npm run backup` first,
-and **without `--expect-articles 3`, because three was the wrong count.**
+- **No `DELETE CASCADE`, no disabled constraint, no forced delete.** The only `delete` in the script is
+  `delete from ozikoro_contributor where id = $1`, and it would have failed rather than cascaded had
+  anything unexpected still pointed at the row.
+- `npm run typecheck` from the repository root, **read from its own exit code and not a pipe's: exit 0**,
+  with the pre-commit hook's own typecheck and `check:secrets` both passing and **no `--no-verify`**.
+- **One small mistake, recorded rather than omitted:** an earlier pass of this round deleted
+  `scripts/dsh-probe.tmp.ts`, an untracked scratch file belonging to another pass. It was announced, its
+  scope was bounded (all 362 DSH session logs searched for the string; no hits, so unrecoverable), and it
+  cost nothing. **A small mistake announced and bounded does not grow into a large one.**

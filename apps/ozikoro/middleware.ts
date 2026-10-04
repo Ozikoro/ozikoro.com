@@ -154,6 +154,40 @@ export function middleware(request: NextRequest) {
   headers.set('x-host', request.headers.get('host') ?? '');
 
   /*
+   * A RETIRED BYLINE ADDRESS KEEPS ITS ADDRESS, AND THIS IS THE ONLY PLACE THAT CAN SAY SO.
+   *
+   * The contributor `ozikoro` (display name "Ozi Ikoro") was merged into `nze` ("Idenze Ezeme") on
+   * 4 October 2026: every record and every file it carried now belongs to `nze`, and its row was deleted.
+   * That makes `/author/ozikoro/` an address with nothing behind it, and **a 404 there would break every
+   * link that was ever published to it** — the `/researchers/` directory linked it, and so did a year of
+   * work. The archive's own rule is that an address once published keeps working: *"Every record keeps the
+   * address it was published at."* So it answers **301, permanently, to the byline that absorbed it.**
+   *
+   * WHY THE REDIRECT IS A CONSTANT HERE AND NOT A READ OF `ozikoro_redirect`
+   *
+   * That table exists and the importer writes preserved addresses into it, but **it is not readable from
+   * middleware**: this runs in Next's edge runtime, before routing and outside the Node process, and
+   * `@electric-sql/pglite` needs `node:fs` and a WebAssembly build that the edge runtime does not have. A
+   * database read here would not be slow — it would not run. So the retired address is a constant, exactly
+   * as `DESIGN_SCREENS` and `KNOWN_FIRST_SEGMENTS` already are, and **the deployment is what changes a
+   * published address**, which is the right coupling for an address that must not move casually.
+   *
+   * 301 rather than 308: a byline address is a `GET` and nothing else, so the method-preserving reason for
+   * 308 does not apply, and 301 is what a reader of an archive expects to be told.
+   *
+   * It sits BEFORE the attachment fallback and before routing, both of which it must beat: routing would
+   * reach the author route, find no records for the slug, and `notFound()`.
+   */
+  const RETIRED_AUTHOR_ADDRESSES: Record<string, string> = {
+    ozikoro: '/author/nze/',
+  };
+  const authorAddress = /^\/author\/([^/]+)\/?$/.exec(pathname);
+  if (authorAddress) {
+    const target = RETIRED_AUTHOR_ADDRESSES[authorAddress[1] ?? ''];
+    if (target) return NextResponse.redirect(new URL(target, request.url), 301);
+  }
+
+  /*
    * `/api` is left completely alone, in both directions. The production callback is registered with
    * the Spotify Developer Dashboard as exactly `https://ozikoro.com/api/spotify/callback`, and a
    * 308 to a slashed form would be a change to an address that is not ours to change. Next is

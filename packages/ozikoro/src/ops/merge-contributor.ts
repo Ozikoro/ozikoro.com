@@ -41,16 +41,22 @@
  *     old byline (`author_id`, `author_slug`, `author_name`) and whose `after` names the new one. A row
  *     that said only "Idenze Ezeme" would have lost the fact.
  *   - one row for the contributor itself, action `merge_contributor`, whose `before` carries the whole
- *     row being deleted, so the deletion is reconstructible.
+ *     row being deleted and the counts attributed to it, and whose `after` records what moved and where
+ *     the files landed — because for `ozikoro` **the largest consequence of the merge is the 791 media
+ *     rows, and a record that named only the byline would omit the thing that mattered most.**
  *
  * Usage (dry run is the default; nothing is written without `--apply`):
  *   node src/ops/merge-contributor.ts --from ozikoro --to nze
  *   node src/ops/merge-contributor.ts --from ozikoro --to nze --actor 199 --apply
- *   node src/ops/merge-contributor.ts --from ozikoro --to nze --expect-articles 3 --actor 199 --apply
+ *   node src/ops/merge-contributor.ts --from ozikoro --to nze --expect-articles 7 --expect-media 791 --actor 199 --apply
  *
- * `--expect-articles N` is the shape check: if the number of rows actually attributed to `from` is not N,
- * the script refuses before writing anything, because a merge whose measured shape differs from the shape
- * it was described as is a merge to stop and ask about.
+ * `--expect-articles N` and `--expect-media N` are the shape check: if either count differs from the
+ * measurement, the script refuses before writing anything. It exists because the number in the brief and
+ * the number in the data are two different things. **`ozikoro` was described as three articles and no
+ * files; measured, it is seven article rows and 791 media rows** — and because
+ * `ozikoro_media.contributor_id` is `on delete set null`, the files would have been nulled silently by the
+ * delete rather than raising anything. The guard was right; only the brief's number was wrong, so the
+ * number it checks is the measured one.
  */
 import { getDb, closeDb, type Db } from '@ozituma/db/client';
 
@@ -60,6 +66,7 @@ interface Args {
   actor: number | null;
   apply: boolean;
   expectArticles: number | null;
+  expectMedia: number | null;
 }
 
 function parseArgs(argv: string[]): Args {
@@ -67,6 +74,7 @@ function parseArgs(argv: string[]): Args {
   let to: string | null = null;
   let actor: number | null = null;
   let expectArticles: number | null = null;
+  let expectMedia: number | null = null;
   let apply = false;
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -75,6 +83,7 @@ function parseArgs(argv: string[]): Args {
     else if (arg === '--to') to = argv[++i] ?? null;
     else if (arg === '--actor') actor = Number(argv[++i]);
     else if (arg === '--expect-articles') expectArticles = Number(argv[++i]);
+    else if (arg === '--expect-media') expectMedia = Number(argv[++i]);
     else if (arg === '--apply') apply = true;
     else if (arg === '--help' || arg === '-h') {
       console.log('usage: node src/ops/merge-contributor.ts --from <slug> --to <slug> [--actor <id> --apply]');
@@ -86,7 +95,7 @@ function parseArgs(argv: string[]): Args {
 
   if (!from || !to) throw new Error('--from and --to are both required');
   if (from === to) throw new Error('--from and --to are the same slug; there is nothing to merge');
-  return { from, to, actor, apply, expectArticles };
+  return { from, to, actor, apply, expectArticles, expectMedia };
 }
 
 interface Contributor {
@@ -164,6 +173,15 @@ async function countPointing(db: Db, ref: Reference, contributorId: number): Pro
   return Number(row?.n ?? 0);
 }
 
+/** How many media records are attributed to a contributor. The "files" half of the merge. */
+async function mediaCount(db: Db, contributorId: number): Promise<number> {
+  const row = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_media where contributor_id = $1`,
+    [contributorId]
+  );
+  return Number(row?.n ?? 0);
+}
+
 /** The two references a merge knows how to repoint. Anything else is a stop, not a guess. */
 const REASSIGNABLE: Record<string, string[]> = {
   ozikoro_article: ['author_id'],
@@ -230,11 +248,17 @@ async function main(): Promise<void> {
     }
 
     const articles = await articlesFor(db, from.id);
+    const mediaFrom = await mediaCount(db, from.id);
+    const mediaTo = await mediaCount(db, to.id);
     console.log(`\n  Rows that would change — ozikoro_article.author_id: #${from.id} -> #${to.id}\n`);
     if (articles.length === 0) console.log('    (none)');
     for (const a of articles) {
       console.log(`    #${a.id}  ${a.status.padEnd(9)} is_page=${String(a.is_page).padEnd(5)}  "${a.title}"`);
     }
+
+    console.log(`\n  Files that would change — ozikoro_media.contributor_id: #${from.id} -> #${to.id}\n`);
+    console.log(`    ${mediaFrom} media row(s) attributed to "${from.slug}" would move to "${to.slug}"`);
+    console.log(`    "${to.slug}" holds ${mediaTo} today, so it would hold ${mediaTo + mediaFrom} after`);
 
     console.log(`\n  Rows that would be deleted\n`);
     console.log(`    ozikoro_contributor #${from.id}  slug=${from.slug}  display_name="${from.display_name}"`);
@@ -247,6 +271,9 @@ async function main(): Promise<void> {
     console.log(`\n  Counts to check`);
     console.log(`    articles attributed to "${from.slug}": ${articles.length}` +
       (args.expectArticles === null ? '' : ` (expected ${args.expectArticles})`));
+    console.log(`    media rows attributed to "${from.slug}": ${mediaFrom}` +
+      (args.expectMedia === null ? '' : ` (expected ${args.expectMedia})`));
+    console.log(`    contributor rows to delete: 1`);
     console.log(`    unrecognised references still pointing at it: ${unhandled.length}`);
 
     if (unhandled.length > 0) {
@@ -261,8 +288,17 @@ async function main(): Promise<void> {
       );
     }
 
+    /*
+     * The shape check. It exists because the number in the brief and the number in the data are two
+     * different things, and a merge measured at a shape other than the one it was described as is a
+     * merge to stop and ask about rather than to run. `ozikoro` was described as three articles and no
+     * files; measured, it is seven rows and 791 files.
+     */
     if (args.expectArticles !== null && articles.length !== args.expectArticles) {
       throw new Error(`measured ${articles.length} article(s), expected ${args.expectArticles}. Refusing.`);
+    }
+    if (args.expectMedia !== null && mediaFrom !== args.expectMedia) {
+      throw new Error(`measured ${mediaFrom} media row(s), expected ${args.expectMedia}. Refusing.`);
     }
 
     if (!args.apply) {
@@ -309,7 +345,12 @@ async function main(): Promise<void> {
         throw new Error(`reassigned ${changed.rowCount} article(s) but measured ${articles.length} before the update`);
       }
 
-      // Media attribution, when any exists. Zero rows is the common case and is stated, not skipped.
+      /*
+       * The files. `ozikoro_media.contributor_id` is `on delete set null`, so leaving these behind would
+       * not have failed — the delete would have silently erased the attribution on every one of them.
+       * Moving them is the instruction ("move all its files") and the only outcome that keeps the record.
+       */
+      let mediaMoved = 0;
       for (const [table, columns] of Object.entries(REASSIGNABLE)) {
         if (table === 'ozikoro_article') continue;
         for (const column of columns) {
@@ -318,14 +359,19 @@ async function main(): Promise<void> {
             [to.id, from.id]
           );
           if (moved.rowCount > 0) {
+            mediaMoved += moved.rowCount;
             console.log(`  moved ${moved.rowCount} row(s) in ${table}.${column}`);
           }
         }
       }
+      if (mediaMoved !== mediaFrom) {
+        throw new Error(`moved ${mediaMoved} file(s) but measured ${mediaFrom} before the update`);
+      }
+      const mediaToAfter = await mediaCount(db, to.id);
 
       await db.query(
         `insert into ozikoro_audit (entity_type, entity_id, action, before, after, actor_id, note)
-         values ('ozikoro_contributor', $1, 'merge_contributor', $2::jsonb, null, $3, $4)`,
+         values ('ozikoro_contributor', $1, 'merge_contributor', $2::jsonb, $3::jsonb, $4, $5)`,
         [
           from.id,
           json({
@@ -335,11 +381,21 @@ async function main(): Promise<void> {
             wp_user_id: from.wp_user_id,
             account_id: from.account_id,
             bio: from.bio,
+            articles_attributed: articles.length,
+            files_attributed: mediaFrom,
+            merged_into: { id: to.id, slug: to.slug, display_name: to.display_name },
+          }),
+          json({
             articles_reassigned: articles.length,
-            reassigned_to: { id: to.id, slug: to.slug, display_name: to.display_name },
+            files_reassigned: mediaMoved,
+            byline_before: { id: from.id, slug: from.slug, display_name: from.display_name },
+            byline_after: { id: to.id, slug: to.slug, display_name: to.display_name },
+            files_attributed_before: { [from.slug]: mediaFrom, [to.slug]: mediaTo },
+            files_attributed_after: { [to.slug]: mediaToAfter },
           }),
           args.actor,
-          `${note} ${articles.length} record(s) reassigned, then the contributor row deleted.`,
+          `${note} ${articles.length} record(s) and ${mediaMoved} file(s) moved from ` +
+            `"${from.display_name}" to "${to.display_name}", then the contributor row deleted.`,
         ]
       );
 
@@ -361,10 +417,14 @@ async function main(): Promise<void> {
     const left = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_article where author_id = $1`, [from.id]);
     const gone = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_contributor where id = $1`, [from.id]);
     const moved = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_article where author_id = $1`, [to.id]);
+    const filesLeft = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_media where contributor_id = $1`, [from.id]);
+    const filesNow = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_media where contributor_id = $1`, [to.id]);
     console.log(`\n  Applied.`);
     console.log(`    articles still attributed to #${from.id}: ${Number(left?.n ?? -1)}`);
     console.log(`    contributor rows with id #${from.id}: ${Number(gone?.n ?? -1)}`);
     console.log(`    articles now attributed to #${to.id}: ${Number(moved?.n ?? -1)}`);
+    console.log(`    files still attributed to #${from.id}: ${Number(filesLeft?.n ?? -1)}`);
+    console.log(`    files now attributed to #${to.id}: ${Number(filesNow?.n ?? -1)}`);
     console.log(`    audit rows written: ${articles.length + 1}\n`);
   } finally {
     await closeDb();
