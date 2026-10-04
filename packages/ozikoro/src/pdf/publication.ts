@@ -351,21 +351,38 @@ export class ArticlePdf {
      * reference puts them. Without this, the archive's longest titles walk the rule into the feature panel.
      */
     const blockHeight = lines.length * size * 1.2;
-    y = Math.min(630, 520 + blockHeight);
+    // **Never below the reference's own 586.7717.** The rule above only ever *raises* a tall block; letting
+    // it lower a short one moved the byline, the meta line and the short gold rule down with it — 30 points
+    // of drift on the commonest case, invisible in the render and caught by measuring both covers.
+    y = Math.min(630, Math.max(586.7717, 520 + blockHeight));
+    let lastBaseline = y;
     for (const line of lines) {
       p.text(line, LEFT, y, { font: 'serifBold', size, rgb: OZIKORO.chalk });
+      lastBaseline = y;
       y -= size * 1.2;
     }
+    /*
+     * THE THREE GAPS BELOW THE TITLE ARE THE REFERENCE'S OWN, MEASURED FROM ITS CONTENT STREAM.
+     *
+     * display line 586.7717 → italic 547.0866 is **39.68**; italic → byline 504.5669 is **42.52**;
+     * byline → meta line 484.7244 is **19.85**; meta line → the short gold rule 462.0472 is **22.67**.
+     * **Not one of them is a round number, because not one of them is a leading** — they are where the
+     * approved cover puts its four lines, and a tidy `-12` in their place is a different cover that happens
+     * to use the same colours. Each is chained from the line above it so a two-line title carries them all
+     * down together.
+     */
     if (continuation) {
-      y -= 6;
-      const italics = this.doc.wrap(continuation, 'serifItalic', 22, this.bodyWidth);
-      for (const line of italics) {
+      y = lastBaseline - 39.68;
+      for (const line of this.doc.wrap(continuation, 'serifItalic', 22, this.bodyWidth)) {
         p.text(line, LEFT, y, { font: 'serifItalic', size: 22, rgb: OZIKORO.standfirst });
+        lastBaseline = y;
         y -= 26.4;
       }
+      y = lastBaseline - 42.52;
+    } else {
+      y = lastBaseline - 54;
     }
 
-    y -= 12;
     if (this.input.author) {
       p.text(`By ${this.input.author}`, LEFT, y, { font: 'serif', size: 9.5, rgb: OZIKORO.dim });
       y -= 19.85;

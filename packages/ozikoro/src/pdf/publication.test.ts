@@ -164,6 +164,18 @@ test('page numbers are the page\'s own number, and the cover is page one', { ski
   assert.ok(!text.includes(encoded(doc, 'sans', 'OZIKORO.COM  ·  01')), 'the second page is numbered 01');
 });
 
+test('a title that fits the band sits exactly where the reference puts it', { skip: !have && 'the DejaVu faces are not present' }, () => {
+  const { doc } = build();
+  doc.render();
+  // The reference's cover sets its title's first baseline at 586.7717. A short title must be there and not
+  // somewhere near it: a long-title rule that also *lowered* short ones moved every line below it by 30.
+  const hex = encoded(doc, 'serifBold', 'Ụmụ Ada:');
+  const cover = doc.pages[0]?.ops.join('\n') ?? '';
+  const found = new RegExp(`([\\d.]+) ([\\d.]+) Td\\n<${hex}> Tj`).exec(cover);
+  assert.ok(found, 'the cover does not carry the display line');
+  assert.equal(Number(found[2]), 586.77, 'the title is not on the reference baseline');
+});
+
 test('the running head and the page number end at the measure, not at the page edge', { skip: !have && 'the DejaVu faces are not present' }, () => {
   const { doc } = build();
   doc.render();
