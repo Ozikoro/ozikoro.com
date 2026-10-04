@@ -148,6 +148,15 @@ apps/ozikoro/public/media
 # source, and never committed.
 .next-next/
 
+# When the last `serve-review.sh` build began, which is what its freshness check compares sources against.
+#
+# WHY IT EXISTS: the check compared against `.next/BUILD_ID`, which is written at the END of a build — so a
+# source edited WHILE the build was running was never rebuilt, and every later run reported "the build is
+# CURRENT" while the artefact held the pre-edit code. The marker sits beside `.next` because the swap's
+# `rm -rf .next` would take a file inside it away with the build it describes. Plumbing, like `.next.lock`,
+# and never committed.
+.next.build-started
+
 # The Igbo lexicon for the media service. DERIVED from the dictionary by
 # `npm -w @ozikoro/media run lexicon`, and deliberately not committed: the owner's rule is that the
 # dictionary lookup must query ozituma rather than read a list, because "a list would be stale within a

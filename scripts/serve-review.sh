@@ -64,7 +64,7 @@
 #
 # ── 2. NO REBUILD WHEN THE BUILD IS CURRENT ──────────────────────────────────────────────────────────
 #
-# The check is "is `.next/BUILD_ID` newer than every source file that goes into it?", over `apps/ozikoro`
+# The check is "is any source file newer than **the moment the build began**?", over `apps/ozikoro`
 # (minus `.next`, `node_modules` and `public`) and `packages/{ozikoro,db,core}/src`. It costs about
 # 0.15 s, measured, which is 500× cheaper than the rebuild it avoids. **When in doubt it builds**: a
 # false "rebuild" costs 90 seconds, a false "skip" serves the wrong site, and only one of those is
@@ -136,6 +136,18 @@ STAGING_DIR="$APP/.next-next"
 SD="$NEXT_DIR/standalone"
 TARGET="$SD/apps/ozikoro"
 BUILD_ID="$NEXT_DIR/BUILD_ID"
+# WHEN THE LAST BUILD BEGAN, WHICH IS WHAT THE FRESHNESS CHECK COMPARES AGAINST.
+#
+# It sits beside `.next` rather than inside it, because the swap's `rm -rf .next` would take a marker inside
+# it away with the very build it describes. It is touched immediately before `next build` and never on the
+# fast path, so it names the start of the build that produced `BUILD_ID`.
+#
+# WHY A START IS THE RIGHT REFERENCE AND AN END IS NOT: a source file edited WHILE a build runs is older than
+# the `BUILD_ID` written at the end of that build, so comparing against the end calls the tree current while
+# the artefact holds the pre-edit code — measured here, and invisible to every later run. See
+# `scripts/lib/next-build-freshness.sh` for the fault, the fix and the two edge cases, and
+# `scripts/test-build-freshness.sh` for the case that fails without it.
+BUILD_STARTED="$APP/.next.build-started"
 # The design screens are the artefact whose absence is invisible to the server's own logs: with them
 # missing the site answers 200 everywhere and renders a 404 page for every screen.
 SCREENS_SRC="$APP/public/design/screens"
@@ -169,51 +181,23 @@ cd "$ROOT"
 # `NEXT_BUILD_STALE` is set to the newest source file when the build is older than the source, and to
 # the empty string when the build is current. The reason is printed either way, because "it rebuilt" and
 # "it did not" are both things the next agent needs to be able to read afterwards.
+#
+# THE RULE LIVES IN `scripts/lib/next-build-freshness.sh`, NOT HERE, AND THE REASON IS THAT IT WAS WRONG.
+#
+# It compared every source against `BUILD_ID`, which is touched at the END of a build — so **a source file
+# edited WHILE the build was running was never rebuilt afterwards**, and every later run reported "the build
+# is CURRENT" while the artefact held the pre-edit code. Measured on 2026-10-04: a fix at 14:33:30, `BUILD_ID`
+# at 14:35:26, the site still serving the old code at 14:41.
+#
+# A rule about timestamps cannot be proved by reading it, so it was moved somewhere it can be exercised with
+# timestamps it chooses: `scripts/test-build-freshness.sh` builds a scratch tree and asserts the old
+# behaviour was wrong and the new behaviour is right. **A rule that has been wrong once should be a rule with
+# a test rather than a rule with a comment.**
 NEXT_BUILD_STALE=""
 NEXT_BUILD_REASON=""
 
-next_build_check() {
-  NEXT_BUILD_STALE=""
-  if [ "$REBUILD" -eq 1 ]; then
-    NEXT_BUILD_REASON="--rebuild was passed"
-    NEXT_BUILD_STALE="(forced)"
-    return 0
-  fi
-  if [ ! -f "$BUILD_ID" ]; then
-    NEXT_BUILD_REASON="there is no $BUILD_ID"
-    NEXT_BUILD_STALE="(no build)"
-    return 0
-  fi
-  local newer
-  # A false "rebuild" is safe and a false "skip" is not, so every source file that can reach the build
-  # is compared. `public/` is deliberately NOT compared: it is copied beside the standalone at serve
-  # time by this script, so a change under it is served without a rebuild, and including it would
-  # rebuild the site for a stylesheet that the copy already picks up.
-  #
-  # `*.tsbuildinfo` is excluded for a measured reason: `npm run typecheck` (which every commit runs, via
-  # the pre-commit hook) rewrites `apps/ozikoro/tsconfig.tsbuildinfo` every time. It is tsc's cache, not
-  # a source file, and counting it made the build look stale immediately after every commit and every
-  # typecheck — so the "restart only" path was almost never the path taken, which is precisely the fault
-  # this check exists to remove. It cannot change what `next build` emits: tsc's incremental cache is
-  # read by `tsc`, and `next build` runs its own type check.
-  #
-  # `.next.lock` is excluded for the same kind of reason and was measured too: the lock's own record is
-  # written a second before the build starts, so counting it made every run report "STALE" and made a
-  # hand-written lock look like a source change. It is this script's own plumbing.
-  newer="$(find "$APP" \
-      -type d \( -name .next -o -name .next-next -o -name node_modules -o -name public -o -name .next.lock \) -prune -o \
-      -type f ! -name '*.tsbuildinfo' -newer "$BUILD_ID" -print -quit 2>/dev/null || true)"
-  if [ -z "$newer" ]; then
-    newer="$(find "$ROOT/packages/ozikoro/src" "$ROOT/packages/db/src" "$ROOT/packages/core/src" \
-        -type f ! -name '*.tsbuildinfo' -newer "$BUILD_ID" -print -quit 2>/dev/null || true)"
-  fi
-  if [ -n "$newer" ]; then
-    NEXT_BUILD_REASON="newer than the current build: ${newer#"$ROOT/"}"
-    NEXT_BUILD_STALE="$newer"
-  else
-    NEXT_BUILD_REASON="every source file is older than $BUILD_ID"
-  fi
-}
+# shellcheck source=lib/next-build-freshness.sh
+. "$ROOT/scripts/lib/next-build-freshness.sh"
 
 # ── the artefact assertion ───────────────────────────────────────────────────────────────────────────
 #
@@ -364,6 +348,11 @@ if [ -n "$NEXT_BUILD_STALE" ]; then
   # remove.
   rm -rf "$STAGING_DIR"
   BUILD_START="$(date +%s)"
+  # THE MARKER GOES DOWN BEFORE THE BUILD, NOT AFTER IT. This single line is the difference between a check
+  # that notices a source edited during the build and one that reports "CURRENT" about an artefact that does
+  # not contain it — see `scripts/lib/next-build-freshness.sh`. It is written here rather than on the fast
+  # path, so a run that skips the build cannot advance the reference and hide a change.
+  touch "$BUILD_STARTED"
   if ! OZIKORO_DIST_DIR=.next-next NODE_ENV=production npm -w @ozikoro/site run build; then
     printf '\n  THE BUILD FAILED, AND THE RUNNING SERVER HAS NOT BEEN TOUCHED.\n\n'
     printf '  The site on port %s is still serving the previous build, and %s has not been\n' "$PORT" "${NEXT_DIR#"$ROOT/"}"
@@ -479,10 +468,12 @@ rm -f "$ROOT/.data/pg/postmaster.pid"
 # window between the delete and the move, and a few seconds of honest downtime is better than a few
 # seconds of a site that looks broken.
 #
-# BUILD_ID is touched afterwards so the freshness check has a reference point later than every source
-# file it just built from. Without it the next run would compare the sources against the staging
-# directory's build time — which is now the same file, but the check must not depend on the order in
-# which two writes landed.
+# `BUILD_ID` is touched here, at the end, because it is the mark of a *complete* artefact: its presence is
+# what tells the next run that `.next` came from a build that finished and had its output asserted. **It is
+# no longer the freshness reference** — that is `$BUILD_STARTED`, touched before the build, because an end
+# cannot notice a source edited during its own build. `next_build_check` uses `BUILD_ID` only to tell whether
+# a marker belongs to a finished build (a marker NEWER than it means a build started and did not finish, and
+# the artefact on disk is from an older one).
 if [ -n "$NEXT_BUILD_STALE" ]; then
   echo "==> swapping the new build into ${NEXT_DIR#"$ROOT/"}"
   rm -rf "$NEXT_DIR"
