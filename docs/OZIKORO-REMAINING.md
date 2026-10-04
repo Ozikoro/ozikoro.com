@@ -19982,10 +19982,11 @@ list is a count of the rows above it rather than the design's promise.
 Headless Chrome over the DevTools Protocol, with **real mouse events** rather than `element.click()`, because
 a scripted click is not a user gesture and autoplay treats it differently.
 
-    /listen/  press the featured "▶ Listen"
-      before  playerScript true · featured "Igbo Folklore: …" · button "▶ Listen" · audioSrc /media/ozikoro/episodes/igbo-folklore-….mp3
-      after   url http://127.0.0.1:3210/listen/ · button "❚❚ Pause" · paused false · currentTime 2.56
-              duration 533.84 · readyState 4 · ran TRUE
+    /listen/  press the featured "▶ Listen"          (the LIVE review server, 127.0.0.1:3110)
+      before  playerScript true · featured "Igbo Folklore: …" · button "▶ Listen" · status "Ready to listen"
+              audioSrc /media/ozikoro/episodes/igbo-folklore-….mp3
+      after   url /listen/ · button "❚❚ Pause" · paused false · currentTime 2.74 · duration 533.84
+              readyState 4 · status "Playing · 8m 53s" · ran TRUE
     /listen/  press the first library row
       landed  /igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage/
               articleHasPlayer true · articleHasAudioScript true
@@ -20037,13 +20038,15 @@ fails would look like.
 
 ### 11. WHAT DOES NOT WORK
 
-* **The review site on 3110 was down when this entry was written, and it is not this round's code.**
-  `.next` was verified intact (`BUILD_ID`, 52 design screens, `server.js` present). `serve-review.sh` starts
-  the server, which then refuses the cluster because **a sibling agent's script holds the live one** — first
-  `scripts/dsh-media-report.tmp.ts` (pid 9336), then `scripts/dsh-media-probe.tmp.ts` (pid 12688), the second
-  held for five minutes and still held. **The lock was not removed and the holder was not killed**: it is
-  another agent's in-flight work, and a script opening the live cluster while the review server is being
-  restarted is the fault `AGENTS.md` forbids. Reported to the coordinator rather than worked around.
+* **The review site on 3110 went down for part of this round, and it was not this round's code.** `.next`
+  was verified intact throughout (`BUILD_ID`, 52 design screens, `server.js` present). `serve-review.sh`
+  started the server, which then refused the cluster because **a sibling agent's script held the live one** —
+  first `scripts/dsh-media-report.tmp.ts` (pid 9336), then `scripts/dsh-media-probe.tmp.ts` (pid 12688), the
+  second held for five minutes. **The lock was not removed and the holder was not killed**: it is another
+  agent's in-flight work, and a script opening the live cluster while the review server is being restarted is
+  the fault `AGENTS.md` forbids. It is recovered — a sibling's run took it back and the site answers 200 — and
+  every live number in this entry was read from `127.0.0.1:3110` after that, at build
+  `TmGkUPG849xACo2TiUhzN`.
 * **`/listen/` does not paginate.** Three recordings need no pager, and a pager added before there are more
   than a screenful would be a control for a state that does not exist.
 * **The library rows are links, not play buttons.** Each row opens the record whose article plays the
@@ -20081,11 +20084,21 @@ fails would look like.
     ==> swapping the new build into apps/ozikoro/.next
       READY  ->  http://127.0.0.1:3110
 
+    $ node scripts/verify-round-332.mjs http://127.0.0.1:3110
+    OK: 0 failing assertion(s) against http://127.0.0.1:3110
+
     $ git status --porcelain design/ apps/ozikoro/public/design/
     (nothing)
 
     $ python3 -c "…the brief's own check…"
     identical 63 differing 0 missing 0
+
+**AND `W1` WAS RE-PROVED ON THE BUILD THAT IS ACTUALLY LIVE, NOT ONLY ON THE ONE THIS ROUND BUILT.** The
+standalone serving 3110 (build `TmGkUPG849xACo2TiUhzN`) was cloned, a scratch server run from it against the
+scratch cluster, the AGBEJI MASQUERADE `<iframe>` appended to a record with no embed, and the served
+`/watch/?page=2` read: **24 cards -> 25**, `YdtgiesAeHg` present and titled *AGBEJI MASQUERADE*. The scratch
+cluster was then reset and reads `24 distinct films (18 drawn after the disclosed music exclusion), 3 playable
+episode(s)`. **A page is not called automatic here because it was correct once.**
 
 **AND THE ROUND WAS CHECKED BY AN AGENT THAT DID NOT WRITE IT.** A second agent's independent run over the
 built page — reported under its own round number — produced the before/after table (13 images / 0 `<audio>` / 12 rows → 4 / 1 / 3),
@@ -20093,7 +20106,6 @@ a real `Input.dispatchMouseEvent` press that read `❚❚ Pause` and a clock at 
 directions (the three listed records all carry exactly one `data-listen-audio`; the eleven the old page listed
 all serve no panel at all), and its own instrument at `PROBLEMS: 0`. **It also found the stale narration-gate
 check and the silent feature-card failure that §9 records** — both corrected here rather than argued with.
-
 
 ## ROUND 333 — THE NARRATION GATE THAT HAD STOPPED GUARDING, AND AN INDEPENDENT RUN OVER `/listen/`
 
