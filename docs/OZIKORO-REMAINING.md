@@ -20174,7 +20174,7 @@ repository root: **exit 0**. `node --test packages/ozikoro/src/design-fill.test.
 standalone holds **52** design screens where the source holds 52, and the brief's parity check prints
 `identical 63 differing 0 missing 0`.
 
-### 3. THREE THINGS ROUND 332 DOES NOT RECORD
+### 3. TWO THINGS ROUND 332 DOES NOT RECORD, AND ONE IT CLOSED
 
 * **`apps/ozikoro/app/listen/page.tsx` is unreachable and now says something false.** The middleware rewrites
   `/listen/` to `/design-screen/listen`, which is the file the served page comes from, so this route has never
@@ -20183,11 +20183,14 @@ standalone holds **52** design screens where the source holds 52, and the brief'
   middleware's screen list. It was not deleted here because it is another writer's file in a contended tree;
   `scripts/check-screen-coverage.mjs` requires it to exist, so removing it means changing that check's `ROUTE`
   entry for `listen` to say the screen is served by `/design-screen/[screen]`.
-* **A failed play in the featured card is silent.** The card carries no `[data-listen-status]` element, and
-  `audio-listen.js` writes *"Could not play: …"* into that element — so on this screen it writes to nothing, and
-  the button returns to `▶ Listen`, which is what it looked like before it was pressed. The article's own panel
-  has one; this card does not. A blocked autoplay and a missing file would both be indistinguishable from a
-  control nobody clicked.
+* **A failed play in the featured card was silent, and is not any more.** The build this run was made
+  against served the card WITHOUT a `[data-listen-status]` element, and `audio-listen.js` writes
+  *"Could not play: …"* into that element — so a rejected `play()` wrote to nothing and the button returned to
+  `▶ Listen`, which is what it looked like before it was pressed. **The implementation commit closed it**:
+  `design-fill.ts` now emits `<p class="small" data-listen-status aria-live="polite">Ready to listen</p>` after
+  the actions row, and the served page carries it. It is recorded rather than dropped because the finding was
+  true of the build it was measured against, and **a fault closed between the measurement and the commit should
+  say which of the two it was.**
 * **`/favicon.ico` answers 404.** It is the only console `404` the browser probe recorded, no page links it,
   and it predates this round.
 
