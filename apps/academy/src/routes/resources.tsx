@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import type { LucideIcon } from "lucide-react";
-import { ArrowUpRight, BookOpenText, LibraryBig, Languages } from "lucide-react";
+import { ArrowUpRight, BookOpenText, LibraryBig, Languages, ShoppingBag } from "lucide-react";
 import { AcademyShell } from "@/components/academy-shell";
 import { PageIntro } from "@/components/academy-ui";
 
 export const Route = createFileRoute("/resources")({
   head: () => ({ meta: [
     { title: "Resources — Ozikoro Academy" },
-    { name: "description", content: "Academic tools and the Ozikoro archive." },
+    { name: "description", content: "Academic tools, the Ozikoro archive and shop." },
     { property: "og:title", content: "Resources — Ozikoro Academy" },
     { property: "og:description", content: "Dictionary, script and archive resources." },
     { property: "og:type", content: "website" },
@@ -17,15 +17,16 @@ export const Route = createFileRoute("/resources")({
 });
 
 function ResourcesPage() {
-  // THE SHOP ENTRY WAS REMOVED BECAUSE THE SHOP DOES NOT RESOLVE.
+  // THE SHOP IS BACK, AND THE CONDITION RECORDED HERE IS WHY.
   //
-  // `https://shop.ozikoro.com` is NXDOMAIN — it has no record in the ozikoro.com zone, so the card
-  // was a link to nothing on a page whose whole job is to hand a learner a working destination. It
-  // was added on the owner's instruction while the store was still being built; restore the entry
-  // (and the `ShoppingBag` import) when the hostname answers.
+  // This entry was removed when `https://shop.ozikoro.com` was NXDOMAIN — a card linking to nothing
+  // on a page whose whole job is to hand a learner a working destination. The note left in its place
+  // said to restore it when the hostname answered. It answers now, so it is restored, and the same
+  // check applies if it ever stops: a link is a promise that something is there.
   const resources: { icon: LucideIcon; title: string; description: string; url: string }[] = [
     { icon: Languages, title: "Ozituma Dictionary", description: "Search Igbo words, meanings, usage and related entries.", url: "https://ozituma.com" },
     { icon: BookOpenText, title: "Ńdébé Script", description: "Study the independent reference for the Ńdébé writing system.", url: "https://ndebe.org" },
+    { icon: ShoppingBag, title: "Ozikoro Shop", description: "Books, learning materials and cultural products from Ozikoro.", url: "https://shop.ozikoro.com" },
     { icon: LibraryBig, title: "Ozikoro Archive", description: "Explore histories, documents, photographs and cultural research.", url: "https://ozikoro.com" },
   ];
 

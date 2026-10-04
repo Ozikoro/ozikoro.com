@@ -63,11 +63,12 @@ COPY --from=builder --chown=academy:nodejs /app/.output ./.output
 USER academy
 EXPOSE 3000
 
-# The health check asks the app's own root rather than a dedicated endpoint, because the Academy has
-# no health route of its own yet. A 200 on `/` proves the SSR handler, the route tree and the static
-# asset layer all loaded, which is a stronger statement than a handler that only proves the process
-# is up. `wget` is in the alpine base; `curl` is not.
+# The health check now asks the app's own health endpoint, which reports whether the database is
+# reachable as well as whether the process answers. The previous version asked `/`, which proves the
+# SSR handler and the asset layer loaded but says nothing about the database — so a container whose
+# connection string was wrong stayed healthy while every page failed. `wget` is in the alpine base;
+# `curl` is not.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD wget -q -O /dev/null http://127.0.0.1:${PORT}/ || exit 1
+  CMD wget -q -O /dev/null http://127.0.0.1:${PORT}/api/health || exit 1
 
 CMD ["node", ".output/server/index.mjs"]

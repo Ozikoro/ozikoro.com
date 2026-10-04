@@ -2,6 +2,7 @@ import "./lib/error-capture";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
+import { handleHealthRequest, handleSessionRequest } from "./backend/introspection";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -44,8 +45,42 @@ function isH3SwallowedErrorBody(body: string): boolean {
   }
 }
 
+/**
+ * THE API ENDPOINTS ARE ANSWERED HERE, BEFORE THE PAGE ROUTER SEES THE REQUEST.
+ *
+ * `/api/session` and `/api/health` are not pages, and this build of TanStack Start exposes no
+ * server-route helper — `createServerFileRoute` is not exported by `@tanstack/react-start@1.168`
+ * and `createFileRoute` takes no `handlers`. The server entry is the one seam that is mine, it runs
+ * before the router, and routing two paths by hand is smaller than the machinery an alternative
+ * would add.
+ *
+ * The two paths are exact matches and are checked with `===` on `pathname`, so nothing else is
+ * intercepted: a page route that happened to start with `/api/` would be unaffected unless it were
+ * one of these two names.
+ */
+const API_ROUTES: Record<string, (request: Request) => Promise<Response>> = {
+  "/api/session": handleSessionRequest,
+  "/api/health": handleHealthRequest,
+};
+
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
+    const api = API_ROUTES[new URL(request.url).pathname];
+    if (api) {
+      try {
+        return await api(request);
+      } catch (error) {
+        // An API caller is not a browser and must not be handed the HTML error page the SSR path
+        // falls back to — a sibling app parsing that as JSON is a worse failure than the one that
+        // caused it.
+        console.error("academy: api route failed", error);
+        return new Response(JSON.stringify({ error: "internal" }), {
+          status: 500,
+          headers: { "content-type": "application/json; charset=utf-8" },
+        });
+      }
+    }
+
     try {
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);

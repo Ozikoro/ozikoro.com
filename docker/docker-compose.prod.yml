@@ -329,16 +329,17 @@ services:
     expose:
       - '3000'
     healthcheck:
-      # The Academy has no health route, so this asks `/`. A 200 there proves the SSR handler, the
-      # route tree and the static asset layer all loaded — a stronger statement than a handler that
-      # only proves the process is listening.
+      # `/api/health` reports whether the database is reachable as well as whether the process
+      # answers. Asking `/` proved the SSR handler and asset layer loaded but said nothing about the
+      # database, so a container whose connection string was wrong stayed healthy while every page
+      # that touched an account failed.
       test:
         - CMD
         - wget
         - -q
         - -O
         - /dev/null
-        - http://127.0.0.1:3000/
+        - http://127.0.0.1:3000/api/health
       interval: 30s
       timeout: 5s
       retries: 5

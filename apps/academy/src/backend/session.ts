@@ -24,10 +24,21 @@ import { one, query } from "./db.ts";
 const SESSION_TTL_DAYS = 30;
 
 /**
- * The cookie name is deliberately the same one the rest of the platform uses. The domains differ,
- * so there is no collision, and a reader who knows `ozituma_session` already knows what this is.
+ * THE FAMILY SESSION COOKIE.
+ *
+ * One name, scoped to `.ozikoro.com`, shared by `academy.ozikoro.com`, `shop.ozikoro.com` and
+ * `ozikoro.com` — a cookie can span those three because they are one registrable domain.
+ *
+ * It is NOT `ozituma_session`. That name belongs to the dictionary, which is on a different
+ * registrable domain and therefore cannot share a cookie with these three at all; reusing its name
+ * here would suggest a shared session that the browser will never allow. The two sites share an
+ * ACCOUNT (the same `account` table, so one email and password works on both) and that is a
+ * different thing from sharing a session.
+ *
+ * Renaming it was free at the time it was done: no real account had an Academy session yet, so
+ * nothing was signed out by the change.
  */
-export const SESSION_COOKIE = "ozituma_session";
+export const SESSION_COOKIE = "ozikoro_session";
 
 export interface SessionAccount {
   id: number;
