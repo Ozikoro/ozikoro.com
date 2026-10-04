@@ -32,6 +32,7 @@ import {
   fillAbout,
   fillDashboardLinks,
   designScriptPaths,
+  designScreenLinks,
   can,
   decodeDesignPreview,
   designInventory,
@@ -565,6 +566,22 @@ export async function GET(
      * both routes call it so a third cannot repeat the omission.
      */
     html = designScriptPaths(html);
+
+    /*
+     * AND THE DESIGN'S OWN RELATIVE ADDRESSES, FOR EVERY SCREEN RATHER THAN FOR A LIST OF THEM.
+     *
+     * The menu of every screen is written the design's way — a bare sibling filename — so served at
+     * `/<name>/` it resolves to `/<name>/<file>.html` and 404s. **Measured on 4 October 2026: 29 of the
+     * 52 screens answered with 316 relative anchors between them**, and `fillDashboardLinks` reached
+     * only the fourteen dashboards and the eleven screens in `LINKED_SCREENS`, which is why this sat
+     * open on the rest. The rule is screen-independent, so it belongs where every screen passes — the
+     * same argument `designScriptPaths` above already makes for its own line.
+     *
+     * IT IS CALLED AGAIN AFTER THE FILLS, and that second call is the one that matters here: the fills
+     * write relative addresses of their own (`/publication/` carried `cite.html`), and a rewrite that
+     * runs only before them walks past every one. See the note at the second call.
+     */
+    html = designScreenLinks(html);
 
     /*
      * THE MENU SAYS WHO THE READER IS, ON EVERY SCREEN.
@@ -1809,6 +1826,23 @@ export async function GET(
       console.error(`design-screen: ${name} did not take the extended market-days script (${tags} reference(s))`);
     }
   }
+
+  /*
+   * THE DESIGN'S RELATIVE ADDRESSES, ONCE MORE, NOW THAT THE FILLS HAVE RUN.
+   *
+   * **THE FIRST CALL IS TOO EARLY TO SEE THE ADDRESSES A FILL WROTE.** It sits beside
+   * `designScriptPaths` near the top of this function, and the fills run after it — so the design's own
+   * menu was made absolute and the links the fills wrote were not. Measured on the served pages:
+   * `/publication/` carried `cite.html`, `publications.html` and `upload.html`, and `/researcher-profile/`
+   * carried two of them, every one resolving to `/publication/cite.html` and answering 404 while reading
+   * as a working link in the source.
+   *
+   * This is the same fault and the same cure as the market-days script rewrite just above, and it is
+   * written here rather than in each fill for the same reason: **by the time this runs, a link is a link
+   * whether the design wrote it or a fill did.** The function is idempotent — the `<base>` is added only
+   * when the document has none — so the earlier call is not undone and not repeated.
+   */
+  html = designScreenLinks(html);
 
   /*
    * EVERY SCREEN GETS A REAL HEAD, NOT THE WALKTHROUGH'S.

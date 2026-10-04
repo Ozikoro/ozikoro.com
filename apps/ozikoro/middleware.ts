@@ -110,6 +110,28 @@ const DESIGN_SCREENS = new Set<string>([
   "watch-video"
 ]);
 
+/*
+ * EVERY FILE THE DELIVERABLE SHIPS, BY NAME — WHICH `DESIGN_SCREENS` IS NOT.
+ *
+ * The two sets answer two different questions and they are deliberately not the same set.
+ *
+ *   `DESIGN_SCREENS` decides what this middleware REWRITES. `towns` and `account` are absent from it
+ *   because the site has a real route for each, and naming them there would shadow it — the mistake
+ *   that made the owner's town finder invisible and is recorded beside the list.
+ *
+ *   THIS set answers "is this string the name of one of the deliverable's own files?" — and it holds
+ *   **all 52**, because the only thing it is used for is sending a reader from a file's name to the
+ *   page that file draws. A file the deliverable ships is a file the deliverable ships, whether or not
+ *   a route has since replaced it.
+ *
+ * It exists because of the raw-file hole measured on 4 October 2026: `/design/screens/<name>.html`
+ * answered 200 with the design file verbatim for **all 52 screens**, and `/listen.html` — the address
+ * the owner landed on — was answered by the `.html` stripping in the rewrite below, which turned a
+ * file's name into a second address for the page. Both are closed below, and both need to know the
+ * whole directory rather than the subset that is rewritten.
+ */
+const DESIGN_FILES = new Set<string>([...DESIGN_SCREENS, 'towns', 'account']);
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
@@ -117,6 +139,56 @@ export function middleware(request: NextRequest) {
   // files live. The matcher is widened below so that `.css` under `/styles/` reaches here.
   if (pathname.startsWith('/styles/')) {
     return NextResponse.rewrite(new URL(`/design/styles/${pathname.slice('/styles/'.length)}`, request.url));
+  }
+
+  /*
+   * A RAW DESIGN FILE IS NOT AN ADDRESS ON THIS SITE, AND IT NEVER WAS MEANT TO BE ONE.
+   *
+   * `public/design/` is the delivered handoff: 52 screens of static HTML written to be opened from disk,
+   * each carrying the walkthrough's own title, its example people and its "Audio library demonstration"
+   * banner. This site serves those screens as its own markup by REWRITING the addresses a reader types —
+   * and **the files themselves answered too.**
+   *
+   * Measured on the production build, 4 October 2026, every one byte-identical to the source file:
+   *
+   *     /design/screens/listen.html    200   5,911 bytes   the raw listen screen
+   *     /design/screens/about.html     200  16,302 bytes
+   *     /design/screens/home.html      200  15,462 bytes
+   *     …and the same for all 52, plus /design/index.html at 14,200 bytes — which Next's static handler
+   *     also answers at `/design/`, `/design`, `/index` and `/index.html`, five addresses for one file
+   *     from which every other screen is one relative link away.
+   *
+   * A 200 ON A RAW DESIGN FILE IS THE FAULT THIS PROJECT KEEPS RE-LEARNING: **it renders**, so it reads
+   * as a working page. The reader gets the design's example episode, its invented researcher and its
+   * "Sample" durations with nothing on the page to say the real content was never filled in.
+   *
+   * THE REDIRECT POINTS AT THE PAGE, NOT AT A 404. The deliverable's own relative links ask for these
+   * file names and the owner has them in his history; the screen each one names is served one segment
+   * away, so the file's name keeps working as a pointer to the real page rather than as the file. The
+   * archive's rule is that an address once reachable keeps working — it does not say it keeps working
+   * as the wrong thing.
+   */
+  const designFile = /^\/design\/screens\/([a-z0-9-]+)\.html$/.exec(pathname);
+  if (designFile) {
+    const screen = designFile[1]!;
+    const to = new URL(screen === 'home' ? '/' : `/${screen}/`, request.url);
+    to.search = search;
+    return NextResponse.redirect(to, 301);
+  }
+  /*
+   * THE WALKTHROUGH INDEX IS THE SAME HOLE WITH FIVE ADDRESSES.
+   *
+   * `/design/index.html` is the deliverable opened directly — a directory of every screen — and it was
+   * reachable at that address, at `/design/`, at `/design`, at `/index` and at `/index.html`. The site's
+   * own home is `/`, which is the same screen filled.
+   */
+  if (
+    pathname === '/design/' || pathname === '/design' || pathname === '/design/index.html'
+    || pathname === '/index' || pathname === '/index.html' || pathname === '/index/'
+  ) {
+    const to = new URL('/', request.url);
+    to.search = search;
+    return NextResponse.redirect(to, 301);
   }
 
   /*
@@ -133,9 +205,38 @@ export function middleware(request: NextRequest) {
     return NextResponse.rewrite(new URL('/design-screen/home', request.url));
   }
 
+  /*
+   * A FILE'S NAME IS NOT A SECOND ADDRESS FOR THE PAGE.
+   *
+   * Stripping `.html` is what served `/listen.html` — **the address the owner reported** — and it served
+   * it as a 200 with the page under two addresses, `listen.html` and `listen/`, each claiming in its own
+   * `<link rel="canonical">` to be `/listen/`. A page with two addresses is a page a search engine has to
+   * choose between, and the `.html` form is the deliverable's file name rather than anything this site
+   * ever published.
+   *
+   * So the file's name is a **301 to the one address the page has**, which is also what makes the
+   * deliverable's own relative links safe once they are made absolute: `href="listen.html"` on a screen
+   * served at `/about.html` resolves to `/listen.html` and now lands on `/listen/` — the real page — in
+   * one hop instead of rendering a duplicate of it.
+   *
+   * A 301 rather than a 308: these are pages, reached by `GET`, and a permanent redirect is what a
+   * reader of an archive expects to be told. `towns` and `account` are included through `DESIGN_FILES`
+   * even though they are not rewritten, because `/towns.html` and `/account.html` are the same file's
+   * name and the design's own menu asks for them.
+   */
+  const hadFileSuffix = /\.html$/.test(pathname);
   // A design screen at the address a reader would type, and the walkthrough at `/index`.
   const single = pathname.replace(/^\//, '').replace(/\.html$/, '').replace(/\/$/, '');
   if (single && !single.includes('/')) {
+    /*
+     * THE REDIRECT SITS BEFORE THE REWRITE, and before the walkthrough branch, because both of those
+     * answer with a 200 at the file's own name — which is the whole fault.
+     */
+    if (hadFileSuffix && DESIGN_FILES.has(single)) {
+      const to = new URL(single === 'home' ? '/' : `/${single}/`, request.url);
+      to.search = search;
+      return NextResponse.redirect(to, 301);
+    }
     if (DESIGN_SCREENS.has(single)) {
       // Through the fill route, which reads the design file as a template and passes any screen it
       // does not fill straight back byte-for-byte. See app/design-screen/[screen]/route.ts.
@@ -156,7 +257,11 @@ export function middleware(request: NextRequest) {
       return NextResponse.rewrite(target);
     }
     if (single === 'index' || single === 'design') {
-      return NextResponse.rewrite(new URL('/design/index.html', request.url));
+      // The slashed spellings, `/index/` and `/design/`, of the walkthrough closed at the top of this
+      // function. They are the deliverable's file, not this site's page.
+      const to = new URL('/', request.url);
+      to.search = search;
+      return NextResponse.redirect(to, 301);
     }
   }
 

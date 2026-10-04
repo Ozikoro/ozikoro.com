@@ -20513,3 +20513,161 @@ empty, and the parity check prints:
   on `body_html` and none is warranted for 10 MB of text.
 - **`/photographs/` still shows 24 records and has no pager.** That is the design screen's own grid; the
   naming and the record links were the fault reported here, and the size of the listing is a separate one.
+
+## ROUND 336 — `/listen.html` WAS A SECOND ADDRESS FOR A REAL PAGE, AND THE 52 DESIGN FILES BEHIND IT WERE ALL SERVED RAW
+
+### 1. THE REPORT, AND WHAT `/listen.html` ACTUALLY WAS
+
+The owner: *"when you click show transcript here, it does not work and leads to empty code page
+http://127.0.0.1:3110/listen.html"*.
+
+**`/listen.html` did not serve the design file. It served the filled listen page** — byte for byte the same
+document as `/listen/` — and that is a measurement, not a judgement by eye:
+
+    /listen/           200  text/html   7,679 bytes
+    /listen.html       200  text/html   7,679 bytes   ← identical bodies
+    the design source   public/design/screens/listen.html   5,911 bytes   ← and NOT a substring of either
+
+What answered it was `apps/ozikoro/middleware.ts`, which strips a trailing `.html` before it matches a screen:
+`const single = pathname.replace(/^\//, '').replace(/\.html$/, '')…` and then
+`NextResponse.rewrite(new URL(\`/design-screen/${single}\`, request.url))`. So `/listen.html` was a **second
+address for a page whose own `<link rel="canonical">` says `/listen/`** — a fault, but a different one from a
+raw file, and it is why a 200 on a design file is not what the owner met at that address.
+
+The round that reported the raw design file here read the byte count of the FILLED page (7,679) and took it for
+the design's file (5,911) without comparing them. **The lesson is the one this archive keeps writing down: a
+number is evidence only against the thing it is a number for.**
+
+### 2. WHAT WAS ACTUALLY RAW: EVERY DESIGN FILE, VERBATIM
+
+Measured on the served build before this round's fix, every one byte-identical to its source:
+
+    /design/screens/listen.html   200   5,911 bytes   IDENTICAL
+    /design/screens/about.html    200  16,302 bytes   IDENTICAL
+    /design/screens/watch.html    200   7,315 bytes   IDENTICAL
+    …and the same for 52 of 52 screens
+    /design/index.html            200  14,200 bytes   IDENTICAL — and also at
+    /design/, /design, /index and /index.html, five addresses for one file from which every other screen
+    is one relative link away
+
+**A 200 on a raw design file is the fault this project keeps re-learning, because it renders.** The reader gets
+the walkthrough's own banner — "Audio library demonstration", "Sample episode", an invented researcher with an
+invented ORCID — with nothing on the page to say the real content was never filled in. That is the owner's
+"empty code page": a page that answers 200, is complete as a file, and is not the site.
+
+The `.html` strip in §1 pointed at the design's own file names, which is why `/listen.html` was even a
+candidate: it is the deliverable's naming leaking into the public address space.
+
+### 3. THE TRANSCRIPT — THREE RECORDINGS, THREE TRANSCRIPTS, AND THE WORDS ARE THE SPEECH
+
+Nothing about the transcript itself was broken. Read, not just statused:
+
+    /podcast/igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage/transcript.txt
+        200  text/plain; charset=utf-8  11,836 bytes
+        "Igbo Folklore: Twelve Timeless Tales of Wisdom, Wonder, and Moral Heritage / Transcript of the
+         spoken record. The words are the article's own. / Among the Igbo people, stories are not merely
+         told; they are lived, breathed, and remembered. Around the flickering fires…"
+    /podcast/how-tortoise-got-his-bumpy-shell/transcript.txt
+        200  text/plain; charset=utf-8   3,398 bytes   "How Tortoise Got His Bumpy Shell … A long time
+        ago, all the birds were invited to a big feast in the sky."
+    /podcast/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/transcript.txt
+        200  text/plain; charset=utf-8  10,139 bytes   "Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots / The
+        article's own words, prepared for reading."
+
+Each is the spoken record rather than the script — a person can read it and hear the recording — so no link was
+withheld and no transcript was composed. Every link a reader can reach is root-absolute: the featured card on
+`/listen/` and all three article pages, `/listen/` included, carry
+`/podcast/<slug>/transcript.txt`. **Clicked in headless Chrome, the control on `/listen/` lands at exactly
+that address, `text/plain`, 11,562 characters rendered** — the URL after the click, not the status.
+
+The design's own control *was* relative — `screens/listen.html` says
+`<a class="btn btn-ghost" href="article.html">Read the transcript</a>` — and the fill replaces it, which is why
+it works today. What follows is the reason it could not be trusted to keep working.
+
+### 4. THE CLASS BEHIND IT: 316 RELATIVE ADDRESSES ON 29 SCREENS, AND THE ONES A FILL WROTE
+
+Every screen writes its menu the design's way — a bare sibling filename — because in the deliverable the files
+sit beside each other. Served at `/<name>/` those resolve **one segment too deep**. Measured on the served
+pages: **29 of the 52 screens carried a relative link and 316 anchors between them** (`/about/` alone resolved
+42), and `/cultural-event/` carried the transcript-flavoured `listen.html`. The eleven role dashboards refuse a
+signed-out reader, so the true count is higher than 29.
+
+`fillDashboardLinks` did rewrite them — but it ran before the fills and only for fourteen dashboards and the
+eleven screens in `LINKED_SCREENS`. So two halves were wrong at once:
+
+- the design's menu on the other 27 screens (`/about/listen.html`, `/folklore/listen.html`,
+  `/photographs/archive-index.html`),
+- **and the addresses the FILLS wrote**, which no pass had ever reached: `/publication/` served
+  `cite.html`, `publications.html` and `upload.html`; `/researcher-profile/` served two more. All of them
+  read as working links in the source and answered 404.
+
+Same fault, same cause as the market-days script rewrite the route already records: *a rewrite that runs
+before a fill misses everything the fill writes.*
+
+### 5. THE FIX, IN THREE PARTS
+
+**a. A RAW DESIGN FILE IS NO LONGER AN ADDRESS.** The middleware now answers
+`/design/screens/<name>.html` with a **301 to the screen's own page** (`/listen.html`'s sibling file goes to
+`/listen/`), and the walkthrough index — `/design/index.html`, `/design/`, `/design`, `/index`, `/index.html`,
+`/index/` — with a 301 to `/`. A redirect and not a 404, because the deliverable's own relative links and the
+owner's history both ask for these names, and the screen each names is one segment away. `DESIGN_FILES` is a
+new set of **all 52** file names, deliberately distinct from `DESIGN_SCREENS` (51), which decides what is
+*rewritten* and must keep `towns` and `account` out of itself. Nothing under `public/design/` was touched.
+
+**b. A FILE'S NAME IS NOT A SECOND ADDRESS FOR A PAGE.** `/<name>.html` is now a **301 to `/<name>/`**, so
+`/listen.html` — the address the owner reported — lands on the one address the page has, query preserved
+(`/archive-index.html?topic=folklores` → `/archive-index/?topic=folklores`). It also makes the deliverable's
+own relative links safe in one hop wherever they survive.
+
+**c. ONE RULE FOR THE DESIGN'S RELATIVE ADDRESSES, APPLIED LAST.** `designScreenLinks` lives in
+`packages/ozikoro/src/design-paths.ts` beside `designScriptPaths` — the file that exists because two routes
+kept disagreeing about the scripts — and does one job with one implementation:
+
+    `<base href="/">` (added only when the document has none, so the second call is free)
+    `../styles/main.css`  -> `/styles/main.css`        (and `../screens/…`)
+    `../downloads/x.pdf`  -> `/design/downloads/x.pdf` (a sibling of `screens/` is a file under `/design/`)
+    `../index.html`       -> `/`                       (the walkthrough is closed)
+    `home.html`, `listen.html`, `about.html#terms`     -> the addresses this site serves
+    `action="archive-index.html"`                      -> `/archive/` (the deliverable's forms use it too)
+    `content="0;url=listen.html"`                      -> `content="0;url=/listen/"`
+    `<a href="/researchers/" aria-current="page">`     -> the false marker goes
+
+It is called from **both** routes that serve a screen, and in the design-screen route **twice**: beside
+`designScriptPaths` for every screen, and again after the fills so an address a fill wrote is reached too. It
+is idempotent, and `design-paths.test.ts` now asserts both call sites and the idempotence — a second `<base>`
+would silently change what every relative address on the page means.
+
+### 6. WHAT WAS VERIFIED, AND WITH WHAT
+
+- **No design file is served.** 52 of 52 `/design/screens/<name>.html` answer **301**; the served body of
+  every `/<name>/` is **not** the design source (hash-compared) and 52 of 52 are the filled page.
+- **No relative address reaches a served page.** Across all 41 screens a signed-out reader can fetch,
+  `href`, `src`, `srcset`, `action` and meta-refresh targets are **0 relative** (was 29 screens / 316
+  anchors). Exactly **one `<base>` per screen.**
+- **The browser, not the status.** Headless Chrome clicked the transcript control and the address after the
+  click is `/podcast/igbo-folklore-…/transcript.txt`; `/listen.html` and `/design/screens/listen.html` both
+  end at `/listen/`; `/oral-recordings/` — the design's notice, whose whole job is a relative meta refresh —
+  ends at `/listen/`; `/index.html` ends at `/`.
+- **The build is the locked one.** `bash scripts/serve-review.sh`, four runs, each `artefact complete:
+  server.js present, 52 design screens`; the standalone holds **52** against the source's 52.
+- **The deliverable is untouched**, and the parity check prints, verbatim:
+
+      identical 63 differing 0 missing 0
+
+- `npm run typecheck` from the repo root: **exit 0**. `node --test src/design-paths.test.ts`: **8 pass**.
+
+### 7. WHAT THIS ROUND DOES NOT FIX
+
+- **The two non-featured rows on `/listen/` draw no transcript link**, though both transcripts exist and both
+  article pages draw one. The design's row is a _single_ `<a class="sx-track">` wrapping its whole content, so
+  a second anchor inside it is invalid HTML; drawing one means restructuring the row the design drew. That is
+  a design decision, not a serve-time rewrite, and it is reported rather than taken.
+- **The `account` screen keeps 18 `href="#"` placeholders.** It is not in `LINKED_SCREENS` and not a
+  dashboard, so the placeholder half of `fillDashboardLinks` has never run on it — and adding it to that set
+  would replace eighteen live controls with "Not built yet" text. The address rule reaches it; the
+  placeholders are left for a round that can decide what each control should do.
+- **The deliverable's files are still on disk and still readable from the filesystem.** Only their HTTP
+  addresses are closed, and that is deliberate: the design editor reads them from disk to know what is on a
+  screen, and the standing rule is that `public/design/` is never edited.
+- **`/photographs/` and `/documents/` as React routes are still shadowed** by the middleware rewrite to the
+  design screens. Unchanged this round; measured, and recorded above.

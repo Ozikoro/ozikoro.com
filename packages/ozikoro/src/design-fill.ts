@@ -24,6 +24,7 @@
  */
 import type { Db } from '@ozituma/db';
 import { EXTERNAL_AUDIO_LABELS, isExternalAudioService } from './external-audio.ts';
+import { designScreenLinks } from './design-paths.ts';
 
 /** An entry as the archive holds it. Every field except `title` may be absent, and then its chip is omitted. */
 export type RealEntry = {
@@ -2761,120 +2762,16 @@ export function fillDashboardLinks(html: string, screen: string): string {
   }
 
   /*
-   * 4. THE DESIGN'S RELATIVE LINKS, MADE ABSOLUTE.
+   * 4. THE DESIGN'S RELATIVE ADDRESSES, MADE ABSOLUTE.
    *
-   * Every dashboard writes its own links the way the walkthrough needs them — `dashboard-account.html`,
-   * `home.html`, `../styles/main.css` — because in the deliverable they sit beside each other on disk.
-   * Served at `/dashboard-reader` they resolve to `/dashboard-account.html`, which the middleware answers;
-   * **served at `/dashboard-reader/`, with the trailing slash the site serves, the browser resolves them
-   * against `/dashboard-reader/` instead and every one of them 404s.** Measured: 27 links to `home.html`
-   * and 27 to `dashboard-account.html` across the fourteen screens, all dead at the second address.
-   *
-   * A `<base href="/">` is the one-line fix that is right for a screen whose every relative link is
-   * relative to the site root, and the design's files are not touched to make it. These two rewrites cover
-   * the links the sidebar and the top bar put beside them, and **both are relative-aware: the lookbehind
-   * stops the second rule from shortening an address the first rule has already made absolute.**
+   * The rule itself lives in `designScreenLinks`, because it is not a dashboard rule: **every one of the
+   * 52 screens writes its menu the design's way, and the fills write relative addresses of their own
+   * after this point.** A second copy here is how the two halves would come to disagree, which is the
+   * fault `design-paths.ts` exists to end, so this line delegates rather than implements. The route
+   * calls the same function again once the fills have run, which is what reaches an address a fill
+   * wrote — `/publication/` and `/researcher-profile/` both carried one.
    */
-  out = out.replace(/<head>/, '<head><base href="/">');
-
-  // `../styles/main.css` and `../screens/style.css` -> `/styles/main.css`. The deliverable's own assets,
-  // and the middleware serves them from there.
-  out = out.replace(/href="\.\.\/((?:styles|screens)\/[^"]+)"/g, 'href="/$1"');
-
-  /*
-   * THE SCRIPTS WERE THE HALF NOBODY REWROTE, AND THEY ARE THE WHOLE PAGE ON SOME SCREENS.
-   *
-   * Styles were rewritten and scripts were not, so with `<base href="/">` in the head a screen serving
-   * `src="../market-days.js"` asked for `/market-days.js` and got a 404. **The page then sat on the
-   * design's own placeholder — "Today — Loading date…" — forever, because nothing had been replaced.**
-   * It reads as a page that is still loading rather than a page that is broken, which is why it
-   * survived every check: the HTML is well-formed, the status is 200, and the only thing missing is
-   * a number a script was going to put there.
-   *
-   * Measured across the deliverable: `../market-days.js` on about, academy, careers, cite, collections
-   * and others; `../reader.js` and `../mobile-nav.js` on the article screens. Every one of them 404'd.
-   * The files live at `/design/<name>.js` and the middleware serves them from there.
-   *
-   * The lookbehind-free pattern is deliberate: these are simple sibling references and the deliverable
-   * writes no script with a path segment in it, so a bare filename is the whole grammar.
-   */
-  out = out.replace(/src="\.\.\/([^"/]+\.js)"/g, 'src="/design/$1"');
-
-  /*
-   * THE RELATIVE SCREEN LINKS BECOME THE ADDRESSES THE SITE ACTUALLY SERVES.
-   *
-   * Each of these is a design screen whose own page is not the page the link promised: the design's
-   * `dashboard-account.html` IS the account screen, and its address on this site is `/account/`.
-   * **`/dashboard-account/` also answers — it serves the design's screen — so a generic rewrite would
-   * look as though it worked while sending every "Account settings" link on the site to a dashboard
-   * instead of to the account.**
-   */
-  const screenLinks: Record<string, string> = {
-    'home.html': '/',
-    'dashboard-account.html': '/account/',
-    'dashboard-states.html': '/dashboard-states/',
-    // The design's own name for the archive index is not an address this site serves. `/archive-index/`
-    // answers only because the middleware rewrites it to this route — **a link that reaches the design
-    // screen rather than the archive**, and the archive's own page is one segment away.
-    'archive-index.html': '/archive/',
-    /*
-     * `researcher-profile.html` IS ONE PERSON'S PAGE AND EVERY LABEL ON IT IS A DIRECTORY'S.
-     *
-     * The design's profile screen is a demonstration of a profile, and the person in it — "Dr Chinwe
-     * Ị̀kẹ̀jìànị̀", with an invented institution, ORCID and seven papers — does not exist. `fillResearcherProfile`
-     * serves that screen as **one real contributor**, which is right for a profile and wrong for a directory.
-     *
-     * Measured across the deliverable: **twenty anchors in nine screens name this file, and seventeen of them
-     * say *Researchers*, *Researcher profiles* or *Researchers and publications*.** The directory's address is
-     * `/researchers/`, it is served by the application's own route, and the design's own breadcrumb already
-     * points there (`fillResearcherProfile` writes it). Without this entry the fallback below resolved all
-     * seventeen to `/researcher-profile/` — **which answers 200 with one stranger's profile.** That is the
-     * owner's report: "on the menu, the 'Researchers' is not working, it is dead link." It was not dead. It
-     * reached the wrong page, and a 200 is what let it survive every check.
-     *
-     * The remaining three anchors name the design's example person: two bylines and a citation on the design's
-     * one publication record. They resolve here with the rest, because **the archive holds no such person and
-     * a link to the directory is honest where a link to a stranger is** — and on the screen they are written
-     * on, `fillPublicationRecord` removes them outright: there is no publication to carry a byline or a
-     * citation, and the page says so.
-     */
-    'researcher-profile.html': '/researchers/',
-  };
-  /*
-   * THE SUFFIX IS CARRIED, AND THAT IS NOT A DETAIL.
-   *
-   * The design links to `about.html#terms` thirteen times, `upload.html#community-knowledge` three times and
-   * `projects.html?status=ongoing` once. The earlier pattern required the closing quote straight after
-   * `.html`, so **every one of those links kept its relative address** — and once the served page's head lost
-   * its `<base>` (see `withSeoHead`), they resolved to `/archive-index/about.html#terms` and 404'd while
-   * looking exactly like working links in the source.
-   *
-   * The fragment or query is preserved and appended to the resolved address, because `upload.html#community-knowledge`
-   * promises a *section of the upload page* and dropping the fragment would land the reader at the top of it.
-   */
-  out = out.replace(
-    /href="(?!\/|https?:|#|mailto:|tel:)([a-z0-9-]+\.html)((?:[?#][^"]*)?)"/g,
-    (_m, file: string, suffix: string) =>
-      `href="${screenLinks[file] ?? `/${file.replace(/\.html$/, '')}/`}${suffix}"`
-  );
-
-  /*
-   * AN `aria-current="page"` THAT NAMES ANOTHER PAGE GOES.
-   *
-   * The rule above has just turned the nav's `Researchers` item into a link to `/researchers/` — **the
-   * application's directory, which no design screen serves.** Three of the design's screens had marked that
-   * item `aria-current="page"`: `publication.html`, `researcher-profile.html` and `upload.html`. The marker
-   * was already untrue on the first two, which are a publication record and the deposit form, and it is
-   * untrue on the third for the same reason the owner reported the link: `/researcher-profile/` is one
-   * person's page, not the directory.
-   *
-   * `aria-current="page"` means *this link is the page you are on*. A screen reader announces it as the
-   * current page, so a marker left on a link that leaves the page is a lie told only to the readers who
-   * cannot see that the page did not change. It is removed rather than re-pointed or weakened: the design's
-   * menu has no item for a profile, a record or the deposit form, so on those three screens **no item is
-   * current, and the honest nav says nothing.**
-   */
-  out = out.replace(/<a href="\/researchers\/" aria-current="page">/g, '<a href="/researchers/">');
+  out = designScreenLinks(out);
 
   return out;
 }

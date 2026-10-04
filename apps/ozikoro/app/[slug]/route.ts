@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -202,6 +202,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
      * `design-paths.test.ts` asserts that both call it.
      */
     filled = designScriptPaths(filled);
+
+    /*
+     * AND THE DESIGN'S OWN RELATIVE LINKS, BY THE SAME ARGUMENT AND THE SAME FUNCTION.
+     *
+     * This route serves `screens/article.html`, whose menu is written the design's way — `home.html`,
+     * `archive-index.html`, `listen.html`, `folklore-reader.html` — and those resolve one level too deep
+     * at `/<slug>/`. `designScriptPaths` above was written for exactly this reason and this is its
+     * sibling; **the two routes are the pair that made one implementation necessary**, and
+     * `design-paths.test.ts` reads both files so a third cannot repeat the omission.
+     */
+    filled = designScreenLinks(filled);
 
     /*
      * THE SHARE CONTROL IS A LINK FIRST AND A BUTTON SECOND.
