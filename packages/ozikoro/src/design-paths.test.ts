@@ -270,3 +270,61 @@ test('no design screen names the retiring host once it has been served', () => {
   assert.ok(before.length > 0, 'no design screen names learn.ozituma.com — this test has stopped testing anything');
   assert.deepEqual(after, [], `these screens still name the retiring host after the rewrite: ${after.join(', ')}`);
 });
+
+test('the one fragment that names a section no page draws comes off, whole item and all', () => {
+  /*
+   * ── THE DESIGN'S SIX `about.html` FRAGMENTS, AND WHY ONLY ONE IS REMOVED HERE ────────────────────
+   *
+   * Fourteen of the deliverable's screens link `about.html#entrust`, `#privacy`, `#access`, `#partners`,
+   * `#licensing` and `#contact`, and the deliverable's `about.html` carries three ids — `main`, `faq`,
+   * `terms`. **Five of the six name a section the page really draws** ("How a record earns its place",
+   * `<h2>Privacy</h2>`, `<h2>Licensing</h2>`, `<h3>Partnerships</h3>`, "Talk to Ozi Ikoro Limited"), so the
+   * missing thing is the id and `fillAbout` writes it — see the test in `design-fill.test.ts`.
+   *
+   * **`#access` is the exception and it is a different answer: the page draws nothing of the kind under any
+   * id.** The deliverable's `about.html` has no institutional-access section, and neither has the served
+   * page; its only sentences about access describe a RECORD's terms ("Each record displays its own access and
+   * reuse terms") and a publication's availability ("some research publications are access-controlled by
+   * their authors and can be requested"). **So the item is wrong and the page is not** — and a rewrite onto
+   * `#faq` or `#terms`, the only ids anywhere near the subject, would be naming a section by a label it does
+   * not carry: a reader pressing "Request access" would land on a privacy notice.
+   *
+   * THE WHOLE LIST ITEM GOES, which is asserted rather than assumed: leaving `<li></li>` behind would leave
+   * a gap in the footer column where the item used to be.
+   */
+  const footer = '<html><head></head><body><footer><ul>'
+    + '<li><a href="about.html#terms">Terms of use</a></li>'
+    + '<li><a href="about.html#privacy">Privacy</a></li>'
+    + '<li><a href="about.html#access">Institutional access</a></li>'
+    + '</ul></footer>'
+    + '<a class="btn btn-quiet" href="about.html#access">Request access</a></body></html>';
+  const out = designScreenLinks(footer);
+  assert.doesNotMatch(out, /#access/, 'a link to a section no page draws survived the serve');
+  assert.doesNotMatch(out, /<li>\s*<\/li>/, 'the footer keeps an empty list item where the link was');
+  assert.match(out, /href="\/about\/#terms"/, 'the Terms item, which really exists, was removed with it');
+  assert.match(out, /href="\/about\/#privacy"/, 'the Privacy item was removed with it');
+  // Idempotent, because the route calls this twice in a request.
+  assert.equal(designScreenLinks(out), out);
+});
+
+test('no design screen still writes an `about.html#access` link once it has been served', () => {
+  /*
+   * THE SAME CLAIM OVER THE REAL DELIVERABLE RATHER THAN A FIXTURE, and the count is asserted on both sides
+   * so the test cannot pass by there being nothing to remove. `home.html` alone writes it twice — once in the
+   * footer's Research column and once as the front page's door — and `/documents/` writes it as the control
+   * on a locked record, which is why a fixture would not have been enough.
+   */
+  const screens = join(here, '..', '..', '..', 'apps', 'ozikoro', 'public', 'design', 'screens');
+  const files = readdirSync(screens).filter((f: string) => f.endsWith('.html'));
+
+  let before = 0;
+  const after: string[] = [];
+  for (const file of files) {
+    const raw = readFileSync(join(screens, file), 'utf8');
+    before += (raw.match(/href="about\.html#access"/g) ?? []).length;
+    if (/#access/.test(designScreenLinks(raw))) after.push(file);
+  }
+
+  assert.ok(before > 0, 'no design screen links about.html#access — this test has stopped testing anything');
+  assert.deepEqual(after, [], `these screens still write an #access link after the rewrite: ${after.join(', ')}`);
+});

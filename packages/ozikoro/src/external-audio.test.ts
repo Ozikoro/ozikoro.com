@@ -153,7 +153,7 @@ test('the disclosure says the file is held elsewhere, and never that the words a
 /* The served article: a player for a file, a named link for a page                                 */
 /* ------------------------------------------------------------------------------------------------ */
 
-function article(episode: RealArticle['episode']): string {
+function article(episode: RealArticle['episode'], body = '<p>Body.</p>'): string {
   return fillArticle(ARTICLE, {
     title: 'A record',
     topic: 'Historical Studies',
@@ -164,7 +164,7 @@ function article(episode: RealArticle['episode']): string {
     imageAlt: 'A record',
     caption: null,
     rights: 'No licence recorded · reuse not granted',
-    body: '<p>Body.</p>',
+    body,
     path: '/a-record/',
     context: 'Context.',
     reference: 'OZ-H-0001',
@@ -252,4 +252,59 @@ test('the design’s read-aloud script is kept out of a panel that is a link', (
 test('a record with no episode carries no listen panel at all', () => {
   const html = article(null);
   assert.doesNotMatch(html, /id="listen"/);
+  /*
+   * AND THE SIDEBAR'S OWN LINK TO IT GOES WITH THE PANEL, WHICH IS THE FAULT THIS ROUND IS FOR.
+   *
+   * The design's reading page draws the panel AND a `<a href="#listen">Listen</a>` in its "Reading tools"
+   * list. The branch above removes the panel when the record has no approved episode, and until now it left
+   * the link standing — so on **1,049 of the archive's 1,051 published records** the reader could press a nav
+   * item and the page did not move. Measured on the served site: `/the-war-dance-festival-ila-oso-in-uzuakoli/`
+   * carries no `id="listen"` and writes `/<slug>/#listen`; `/how-tortoise-got-his-bumpy-shell/`, which has an
+   * approved episode, carries both.
+   *
+   * **The assertion is written as a pair on purpose** — see the test below. A removal on its own would pass
+   * just as happily on a build that had deleted the nav item from every record, including the two whose
+   * players work, which is the opposite fault and the one an unconditional removal would have introduced.
+   */
+  assert.doesNotMatch(html, /href="#listen"/, 'the nav must not link a section this page does not draw');
+});
+
+test('a record WITH an episode keeps both the panel and the nav item that points at it', () => {
+  for (const episode of [direct, spotify]) {
+    const html = article(episode);
+    assert.match(html, /<section[^>]*\bid="listen"[^>]*>/, 'the panel the episode fills must be on the page');
+    assert.match(html, /<a href="#listen">Listen<\/a>/, 'and the nav item that names it must still be there');
+  }
+});
+
+test('the record’s own in-page targets keep their `name` AND get room above them', () => {
+  /*
+   * ── THE FOOTNOTE HALF OF THE SAME FAULT, ON THE ONE RECORD THAT HAS IT ──────────────────────────────
+   *
+   * `/beyond-wrestling-sport-in-pre-colonial-west-africa/` writes `<a href="#_ftn1" name="_ftnref1">[1]</a>`
+   * in its text and `<a href="#_ftnref1" name="_ftn1">[1]</a>` at its foot: each anchor is the other's
+   * destination, and the destination is a `name` attribute. The sanitiser's allowlist was dropping it — see the
+   * test in `content.test.ts` for the dump-level evidence that no `id` was ever written.
+   *
+   * TWO THINGS ARE ASSERTED, AND THE SECOND IS THE ONE ROUND 352 TAUGHT.
+   *
+   *   1. the target survives into the served body, so `[1]` is a control that moves the reader;
+   *   2. **it lands where the reader can see it.** `.sx-reader-header` is `position: sticky; top: 0`, so a
+   *      fragment's target is scrolled to the very top of the viewport and sits underneath the header.
+   *      Measured in Chrome with the `name` anchors restored by script: the target landed at `top = 0` under a
+   *      53 px header, its whole 24 px box inside the covered band. `scroll-margin-top` is the property for it,
+   *      exactly as `fillArticleProse` already does for the frame's own anchors.
+   *
+   * The offset goes only on the elements that are fragment targets: a body is a record's own words, and
+   * nothing else in it is touched.
+   */
+  const html = article(null, '<p>x <a href="#_ftn1" name="_ftnref1">[1]</a></p>');
+  // The address is still the design's own relative fragment here: `designScreenLinks` is the ROUTE's pass and
+  // makes it `/<slug>/#_ftn1`, and `design-paths.test.ts` is where that half is asserted.
+  assert.match(html, /<a href="#_ftn1" name="_ftnref1" style="scroll-margin-top:6rem">\[1\]<\/a>/,
+    'the footnote target must survive, and must carry the offset that keeps it out from under the header');
+  // Ordinary prose is left exactly as it was. (The frame's own anchors carry the same offset from
+  // `fillArticleProse`, so the assertion is about the BODY's paragraph, not about the string's absence.)
+  const plain = article(null, '<p>Just words.</p>');
+  assert.match(plain, /<p>Just words\.<\/p>/, 'a paragraph that is not a fragment target is not touched');
 });

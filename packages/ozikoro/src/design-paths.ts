@@ -311,5 +311,38 @@ export function designScreenLinks(html: string, at?: string): string {
    */
   if (at) out = out.replace(/href="#([^"]+)"/g, (_m, fragment: string) => `href="${at}#${fragment}"`);
 
+  /*
+   * ── AND THE ONE FRAGMENT THAT NAMES A SECTION NO PAGE DRAWS ─────────────────────────────────────
+   *
+   * Fourteen of the design's screens link `about.html#access` — the footer's own *"Institutional access"*
+   * under Research, a locked document's *"Request access"* on `/documents/`, and *"What the tier covers →"*
+   * on the researcher profile — and **the deliverable's `about.html` has never carried `id="access"` or any
+   * institutional-access section at all.** The page's only sentences about access are about a *record's*
+   * terms ("Each record displays its own access and reuse terms", in Licensing) and a FAQ answer ("Some
+   * research publications are access-controlled by their authors and can be requested"), which is a fact
+   * about publications rather than a tier that opens culturally sensitive material.
+   *
+   * **SO THE ITEM IS WRONG AND THE PAGE IS NOT.** The archive holds no institutional-access tier; the honest
+   * served page therefore offers no control that promises one. The alternative — rewriting the fragment to
+   * `#faq` or `#terms`, which are the only ids near the subject — would be naming a section by a label it
+   * does not carry: a reader who pressed *"Request access"* would land on a privacy notice. That is the same
+   * fault as a dead fragment, one step later.
+   *
+   * IT IS HERE RATHER THAN IN A FILL because the addresses are written on fourteen different screens and in
+   * the deliverable's own footer, and this is the one function every one of them passes through — the same
+   * argument the `learn.ozituma.com` rewrite above makes for being here. **It is a link removal and not an
+   * address rewrite, and that is the honest difference:** the other five of the design's six `about.html`
+   * fragments name sections that exist, so `fillAbout` gives those sections the ids the design forgot; this
+   * one names nothing, so the link goes.
+   *
+   * THE WHOLE ITEM GOES, NOT ONLY THE ANCHOR, where the link is a list item of its own footer column —
+   * removing the `<a>` alone would leave an empty `<li>` and a gap in the column. It runs LAST so that the
+   * bare `#access` a fill might write is caught too, after the rule above has made it absolute.
+   */
+  out = out.replace(
+    /<li>\s*<a\b[^>]*\bhref="\/about\/#access"[^>]*>[\s\S]*?<\/a>\s*<\/li>|<a\b[^>]*\bhref="\/about\/#access"[^>]*>[\s\S]*?<\/a>/g,
+    ''
+  );
+
   return out;
 }

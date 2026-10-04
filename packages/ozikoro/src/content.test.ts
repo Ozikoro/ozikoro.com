@@ -59,6 +59,42 @@ test('style, class and id are stripped so Elementor cannot override the design',
   assert.equal(out, '<p>t</p>');
 });
 
+test('a fragment target written as `<a name>` survives, and `id` still does not', () => {
+  /*
+   * ── ONE RECORD'S FOOTNOTES, AND WHY THE ATTRIBUTE IS THE DESTINATION ────────────────────────────────
+   *
+   * `/beyond-wrestling-sport-in-pre-colonial-west-africa/` is the only one of the archive's 1,051 published
+   * records with an in-page link anywhere in its body, and its footnote plugin marks both ends of every note
+   * with `name` on an `<a>` rather than an `id`:
+   *
+   *     the text:   <a href="#_ftn1" name="_ftnref1">[1]</a>
+   *     the note:   <a href="#_ftnref1" name="_ftn1">[1]</a>
+   *
+   * **So each anchor is the other's destination.** Before this allowance the served page kept all seventeen
+   * links — `designScreenLinks` made them `/<slug>/#_ftn1` — and had a target for none of them: a control that
+   * returns 200 and moves nothing, in both directions. The WordPress dump settles which half was missing:
+   * 17 `href="#_ftn…"`, 17 `name="_ftn…"`, **0 `id="_ftn…"`**.
+   *
+   * AND THE ADJACENT DECISION IS ASSERTED IN THE SAME TEST, because the two are one judgement: **`id` stays
+   * dropped.** 955 of the 1,051 bodies carry one (5,198 occurrences) and no body links to any of them, so
+   * keeping them would put five thousand inert attributes into the served documents to fix nothing — and the
+   * design's own frame already uses `opening`, `record`, `context`, `sources`, `citation`, `listen` and
+   * `related`, so a body `id` is the one that can shadow the page's own navigation.
+   */
+  const marker = '<p>x <a href="#_ftn1" name="_ftnref1">[1]</a></p>';
+  assert.equal(sanitiseArchiveHtml(marker), marker, 'the footnote target must survive the sanitiser');
+  // The attribute is kept only on `a`, which is the only element the browser's fragment rule looks at.
+  assert.equal(sanitiseArchiveHtml('<p name="_ftn1">t</p>'), '<p>t</p>', '`name` elsewhere is not a target');
+  assert.ok(!sanitiseArchiveHtml('<a name="x" id="y" class="z" style="color:red">t</a>').includes('id='));
+  // And it is escaped like every other attribute rather than trusted: a quote inside the value must not
+  // become a second attribute. (The word `onmouseover` survives as escaped TEXT inside the value, which is
+  // what the allowlist is for — it is not an event handler, it is a string a reader could see.)
+  const escaped = sanitiseArchiveHtml('<a name=\'x" onmouseover="steal()\'>t</a>');
+  assert.ok(!/ onmouseover="/.test(escaped), 'a quote in the value must not create a second attribute');
+  assert.ok(escaped.includes('&quot;'), 'the quote is escaped rather than emitted raw');
+  assert.equal(escaped, '<a name="x&quot; onmouseover=&quot;steal()">t</a>');
+});
+
 test('a dangerous element is dropped whole, not unwrapped', () => {
   const out = sanitiseArchiveHtml('<p>a</p><iframe src="https://evil.example">fallback</iframe><p>b</p>');
   assert.ok(!out.includes('iframe'));

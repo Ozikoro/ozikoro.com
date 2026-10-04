@@ -44,7 +44,43 @@ const DROPPED_WITH_CONTENT = new Set([
 /** Attributes allowed per tag. `*` applies to every allowed tag. */
 const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
   '*': new Set(['title', 'lang', 'dir']),
-  a: new Set(['href', 'rel', 'target']),
+  /*
+   * `name` IS ON THIS LIST BECAUSE IT IS A FRAGMENT TARGET AND NOT DECORATION.
+   *
+   * The older WordPress footnotes plugin — which wrote this archive's one footnote record,
+   * `/beyond-wrestling-sport-in-pre-colonial-west-africa/` — marks both ends of every footnote with a `name`
+   * attribute on an `<a>` rather than an `id`: the body's marker is `<a href="#_ftn1" name="_ftnref1">[1]</a>`
+   * and the note at the foot is `<a href="#_ftnref1" name="_ftn1">[1]</a>`. **So each anchor is the other's
+   * destination, and the `name` IS the target.** The HTML standard's own "find a potential indicated element"
+   * step still returns the first `<a>` whose `name` equals the fragment — obsolete markup, not dead markup,
+   * and every browser follows it.
+   *
+   * MEASURED, BOTH HALVES, BEFORE THIS LINE WAS ADDED. The WordPress dump itself
+   * (`data/ozikoro-wp/dbdump/sql/ozikbfpe_ozikoro.sql`) holds `href="#_ftn…"` 17 times and `name="_ftn…"` 17
+   * times in that record's `post_content`, and **`id="_ftn…"` zero times** — so the destinations were never
+   * ids and no importer lost them; this allowlist was dropping the attribute they actually use. On the served
+   * page all 34 anchors survived as links and none of them had a target: a control that returns 200 and does
+   * nothing, seventeen times, in both directions.
+   *
+   * SCOPE, COUNTED RATHER THAN ASSUMED: **one of the archive's 1,051 published records writes an in-page
+   * fragment anywhere in its body**, and it is that one. The rule is written here rather than special-cased
+   * for it because it is a rule about archived writing rather than about a record — a contributor pasting
+   * footnotes into `/upload/` gets the same treatment without anyone remembering this.
+   *
+   * WHY `name` AND NOT `id`, WHICH IS THE ADJACENT DECISION. **955 of the 1,051 bodies carry an `id`** —
+   * 5,198 occurrences, 4,995 distinct, almost all of them WordPress's `attachment_3363` figure ids — and
+   * **not one body in the archive links to any of them.** Preserving them would put five thousand inert
+   * attributes into the served documents to fix nothing. Worse, `id` is the one attribute on this page that
+   * can COLLIDE: the design's own article frame gives `opening`, `record`, `context`, `sources`, `citation`,
+   * `listen` and `related` to its own elements, the body is rendered inside that frame, and
+   * `getElementById` returns the first match — so a body id of `sources` would silently move the sidebar's
+   * own link. `name` on `<a>` is used by nothing the design draws and cannot shadow it.
+   *
+   * WHAT IT CANNOT DO, WHICH IS WHY IT IS SAFE TO ALLOW: a `name` attribute names a position in a document.
+   * It runs no script, applies no styling and fetches nothing — the three things the rest of this allowlist
+   * exists to refuse — and its value goes through `escapeAttribute` like every other attribute.
+   */
+  a: new Set(['href', 'rel', 'target', 'name']),
   img: new Set(['src', 'srcset', 'sizes', 'alt', 'width', 'height', 'loading', 'decoding']),
   audio: new Set(['src', 'controls', 'preload']),
   video: new Set(['src', 'controls', 'poster', 'preload', 'width', 'height']),

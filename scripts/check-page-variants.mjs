@@ -763,8 +763,8 @@ if (!NO_ARTICLES) {
   console.log(`  ${checked} of ${all.length} published record address(es) checked — from /sitemap/histories, `
     + `which is the complete set`);
   if (checked < all.length) {
-    console.log(`  ** ${all.length - checked} record(s) were NOT looked at this run (--articles ${limit === ARTICLE_BUDGET ? 'all' : limit}) — `
-      + 'a stated blind spot, not a pass');
+    console.log(`  ** ${all.length - checked} record(s) were NOT looked at this run `
+      + `(--articles ${ARTICLE_BUDGET === Infinity ? 'all' : ARTICLE_BUDGET}) — a stated blind spot, not a pass`);
   }
   if (notFound > 0) console.log(`  ${notFound} address(es) from the sitemap did not answer 200`);
   console.log(`  ${faults} dead fragment(s) across the ${checked} record(s) checked, in ${seconds} s`);

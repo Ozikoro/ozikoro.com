@@ -25686,3 +25686,253 @@ old file would have reported it green.
 - **`--crawl 40` is still a sample.** The `?page=` family is two addresses and both were checked, but the
   coverage line still says `15 of the 108 fetched page(s) did not answer 200` — those are the declared 404s and
   redirects the family list records, not new faults.
+
+## ROUND 358 — FOUR DEAD ANCHORS WERE DECLARED IN ROUND 355, ONE OF THEM WAS ON EVERY ARTICLE PAGE IN THE ARCHIVE, AND THE CHECK THAT FOUND THEM HAD NEVER OPENED A SINGLE ONE
+
+Round 355 wrote `scripts/check-page-variants.mjs`, found four sets of fragments that resolve to nothing, and
+declared every one of them rather than fixing any. **Two of the four were declared "inherited" and were
+fixable at serve time in an afternoon; the largest was not inherited at all — it was a fill's — and the
+instrument could not see it, because the forty-page link crawl never reached an article page.** This round
+follows each fragment to its owner, decides from the page as served which side is wrong, fixes it, and closes
+the blind spot that let the biggest one through.
+
+### 1. The four, and which side was wrong in each
+
+| | the anchor said | the target was | which side was wrong | what changed |
+|---|---|---|---|---|
+| **(d)** | every article's own section nav writes `/<slug>/#listen` | the design's reading page draws `<section class="sx-listen-panel" id="listen">`, and `fillArticle` **keeps it only when the record has an approved, playable episode** | **the anchor, conditionally.** The panel is not stale and the page is not wrong: on a record with audio the section is there and the link works. On a record without one the fill deletes the whole section — "the honest state" — and left the nav item behind | `fillArticle` removes the nav item **in the same branch that removes the panel**, so the two are emitted together or not at all |
+| **(c)** | `/topics/` writes `#s` and `#t` | the design drew nine sections (`a c e f i o p r s`) and linked twelve; the fill rebuilds the **sections** from the archive's own topics and places (`a b c d e f h i l m n num o p r u v`) and never touched the **nav** | **the anchor, and it is a fill's fault exactly as round 355 said.** `#s` is a target the fill deleted; `#t` never existed in the deliverable either | `fillTopics` rebuilds the jump row from the same letter map the sections come from: a letter with a section is an anchor, one without is a `<span>`, which is the design's own grammar |
+| **(a)** | `/watch/`'s filter row writes `New · Short histories · Oral traditions · Places & communities · Conversations · Series` over the grid | the design draws **two** `sx-watch-section`s — `#new` ("Selected films") and `#series` ("Unspoken Stories"). There is no factory, gathering or interview section anywhere in the file | **the anchor.** The design intended five categories and drew two; the four extra names are aspirational and a nav item is not a section | the four items come off, by rule rather than by list: `dropUnreachableFragments` removes any in-page anchor whose target the document does not carry, and `fillWatch` runs it on **both** of its exits |
+| **(b)** | fourteen screens link `about.html#entrust #privacy #access #partners #licensing #contact` | the deliverable's `about.html` carries three ids — `main`, `faq`, `terms` — but **draws five of the six sections** under no id at all | **the anchor for five, the item for one.** `Privacy`, `Licensing`, `Partnerships`, `Talk to Ozi Ikoro Limited` and "How a record earns its place" are all on the page | `fillAbout` gives those five elements the ids the design's own links name. **`#access` names a section no page draws** — there is no institutional-access section in the deliverable and none on the served page — so `designScreenLinks` takes that item off the served screens, whole `<li>` and all |
+
+**The judgement is the same in all four and it is the one the brief states: never invent a section to match a
+label.** Where the page draws the thing, the id was put on the thing; where it does not, the control came off.
+
+Two consequences of (b) that are decisions rather than side effects:
+
+* **`#access` was the only fragment that named nothing, and removing it removes two real reader paths** — the
+  footer's own *"Institutional access"* under Research on fourteen screens, and `/documents/`'s *"Request
+  access"* on a locked record. **That is the honest state and not a loss:** the archive holds no institutional
+  tier, and the alternative was to send a reader who pressed *"Request access"* to `#faq` or `#terms`, which is
+  naming a section by a label it does not carry — a dead fragment one step later. The archive's own institution
+  block already says what has not been supplied, and nothing here invents a tier to fill the gap.
+* **`t` was dead in the deliverable too.** Round 355 asked for that to be checked: `topics.html` links `#t` and
+  draws `id="s"` and no `id="t"`. So `#s` is repaired (the archive can produce an S) and `#t` is retired, which
+  is what the design's own jump row does with a letter it has no section for.
+
+### 2. The article page's own nav, item by item, on two real records
+
+Measured on the served site after this round. The nav is the design's two lists — "In this history" and
+"Reading tools" — and every item is a fragment on the record's own page.
+
+**A record WITH an approved, playable episode — `/how-tortoise-got-his-bumpy-shell/`** (200; `id="listen"`
+present; `<audio data-listen-audio preload="none" src="/media/ozikoro/episodes/…mp3">` present):
+
+| item | target | |
+|---|---|---|
+| Opening | `#opening` | present |
+| Written record | `#record` | present |
+| Historical context | `#context` | present |
+| Sources | `#sources` | present |
+| **Listen** | `#listen` | **present — the item is right and stays** |
+| View sources | `#sources` | present |
+| Copy citation | `#citation` | present |
+| Related reading | `#related` | present |
+| *(Skip to article)* | `#article` | present |
+
+**A record WITHOUT one — `/the-war-dance-festival-ila-oso-in-uzuakoli/`** (200; no `id="listen"`, no player):
+identical, **with no Listen item at all**. Every other item resolves.
+
+**Only two of the archive's 1,051 published records have a playable episode today** — `/listen/` lists them, and
+those rows are where a working record was found. That ratio is why round 355's forty-page walk found 25 dead
+`#listen` fragments and never one that worked, and it is why the fix had to be conditional: `1,049` records
+were the broken case and `2` were the case an unconditional removal would have broken.
+
+### 3. The sticky header, and the one target that needed room above it
+
+`.sx-reader-header` is `position: sticky; top: 0` and measures **53 px** at 1440 px. Measured in Chrome by
+putting the browser at each fragment's address and reading `getBoundingClientRect().top`:
+
+| target | lands at | `scroll-margin-top` | verdict |
+|---|---|---|---|
+| `#opening` `#record` `#context` `#sources` `#listen` `#citation` `#related` | 96 px, or lower where the page cannot scroll further | **96 px** (`6rem`), written by `fillArticleProse` | clear — round 352's fix already covers the whole frame |
+| `#article` (the skip link) | 0 px | none | **its box is under the header, and no line is:** the first text inside it, the topic eyebrow, sits at 75 px. Nothing readable is hidden, so it is left alone and the reason is recorded |
+
+**So nothing in the article frame needed a new offset.** The one place round 352's fault did survive is §4.
+
+### 4. The fifth fault, which the new coverage found on its first full run: 17 dead footnote anchors on one record
+
+Taking the brief's advice to add the article family to the check turned the check red on a record round 355 had
+never opened. `/beyond-wrestling-sport-in-pre-colonial-west-africa/` writes **34 anchors, all of them naming
+targets the page does not carry** — and the interesting half is *why*.
+
+**The WordPress footnotes plugin marks both ends of every note with `name` on an `<a>`, not with an `id`:**
+
+```
+in the text   <a href="#_ftn1"    name="_ftnref1">[1]</a>
+at the foot   <a href="#_ftnref1" name="_ftn1">[1]</a>
+```
+
+Each anchor is the other's destination. The archive's `sanitiseArchiveHtml` drops `name`, so all 34 links
+survived as controls with no target anywhere: a link that returns 200 and moves nothing, seventeen times, in
+both directions.
+
+**THE HYPOTHESIS WAS THAT THE SANITISER HAD STRIPPED IDS, AND THE MEASUREMENT SAYS NO.** Read from the
+WordPress dump itself, `data/ozikoro-wp/dbdump/sql/ozikbfpe_ozikoro.sql`: that record's `post_content` holds
+`href="#_ftn…"` **17 times**, `name="_ftn…"` **17 times**, and `id="_ftn…"` **zero times**. **There were never
+any ids.** The targets are the `name` attributes, the HTML standard's own "find a potential indicated element"
+step still returns the first `<a>` whose `name` equals the fragment, and the allowlist was dropping the
+attribute the links actually use.
+
+**SCOPE: IT IS A PAGE, NOT A CLASS.** Counted across all 1,051 imported bodies (`data/ozikoro-wp/articles.jsonl`):
+**exactly one record writes an in-page fragment anywhere in its body**, and it is this one. The rule is still
+written at the general layer rather than special-cased, because the archive takes submissions — a contributor
+pasting footnotes into `/upload/` would meet the same wall.
+
+**The decision, and the adjacent one that comes with it:**
+
+* **`name` on `<a>` now survives the sanitiser.** It is the one attribute that names a position in a document:
+  it runs no script, applies no styling and fetches nothing, and its value is escaped like every other. That is
+  a narrowing of the allowlist, and it is the whole of the change.
+* **`id` still does not, deliberately.** 955 of the 1,051 bodies carry one — 5,198 occurrences, 4,995 distinct,
+  almost all of them WordPress's `attachment_3363` figure ids — and **not one body in the archive links to any
+  of them**, so keeping them would put five thousand inert attributes into the served documents to fix nothing.
+  Worse, `id` is the one attribute here that can shadow: the design's frame already owns `opening`, `record`,
+  `context`, `sources`, `citation`, `listen` and `related`, the body is rendered inside that frame, and
+  `getElementById` returns the first match — so a body `id="sources"` would move the sidebar's own link.
+* **`scroll-margin-top` goes on the restored targets, and it is needed.** Measured in Chrome before the change,
+  with the `name` anchors put back by script: the target landed at `top = 0` under the 53 px header, its whole
+  24 px box inside the covered band — round 352's fault exactly. After the change every one of the eight lands
+  at 96 px with `scroll-margin-top: 96px`. The offset is written after `sanitiseArchiveHtml` rather than before,
+  because the sanitiser drops `style` by design.
+* **The check reads `name` as a target now.** An instrument that only reads `id` calls seventeen working links
+  dead, which is the same fault in the checker as in the page: a claim about a target that was never measured.
+  `targetsOf` is one function used by all three places that ask the question.
+
+### 5. The instrument's coverage and its runtime — the blind spot, closed and stated
+
+**The fault this round fixes was invisible because the check sampled.** `--crawl 40` spends its budget on the
+design's 52 screens and their neighbours; on the run this round began from it reached **no article page at all**
+— 33 non-family pages, and not one of them a record. **The archive's largest surface, 1,051 pages, was outside
+the check that exists for its fault.**
+
+`check-page-variants.mjs` now owns the article family. The addresses come from `/sitemap/histories` — the
+complete published set, generated by the same code that writes the site's own sitemap, so a record added or
+unpublished tomorrow changes the list with no edit to the script. Every one is fetched and every fragment it
+writes is resolved, in-page and across pages, and **the faults are fatal without `--strict`**, because an
+article's nav is the page's own claim about itself.
+
+```
+2b. THE ARTICLE FAMILY — every published record’s own nav, resolved against itself
+
+  every fragment on every record checked resolves, in-page and across pages
+  1051 of 1051 published record address(es) checked — from /sitemap/histories, which is the complete set
+  0 dead fragment(s) across the 1051 record(s) checked, in 299.2 s
+```
+
+**Coverage and clock, measured, on the full `--strict` run:** **1,136 requests, 333.6 s (5 m 34 s)** total — of
+which the article family is **1,051 of 1,051 records in 299.2 s** — plus the 52 design screens, the 17 family
+pages and the 40-page link crawl. `--articles N` bounds it (a **stride** across the list, not the first N, so a
+bounded run still spans the archive rather than checking only its newest records), and the run prints exactly
+how many of how many it took:
+
+```
+  30 of 1051 published record address(es) checked — from /sitemap/histories, which is the complete set
+  ** 1021 record(s) were NOT looked at this run (--articles 30) — a stated blind spot, not a pass
+```
+
+The five-minute default is the cost of the family, and it is stated on every run in the summary line:
+`coverage: 1051 article page(s) checked, each one a published record … ; elapsed: 333.6 s`.
+
+**AND `--strict` NOW MEANS WHAT THE FILE ALWAYS SAID IT MEANT.** Section 6 documented "reported, not fatal
+unless `--strict`", and `reportFragmentFault` was called with `fatal = false` for everything the crawl found —
+so a `--strict` run was green on a tree carrying the very faults it was said to refuse. It is one word, and it
+is the difference between a control and a decoration.
+
+### 6. What is declared rather than fixed, and what was un-declared
+
+**Nothing is declared any more, and the two declarations that stood are deleted rather than left standing.**
+
+* The `/watch/` entry and the `/about/` entry are **gone**, because both are fixed at serve time and an
+  allowance over a fault that no longer exists is a lie about the tree — the same lie section 1 already prints
+  when an allowance is not needed. `DECLARED_FRAGMENT_FAULTS` is now an empty list, the mechanism is kept for
+  the class that genuinely cannot be fixed, and every run prints `0 declared fault(s)`, so empty is visible
+  rather than assumed.
+* **The footnote class is not declared either, and it is not inherited.** It is fixable and it is fixed.
+* The one thing this round knowingly leaves is **not a fragment fault and is not declared**: on a record whose
+  references the archive does not recognise as a section, `#sources` is an off-screen `<span>` placed where the
+  section would be — so clicking *"View sources"* moves the reader to the end of the record's own text rather
+  than to a sources block. Measured on `/the-war-dance-festival-ila-oso-in-uzuakoli/`: the span is at the point
+  the record's own `References` list ends, the reader lands **below** the 53 px header on real content, and the
+  checker finds nothing dead because the id is there. The fill's recorded reasoning is that a block saying "no
+  source is recorded" is worse than no block, and this round did not overturn it.
+
+### 7. The design parity, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+`design/calm-comfort-construct/public/design` and `apps/ozikoro/public/design` are byte-identical. **Every one
+of the four original faults and the fifth is fixed at serve time**, in the fills, in `designScreenLinks` and in
+the sanitiser's allowlist: `watch.html` keeps its five filter names, `topics.html` keeps `#s` and `#t`,
+`about.html` keeps its three ids, `article.html` keeps its `#listen` panel and its link to it, and the
+deliverable's footnote markup is unchanged. Nothing under either design tree is in the commit.
+
+### 8. The tests
+
+`npm -w @ozikoro/platform run test` — **291 tests, 290 pass, 1 fail**, and the failure is
+`knowledge.test.ts`, which needs the PGlite cluster the running review server holds. It is contention, it
+predates this round, and no file this round touched is in it. The four files this round changed carry seven new
+tests:
+
+* `content.test.ts` — `name` on `<a>` survives and `id` still does not, with the dump-level evidence and the
+  collision reason in the test itself.
+* `external-audio.test.ts` — the footnote target keeps its `name` **and** gains the offset; and the `#listen`
+  pair: **no episode means no panel and no nav item; an episode means both.** Written as a pair on purpose, so
+  a build that deleted the item from every record fails here.
+* `design-fill.test.ts` — the watch filter row's anchors are asserted as a **rule** over three pages (page 1,
+  page 2, and the unfilled design page), not as four ids to delete; the A–Z jump row is asserted as a rule over
+  three entry sets including an empty one; and the about page is asserted to carry each of the five ids exactly
+  once, with `#access` still absent.
+* `design-paths.test.ts` — the `#access` item comes off whole, with no empty `<li>` left behind, asserted both
+  on a fixture and **over all 52 real screens**, with the count of what was there before asserted so the test
+  cannot pass vacuously.
+
+### 9. What does not work
+
+* **`npm run typecheck` exits 0 from the repository root**, and the review site was built by
+  `bash scripts/serve-review.sh` and nothing else. One build refusal is recorded and is not a fault: this
+  round's first `serve-review.sh` was refused with `REFUSING TO BUILD: ANOTHER PROCESS IS BUILDING INTO THE
+  SAME .next` (holder pid 29737, stage `build`), the run waited for that agent's own `--rebuild` to finish, and
+  the swap it produced carried these changes.
+* **The full `--strict` run is 5 m 34 s**, and that is the article family's cost. `--no-articles` skips it;
+  `--articles N` strides it. **A run that samples says so, on the line under the count.**
+* **The two `#access` controls that come off cannot be replaced by anything honest yet.** A reader on a locked
+  document now has *"Download locked"* and no action at all, and a reader looking for institutional access
+  finds no footer item. The day the archive has an access tier, the section is written and the ids come with
+  it.
+* **`/watch-video/`'s `#transcript`, the owner's own address, still lands at the top of the page** and is
+  unchanged by this round; round 355's §12 records why, and no anchor on the page points at it.
+* **The article family's five minutes is not in CI.** Nothing in this round put it there; the deploy gate still
+  runs the bounded form.
+* **HALF OF THIS ROUND WAS COMMITTED BY TWO OTHER AGENTS, WHICH IS NAMED HERE RATHER THAN LEFT TO BE FOUND IN
+  `git log`.** This checkout is shared and its working tree was being built from while this round ran:
+  * `f7e8c92` (round 357, the `/watch/` red gate) swept up `scripts/check-page-variants.mjs` — the article
+    family, `targetsOf`, the deleted declarations and all.
+  * `2ccff93` (round 357's related row) swept up `packages/ozikoro/src/design-fill.ts` and
+    `design-fill.test.ts`, this round's hunks included.
+
+  Both were built from the tree that carried these changes and both typecheck, so nothing is broken by it —
+  but **a reader looking for this round in `git log` will not find the fills in its own commit.** That commit
+  carries the rest: `content.ts` and its test, `design-paths.ts` and its test, `external-audio.test.ts`, the
+  two-line correction to the bounded-run message (`--articles 30` printed `--articles all`), and this document.
+  The two patches this round made to those two swept files were staged through a private `GIT_INDEX_FILE` built
+  from `HEAD` with `read-tree`, so the other agent's in-flight hunks in them were neither carried nor lost; the
+  first attempt was refused with `cannot lock ref 'HEAD': is at 2ccff93… but expected f7e8c92…`, which is the
+  cost of committing from a shared tree and is recorded here rather than retried blindly.
+* **A leading `U+2060 WORD JOINER` on one topic name puts it under `#`.** `/topics/` draws
+  `<section class="sx-az-letter" id="num">` holding *"Religion and Spirituality"*, because the topic's stored
+  name begins with a word-joiner, which `trim()` does not remove and which is not `[A-Z]`. It is a data fault
+  and not a fragment fault — nothing links to it wrongly — so this round reports it and does not touch the
+  editorial path another agent is in.
