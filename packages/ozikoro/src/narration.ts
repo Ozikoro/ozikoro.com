@@ -83,6 +83,41 @@ export function playableEpisodeSql(alias = ''): string {
   return `${p}status = 'published' and ${p}approved_at is not null and ${p}approved_by is not null`;
 }
 
+/**
+ * THE CONDITION THAT PUTS A PLAYER IN FRONT OF A READER — approval AND an address to play.
+ *
+ * THE OWNER'S RULE, VERBATIM
+ *
+ *   "every article with youtube embeded on this blog must automatically appear in watch, same way every
+ *    audio inside an article on this website must appear on listen."
+ *
+ * WHY A SECOND FRAGMENT RATHER THAN A SECOND COPY
+ *
+ * `playableEpisodeSql()` answers *may this episode be heard*. It does not answer *is there anything to
+ * hear*: a row can be approved and published with both `storage_key` and `external_url` NULL — an approval
+ * recorded before the file was written, which the schema permits. **The article page has always required the
+ * second half** (`and coalesce(external_url, storage_key) is not null`), and until this fragment existed the
+ * listen page would have had to write that same clause out again to mean the same thing. **This repository
+ * has paid four times for a second copy drifting** (the media resolver, the design script paths, the two
+ * share controls), so the clause is composed here and both surfaces ask the same question of the same
+ * columns.
+ *
+ * WHAT IT IS *NOT*
+ *
+ * The podcast feed must not use this. An `<enclosure>` has to be a file a client can fetch, so the feed is
+ * legitimately NARROWER than a page — it accepts our own `storage_key` or an external URL a check
+ * established serves audio, and a Spotify episode PAGE is neither. That difference is real and is stated at
+ * the feed's own query; a shared fragment would have hidden it.
+ *
+ * `alias` is the table alias in the caller's query (`'a'`/`'e'` where the caller joins, `''` on the article).
+ * It is compiled into the string rather than parameterised because a table alias cannot be a bind parameter —
+ * and it is only ever a literal this repository writes.
+ */
+export function playableEpisodeAudioSql(alias = ''): string {
+  const p = alias ? `${alias}.` : '';
+  return `${playableEpisodeSql(alias)} and coalesce(${p}external_url, ${p}storage_key) is not null`;
+}
+
 
 /**
  * THE RATE THE ESTIMATE USES.

@@ -157,9 +157,14 @@ test('every non-dashboard screen in the transform is free of placeholder links t
    * **Each of those three screens answered 200 with every menu item and the whole footer 404ing.** So the
    * loop below asserts the resolution as well as the placeholder, and a screen that stops being rewritten
    * fails here whichever half of the transform it needed.
+   *
+   * AND AN ELEVENTH, `listen`, FOR THE OTHER HALF OF THAT SAME FAULT — measured: its own menu items
+   * (`/listen/home.html`, `/listen/archive-index.html`, `/listen/watch.html`, `/listen/collections.html`)
+   * all answered 404 while the identical items on `/watch/` resolved. It carries no `href="#"` either, so it
+   * is the sibling-resolution assertion that holds it, not the placeholder one.
    */
   const screens = linkedScreens();
-  assert.equal(screens.length, 10, `expected the ten non-dashboard screens; found ${screens.length}`);
+  assert.equal(screens.length, 11, `expected the eleven non-dashboard screens; found ${screens.length}`);
 
   let totalBefore = 0;
   for (const { name, html } of screens) {
@@ -1497,3 +1502,146 @@ test('a section with no cards on this page is not drawn, and its anchor is carri
   assert.ok(page2.includes('/watch/?page=1#series'), 'the anchor must be carried to the page that has it');
   assert.ok(!page2.includes('href="#series"'), 'a bare `#series` would point at a section that is not here');
 });
+
+/* ============================================================================================
+ * ROUND 332 — `/listen/` IS A DERIVATION OF THE EPISODE RECORDS, NOT A LIST OF ARTICLES
+ * ============================================================================================
+ *
+ * THE OWNER'S RULE, VERBATIM
+ *
+ *   "every article with youtube embeded on this blog must automatically appear in watch, same way every
+ *    audio inside an article on this website must appear on listen."
+ *
+ * The page this replaced drew the twelve newest PUBLISHED ARTICLES and gave each a ▶ glyph and the word
+ * `Read`, while the archive held three episodes. **It listed twelve things a reader could not hear.** These
+ * assertions hold the two properties that make the replacement a derivation rather than a selection: one row
+ * per recording handed to it, and nothing drawn that it was not handed.
+ *
+ * THEY READ THE REAL `listen.html` for the same reason the round-330 block reads `watch.html`: the design's
+ * example episode is the thing being removed, and a fixture would not contain it.
+ */
+import { fillListen, narratorPhrase, type RealTrack } from './design-fill.ts';
+
+const LISTEN = readFileSync(join(SCREENS, 'listen.html'), 'utf8');
+
+/** One recording, shaped the way the route builds it — every field a fact off the episode row. */
+const track = (over: Partial<RealTrack> = {}): RealTrack => ({
+  title: 'Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots',
+  href: '/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/',
+  series: 'Historical Studies',
+  image: '/media/ozikoro/11234-ute-king.webp',
+  length: '2m 24s',
+  narrator: narratorPhrase('human', 'Idenze Ezeme'),
+  narratorKind: 'human',
+  playable: true,
+  audioUrl: '/media/ozikoro/episodes/ute-okpu.mp3',
+  episode: 'ute-okpu-an-ika-igbo-clan-and-its-nri-roots',
+  externalService: null,
+  disclosure: 'Read by a person. The words are the article’s own.',
+  ...over,
+});
+
+const trackRows = (html: string) => [...html.matchAll(/<a class="sx-track"[^>]*>([\s\S]*?)<\/a>/g)].map((m) => m[0]!);
+
+test('/listen/ draws one row per recording and removes every one of the design’s six example rows', () => {
+  const tracks = [
+    track(),
+    track({ title: 'How the tortoise got his bumpy shell', href: '/how-tortoise-got-his-bumpy-shell/', narratorKind: 'synthetic_own_voice', narrator: narratorPhrase('synthetic_own_voice', 'Idenze Ezeme (synthetic)') }),
+    track({ title: 'Igbo folklore: twelve timeless tales', href: '/igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage/', narratorKind: 'synthetic_generic', narrator: narratorPhrase('synthetic_generic', null) }),
+  ];
+  const out = fillListen(LISTEN, tracks);
+  assert.equal(trackRows(out).length, 3, 'three recordings, three rows');
+  // The design's own six examples are records of nothing. Not one of their titles, durations or links may
+  // survive a filled page: the library is the archive's, not the demonstration's.
+  for (const example of [
+    'The masquerade that judges the living',
+    'Why the tortoise’s shell is not smooth',
+    'Izuogu: a town remembers its founders',
+    'The Obi of Igbodo and the meaning of kingship',
+    'String games and the memory of play',
+    'The Ika people: origins and migrations',
+  ]) {
+    assert.ok(!out.includes(example), `the design's example row "${example}" must not be served`);
+  }
+  assert.ok(!out.includes('>Sample<'), 'no row may claim the design’s placeholder duration');
+  assert.ok(!out.includes('>Soon<'), 'and none may claim a recording is coming');
+  assert.ok(out.includes('3 recordings approved and published'), 'the note counts the rows above it');
+  assert.ok(!out.includes('no recordings are published yet'), 'the design’s own note must be replaced, not kept');
+});
+
+test('a recording that is a FILE gives the feature card the design’s own button and one <audio> element', () => {
+  const out = fillListen(LISTEN, [track()]);
+  assert.match(out, /<audio data-listen-audio preload="none" src="\/media\/ozikoro\/episodes\/ute-okpu\.mp3">/);
+  assert.match(out, /<button class="btn btn-gold" type="button" data-listen-toggle aria-pressed="false">/);
+  assert.match(out, /href="\/podcast\/ute-okpu-an-ika-igbo-clan-and-its-nri-roots\/transcript\.txt"/);
+  assert.ok(out.includes('2m 24s'), 'the length is the measured duration');
+  assert.ok(!out.includes('The Ikoro: the drum that spoke for a town'), 'the example episode’s title goes');
+  assert.ok(!out.includes('recording awaiting approval'), 'and so does its claim');
+  // Exactly one player: a second `<audio>` would make the script's `querySelector` pick one at random.
+  assert.equal((out.match(/<audio\b/g) ?? []).length, 1, 'one audio element, not one per row');
+  /*
+   * AND THE CARD NEEDS SOMEWHERE FOR THE PLAYER TO SAY IT FAILED. `audio-listen.js` reports a refused autoplay
+   * or a missing file by writing *"Could not play: …"* into `[data-listen-status]`; the design's feature card
+   * has no such element, so without this one a failed press is indistinguishable from a control nobody
+   * touched. A second agent found this by pressing the button on the built page.
+   */
+  assert.match(out, /<p class="small" data-listen-status aria-live="polite">Ready to listen<\/p>/);
+});
+
+test('a recording held on a service PAGE becomes a link that leaves, never a button that cannot play', () => {
+  const out = fillListen(LISTEN, [
+    track({ playable: false, audioUrl: 'https://open.spotify.com/episode/abc', externalService: 'spotify', length: null }),
+  ]);
+  assert.ok(!out.includes('<audio'), 'a Spotify page is not an <audio src>');
+  assert.ok(!out.includes('data-listen-toggle'), 'and there is no button for it to drive');
+  assert.match(out, /<a class="btn btn-gold" href="https:\/\/open\.spotify\.com\/episode\/abc"[^>]*target="_blank" rel="noopener noreferrer">/);
+  assert.ok(out.includes('Listen on Spotify'), 'the card names the service that holds it');
+  assert.ok(out.includes('data-playable="no"'), 'the row states that it does not play in place');
+  assert.match(out, /data-narrator-kind="human"/, 'and who is speaking');
+});
+
+test('with nothing approved the page says so: no feature section, no list, and not one invented row', () => {
+  const out = fillListen(LISTEN, []);
+  assert.ok(!out.includes('sx-listen-feature'), 'a "Featured episode" over an episode that does not exist is the fault');
+  assert.ok(!out.includes('sx-tracklist'), 'an empty numbered list is still a list');
+  assert.ok(!out.includes('sx-track'), 'and not one example row may survive');
+  assert.ok(!out.includes('Sample') && !out.includes('Soon'), 'no placeholder duration or promise');
+  assert.ok(out.includes('No recording is published yet'), 'the page states the empty state in words');
+  // The list's heading stays — the section is the page's, and it says what will appear.
+  assert.ok(out.includes('id="all-episodes"'), 'the library heading remains');
+});
+
+test('the note is derived from the rows, so the sentence and the page cannot disagree', () => {
+  assert.ok(fillListen(LISTEN, [track()]).includes('1 recording approved and published'));
+  assert.ok(fillListen(LISTEN, [track(), track()]).includes('2 recordings approved and published'));
+});
+
+test('the narrator is the record’s own value, and an unrecorded kind is not guessed', () => {
+  assert.equal(narratorPhrase('human', 'Idenze Ezeme'), 'Read by a person · Idenze Ezeme');
+  assert.equal(narratorPhrase('synthetic_own_voice', null), 'Synthetic voice, the author’s own');
+  assert.equal(narratorPhrase('synthetic_generic', null), 'Synthetic voice');
+  assert.equal(narratorPhrase(null, null), 'Narrator not recorded');
+  assert.equal(narratorPhrase(undefined, undefined), 'Narrator not recorded');
+});
+
+test('/listen/ is a linked screen, so its own menu stops 404ing', () => {
+  /*
+   * MEASURED BEFORE THIS ROUND: `/listen/home.html`, `/listen/archive-index.html`, `/listen/watch.html` and
+   * `/listen/collections.html` all answered 404 — because `listen` was not in `LINKED_SCREENS` and so got
+   * neither the `fillDashboardLinks` rewrite nor the `<base href="/">` its siblings have. A 404 is at least
+   * honest; the class this repository fears more is the 200 on the wrong page.
+   */
+  assert.ok(LINKED_SCREENS.includes('listen'), 'listen must be in the set that gets its links rewritten');
+  const out = fillDashboardLinks(LISTEN, 'listen');
+  assert.match(out, /<head><base href="\/">/);
+  for (const [from, to] of [
+    ['home.html', '/'],
+    ['archive-index.html', '/archive/'],
+    ['watch.html', '/watch/'],
+    ['collections.html', '/collections/'],
+  ] as const) {
+    assert.ok(!out.includes(`href="${from}"`), `${from} must not survive as a relative link on /listen/`);
+    assert.ok(out.includes(`href="${to}"`), `${from} must resolve to ${to}`);
+  }
+});
+

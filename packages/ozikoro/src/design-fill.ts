@@ -976,33 +976,216 @@ export function fillFolklore(html: string, stories: RealStory[]): string {
   return out;
 }
 
-/** A recording in the listen library. */
-export type RealTrack = { title: string; href: string; series: string; image: string | null; length: string | null };
+/**
+ * A recording in the listen library, as the archive holds it.
+ *
+ * **EVERY FIELD IS A FACT OFF THE EPISODE ROW, OR IT IS ABSENT.** The owner's rule for this page is
+ * *"every audio inside an article on this website must appear on listen"*, which makes the page a
+ * DERIVATION of the records and not a selection from them — so there is nothing here for a person to
+ * maintain, and nothing here that a record does not carry.
+ *
+ * THE FIVE ORIGINAL FIELDS are the design's own row slots (`sx-track-main`, `sx-track-len`). The optional
+ * ones below were added when the page stopped being a list of written records and became a list of
+ * recordings; each is optional so that a caller which knows only the design's five still compiles and still
+ * draws an honest row.
+ */
+export type RealTrack = {
+  title: string; href: string; series: string; image: string | null; length: string | null;
+  /**
+   * HOW THE WORDS ARE SPOKEN, in a phrase a reader can read — `Read by a person`, `Synthetic voice`. Built by
+   * `narratorPhrase` from `ozikoro_episode.narrator_kind`, so the page cannot state a kind the record does
+   * not carry. `null` says the record does not say, and the row says that instead of guessing.
+   */
+  narrator?: string | null;
+  /** The raw `narrator_kind`, kept beside the phrase so the served row can be checked mechanically. */
+  narratorKind?: string | null;
+  /**
+   * WHETHER THE RECORDING IS A FILE THIS PAGE CAN PLAY, which is not the same question as whether the record
+   * has audio. An MP3 this archive holds, or an external address a check established serves `audio/*`, is
+   * played in place; a Spotify episode PAGE is audio a reader can hear but not a file any `<audio>` can take,
+   * and the page says so rather than offering a control that cannot answer.
+   */
+  playable?: boolean;
+  /** The address of the recording — ours under `/media/…`, or the external one. */
+  audioUrl?: string | null;
+  /** The episode's own slug, for the transcript that sits beside the audio. */
+  episode?: string | null;
+  /** The service holding the audio when `playable` is false, so the page can name it. */
+  externalService?: string | null;
+  /** The recorded disclosure sentence — who is speaking and how. Never written here. */
+  disclosure?: string | null;
+};
+
+/**
+ * The narrator, in one phrase, from the kind the record stores.
+ *
+ * **A KIND THE RECORD DOES NOT CARRY IS NOT GUESSED.** `ozikoro_episode.narrator_kind` is a NOT NULL CHECK
+ * over three values, so the fourth branch is for a caller that passed nothing — and it says the record does
+ * not say, rather than defaulting to the commonest answer.
+ */
+export function narratorPhrase(kind: string | null | undefined, name: string | null | undefined): string {
+  const base = kind === 'human'
+    ? 'Read by a person'
+    : kind === 'synthetic_own_voice'
+      ? 'Synthetic voice, the author’s own'
+      : kind === 'synthetic_generic'
+        ? 'Synthetic voice'
+        : 'Narrator not recorded';
+  return name ? `${base} · ${name}` : base;
+}
 
 /** One track row, in the design's `a.sx-track` markup. */
 export function renderTrack(index: number, t: RealTrack): string {
   const n = String(index).padStart(2, '0');
   const img = t.image ? `<img src="${esc(t.image)}" alt="" loading="lazy">` : '';
+  // The row's second line carries what the recording IS: the record's topic, and who is speaking. The
+  // design's own shape is `Topic · Series`, so this is the same slot with the fact the archive holds.
+  const series = t.narrator ? `${t.series} · ${t.narrator}` : t.series;
+  const length = t.length ?? (t.playable === false ? 'Opens elsewhere' : 'Listen');
   // The design wraps each track in an `<li>` inside `<ol class="sx-tracklist">`, so the row and its wrapper
   // are emitted together. Dropping the `<li>` would leave the list's own counters with nothing to number.
-  return `<li><a class="sx-track" href="${esc(t.href)}"><span class="sx-track-no">${n}</span>${img}<span class="sx-track-main"><strong>${esc(t.title)}</strong><small>${esc(t.series)}</small></span><span class="sx-track-len">${esc(t.length ?? 'Read')}</span><span class="sx-track-play" aria-hidden="true">▶</span></a></li>`;
+  //
+  // `data-playable` and `data-narrator-kind` are the two facts the brief asks this page to state, on the
+  // element rather than only in prose, so a served page can be checked without reading its sentences.
+  return `<li><a class="sx-track" href="${esc(t.href)}" data-playable="${t.playable === false ? 'no' : 'yes'}" data-narrator-kind="${esc(t.narratorKind ?? '')}"><span class="sx-track-no">${n}</span>${img}<span class="sx-track-main"><strong>${esc(t.title)}</strong><small>${esc(series)}</small></span><span class="sx-track-len">${esc(length)}</span><span class="sx-track-play" aria-hidden="true">▶</span></a></li>`;
 }
 
 /**
- * Fill `listen.html`'s track list.
+ * THE FEATURE CARD, FILLED FROM A REAL RECORDING — OR REMOVED.
  *
- * **A recording is not invented here.** The design's example rows claim a length ("Sample") and a play control.
- * The archive holds 13 video records and **no audio**, so nothing is presented as a recording: each row links
- * to the written record it belongs to, and the length column says `Read` rather than a duration nobody
- * measured. **The moment a real recording exists, this is the function that changes.**
+ * WHAT WAS WRONG WITH IT. The design's card is an example episode: *"The Ikoro: the drum that spoke for a
+ * town"*, *"Sample episode—recording awaiting approval"*, a `<button>▶ Play episode</button>` with no handler
+ * and no audio anywhere on the page, and a `Read the transcript` link to `article.html` — which, on a screen
+ * with no `<base>` and no rewrite, resolved to `/listen/article.html` and answered **404**. So the owner's
+ * report that the featured block "is not clickable and does nothing" was exactly right, and it was two faults
+ * at once: a control with no handler, and a link with no destination.
+ *
+ * WHAT REPLACES IT, AND THE RESTRAINT THAT MATTERS. The card is filled from the newest recording this archive
+ * can actually play, using **the design's own button and the same `<audio data-listen-audio>` element the
+ * article pages use** — `audio-listen.js` claims that button in the capture phase and hands it the file. **No
+ * second player is built here.** Where the recording is a page rather than a file (a Spotify episode), the
+ * button becomes an anchor that says where it goes, exactly as the article's panel does, because a play
+ * control over a file that cannot be fetched is a control that answers with nothing.
+ *
+ * With no recording at all the whole section is removed by the caller rather than filled: a "Featured episode"
+ * heading over an invented episode is the plainest kind of lie, and the design's own screen has no empty state
+ * for it to fall back to.
+ */
+function fillListenFeature(html: string, t: RealTrack): string {
+  const service = t.externalService && isExternalAudioService(t.externalService)
+    ? EXTERNAL_AUDIO_LABELS[t.externalService]
+    : null;
+  let out = html;
+  out = out.replace(
+    /(<span class="sx-listen-series">)[\s\S]*?(<\/span>)/,
+    `$1${esc([t.series, t.narrator].filter(Boolean).join(' · '))}$2`
+  );
+  out = out.replace(/(<h2 id="feature-title">)[\s\S]*?(<\/h2>)/, `$1${esc(t.title)}$2`);
+  // The description slot carries the episode's own recorded disclosure. It is the one sentence that says who
+  // is speaking and how, it is required by the distribution rules, and it is never written by this fill.
+  out = out.replace(
+    /(<h2 id="feature-title">[\s\S]*?<\/h2>\s*<p>)[\s\S]*?(<\/p>)/,
+    `$1${esc(t.disclosure ?? 'The record’s own words, read aloud.')}$2`
+  );
+  if (t.image) {
+    out = out.replace(
+      /(<div class="sx-listen-feature-card">\s*<img src=")[^"]*(" alt=")[^"]*(")/,
+      `$1${esc(t.image)}$2${esc(t.title)}$3`
+    );
+  } else {
+    // A card with no image loses the `<img>` rather than keeping the design's example photograph, which is a
+    // picture of another record.
+    out = out.replace(/(<div class="sx-listen-feature-card">\s*)<img[^>]*>/, '$1');
+  }
+  const transcript = t.episode
+    ? `<a class="btn btn-ghost" href="/podcast/${esc(t.episode)}/transcript.txt">Read the transcript</a>`
+    : '';
+  const actions = t.playable && t.audioUrl
+    ? `<audio data-listen-audio preload="none" src="${esc(t.audioUrl)}"></audio>`
+      + '<button class="btn btn-gold" type="button" data-listen-toggle aria-pressed="false">▶ Play episode</button>'
+      + transcript
+    : `<a class="btn btn-gold" href="${esc(t.audioUrl ?? t.href)}"${service ? ' target="_blank" rel="noopener noreferrer"' : ''}>`
+      + `Listen${service ? ` on ${esc(service)}` : ''} <span aria-hidden="true">↗</span></a>${transcript}`;
+  /*
+   * AND A LINE FOR THE PLAYER TO SPEAK THROUGH, WHICH THIS CARD DID NOT HAVE.
+   *
+   * `audio-listen.js` writes *"Playing · 4m 12s"*, *"Paused"* and — the one that matters — *"Could not play:
+   * NotAllowedError"* into `[data-listen-status]`. **The design's feature card has no such element**, so on
+   * this screen every one of those sentences was written to nothing: a refused autoplay or a missing file
+   * would leave the button reading `▶ Play episode`, which is exactly what it looked like before anybody
+   * pressed it. **A control that fails silently is a control that looks dead**, which is the fault this round
+   * is fixing one level down — so the element is added, with the design's own `.small` class and the same
+   * `aria-live="polite"` the article's panel uses. It exists only where there is a file to play: a card whose
+   * recording is held elsewhere has no player and nothing to say.
+   */
+  const status = t.playable && t.audioUrl
+    ? '<p class="small" data-listen-status aria-live="polite">Ready to listen</p>'
+    : '';
+  return out.replace(/(<div class="sx-listen-feature-actions">)[\s\S]*?(<\/div>)/, `$1${actions}$2${status}`);
+}
+
+/**
+ * Fill `listen.html`: **the recordings the archive holds, and nothing else.**
+ *
+ * THE OWNER'S RULE, VERBATIM
+ *
+ *   "every audio inside an article on this website must appear on listen."
+ *
+ * So this page is a DERIVATION of the episode records, not a selection from them. `tracks` is one entry per
+ * record whose article carries a player — the caller builds it from `playableEpisodeAudioSql()`, the same
+ * fragment the article page composes, so a record listed here and a record that plays there are the same set
+ * by construction rather than by agreement. **There is no list to maintain.** An approval, a publication or a
+ * new file changes the page at the next request, and nothing here has to be told about it.
+ *
+ * WHAT IT REPLACED, AND WHY THE OLD BEHAVIOUR WAS WORSE THAN EMPTY. This function used to be handed the
+ * twelve newest published records — records that mostly have no recording at all — and it drew each one as a
+ * row whose length column read `Read`. **The page said a reader could hear twelve things and none of them
+ * could be heard.** With three real episodes in the archive, the honest page is three rows.
+ *
+ * THE EMPTY STATE IS A REAL SCREEN. With nothing approved, the feature section is removed and the library's
+ * example rows go with it, because the design's six rows claim durations ("Sample") and a play control. What
+ * is left is the sentence that says so. **A page showing three real recordings is correct; a page showing
+ * twelve records that have none is a lie**, and a page showing six the design invented is worse.
+ *
+ * THE FEATURE CARD IS THE FIRST ROW, NOT A SEPARATE FACT. `tracks` arrives newest-first, so the featured
+ * episode is the newest recording and is also the first row of the library. Deriving both from one list is
+ * what stops the card from advertising an episode the list below it does not contain.
  */
 export function fillListen(html: string, tracks: RealTrack[]): string {
   let out = dropExampleFlag(html);
-  const rendered = tracks.map((t, i) => renderTrack(i + 1, t)).join('\n          ');
-  // `<ol class="sx-tracklist">`, not a div — the container is the list the design numbers.
-  out = replaceContainer(out, '<ol class="sx-tracklist"', rendered);
+
+  const featured = tracks[0];
+  if (featured) {
+    out = fillListenFeature(out, featured);
+  } else {
+    // The design's example episode goes, heading and all. A "Featured episode" over an episode that does not
+    // exist is the fault this page is being fixed for, in the other direction.
+    out = out.replace(/\s*<section class="sx-listen-feature[\s\S]*?<\/section>/, '');
+  }
+
+  if (tracks.length > 0) {
+    const rendered = tracks.map((t, i) => renderTrack(i + 1, t)).join('\n          ');
+    // `<ol class="sx-tracklist">`, not a div — the container is the list the design numbers.
+    out = replaceContainer(out, '<ol class="sx-tracklist"', rendered);
+  } else {
+    // The whole list goes, not its contents: an empty `<ol>` is still a numbered list with nothing in it.
+    out = out.replace(/\s*<ol class="sx-tracklist"[\s\S]*?<\/ol>/, '');
+  }
+
+  /*
+   * THE NOTE, WHICH IS A COUNT AND NOT A PROMISE. The design's sentence ends *"Sample titles shown for design
+   * only—no recordings are published yet"*, which was true of the design and is false of the served page. It
+   * is replaced by the archive's own count, so the sentence and the rows above it cannot disagree.
+   */
+  const note = tracks.length === 0
+    ? 'No recording is published yet. A record appears here once an episode for it has been approved and '
+      + 'published — the same condition the article itself uses before it shows a player.'
+    : `${tracks.length} recording${tracks.length === 1 ? '' : 's'} approved and published. Every episode keeps `
+      + 'its full transcript, source and speaker context beside the audio.';
+  out = out.replace(/(<p class="sx-source-note">)[\s\S]*?(<\/p>)/, `$1${esc(note)}$2`);
   return out;
 }
+
 
 /** One A–Z entry: a category or a place. */
 export type RealAzEntry = { name: string; href: string; kind: 'Category' | 'Place' };
@@ -2399,6 +2582,20 @@ function destinationFor(screen: string, label: string): string | undefined {
  */
 export const LINKED_SCREENS: string[] = [
   'publication', 'researcher-profile', 'academy', 'archive-index', 'upload', 'watch',
+  /*
+   * `listen` WAS MISSING, AND THE COST WAS EVERY LINK IN ITS HEADER.
+   *
+   * This screen is not a dashboard and carries no `href="#"`, so it was easy to leave out of the set — and
+   * being out of the set meant it received neither the `<base href="/">` nor the absolute-link rewrite. Its
+   * own menu is written the design's way (`home.html`, `archive-index.html`, `watch.html`, `collections.html`)
+   * and resolves against the address it is SERVED from, so at `/listen/` **every one of those items answered
+   * 404** — measured: `/listen/home.html`, `/listen/archive-index.html`, `/listen/watch.html` and
+   * `/listen/collections.html` all 404, while the same items on `/watch/` (which IS in this set) resolve. The
+   * featured card's `Read the transcript` link had the same fate. It is the "a control that returns 200 and
+   * lands elsewhere" fault with the status that gives it away, and no fill could have fixed it: the links are
+   * the design's and the rule to rewrite them is this one.
+   */
+  'listen',
   /*
    * AND THE FOUR WITH NO PLACEHOLDER LINK AT ALL, BECAUSE THE OTHER HALF OF THE SAME TRANSFORM IS THE ONE
    * THEY NEED.

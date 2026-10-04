@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, can, withStoredDesignOverrides, playableEpisodeSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -151,8 +151,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
       `select slug, storage_key, external_url, external_service, external_direct_audio, duration_seconds,
               narrator_kind, narrator_name, ai_disclosure, transcript
          from ozikoro_episode
-        where article_id = $1 and ${playableEpisodeSql()}
-          and coalesce(external_url, storage_key) is not null
+        where article_id = $1 and ${playableEpisodeAudioSql()}
         order by published_at desc nulls last limit 1`,
       [row.id]
     );

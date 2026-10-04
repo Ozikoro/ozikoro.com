@@ -19815,6 +19815,286 @@ click Next at /watch and /watch.html ->  http://127.0.0.1:3110/watch/?page=2   (
   if it is committed as it stands it will drop this round's `design-fill.ts` changes and this entry, because
   those paths must be re-staged after this commit.
 
+## ROUND 332 — `/listen/` BECOMES A DERIVATION OF THE EPISODE RECORDS, AND THE MUSIC EXCLUSION ON `/watch/` IS NAMED RATHER THAN HIDDEN
+
+The owner's rule, verbatim:
+
+> *"every article with youtube embeded on this blog must automatically appear in watch, same way every audio
+> inside an article on this website must appear on listen."*
+
+**And a correction to the brief this round was given, which is the fourth time today a premise was a round out
+of date.** The brief said `/watch/`'s film extraction might still be a `substring` without the `g` flag and
+that a page showing one film per article is not deriving "every article with an embed". **It is not, and it
+does not.** Round 326 replaced the SQL with `extractArchiveFilms` (`design-fill.ts:334`), which scans
+**every** `<iframe>` in `body_html` with `body_html.match(/<iframe\b[^>]*>/gi)` and reads the id out of
+`data-trx-lazyload-src` — 38 frames read, 25 carrying a real id, 24 distinct films, all of them present.
+Nothing was changed there. What the brief's item 2 asked for was already true, and the round's real work was
+`/listen/`, which had none of it.
+
+### 1. THE RULE AS IMPLEMENTED — ONE SENTENCE EACH
+
+* **A record appears on `/watch/` when its own `body_html` embeds a film** — every `<iframe>` in every
+  published, non-page record, its id read from whichever attribute carries it (`data-trx-lazyload-src` for all
+  38 of this archive's frames, `src` where a future import writes one), one card per distinct film id.
+* **A record appears on `/listen/` when its own article carries a player** — the record is published and not a
+  page, and its newest episode satisfies `playableEpisodeAudioSql` (published **and** `approved_at` and
+  `approved_by` **and** an address to play). One row per record, and the row and the article cannot disagree
+  because they compose the same fragment.
+
+### 2. WHERE THE DERIVATION LIVES, AND WHY IT SURVIVES AN IMPORT BY CONSTRUCTION
+
+**Nothing is stored for either page.** `/watch/` is derived at serve time from `ozikoro_article.body_html` by
+`extractArchiveFilms` + `fillWatch`; `/listen/` is derived at serve time by a lateral join over
+`ozikoro_episode` + `fillListen`. There is no `watch_film` table, no `listen_track` table and no cache — asked
+of the schema, not assumed: `grep -l "film\|watch" packages/db/migrations/*.sql` returns nothing.
+
+**So `build:entities` and every import path are unaffected and need to know nothing about films.**
+`scripts/build-town-entities.ts` does not read `body_html`, `ozikoro_episode` or any media row (checked, 0
+hits). An import that rewrites a body, an editor who adds an embed, a new episode that is approved: each
+changes the page on the next request with no list to update and no job to run. A stored derivation nobody
+refreshes is a manual list wearing a different name, and there is not one.
+
+**AND A COINCIDENCE THAT MUST NOT BE READ AS AGREEMENT.** The served `/watch/` draws **24 cards** and the
+derivation finds **24 distinct films**. The two 24s are not the same set. The page draws the design's own six
+cards plus 18 archive films; the derivation finds 24 archive films, of which six are the music the owner asked
+to be removed. 6 + 18 = 24 and 24 − 6 = 18. **The numbers agree by arithmetic accident, not by identity**, and
+the exclusion below is why.
+
+### 3. THE MUSIC EXCLUSION — REPORTED, NAMED, AND NOT DECIDED HERE
+
+**`/watch/` is NOT an automatic derivation today, and the page must not be described as one.** The owner asked
+five hours before this rule — *"on the watch, remove the musics"* — and that was implemented as
+`WATCH_MUSIC_FILMS` (`design-fill.ts:248`), a hand-written `Map` of six film ids to the reason each is music,
+filtered in `fillWatch`. **A hand-written map is exactly what "automatically" rules out.** The two
+instructions conflict and only the owner can resolve them; what this round does is stop the conflict being
+invisible.
+
+The six, with the reason the code records for each:
+
+| film id | the film | why it is music |
+|---|---|---|
+| `8fD66TzRmEg` | The Peacocks International Guitar Band — Feresirima | a highlife recording, embedded by the band's own biography |
+| `E-bbdBIH4Wg` | Eddie Quansa | the same record's second highlife recording |
+| `Gk5jUcXeUHc` | Seun Rere (Live) | Christy Essien-Igbokwe's song; `Seun Rere` is one of the record's own labels |
+| `NcBE2UH8WOc` | Time Na Money | Mike Okiri's song, held by "The Pioneer of Pidgin in Music" |
+| `5a6tJhLpPa4` | Beautiful Woman | Cloud 7's "breakout hit", and one of the record's own labels |
+| `az6b5avH_Zc` | King Ja Ja — Sing Out Barbados | a Bajan folk song, held by one of the six records filed under `Discography` |
+
+**The honest resolution is the owner's, and the recommendation is: keep the map for now, and pay the price
+openly.** Turning the exclusion into a property of the record is the right destination and it is **not
+implementable today** — it needs films to become records with a kind to file them under, and the archive has
+none: `Discography` covers exactly one of the six, `source_type` is `null` on all nineteen embedding records,
+`ozikoro_entity.kind` allows `music` and no such entity exists, and the WordPress labels name music on six of
+the nine dance records, so a label rule would delete the dances with the songs. **A property that cannot be
+derived is a list with a longer name**, so no table was built to hold six ids. Removing the map would undo an
+instruction the owner gave in plain words; keeping it means this one page bends the newer rule. **It is one
+line either way** — `WATCH_MUSIC_FILMS`, `design-fill.ts:248` — and the choice is his.
+
+### 4. ONE CARD PER FILM, NOT PER RECORD — AND THE EXACT DIFFERENCE
+
+The page is per-film: one card per distinct film id, de-duplicated across the archive, titled by the film's own
+`title` attribute where the record has one and by the holding record's title where it does not. **The owner's
+words read per-record** — *"every article with youtube embedded must appear"* — and the difference is
+measurable rather than rhetorical:
+
+| | count |
+|---|---|
+| published records that embed a film | **19** |
+| `<iframe>` frames carrying a real film id | **25** |
+| distinct films | **24** |
+| records that would get no card of their own under per-film | **1** |
+
+The one is `jOMjbchyNXg` ("Mmili Nkisi Day"), embedded by **two** records —
+`mmili-nkisi-day-a-celebration-of-culture-and-spirituality-in-onitsha` and
+`nkisi-river-and-its-revered-goddess-a-cultural-and-geographical-overview`. Its card names the newer record
+and says *"held in 2 records"*; the older record has no card of its own. Per-record would add **exactly one**
+card (25), and would still have to choose which film to show for the four records that embed two or three.
+**Per-film is what this round implements**, because the design's card is a film card with one `data-video-id`
+and one player, because deleting a film's second appearance leaves the first intact whereas choosing one film
+per record would silently drop the others, and because the owner's own next sentence — *"the list that shows on
+the page to showing 15 videos"* — counts **videos**. If he means one card per ARTICLE, it is one card's
+difference and it is his call.
+
+### 5. THE FOUR AUTOMATIC CASES, ON A SCRATCH COPY, WITH BEFORE AND AFTER
+
+The cluster was copied to `.data/scratch-r331/pg` (from the byte-verified pre-0052 backup, then migrated), a
+scratch server was run from a **clone of the built standalone** on port 3210, and every before/after below is
+the SERVED page fetched from it — the serve-time fill, not a function called from a script. **Nothing was
+invented even on the scratch copy**: the film added is `YdtgiesAeHg`, the AGBEJI MASQUERADE frame round 326
+read out of the WordPress `postmeta`; the episode inserted copies every content column from the archive's own
+Ute-Okpu recording and carries a `fixture-r331-` slug. The scratch cluster was reset to baseline afterwards.
+
+| case | change to the record | `/watch/` cards | `/listen/` rows |
+|---|---|---|---|
+| **baseline** | — | **24** (15 + 9) | **3** |
+| **W1 add an embed** | a YouTube `<iframe … data-trx-lazyload-src="…/embed/YdtgiesAeHg…">` appended to the body of `40000-years-ago-in-igboland-…` (published, no embed) | **25** — `YdtgiesAeHg` appears on page 2, titled **AGBEJI MASQUERADE** from the record's own `title` attribute | 3 |
+| **W2 remove an embed** | the YouTube frame removed from `ndebe-preserving-and-advancing-the-igbo-language` | **23** — `vsV9gI_U184` ("Ńdébé: Preserving and Advancing the Igbo Language") is gone | 3 |
+| **L1 insert an episode** | one row inserted for `umunede-an-ika-igbo-kingdom-in-western-igboland` satisfying `playableEpisodeAudioSql`, every content column copied from episode 1 | 24 | **4** — "Umunede: An Ika-Igbo Kingdom in Western Igboland" appears |
+| **L2 null the approval** | `approved_at = NULL` on episode 1 (Ute-Okpu), `status` and `storage_key` untouched | 24 | **2** — Ute-Okpu is gone |
+
+**L2 also proves the page and the article agree.** With `approved_at` NULL, `/listen/` held 2 rows and exactly
+the same 2 articles carried `<audio data-listen-audio>`:
+
+    list  : 2 rows — igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage how-tortoise-got-his-bumpy-shell
+    player: 2 articles carry <audio data-listen-audio> — how-tortoise-got-his-bumpy-shell igbo-folklore-…
+    listed but no player: (none)
+    player but not listed: (none)
+
+**The gate that landed this afternoon proved the article; this is the same proof for the list**, and it is the
+first time the two surfaces have been shown to hold the same set.
+
+### 6. THE COUNTS, AND WHY THE PAGE'S NUMBER IS NOT THE DERIVATION'S
+
+| | measured |
+|---|---|
+| published records that embed a film | **19** |
+| `<iframe>` frames in those bodies / carrying a real film id | **38** / **25** |
+| distinct films the derivation finds | **24** |
+| films drawn on `/watch/` after the disclosed exclusion | **18** |
+| cards `/watch/` serves | **24** = the design's own 6 + the archive's 18 (15 on page 1, 9 on page 2) |
+| episodes satisfying `playableEpisodeAudioSql` on a published record | **3** |
+| cards `/listen/` serves | **3** rows + the feature card, which is row 1 |
+
+**`/listen/`'s page and derivation agree exactly today (3 and 3), and the reason they cannot drift is that
+they are not two numbers**: the query IS the derivation. `/watch/`'s 24 is not the derivation's 24, and §2 says
+why.
+
+### 7. WHAT THE PAGES SHOW
+
+    /watch/ page 1, 15 cards
+      E3UBv8pmLxE (Faces | Voices) · NBj1CvaDgbM (Unspoken Stories 1: Onyeso) · 0_MvyVVGcxE (Christian and Igbo religious systems: the new interface)
+      LL8YX0pXzdI (The War Dance Festival (ILA OSO) In Uzuakoli) · SHPEwGDOI7c (Ojeh & Arishi Festival of Aboh Kingdom) · jOMjbchyNXg (Mmili Nkisi Day)
+      H2Ch-R3EZkA (Égwú Àmàlà) · la4vThM0MUo (Egwu Ogene) · NIR5CcOUoas · lAtHAK-5WZw (Nkwa Ụmụagboghọ) · lg_dSLOKywk · 0g2hAF8NdOA (Ikpirikpi-ogu)
+      3NnklFf2rXA (Unspoken Stories 2: Unnamed Children) · g1z_-5jqPG0 (Unspoken Stories 3: Yainkain) · TwFgd11nvEg (Ilọ Ụwa)
+    /watch/ page 2, 9 cards
+      ekO2hKFsbEk · c9hMdWsZDJY · jVNIwrESgQ4 (Egedege) · u4ZadZ5hyWs · _w9v21ndnm4 (Atilogwu) · 5M0gCNAaVqs (Omu) · bPXKduoup8I (Cabildo Carabali Isuama) · vsV9gI_U184 (Ńdébé) · Hr30SGgC8LY (Eboe Town)
+    /listen/, 3 rows — every one playable in place
+      1. Igbo Folklore: Twelve Timeless Tales of Wisdom, Wonder, and Moral Heritage | Folklores · Synthetic voice, the author's own · Idenze Ezeme (synthetic) | 8m 54s | synthetic_own_voice | playable
+      2. How Tortoise Got His Bumpy Shell | Folklores · Synthetic voice, the author's own · Idenze Ezeme (synthetic) | 2m 24s | synthetic_own_voice | playable
+      3. Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots | Historical Studies · Read by a person · Idenze Ezeme | 11m 06s | human | playable
+
+**Before this round `/listen/` served twelve rows of records with no audio, 0 `<audio>` elements and six
+invented example rows in the design's own markup.** None of that is on the page now, and the note under the
+list is a count of the rows above it rather than the design's promise.
+
+### 8. THE BROWSER, WHICH IS WHERE THREE OF TODAY'S FAULTS WERE FOUND
+
+Headless Chrome over the DevTools Protocol, with **real mouse events** rather than `element.click()`, because
+a scripted click is not a user gesture and autoplay treats it differently.
+
+    /listen/  press the featured "▶ Listen"
+      before  playerScript true · featured "Igbo Folklore: …" · button "▶ Listen" · audioSrc /media/ozikoro/episodes/igbo-folklore-….mp3
+      after   url http://127.0.0.1:3210/listen/ · button "❚❚ Pause" · paused false · currentTime 2.56
+              duration 533.84 · readyState 4 · ran TRUE
+    /listen/  press the first library row
+      landed  /igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage/
+              articleHasPlayer true · articleHasAudioScript true
+    /watch/   press Next
+      before  cards 15 · nextHref "/watch/?page=2"
+      after   url /watch/?page=2 · cards 9 — root-absolute, NOT the front page
+    /watch/   press the first film card
+      player  stage hidden false · frameSrc https://www.youtube-nocookie.com/embed/E3UBv8pmLxE?autoplay=1&rel=0
+              frameTitle "Faces | Voices" · cardPressed E3UBv8pmLxE
+
+**The featured recording decodes and its clock advances after a real press**, and the library row reaches the
+article that carries the same player — which is the parity claim measured in a browser rather than argued.
+
+### 9. THE SECOND DEAD-LINK FAULT FOUND ON THIS PAGE
+
+`listen` was not in `LINKED_SCREENS`, so `/listen/` received neither the `<base href="/">` nor the absolute
+-link rewrite its siblings have. Measured: **`/listen/home.html`, `/listen/archive-index.html`,
+`/listen/watch.html` and `/listen/collections.html` all answered 404** while the identical items on `/watch/`
+resolved. The design's featured card's `Read the transcript` link (`article.html`) had the same fate. One entry
+in the set fixes the whole menu, and the fill writes the transcript link root-absolute. This is the fault class
+the brief warns about — a control that lands somewhere other than it promises — with the status that gives it
+away, and **no fill could have fixed it, because the links are the design's and the rule to rewrite them is
+this one.**
+
+**AND THE FEATURE CARD'S PLAYER COULD FAIL IN SILENCE, WHICH AN INDEPENDENT AGENT FOUND BY PRESSING IT.**
+`audio-listen.js` reports a refused autoplay or a missing file by writing *"Could not play: NotAllowedError"*
+into `[data-listen-status]` — and **the design's feature card has no such element**, so on this screen every
+sentence the player wrote went nowhere and the button simply returned to `▶ Play episode`, which is exactly
+what it looked like before anybody pressed it. **A control that fails silently is a control that looks dead**,
+the fault this round is removing one level down, so the card now carries
+`<p class="small" data-listen-status aria-live="polite">Ready to listen</p>` — the design's own class and the
+same live region the article's panel uses. It is drawn only where there is a file to play. The fix, and this
+paragraph, exist because a second agent ran the round's own page in a browser and reported what a press that
+fails would look like.
+
+### 10. THE GATE
+
+* `npm run typecheck` from the repository root, read from its own exit code: **exit 0**.
+* `node --test packages/ozikoro/src/design-fill.test.ts`: **64 tests, 64 pass, 0 fail** — seven added here
+  (one row per recording and no example row surviving; the file giving the feature card one `<audio>` and the
+  design's own button; a Spotify PAGE becoming a link that leaves and never a button; the empty state removing
+  the feature section, the list and every invented row; the note derived from the rows; `narratorPhrase` never
+  guessing an unrecorded kind; `listen` in `LINKED_SCREENS` with all four menu items resolving).
+* The build: `bash scripts/serve-review.sh --rebuild`, **exit 0**, built into `.next-next`, swapped in,
+  artefact asserted complete (52 design screens). A later run refused with the holder's pid while a sibling
+  held the lock — contention, not a fault, and the run was repeated.
+* The design is inviolable. `git status --porcelain design/ apps/ozikoro/public/design/` returns nothing and
+  the brief's own check prints `identical 63 differing 0 missing 0`, below.
+
+### 11. WHAT DOES NOT WORK
+
+* **The review site on 3110 was down when this entry was written, and it is not this round's code.**
+  `.next` was verified intact (`BUILD_ID`, 52 design screens, `server.js` present). `serve-review.sh` starts
+  the server, which then refuses the cluster because **a sibling agent's script holds the live one** — first
+  `scripts/dsh-media-report.tmp.ts` (pid 9336), then `scripts/dsh-media-probe.tmp.ts` (pid 12688), the second
+  held for five minutes and still held. **The lock was not removed and the holder was not killed**: it is
+  another agent's in-flight work, and a script opening the live cluster while the review server is being
+  restarted is the fault `AGENTS.md` forbids. Reported to the coordinator rather than worked around.
+* **`/listen/` does not paginate.** Three recordings need no pager, and a pager added before there are more
+  than a screenful would be a control for a state that does not exist.
+* **The library rows are links, not play buttons.** Each row opens the record whose article plays the
+  recording; only the featured episode plays in place. Building a per-row player means N `<audio>` elements
+  and a second player, which this round deliberately did not do.
+* **The design's own series filter row does nothing** — `All`, `Histories`, `Folklore`, `Oral records` are four
+  anchors to `#episodes`. That is the design's markup and is unchanged; reported rather than fixed, because
+  fixing it means editing the design.
+* **`/watch/`'s search box still posts to a dead address** and **four of its six filter links still name
+  sections `watch.html` does not draw** — both unchanged from round 330.
+* **`apps/ozikoro/app/listen/page.tsx` is a SECOND listen page, it is unreachable, and it still says
+  something false.** The middleware rewrites `/listen/` to `/design-screen/listen`, which is the file this
+  round fills, so that route has never been served — but it remains in the tree claiming *"the archive holds
+  no audio yet, so the library is empty"*, and the moment `listen` left the middleware's screen list the two
+  would disagree. It was not deleted here: it is another writer's file in a contended tree, and
+  `scripts/check-screen-coverage.mjs` requires it to exist, so removing it means changing that check's
+  `listen` entry to say the screen is served by `/design-screen/[screen]`. Found by the independent agent
+  whose entry is round 333.
+* **Six films are still missing from `/watch/` by a hand-written map.** §3 is the whole of that, and it is the
+  one thing on this page that "automatically" does not yet cover.
+
+### 12. THE VERBATIM OUTPUTS THE ROUND IS JUDGED ON
+
+    $ npm run typecheck        # from the repository root, exit code read from its own status
+    EXIT=0
+
+    $ node --test packages/ozikoro/src/design-fill.test.ts
+    ℹ tests 64
+    ℹ pass 64
+    ℹ fail 0
+
+    $ bash scripts/serve-review.sh --rebuild
+    ==> build finished in 201s
+    ==> artefact complete: server.js present, 52 design screens
+    ==> swapping the new build into apps/ozikoro/.next
+      READY  ->  http://127.0.0.1:3110
+
+    $ git status --porcelain design/ apps/ozikoro/public/design/
+    (nothing)
+
+    $ python3 -c "…the brief's own check…"
+    identical 63 differing 0 missing 0
+
+**AND THE ROUND WAS CHECKED BY AN AGENT THAT DID NOT WRITE IT.** A second agent's independent run over the
+built page — reported under its own round number — produced the before/after table (13 images / 0 `<audio>` / 12 rows → 4 / 1 / 3),
+a real `Input.dispatchMouseEvent` press that read `❚❚ Pause` and a clock at 1.24 s, the parity checked in both
+directions (the three listed records all carry exactly one `data-listen-audio`; the eleven the old page listed
+all serve no panel at all), and its own instrument at `PROBLEMS: 0`. **It also found the stale narration-gate
+check and the silent feature-card failure that §9 records** — both corrected here rather than argued with.
+
+
 ## ROUND 333 — THE NARRATION GATE THAT HAD STOPPED GUARDING, AND AN INDEPENDENT RUN OVER `/listen/`
 
 The `/listen/` change itself is round 332's, above. **This entry is a second agent's independent run over the

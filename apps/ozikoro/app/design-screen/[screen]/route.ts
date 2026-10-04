@@ -46,6 +46,7 @@ import {
   fillModeSwitcher,
   DESIGN_THEME_HREF,
   LINKED_SCREENS,
+  playableEpisodeAudioSql,
   type DesignOverride,
 } from '@ozikoro/platform';
 import { sessionCookieOptions } from '@ozituma/db/accounts';
@@ -61,6 +62,7 @@ import {
   extractArchiveFilms,
   MARQUEE_PLACES,
   MARKET_DAY_ANCHOR,
+  narratorPhrase,
   type DashboardWho, type RealAzEntry, type RealCollection, type RealDocument, type RealEntry, type RealFilm,
   type RealPhotograph, type RealStory, type RealTown, type RealTrack,
 } from '@ozikoro/platform';
@@ -1038,23 +1040,88 @@ export async function GET(
     try {
       if (name === 'listen') {
         /*
-         * THE ARCHIVE HOLDS NO AUDIO. It holds 13 video records and no recording, so nothing here is presented
-         * as one: each row is the written record, and the length column says `Read` rather than a duration
-         * nobody measured. **A listen page that claimed episodes would be the plainest kind of invention.**
+         * THE RECORDINGS THE ARCHIVE HOLDS, DERIVED FROM THE EPISODE RECORDS.
+         *
+         * THE OWNER'S RULE: *"every audio inside an article on this website must appear on listen."* The list
+         * is therefore not a selection anybody maintains — it is the set of records whose article carries a
+         * player, asked of the database on every request.
+         *
+         * WHAT THIS REPLACED. The query here was `where a.status = 'published' … limit 12` — the twelve newest
+         * published RECORDS, whether or not a recording existed for any of them — and every row said `Read`
+         * beside a ▶ glyph. **The served page listed twelve things a reader could not hear, while the archive
+         * held three episodes and the article pages played them.** A page that claims sound it does not have
+         * is the plainest kind of invention, and it is what this round removes.
+         *
+         * THE JOIN, AND WHY IT IS BOTH CONDITIONS. A record appears here exactly when it appears on its own
+         * article with a player, so the two surfaces cannot drift:
+         *
+         *   * the ARTICLE must be published and not a page — otherwise `/<slug>/` 404s and the card points at
+         *     nothing, which is a card for a recording nobody can reach;
+         *   * `playableEpisodeAudioSql('e')` is the article's own condition — the approval record AND an
+         *     address to play — composed from the one fragment in `@ozikoro/platform` rather than written out
+         *     here, because a second copy of a gate is the copy that drifts;
+         *   * `limit 1` inside the lateral join is the article's own `order by published_at desc nulls last
+         *     limit 1`, so a record with two approved episodes contributes the one card its article will play.
+         *     Without that, a record could stand here twice and carry one player there.
          */
         const db = await getDb();
-        const rows = await db.rows<{ slug: string; title: string; topic: string | null; img: string | null }>(
+        const rows = await db.rows<{
+          slug: string; title: string; topic: string | null; img: string | null;
+          episode: string; duration_seconds: number | null; narrator_kind: string; narrator_name: string | null;
+          ai_disclosure: string; storage_key: string | null; external_url: string | null;
+          external_service: string | null; external_direct_audio: boolean | null;
+        }>(
           `select a.slug, a.title, t.name as topic,
-                  (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img
+                  (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as img,
+                  e.slug as episode, e.duration_seconds, e.narrator_kind, e.narrator_name, e.ai_disclosure,
+                  e.storage_key, e.external_url, e.external_service, e.external_direct_audio
              from ozikoro_article a
+             join lateral (
+               select * from ozikoro_episode e
+                where e.article_id = a.id and ${playableEpisodeAudioSql('e')}
+                order by e.published_at desc nulls last limit 1
+             ) e on true
              left join ozikoro_topic t on t.id = a.topic_id
             where a.status = 'published' and a.is_page = false
-            order by a.published_at desc nulls last limit 12`
+            order by e.published_at desc nulls last`
         );
-        const tracks: RealTrack[] = rows.map((r) => ({
-          title: r.title, href: `/${r.slug}/`, series: r.topic ?? 'The archive', image: r.img ? mediaPath(r.img) : null, length: 'Read',
-        }));
-        if (tracks.length > 0) html = fillListen(html, tracks);
+        const tracks: RealTrack[] = rows.map((r) => {
+          /*
+           * WHETHER THIS RECORDING IS A FILE, WHICH DECIDES WHAT THE PAGE OFFERS. Ours under `/media/…`, or an
+           * external address a save-time check established serves `audio/*`, plays in place. A Spotify episode
+           * PAGE is audio a reader can hear and not an `<audio src>`, and the card says where it goes instead
+           * of offering a control that cannot answer — the same distinction `/[slug]/` makes.
+           */
+          const directAudio = r.external_url ? r.external_direct_audio === true : true;
+          const mins = r.duration_seconds ? Math.floor(r.duration_seconds / 60) : null;
+          const secs = r.duration_seconds ? r.duration_seconds % 60 : null;
+          return {
+            title: r.title,
+            href: `/${r.slug}/`,
+            series: r.topic ?? 'The archive',
+            image: r.img ? mediaPath(r.img) : null,
+            // The length is the measured duration of the file, or the service that holds it. The design's
+            // `Sample` claimed a recording this archive did not have; nothing here is claimed that is not
+            // recorded.
+            length: mins !== null ? `${mins}m ${String(secs).padStart(2, '0')}s` : null,
+            narrator: narratorPhrase(r.narrator_kind, r.narrator_name),
+            narratorKind: r.narrator_kind,
+            playable: directAudio,
+            audioUrl: directAudio
+              ? (r.external_url ?? (r.storage_key ? `/media/${r.storage_key}` : null))
+              : r.external_url,
+            episode: r.episode,
+            externalService: r.external_service,
+            disclosure: r.ai_disclosure,
+          };
+        });
+        /*
+         * CALLED EVEN WHEN THE LIST IS EMPTY. A guard of `tracks.length > 0` would leave the design's six
+         * example rows on the page — durations ("Sample") and play controls for recordings that do not
+         * exist — which is the fault this round is removing, so the fill runs and it is the fill that
+         * removes them.
+         */
+        html = fillListen(html, tracks);
       }
     } catch (error) {
       /*
@@ -1741,6 +1808,24 @@ export async function GET(
     const url = new URL(request.url);
     const inventory = await inventoryResponse(html, url);
     if (inventory) return inventory;
+  }
+
+  /*
+   * THE PLAYER SCRIPT, ADDED ONLY WHERE THERE IS SOMETHING TO PLAY — AND IT WAS NOT LOADED HERE AT ALL.
+   *
+   * `/listen/` is a screen whose one interactive control was a play button, and **the screen loaded no player
+   * script**: `listen.html` carries only `mobile-nav.js`, so the featured card's `<button>▶ Play episode</button>`
+   * had no handler on any served copy and the owner's report — *"it is not clickable and does nothing"* — was
+   * the literal truth. That is the same shape as the market-day stamp and the article's `reader.js`: a control
+   * whose script was never in the document, on a page that answers 200 and looks finished.
+   *
+   * The condition is the presence of `[data-listen-audio]` rather than the screen's name, because that is the
+   * element `audio-listen.js` itself looks for: it returns immediately without one, so loading it on a listen
+   * page whose only recording is a Spotify page would be a request that can never do anything. **One player,
+   * the same file the article uses, added where it has a file to drive.**
+   */
+  if (name === 'listen' && html.includes('data-listen-audio') && !html.includes('/audio-listen.js')) {
+    html = html.replace('</body>', '<script src="/audio-listen.js" defer></script></body>');
   }
 
   html = withSeoHead(
