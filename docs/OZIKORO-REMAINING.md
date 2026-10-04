@@ -23691,3 +23691,167 @@ where it is instead of being pointed at the new `entityKindLabel`.
   vocabulary in one repository is a place for them to drift. It was not consolidated because that file
   carries an uncommitted change belonging to another round, and editing it here would have put that work in
   this commit or lost it.
+
+## ROUND 351 — THE FILM PAGE FETCHED THE ARTICLE FOR ITS FILM AND ITS TITLE AND THEN DID NOT SHOW THE ARTICLE, AND THE SLOT THAT PROMISED READING SAID ONLY THAT NO TRANSCRIPT EXISTED
+
+**The owner's words, verbatim:** *"again, why is the main article not displaying? how can you fetch video
+from an article, fetch the title, but cant fetch the article? i am saying this cos of this 'Transcript-first
+view' on this http://127.0.0.1:3110/watch-video/?v=LL8YX0pXzdI"* — and his question was the correct one.
+
+### 1. What the page showed, and what it shows now
+
+Measured before, at `/watch-video/?v=LL8YX0pXzdI` (6,691 bytes): the page carried the record's `<h1>`, its
+`youtube-nocookie.com/embed/LL8YX0pXzdI` frame and two links to `/the-war-dance-festival-ila-oso-in-uzuakoli/`
+— **and not one of that record's paragraphs.** The reading slot read, verbatim:
+
+```html
+<div class="sx-transcript-copy" id="transcript-copy">
+  <p class="eyebrow">Transcript-first view</p>
+  <h2>Read when video is difficult to load</h2>
+  <p style="margin-top:var(--s-4);line-height:1.7">The approved transcript has not been supplied for this film.
+     This area carries the complete timed transcript, speaker names and language information when the publisher
+     supplies one, and none is invented in its place.</p>
+  <div class="partial-note" style="margin-top:var(--s-5)">Transcript status: no publisher-approved transcript
+     has been supplied.</div>
+  <div id="related-video" …>…</div>
+</div>
+```
+
+**A heading that promises "Read when video is difficult to load", and underneath it a paragraph about the
+absence of a transcript, and the record's own writing nowhere on the page.** The article at its own address is
+21,013 bytes and renders 12 paragraphs.
+
+After (15,670 bytes): the slot keeps the design's `<h2>` verbatim, keeps both sentences that say no transcript
+has been supplied, and carries the record's writing in the design's own `.prose` column under a sentence that
+names it. Verbatim, from the served page:
+
+```html
+<div class="sx-transcript-copy" id="transcript-copy"><p class="eyebrow">Reading view</p>
+  <h2>Read when video is difficult to load</h2>
+  <p style="margin-top:var(--s-4);line-height:1.7">The approved transcript has not been supplied for this film.
+     This area carries the complete timed transcript, speaker names and language information when the publisher
+     supplies one, and none is invented in its place.</p>
+  <div class="partial-note" style="margin-top:var(--s-5)">Transcript status: no publisher-approved transcript
+     has been supplied.</div>
+  <p class="small muted" style="margin-top:var(--s-6);max-width:70ch">A transcript is a timed,
+     speaker-attributed record of what is said in a film, and the archive holds none for this one. What it does
+     hold is the record that embeds the film,
+     <a href="/the-war-dance-festival-ila-oso-in-uzuakoli/">The War Dance Festival (ILA OSO) In Uzuakoli</a>,
+     whose own writing follows as published. Those are the record’s words, not a transcript of the film, and no
+     line of them is attributed to anyone speaking in it.</p>
+  <div class="prose" style="margin-top:var(--s-5)"> … 11 paragraphs, 4 photographs, 2 lists and 4 authored
+     headings … </div>
+  <div id="related-video" …>…</div>
+</div>
+```
+
+**And it is not one hard-coded page.** All **18** of the archive's films were requested through `?v=`, and all
+18 now render the holding record's writing (9 to 33 paragraphs of `.prose` each), every one of their images
+resolved to `/media/…` (0 with a surviving `wp-content` image address), 0 with a second `<iframe>` inside the
+reading slot, and all 18 still carrying `Transcript status: no publisher-approved transcript has been
+supplied.` Two were read in full: `?v=LL8YX0pXzdI` (11 paragraphs) and `?v=NIR5CcOUoas` (27 paragraphs,
+holding record *Nkwa Ụmụagboghọ Dance: A Cultural Heritage of Ebonyi State*).
+
+**The writing is the record's whole body, measured by text rather than by count.** The article page's `.prose`
+holds 12 non-empty paragraphs; the film page's reading slot holds 13. The difference is exactly the frame:
+the article page carries "Cite this article" and "Continue reading" (its own UI) and the film page carries the
+transcript statement and the heading sentence. **No paragraph of the record is missing from the film page.**
+
+### 2. Where the record's writing comes from
+
+* **The query is the one the route was already running.** `apps/ozikoro/app/design-screen/[screen]/route.ts`
+  selects `a.slug, a.title, t.name as topic, a.body_html` for every published record whose body embeds a film —
+  **the film id is *in* `body_html`, which is how the film is found at all.** The holding record is matched by
+  `film.href` (built from the record's own slug by `extractArchiveFilms`), so the two cannot disagree about
+  which record holds the film. **No sixth read of `ozikoro_article` was written.**
+* **The sanitiser is the archive's own** — `sanitiseArchiveHtml` in `packages/ozikoro/src/content.ts`, the
+  function `prepareArchiveHtml` calls for a published record's body. It is called from `fillWatchVideo` and not
+  reimplemented. It also drops `<iframe>` with its contents, which is a requirement and not a side effect: the
+  film is already the page's subject, and a second player inside a slot headed "read when video is difficult to
+  load" is the opposite of what the slot is for. Measured: 0 iframes in any of the 18 reading slots, and the
+  page still carries exactly one `youtube-nocookie.com/embed/<id>`.
+* **The order of the three steps is `prepareArchiveHtml`'s own: rewrite the media addresses, sanitise, then move
+  the authored headings into the page's outline.** The first pass of this fix sanitised first and **3 of the
+  ILA OSO record's photographs were served as `/wp-content/uploads/2025/03/…` and 404'd**, because
+  `sanitiseArchiveHtml` turns an `ozikoro.com/wp-content/…` address into a path while the archive's media map is
+  keyed by the absolute `source_url`. The route passes the resolver it already builds for its own second pass
+  (`oldSiteImageResolver ??= await mediaUrlResolver(db)`, only when the record's body carries an absolute
+  address), so the images resolve. `tidyBody(…, null)` then takes WordPress's fixed pixel widths off, with the
+  featured image passed as `null` because this page draws no figure of its own and dropping the record's would
+  delete a photograph that has nowhere else to appear.
+* **The design file is untouched.** `apps/ozikoro/public/design/` is byte-identical to the deliverable —
+  parity below — and the change is a serve-time transform, like every other fill.
+
+### 3. The transcript distinction, which is the part that matters
+
+* **An article body is not a transcript**, and nothing here says it is. A transcript is a timed,
+  speaker-attributed record of what is said in the film. The page now says so in as many words, says the
+  archive holds none for this film, and says the writing below is the record's. **The sentences saying no
+  publisher-approved transcript has been supplied are unchanged and still true.**
+* **Two design labels were the section contradicting itself and were rewritten**: the eyebrow
+  `Transcript-first view` → `Reading view`, and the two in-page `Transcript` links → `Reading view`. The
+  design's `<h2>`, *"Read when video is difficult to load"*, is kept verbatim — it does not call the article a
+  transcript, and it is the heading the article now goes under.
+* **A real transcript exists in this archive, and the fix does not displace it.** Measured: three approved,
+  published episodes carry one, all three served 200 with content —
+  `/podcast/igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage/transcript.txt` (11,836
+  bytes), `…/how-tortoise-got-his-bumpy-shell/transcript.txt` (3,398), `…/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/transcript.txt`
+  (10,139). Each says what it is: *"Transcript of the spoken record. The words are the article's own."*
+* **No film has one.** The 18 films resolve to 13 distinct holding records, and
+  `/podcast/<that record>/transcript.txt` answers **404 for all 13**. So no film page had a transcript for this
+  fix to displace, and none of the three real transcripts is on a film page.
+* **No speaker name, timestamp or language was invented anywhere in this round.**
+
+### 4. `/listen/` — measured, not assumed, and not changed
+
+* `/listen/` serves **3** rows for the archive's 3 approved recordings, each an `a.sx-track` whose `href` is the
+  recording's own article. **Every destination was followed and its `h1` read**: `Igbo Folklore: Twelve
+  Timeless Tales…` (200), `How Tortoise Got His Bumpy Shell` (200), `Ute-Okpu: An Ika-Igbo Clan and Its Nri
+  Roots` (200) — and each of those three articles carries the `Read the transcript` link, because it is the
+  article page that owns the episode panel.
+* **It does not claim a transcript it does not have.** The source note reads *"3 recordings approved and
+  published. Every episode keeps its full transcript, source and speaker context beside the audio."* That is
+  true of all three (measured above). The featured card's `Read the transcript` link resolves 200.
+* **So the same fault is NOT there, and nothing was changed.** The design's row is one `<a class="sx-track">`,
+  so a second anchor inside it would be invalid HTML — but it does not need one: **the row's own destination is
+  the article, so the writing is reachable from `/listen/` in one click**, and the transcript is reachable from
+  that article. What `/watch-video/` had was different in kind: a page that *was* the film's own destination,
+  whose whole reading area promised writing and delivered none.
+
+### 5. The inventory: every page built from an article record
+
+| page | what it takes from the record | can the reader reach the writing? |
+|---|---|---|
+| `/<slug>/` (the article itself) | title, topic, byline, dates, featured image, **full body**, related, entities, episode | **yes — this is the writing** |
+| `/watch-video/?v=` | film id, title, topic, holding record's address — **and, since this round, the holding record's body** | **yes, on the page now** (was: no — two links to it and no words) |
+| `/watch/` cards | `data-video-id`, `data-video-title`, `data-video-meta`, `data-video-page="/watch-video/?v=…"` — **no body**, and none is expected: the card is a poster that plays in place | **yes, in two steps**: card → inline player's page link (`#inline-player-page`, filled by the design's own script) → the film page → the record |
+| `/listen/` rows | title, topic, narrator phrase, duration, audio address, **href = the article** | **yes, in one click** — the row opens the record |
+| `/cultural-event/` | **nothing** — it is built from no record: it says "No event is recorded" | n/a — no article is involved |
+| `/podcast/` | **does not exist** (404, 9 bytes). The only `/podcast/` addresses are `feed.xml` and `/<slug>/transcript.txt` | n/a |
+| `/folklore-reader/` | one folklore record's title, topic, image, lead and body | **yes, on the page** |
+| `/oral-recordings/` | nothing — a 200 stub that redirects to `/listen/` | n/a |
+
+**One page in the archive took a record's title and its media and not its body: `/watch-video/?v=`, and it is
+the one this round fixed.** `/watch/`'s cards and `/listen/`'s rows take no body by design and both carry a
+working address to the record; `/cultural-event/` and `/oral-recordings/` are built from no article at all.
+
+### 6. The design parity, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+### 7. What does not work
+
+* **`packages/ozikoro/src/knowledge.test.ts` cannot run while the review server is up.** It opens the PGlite
+  cluster, which the standalone server on 3110 holds, and the cluster lock refuses: *"REFUSING TO OPEN THE
+  PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT… holder pid 53319… holder argv …/.next/standalone/apps/ozikoro/server.js"*.
+  That is the guard working as designed, not a fault of this change; the three tests in the file that need no
+  cluster pass. `npm run typecheck` from the repository root exits **0**, and
+  `node --test packages/ozikoro/src/design-fill.test.ts` is **84 pass, 0 fail**.
+* **One piece of old-site media is still unresolved on two film pages**, and it is unresolved on the article
+  pages too: `?v=H2Ch-R3EZkA` renders a `<video>` whose `<source>` is
+  `https://ozikoro.com/wp-content/uploads/2025/01/AQPzVi8x…mp4`, and the same address is in
+  `/egwu-amala-the-paddle-dance-of-nigerias-river-communities/`. The media map holds no row for that file, and
+  `rewriteBodyImages` leaves an unmatched address exactly as it was rather than substituting one. No image is
+  affected: 0 of 18 pages have an unresolved `src` or `srcset`.

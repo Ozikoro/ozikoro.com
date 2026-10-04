@@ -25,6 +25,7 @@
 import type { Db } from '@ozituma/db';
 import { EXTERNAL_AUDIO_LABELS, isExternalAudioService } from './external-audio.ts';
 import { designScreenLinks } from './design-paths.ts';
+import { normaliseHeadingLevels, sanitiseArchiveHtml } from './content.ts';
 
 /** An entry as the archive holds it. Every field except `title` may be absent, and then its chip is omitted. */
 export type RealEntry = {
@@ -6060,10 +6061,41 @@ ${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB',
  */
 export type RealFilmPage = RealFilm;
 
+/**
+ * The archive's own writing for the record a film is held in.
+ *
+ * WHAT THIS IS, AND WHY IT IS NOT A FIELD ON `RealFilm`. `RealFilm` is the facts a card carries: an id, a
+ * title, a topic, a count and an address — enough for `/watch/` to draw twenty-four posters. The BODY is what
+ * one film's own page reads, and putting it on every card would carry every embedding record's whole text
+ * into a list that shows none of it. So it is a separate argument, given only by the one route that already
+ * holds the record's own row — and **no new query is written for it**, which is why the type is built from a
+ * row the caller has already read rather than fetched here.
+ */
+export type RealFilmReading = {
+  /** The record's own words, as published. Sanitised by this fill, never by the caller. */
+  body: string;
+  /** The record's title, so the reading slot says whose writing follows. */
+  title: string;
+  /** The record's own address. */
+  href: string;
+  /**
+   * The archive's own media resolver, where the caller has one.
+   *
+   * IT IS APPLIED BEFORE THE SANITISER, WHICH IS THE ORDER THAT MATTERS. `sanitiseArchiveHtml` turns an
+   * `https://ozikoro.com/wp-content/…` address into the path `/wp-content/…` — that is what its
+   * `internalHosts` rule is for — and **the archive's media map is keyed by the absolute `source_url`, so a
+   * body sanitised first can never be resolved afterwards.** `prepareArchiveHtml` therefore rewrites the
+   * media addresses before it sanitises, and this does the same. Measured without it: 3 of the ILA OSO
+   * article's photographs were served as `/wp-content/uploads/2025/03/…` and 404'd.
+   */
+  resolveImage?: ((url: string) => string | null) | null;
+};
+
 export function fillWatchVideo(
   html: string,
   film?: RealFilmPage | null,
-  related?: readonly RealFilmPage[] | null
+  related?: readonly RealFilmPage[] | null,
+  reading?: RealFilmReading | null
 ): string {
   let out = clearExampleMaterial(html);
   /*
@@ -6087,7 +6119,72 @@ export function fillWatchVideo(
     /Transcript status: awaiting a publisher-approved transcript\./,
     'Transcript status: no publisher-approved transcript has been supplied.'
   );
+  /*
+   * AND THE SECTION'S OWN LABELS, WHICH CANNOT CALL THE RECORD'S WRITING A TRANSCRIPT.
+   *
+   * The eyebrow reads *"Transcript-first view"* and the two in-page links read *"Transcript"*. **They label
+   * the very slot this function is about to fill with the record's writing**, and the page says two lines
+   * further down that no transcript has been supplied. A label that contradicts the sentence beneath it is
+   * the fault class this round exists to close, so both become `Reading view` — the design's own description
+   * of the slot, next to its own button that already reads "Low-bandwidth reading".
+   *
+   * The `<h2>` the design drew, *"Read when video is difficult to load"*, is kept verbatim: it is the heading
+   * the article goes under, and it does not call the article a transcript.
+   */
+  out = out.replace(/<p class="eyebrow">Transcript-first view<\/p>/, '<p class="eyebrow">Reading view</p>');
+  out = out.replace(/>Transcript<\/a>/g, '>Reading view</a>');
   if (!film) return out;
+
+  /*
+   * THE WRITING THE ARCHIVE HOLDS FOR THIS FILM, IN THE DESIGN'S OWN READING SLOT.
+   *
+   * WHAT WAS WRONG. The design's heading promises *"Read when video is difficult to load"*, and under it the
+   * page said only that no transcript had been supplied. **The film page already fetched the record that
+   * holds the film, its title, its topic and its address — and then did not show the record's writing.**
+   * Measured on `/watch-video/?v=LL8YX0pXzdI`: four paragraphs of interface text inside `#transcript-copy`
+   * and none of the nine the article at `/the-war-dance-festival-ila-oso-in-uzuakoli/` renders. The owner's
+   * question is the correct one: *"how can you fetch video from an article, fetch the title, but cant fetch
+   * the article?"*
+   *
+   * WHAT THIS IS, AND WHAT IT IS NOT — WHICH IS THE PART THAT MATTERS. An article body is **not** a
+   * transcript: a transcript is a timed, speaker-attributed record of what is said in the film, and the
+   * archive holds none for this one. So the sentence that says so stays exactly where it was, and the writing
+   * goes in beside it, under a sentence that states what it is. **Nothing here relabels the article as a
+   * transcript, and no speaker, timestamp or language is invented.**
+   *
+   * THE SANITISER IS THE ARCHIVE'S OWN. `sanitiseArchiveHtml` is the function `prepareArchiveHtml` calls for
+   * a published record's body, so there is one allowlist in the codebase rather than a second one here. It
+   * drops `<iframe>` with its contents, and that is a requirement rather than a side effect: the film is
+   * already the page's subject above, and a second player inside a slot headed "read when video is difficult
+   * to load" is the opposite of what the slot is for.
+   *
+   * AND THE ORDER OF THE THREE STEPS IS `prepareArchiveHtml`'s OWN: rewrite the media addresses, sanitise,
+   * then move the authored headings into the page's outline. The images must be rewritten FIRST — the
+   * sanitiser turns an `ozikoro.com/wp-content/…` address into a path, and the archive's media map is keyed
+   * by the absolute address, so a body sanitised first cannot be resolved at all. `tidyBody` then does what
+   * it does on every article page: WordPress's fixed pixel widths come off, so a 719-pixel figure cannot run
+   * past the design's reading column. It is given `null` as the featured image because **this page has no
+   * design figure to duplicate** — the film page draws no photograph of its own, so dropping the record's
+   * would delete a picture that has nowhere else to appear.
+   */
+  if (reading) {
+    const resolved = reading.resolveImage
+      ? rewriteBodyImages(reading.body, reading.resolveImage)
+      : reading.body;
+    const words = tidyBody(normaliseHeadingLevels(sanitiseArchiveHtml(resolved)), null);
+    const record = `<a href="${esc(reading.href)}">${esc(reading.title)}</a>`;
+    const opener = words.trim()
+      ? `<p class="small muted" style="margin-top:var(--s-6);max-width:70ch">`
+        + `A transcript is a timed, speaker-attributed record of what is said in a film, and the archive holds `
+        + `none for this one. What it does hold is the record that embeds the film, ${record}, whose own `
+        + `writing follows as published. Those are the record’s words, not a transcript of the film, and no `
+        + `line of them is attributed to anyone speaking in it.</p>`
+        + `<div class="prose" style="margin-top:var(--s-5)">${words}</div>`
+      : `<p class="small muted" style="margin-top:var(--s-6);max-width:70ch">The record that embeds this `
+        + `film, ${record}, carries no written body, so there is no writing to read here either. Nothing is `
+        + `invented in its place.</p>`;
+    out = out.replace(/(<div id="related-video")/, `${opener}$1`);
+  }
 
   const id = esc(film.id);
   const title = esc(film.title);

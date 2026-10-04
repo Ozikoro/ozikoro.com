@@ -2364,3 +2364,108 @@ test('a film’s page does not carry the design’s own "for this design" into a
   assert.doesNotMatch(fillWatchVideo(screen), /for this design/);
   assert.match(fillWatchVideo(screen, film), /The approved transcript has not been supplied for this film\./);
 });
+
+/* ------------------------------------------------------------------------------------------------
+ * THE OWNER'S REPORT: "HOW CAN YOU FETCH VIDEO FROM AN ARTICLE, FETCH THE TITLE, BUT CANT FETCH
+ * THE ARTICLE?" — THE HOLDING RECORD'S WRITING IN THE READING SLOT, AND NOT CALLED A TRANSCRIPT
+ * ---------------------------------------------------------------------------------------------- */
+
+test('a film’s page carries the holding record’s own writing, and never calls it a transcript', () => {
+  /*
+   * MEASURED BEFORE THIS: `/watch-video/?v=LL8YX0pXzdI` served 4 paragraphs of interface text inside
+   * `#transcript-copy` and none of the article's own, while the same page already printed the article's
+   * title, its iframe and two links to it. The design's heading promises *"Read when video is difficult to
+   * load"*, so the slot exists to be read in — and it was empty of writing.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const film = {
+    id: 'LL8YX0pXzdI',
+    title: 'ILA OSO',
+    titleFrom: 'film' as const,
+    topic: 'Cultural Heritage',
+    records: 1,
+    href: '/the-war-dance-festival-ila-oso-in-uzuakoli/',
+  };
+  /*
+   * A body shaped like the archive's own: paragraphs, an authored heading, the record's own film embed, and
+   * a `<script>` the sanitiser must remove. **The embed is the case that matters** — the film is already the
+   * page's subject above, and a second player inside a slot headed "read when video is difficult to load"
+   * would be the opposite of what the slot is for.
+   */
+  const out = fillWatchVideo(screen, film, [film], {
+    body: '<p>The ILA OSO festival is a significant cultural event of the Uzuakoli people.</p>'
+      + '<figure><img src="https://ozikoro.com/wp-content/uploads/2025/03/shot.jpg" alt="A photograph" width="719"></figure>'
+      + '<h3>Historical Background</h3><p>The origins of the festival date back over 200 years.</p>'
+      + '<iframe src="https://www.youtube.com/embed/LL8YX0pXzdI" title="ILA OSO"></iframe>'
+      + '<script>alert(1)</script>',
+    title: 'The War Dance Festival (ILA OSO) In Uzuakoli',
+    href: film.href,
+    /*
+     * THE ARCHIVE'S OWN RESOLVER, AND IT MUST RUN BEFORE THE SANITISER. The sanitiser turns an
+     * `ozikoro.com/wp-content/…` address into the path `/wp-content/…`, and the media map is keyed by the
+     * absolute address — so a body sanitised first serves three of this article's photographs as 404s, which
+     * is exactly what the first pass of this fix did.
+     */
+    resolveImage: (url) =>
+      url === 'https://ozikoro.com/wp-content/uploads/2025/03/shot.jpg' ? '/media/ozikoro/1234-shot.jpg' : null,
+  });
+
+  const copyAt = out.indexOf('id="transcript-copy"');
+  const relatedAt = out.indexOf('id="related-video"');
+  const wordsAt = out.indexOf('ILA OSO festival is a significant cultural event');
+  assert.ok(copyAt >= 0 && relatedAt > copyAt, 'the design’s reading slot is not where it was');
+  assert.ok(
+    wordsAt > copyAt && wordsAt < relatedAt,
+    'the record’s writing is not inside the design’s own reading slot'
+  );
+  assert.match(out, /The origins of the festival date back over 200 years/, 'the rest of the record is missing');
+  assert.match(out, /Historical Background/, 'the record’s own heading was dropped');
+  assert.match(out, /class="prose"/, 'the words were not put in the design’s reading markup');
+
+  // The archive's own sanitiser, not a second one: the script goes and the film is not embedded twice.
+  const slot = out.slice(copyAt, relatedAt);
+  assert.doesNotMatch(slot, /<script|alert\(1\)/, 'the record’s body was rendered unsanitised');
+  assert.doesNotMatch(slot, /<iframe/, 'a second player was put inside the reading slot');
+  assert.equal(
+    (out.match(/youtube-nocookie\.com\/embed\/LL8YX0pXzdI/g) ?? []).length,
+    1,
+    'the page carries the film more than once'
+  );
+  /*
+   * AND THE RECORD'S OWN PHOTOGRAPHS RESOLVE. Measured without the pre-sanitiser rewrite: the ILA OSO
+   * record's three photographs were served as `/wp-content/uploads/2025/03/…` and the browser asked this
+   * host for them, which is a 404 on every one.
+   */
+  assert.match(slot, /src="\/media\/ozikoro\/1234-shot\.jpg"/, 'the record’s photograph was not resolved');
+  assert.doesNotMatch(slot, /wp-content\/uploads/, 'an unresolved WordPress address survived in the reading slot');
+  // And WordPress's fixed pixel width is off the image, so it cannot run past the design's column.
+  assert.match(slot, /style="max-width:100%;height:auto;"/, 'a fixed WordPress width survived in the reading slot');
+  assert.doesNotMatch(slot, /width="719"/, 'a fixed WordPress width survived in the reading slot');
+
+  /*
+   * THE TRANSCRIPT DISTINCTION. The archive holds no transcript of this film, the sentence that says so is
+   * still there and still true, and the writing is introduced as the RECORD's words rather than as a timed,
+   * speaker-attributed record of the film.
+   */
+  assert.match(out, /The approved transcript has not been supplied for this film\./);
+  assert.match(out, /Transcript status: no publisher-approved transcript has been supplied\./);
+  assert.match(out, /A transcript is a timed, speaker-attributed record of what is said in a film/);
+  assert.match(out, /not a transcript of the film/);
+  assert.match(out, /href="\/the-war-dance-festival-ila-oso-in-uzuakoli\/"/, 'the writing is not attributed');
+  // And the slot is not labelled a transcript, which it would then be contradicting one line later.
+  assert.doesNotMatch(out, /Transcript-first view/, 'the slot is still labelled "Transcript-first view"');
+  assert.match(out, /<p class="eyebrow">Reading view<\/p>/);
+
+  /*
+   * A CALLER THAT PASSES NO WRITING GETS NO WRITING. The route passes nothing for a record it cannot match,
+   * and the design's own page (`/watch-video/` with no `?v=`) has no archive record behind it at all — so
+   * neither may gain a sentence about words that are not there.
+   */
+  const bare = fillWatchVideo(screen, film);
+  assert.doesNotMatch(bare, /class="prose"/, 'words appeared with no record behind them');
+  assert.doesNotMatch(bare, /A transcript is a timed/, 'the reading sentence appeared with no reading');
+  // And a record that really holds no body says so rather than showing an empty column.
+  const empty = fillWatchVideo(screen, film, [film], { body: '', title: 'A Record', href: film.href });
+  assert.match(empty, /carries no written body/, 'an empty record was not stated');
+  assert.doesNotMatch(empty, /class="prose"/, 'an empty record still drew a reading column');
+});

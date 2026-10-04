@@ -1777,9 +1777,42 @@ export async function GET(
                 and a.body_html ~ 'youtube(?:-nocookie)?\\.com/embed/'
               order by a.published_at desc nulls last`
           );
-          const film = extractArchiveFilms(rows).find((f) => f.id === requested);
+          const films = extractArchiveFilms(rows);
+          const film = films.find((f) => f.id === requested);
           if (!film) return new Response('Not found', { status: 404 });
-          html = fillWatchVideo(html, film);
+          /*
+           * THE HOLDING RECORD'S OWN WRITING, TAKEN FROM THE ROW ALREADY IN HAND.
+           *
+           * `rows` above is the same read `extractArchiveFilms` consumes, and it already selects
+           * `a.body_html` — **the film's id is IN that column, which is how the film was found at all.** So
+           * the record's writing is the one value this page already held and did not show, and no sixth read
+           * of `ozikoro_article` is written to fetch it. `film.href` is `/<slug>/`, built by
+           * `extractArchiveFilms` from the record's own slug, so the two cannot disagree about which record
+           * holds this film.
+           *
+           * The fill rewrites the record's media addresses with the archive's own resolver BEFORE it sanitises
+           * with the archive's own `sanitiseArchiveHtml` — which is `prepareArchiveHtml`'s order, and the
+           * order is load-bearing: the sanitiser turns an `ozikoro.com/wp-content/…` address into a path and
+           * the media map is keyed by the absolute address, so a body sanitised first cannot be resolved
+           * afterwards. The resolver is the one the second pass below already uses, built lazily and only
+           * when this record's own body carries an absolute address at all.
+           */
+          const holder = rows.find((r) => `/${r.slug}/` === film.href);
+          const body = holder?.body_html ?? '';
+          const resolveImage = CARRIES_ABSOLUTE_IMAGE.test(body)
+            ? (oldSiteImageResolver ??= await mediaUrlResolver(db))
+            : null;
+          /*
+           * THE WHOLE LIST IS PASSED, NOT ONLY THE FILM.
+           *
+           * The page's "Related viewing" block drew the design's three example films on every archive film's
+           * page — measured, all three 404 at `/watch-video/` — and the archive's own answer to "related" is the
+           * one `fillArticle` already uses: other records from the same topic. That needs the same list `/watch/`
+           * is built from, so the two surfaces cannot disagree about what a film's topic is.
+           */
+          html = fillWatchVideo(html, film, films, holder
+            ? { body, title: holder.title, href: film.href, resolveImage }
+            : null);
         } else {
           html = fillWatchVideo(html);
         }
