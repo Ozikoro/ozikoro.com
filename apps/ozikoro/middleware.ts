@@ -142,7 +142,18 @@ export function middleware(request: NextRequest) {
       //
       // NOT a `_`-prefixed folder: Next.js treats those as private and generates no route at all, which
       // is what broke this the first time.
-      return NextResponse.rewrite(new URL(`/design-screen/${single}`, request.url));
+      //
+      // AND THE READER'S QUERY STRING IS CARRIED ACROSS, NAMED RATHER THAN ASSUMED.
+      //
+      // `new URL(path, request.url)` produces a URL with no search of its own, and whether the framework
+      // then re-attaches the original query is a behaviour to depend on rather than to state. Two things
+      // need it stated: `/archive-index?topic=…` filters the listing inside the route, and the owner's design
+      // preview travels as `?ozpreview=…` at the PUBLIC address — the address a reader types, because the
+      // design's own relative links resolve against it and a preview served at `/design-screen/about` would
+      // 404 its own menu.
+      const target = new URL(`/design-screen/${single}`, request.url);
+      target.search = request.nextUrl.search;
+      return NextResponse.rewrite(target);
     }
     if (single === 'index' || single === 'design') {
       return NextResponse.rewrite(new URL('/design/index.html', request.url));
@@ -259,6 +270,18 @@ export function middleware(request: NextRequest) {
      * 404 for the fallback — it is a misroute for the real route.**
      */
     'publication-file',
+    /*
+     * THE ROUTE THE DESIGN SCREENS ARE ACTUALLY SERVED FROM — the sixth real route this fallback has
+     * swallowed, and it was found by asking the route about itself.
+     *
+     * `/design-screen/about` is not a reader's address: the middleware rewrites `/about/` to it, and that
+     * rewrite never comes back through here, which is why the route has always worked. **A DIRECT request to
+     * it does**, and `design-screen` was in no list — so `GET /design-screen/about` was rewritten to
+     * `/attachment/about` before routing was ever reached and answered 404 with the archive's own not-found
+     * page. The design editor's inventory asks the route for the served page it is editing, which is how this
+     * was found: the editor reported "the served page answered 404 when asked what is on it".
+     */
+    'design-screen',
   ]);
   const segments = pathname.split('/').filter(Boolean);
   /*

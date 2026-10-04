@@ -129,6 +129,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/claims">Claims</Link>
           <Link href="/admin/users">Users</Link>
           <Link href="/admin/audit">Audit trail</Link>
+          {/*
+            THE DESIGN EDITOR IS LAST BUT NOT LEAST.
+
+            It is the screen the OWNER uses, and it is the only one whose edits are visible to every reader
+            rather than to the archive's own queues — so it sits beside Spotify, which is the other screen that
+            is the owner's rather than an editor's.
+          */}
+          <Link href="/admin/design">The design</Link>
           <Link href="/admin/spotify">Spotify</Link>
         </div>
       </nav>

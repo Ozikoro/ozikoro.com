@@ -17316,3 +17316,235 @@ decision, and the question is asked here rather than answered by a change.** No 
   narrators are possible"* and that is no longer true of the archive: a human recording is the third, and the
   rule that follows — **a disclosure says what is true, so a recording with no AI in it carries no AI
   disclosure** — is written beside it.
+
+---
+
+## ROUND 321 — THE DESIGN BECOMES EDITABLE, AND NOT ONE BYTE OF IT IS EDITED
+
+The owner asked to **"edit every single part of the design. including the colours"**, and the day's rule is that
+`apps/ozikoro/public/design/` is inviolable — 63 files checked byte for byte against the handover copy. So the
+answer is not an editable file. It is an **override layer**: the design file stays the source, the owner's edits
+are rows in `ozikoro_design_override`, and they are applied on top at serve time. His edits can then be undone
+one at a time, compared, and attributed to a person — three things a mutated file cannot do.
+
+### 1. WHAT WAS BUILT, AND WHERE EACH PIECE RUNS
+
+| | |
+|---|---|
+| The rows | `packages/db/migrations/0051_ozikoro_design_override.sql` — one row per edited thing: `(screen, kind, key)` unique, a `value` jsonb, the actor and the time |
+| The capability | `manage_design`, granted to `admin` and `owner` only, inserted with an explicit `('owner','manage_design')` row per 0044's rule |
+| The pure half | `packages/ozikoro/src/design-override.ts` — the token catalogue, a dependency-free HTML scanner, the selector grammar, the serve-time apply, the contrast maths, the preview codec |
+| The store | `packages/ozikoro/src/design-override-store.ts` — list, set, remove, reset, and an `ozikoro_audit` row for every change |
+| Element edits | `apps/ozikoro/app/design-screen/[screen]/route.ts` — `withDesignOverrides()` (line 302), called at **line 505** for a screen with no fill and **line 1550** for a filled one, immediately after `withSeoHead` |
+| Colour and type edits | `GET /design-theme.css` (`app/design-theme.css/route.ts`), generated from the rows and linked by `seoHead` (`packages/ozikoro/src/seo-head.ts` line 263) — the one head that both this route and `app/[slug]/route.ts` build, so a colour change reaches the 1,051 articles too |
+| The editor | `apps/ozikoro/app/admin/design/page.tsx`, gated on `manage_design`, with `Post` writes at `app/api/admin/design/route.ts` |
+| The preview | `app/admin/design/preview/route.ts` → a **303 to the public address** with `?ozpreview=<base64url>`; the route honours it only for an account holding the capability, and never stores it |
+| The inventory | the same route answers `?ozinventory=1` with the editable places, built from the **served** page |
+
+**Why an override layer rather than an edited file — the argument in one line.** A file edited in place cannot be
+undone per-edit, cannot be compared against what it replaced, and cannot say who changed it; this table can do all
+three, and the deliverable stays the approved artefact. **The parity check is the proof rather than the promise.**
+
+### 2. WHAT IS EDITABLE, AND THE 77 TOKENS SORTED BY WHAT THEY CARRY
+
+`tokens.css` holds **77 custom properties**. They are not 77 colours, and the editor does not pretend otherwise:
+
+| class | n | what they are |
+|---|---|---|
+| solid colour | **30** | paper ×5, ink ×4, accent ×3, indigo ×2, ochre ×2, moss ×2, focus, and night/emerald/gold/bronze/cream/on-night ×11 |
+| gradient | 2 | `--gradient-gold`, `--gradient-night` |
+| shadow | 3 | `--shadow-raise`, `--shadow-lift`, `--shadow-glow` |
+| alias | 10 | `--bg`, `--surface`, `--rule`, `--text`, `--link` and the rest — `var()` indirections |
+| length | 25 | the type scale, the 4px rhythm, radii, measure, containers |
+| number | 4 | the four line heights |
+| font | 3 | the three families |
+
+**22 of the 77 carry meaning; 55 are decoration** — and the table that decides which is `TOKEN_META`, written by
+hand because a program cannot know that `--moss` is the *verified* state and `--gold` is the dark chrome's accent.
+The ones marked **meaning** are: `--ink`, `--ink-strong`, `--ink-muted`, `--ink-faint` (the tone a disabled control
+disappears at), `--accent`, `--accent-deep`, `--indigo` (a source must stay distinguishable from a link), `--ochre`
+(a period chip's tone says what kind of fact it is), `--moss` (**the verified state**), `--focus`, the five
+semantic roles (`--text`, `--text-heading`, `--text-muted`, `--link`, `--link-hover`), `--cream` (the page ground),
+`--on-night`, `--on-night-muted`, and the three font families and `--lh-body`/`--measure` (the language carries
+combining tone marks, so a substitute family or a tighter measure breaks the orthography rather than the look).
+
+**NOTHING IS BLOCKED — and that is a decision, not an oversight.** The owner asked for every part, so every one of
+the 77 is offered and the palette is his. What the editor does instead is **measure and mark**: each row shows how
+many rules read the token, whether it carries meaning, and the contrast ratio of every colour pair the design
+actually creates. Six things are refused, each for a reason that is a fault rather than a preference:
+
+- a token value that is not the *kind* the design declares — a colour must be a colour, a length a length. **This
+  one was found by doing it**: an early probe stored `--accent: %230b3d6b`, which was accepted, written, served,
+  declared in the stylesheet and *meant nothing*, because a browser drops an unparseable declaration. The save
+  reported "the stylesheet now declares it", which was true and useless.
+- a value containing `;`, `{`, `}`, `<`, `>`, `/*` or a newline — it would end the declaration it lands in.
+- a token the design does not declare (`--brand-new-colour`) — a row that changes nothing while looking complete.
+- a link address that is not `http(s)`, `mailto:` or a `/path` — `javascript:` in a stored href is refused.
+- a text replacement on an element that **contains a link** — it would delete the link and leave a word that looks
+  like one. Inline emphasis (`<strong>`) *is* offered, with the markup it will remove named in the warning.
+- a photograph's **credit with no credit slot**, and an image address that answers 404 — see §7.
+
+### 3. THE ORDERING, WHICH IS THE WHOLE RISK
+
+Most of the words on these screens are written at serve time. `/donate/`'s notice is **created** by `fillDonate`
+(which also deletes the page's submit button), and `fillResearcherProfile` **rewrites** the profile's `h1` with the
+contributor's name. An override applied before those fills is an override the fill overwrites: the row is in the
+database, the log says nothing, and the page is unchanged. So:
+
+1. the design file is read as a template, scripts and images rewritten, the masthead filled;
+2. **every fill runs**;
+3. `withSeoHead` replaces the head — and the theme stylesheet is inside it, appended after `main.css`,
+   `showcase.css` and `a11y.css`, because a custom property only wins by coming later in the cascade;
+4. **then the element overrides are applied** — and nothing runs after them.
+
+Proved against the real fills, not a fixture (`design-override.test.ts`): the h1 `fillResearcherProfile` rewrites is
+`The people who write the archive` on the served page, and the fill's own name is not in that heading; the notice
+`fillDonate` creates is overridden where the fill puts it; and `/about/`'s h1, which no fill touches, changes and
+returns. The same test file asserts that `applyDesignOverrides(html, [])` returns its input **byte for byte**, which
+is what makes the empty table a no-op rather than a rewrite.
+
+### 4. THE FOUR VERIFICATIONS, AND WHAT THE BROWSER SHOWED THAT `curl` COULD NOT
+
+**(a) Set through the surface, then READ the rendered value** — with HTML comments stripped, because a fill
+interleaves `<!-- -->` between adjacent text nodes:
+
+```
+/researcher-profile/ h1 (a fill rewrites this heading):  The people who write the archive
+/donate/ #give-state (the fill CREATES this element):     Donations open again in November. Nothing is charged here.
+/about/ hero img:                                        <img src="/media/ozikoro/design-probe.jpg" alt="An Igbo cultural masquerade, photographed for the Ozikoro archive">
+/about/ mission figure:                                  <figure><img src="/media/ozikoro/design-probe-2.jpg" alt="Ika people represented in an Ozikoro photograph" loading="lazy"><figcaption>Photograph: Ozikoro archive, Ika collection (1921)</figcaption>
+/about/ "Questions people ask" on the page:              False   (hide marker in the source: True)
+/about/ h1 (the design owns this one):                    We keep the histories people can still find.
+```
+
+**(b) Then a real browser, because a fetch is not a render.** Headless Chrome at 1280×900, before and after, with a
+PNG decoder written for the purpose (`work/shots/pngdiff.py`) so the comparison is measured rather than eyeballed:
+
+```
+/archive-index/   --accent  #0d5c45 → #d81b60
+differing pixels: 5517 of 1152000 (0.48%)
+difference region: x 87–631, y 390–839
+most common before→after colours:
+   #0d5c45 → #d81b60   4916 px
+first differing pixel at (533,390): #0d5c45 → #d81b60
+```
+
+**And one thing only a browser would have said, in the other direction.** `--accent` changed nothing above the fold
+on `/about/`: two screenshots at 1280×2400 were **byte-identical** (`cmp` clean, one sha256). That is not a fault —
+it is scope. `--accent` is read by **12 rules** while `--gold` is read by **80**, and the masthead's current-page
+underline that *looks* like the accent is `border-bottom-color: var(--gold)` from `showcase.css` line 28. A colour
+editor whose swatch changes and whose page does not is the failure to watch for; here the page does change, on the
+elements that read the token, and the token's reach is stated per row rather than implied.
+
+**(c) The reset.** `action=reset-all` → *"6 edits removed and the design's own values are back. Every removal is
+recorded in the audit trail."* Refetched: h1 → `Chuka Odike`, `#give-state` → the fill's own sentence, the hero and
+mission photographs → `/media/ozikoro/10076-Igbo_Cultural_Masquerades_-_008.jpg` and `…/11205-Ika_People_of_Nigeria.jpg`
+with the design's own alt text and caption, `Questions people ask` present again, the hide marker gone, and
+`/design-theme.css` → `/* no design overrides are set */`. A single-row undo was proved separately on `/about/`'s h1.
+
+**(d) The audit trail**, read back at `/admin/audit/?entityType=design_override`: 26 rows, actions `set`, `update`
+and `reset`, each with the before and after JSON, the actor's name and the time.
+
+### 5. CONTRAST — MEASURED, SHOWN, AND ONE FINDING ABOUT THE DELIVERABLE
+
+**16 pairs** of colours the design actually puts on top of one another, each with the ratio the standard asks for
+(4.5:1 for text, 3:1 for a focus ring). They are computed from **the values in force** — the design's declarations
+with the owner's edits, and with the application's own `a11y.css` correction laid over them, because `--ink-faint`
+is `#8d8577` in the design and `#655d51` on the page, and an editor that showed the first while the page painted the
+second would invite the owner to "restore" an accessibility fix.
+
+**As the palette stands, one pair fails:**
+
+```
+--focus on --night = 2.34:1   (WCAG 2.2 SC 1.4.11 asks 3:1 of a focus indicator)
+```
+
+**That is a finding about the delivered design, not about this round**, and it is now measured and printed on the
+`--focus` and `--night` rows rather than waiting for someone to look at a focus ring on the dark chrome. Recorded
+here because a number nobody wrote down is a number nobody acts on. Set live during verification, the editor caught
+my own choice the same way: `--accent #d81b60` on `--cream` reported **4.39:1 against a 4.5:1 minimum** — the
+warning is not theoretical, it fired on the first colour I picked.
+
+### 6. THE PARITY OUTPUT, VERBATIM
+
+```
+identical 63 differing 0 missing 0
+```
+
+`git status --porcelain apps/ozikoro/public/design design/` returns nothing. `scripts/check-design-system.sh`:
+**All design-system checks passed.** `apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/` after the
+final rebuild: **52** files. `npm -w @ozikoro/platform run test`: **151 tests, 151 pass, exit 0**. Root
+`npm run typecheck`, read from its own exit code: **exit 0**.
+
+### 7. WHAT DOES NOT WORK, AND FOUR THINGS FOUND ON THE WAY
+
+**1. The element edits do not reach the articles, and the colours do.** `app/[slug]/route.ts` serves `article.html`
+for 1,051 records. It gets `/design-theme.css` through `seoHead`, so a colour change reaches an article; it does
+**not** call `applyDesignOverrides`, so a text, image, link or visibility edit does not. The reason is procedural
+rather than technical — that file carried another agent's staged work when this round began, and the helper is
+local to the design-screen route. The follow-up is to move `withDesignOverrides` into
+`packages/ozikoro/src/design-override.ts` and call it from both routes, exactly as `designScriptPaths` was moved
+when the same omission left four dead controls on every article.
+
+**2. A key that matches nothing is silent at serve time.** The save *measures* it — it fetches the served page with
+the edits switched off (`?oznooverride=1`), applies the row it has just written, and reports whether the response
+changed — so a key that matches nothing is refused the moment it is saved, with the reason. But a key that is
+correct today and stale after a re-export keeps rendering the design's own value with no warning; the log line
+covers only the case of a key matching **more than one** element.
+
+**3. The non-tokenised colours do not follow a token.** 32 hex literals in `main.css`, **176 in `showcase.css`** and
+inline `style` colours in three screens are not custom properties, so editing `--accent` does not reach them. That
+is the boundary of the palette layer and it is stated rather than glossed: **a token edit changes everything that
+reads the token, and the counts per token are on the editor's rows so the reach is visible.**
+
+**4. Five bugs found by building it, four of them in my own work:**
+
+- **`/design-screen/<screen>` was 404ing on a direct request.** The middleware's attachment fallback rewrote it to
+  `/attachment/about` before routing was reached — the **sixth** real route that list has swallowed, and the first
+  found by a program asking a route about itself (the inventory reported *"the served page answered 404 when asked
+  what is on it"*). Fixed by adding `'design-screen'` to `KNOWN_FIRST_SEGMENTS`.
+- **A colour token was accepting non-colours** (§2), found by storing one.
+- **Void elements were not addressable at all**: the scanner kept `<img>` out of its element list, so no photograph
+  on the site could have been edited. Found by writing the inventory and getting none.
+- **The selector generator returned null for every element it was handed** because it proved uniqueness with object
+  identity, and two scans of one document produce two objects for one `<h1>`. Found by a test.
+- **`TokenClass` collided with an existing export of the same name in `igbo-words.ts`**, which made the package
+  barrel ambiguous and stopped the repository-wide typecheck for every agent in the tree. Renamed to
+  `DesignTokenClass`.
+
+**And one shared-tree failure, recorded:** the `bash scripts/serve-review.sh` of this round raced another pass's
+`next build` in the same `.next` and failed at "Collecting build traces" with
+`ENOENT: no such file or directory, open '…/.next/server/pages-manifest.json'`. Not a code fault; the build was
+retried in a quiet window and the server left up on **http://127.0.0.1:3110** under `nohup`.
+
+**5. `scripts/check-design-parity.mjs` exits 1 and did not pass this round.** It reports four routes not matching
+their design — `/archive`, `/cite`, `/projects`, `/cultural-calendar`. **None is caused by this round**, and the
+evidence is not an assurance: the override table is **empty** (so the layer is a no-op — asserted byte-for-byte in
+the test file), `/archive` is a React route and is not in `DESIGN_SCREENS` at all, and the failures are *missing
+sections*, which an extra `<link>` in the head cannot remove. Recorded rather than left for the next round to
+rediscover.
+
+### 8. THE PROBE THAT WROTE TO THE LIVE CLUSTER, AND WHAT NOW PREVENTS IT
+
+Verifying this feature meant setting real overrides on the live cluster, and two of them pointed `/about/`'s
+photographs at `/media/ozikoro/design-probe*.jpg`, which do not exist. **The page served two broken images while
+they were in the table** — the exact fault the owner reported that morning, created by the editor built to remove
+it — and another agent measuring `/about/` mid-window correctly read it as a content fault. The rows were removed
+(`reset-all`, then a script reporting `design overrides left in the table: 0`), and the page was re-measured: **5
+images, 5 × 200, no `design-probe`**, which is the image agent's own baseline.
+
+**The prevention is in the code, not in a promise.** `imageAddressProblem()` in `app/api/admin/design/route.ts`
+fetches a same-origin image address before it is written and **refuses the save with the status this site
+returned**; `allow_missing=1` — the checkbox beside the button — writes it anyway for a file that will be uploaded
+later. Verified live: dead address → refused with *"answers 404 on this site"*; a real file → saved and confirmed on
+the page; the same dead address with the checkbox → saved, then reset. Absolute addresses on other origins are not
+checked (the design itself hot-links photographs and this route cannot judge a server it does not run), and a fetch
+that *fails* is not treated as a 404.
+
+**And the honest note about method.** This verification used the **live** cluster rather than a scratch one
+(`OZITUMA_DB_PATH=.data/scratch-…`), because the subject of the round is what the live served page renders — the
+fills, the middleware rewrite and the capability function are the live cluster's. That is a real cost: **a probe
+that writes to the live cluster is only as safe as its last step, and nothing enforced that last step.** What is
+enforced now is that the specific damage cannot be written by accident. The server was left up, the probe account
+was deleted and its session revoked through the app's own sign-out, and `git status` confirms nothing of the probe
+is in the tree.

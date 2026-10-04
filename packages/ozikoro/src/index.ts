@@ -60,6 +60,16 @@ export * from './redirects.ts';
 export * from './knowledge.ts';
 export * from './design-fill.ts';
 export * from './design-paths.ts';
+/*
+ * THE OVERRIDE LAYER, WHICH IS WHAT MAKES THE DESIGN EDITABLE WITHOUT BEING EDITED.
+ *
+ * `design-override.ts` is pure — the token catalogue, the selector grammar, the serve-time apply and the
+ * contrast maths — and `design-override-store.ts` is the table. They are separate because the pure half has
+ * to be testable in a plain `node --test` with no database, which is where the ordering rule and the
+ * selector rule are actually asserted.
+ */
+export * from './design-override.ts';
+export * from './design-override-store.ts';
 export * from './seo-head.ts';
 export * from './spoken.ts';
 export * from './narration.ts';

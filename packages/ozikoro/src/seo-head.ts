@@ -114,11 +114,32 @@ const SCHEMA_TYPE: Record<SeoRecord['kind'], string> = {
 };
 
 /**
+ * The owner's design overrides, as a stylesheet, LAST IN THE HEAD.
+ *
+ * WHY IT IS APPENDED HERE RATHER THAN PASSED IN BY EACH CALLER
+ *
+ * `@import url("../tokens.css")` sits at the top of `main.css`, so the design's custom properties are in the
+ * cascade before anything else. An override of `--accent` wins only if it is declared after them, and "after"
+ * here means **after every sheet the caller named** — so the theme sheet is appended to the list rather than
+ * inserted into it, and a caller cannot accidentally put a sheet behind it.
+ *
+ * IT IS HERE RATHER THAN IN ONE ROUTE BECAUSE THE COLOURS ARE NOT ONE ROUTE'S. `design-screen` serves the
+ * fifty-two design screens and `[slug]` serves every article from the same deliverable, and the owner's
+ * expectation of "change the accent" is that the accent changes — not that it changes on the screens he
+ * happened to be looking at while the 1,051 records keep the old palette. This function is where both routes'
+ * heads are made, so both get it, and a third route added later gets it by using the same function.
+ *
+ * `/design-theme.css` answers `text/css` and is generated from the database at request time; when no token is
+ * overridden it returns an empty ruleset, which costs one cached request and changes nothing.
+ */
+export const DESIGN_THEME_HREF = '/design-theme.css';
+
+/**
  * The whole `<head>` for a record.
  *
  * `styles` is passed in rather than hard-coded so the caller decides which sheets the page needs — **the design
  * loads `main.css` and `showcase.css`, and a page that loaded them twice would be a rendering fault rather than
- * an SEO one.**
+ * an SEO one.** The design-override sheet is appended rather than left to the caller, for the reason above.
  */
 export function seoHead(record: SeoRecord, styles: string[]): string {
   const url = `${SITE_ORIGIN}${record.path}`;
@@ -235,7 +256,11 @@ export function seoHead(record: SeoRecord, styles: string[]): string {
     ? `<meta name="robots" content="noindex, follow">`
     : `<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">`;
 
-  const sheets = styles
+  /*
+   * THE DESIGN'S OWN SHEETS, THEN THE OWNER'S OVERRIDES. `DESIGN_THEME_HREF` is appended and never inserted,
+   * because a declaration only wins against the custom property it overrides by coming later in the cascade.
+   */
+  const sheets = [...styles, DESIGN_THEME_HREF]
     .map((href) => `<link rel="stylesheet" href="${esc(href)}">`)
     .join('\n');
 
