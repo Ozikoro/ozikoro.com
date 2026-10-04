@@ -10,7 +10,11 @@
  *
  * Each of these is "a person filled in a form and pressed a button", and four files would be four places for
  * the capability check to be forgotten. **The check is the first thing that happens and nothing below it
- * runs** — `manage_design`, which migration 0051 grants to the administrator and the owner and to nobody else.
+ * runs** — `manage_design`. Migration 0051 granted it to the administrator and the owner; **migration 0055
+ * grants it to an editor as well**, because the owner's rule is now stated as one prohibition ("an editor
+ * cannot delete trash; everything else is theirs") rather than as a list of allowances, and the served design
+ * is not the one thing withheld. The guard asks for the CAPABILITY and never for a role, so the day the table
+ * changes is the day this route follows it — see `apps/ozikoro/lib/access.ts`.
  *
  * AND IT MEASURES WHAT IT JUST DID
  *
@@ -26,7 +30,7 @@
  * editor offers a preview in a new tab rather than claiming a swatch is a screenshot.
  */
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
 import {
@@ -38,6 +42,7 @@ import {
   removeDesignOverride,
   removeDesignOverrideByKey,
   resetDesignOverrides,
+  selectorReach,
   setDesignOverride,
   themeCss,
   type DesignOverride,
@@ -76,6 +81,31 @@ async function declaredTokenClass(name: string): Promise<{ found: boolean; token
 
 const KINDS: DesignOverrideKind[] = ['token', 'text', 'image', 'link', 'hide'];
 
+/**
+ * How many of the deliverable's screens carry the place this key names.
+ *
+ * WHY THE SAVE PATH MEASURES IT RATHER THAN TRUSTING THE FORM
+ *
+ * A site-wide edit is one row that is served on every screen, and "it worked" means "it landed where the
+ * design has that place" — not "the row is in the table". The design's own files are the stable source
+ * (`apps/ozikoro/public/design/` is byte-frozen), so the count is read from them and reported to the owner
+ * with the screens named, which is what makes "one edit or fifty-two" a measurement rather than a promise.
+ *
+ * A screen whose fill adds or removes the element is not in this count; the row still serves there, and the
+ * serve step edits only where the key names exactly one element.
+ */
+async function reachFor(key: string): Promise<{ screens: { screen: string; text: string }[]; of: number }> {
+  try {
+    const files = (await readdir(SCREEN_DIR)).filter((file) => file.endsWith('.html'));
+    const screens = await Promise.all(
+      files.map(async (file) => ({ name: file.replace(/\.html$/, ''), html: await readFile(join(SCREEN_DIR, file), 'utf8') }))
+    );
+    return { screens: selectorReach(screens, [key]).get(key) ?? [], of: screens.length };
+  } catch {
+    return { screens: [], of: 0 };
+  }
+}
+
 /** The screen's file, or null when there is no such screen. */
 function screenExists(screen: string): boolean {
   if (screen === ALL_SCREENS) return true;
@@ -86,7 +116,18 @@ function screenExists(screen: string): boolean {
 }
 
 function valueFor(kind: DesignOverrideKind, data: Record<string, string>): DesignOverrideValue {
-  if (kind === 'token') return { value: data.value ?? '' };
+  /*
+   * THE TYPED VALUE WINS OVER THE COLOUR PICKER, AND THIS LINE WAS MISSING WHILE THE PREVIEW HAD IT.
+   *
+   * The editor's colour rows post two fields: a native `<input type="color" name="value">` and a text box
+   * named `value_text`. The picker can only express `#rrggbb`, so the box is the only way to write
+   * `rgba(…)`, `hsl(…)` or a gradient — and the PREVIEW route has always preferred the box for exactly that
+   * reason. **The save path read `value` only, so an owner who typed into the box and pressed Save wrote the
+   * picker's colour instead of his own**: a text field that silently did nothing, which is the fault this
+   * whole screen exists to remove. Found by driving the real form during this round's verification; the two
+   * routes now read the same field in the same order.
+   */
+  if (kind === 'token') return { value: (data.value_text ?? '').trim() || (data.value ?? '').trim() };
   if (kind === 'text') return { text: data.text ?? '' };
   if (kind === 'hide') return { hidden: true };
   if (kind === 'image') {
@@ -157,8 +198,60 @@ async function imageAddressProblem(request: Request, src: string, allowMissing: 
  */
 async function measure(
   request: Request,
-  override: DesignOverride
+  override: DesignOverride,
+  sampleScreen: string
 ): Promise<{ checked: boolean; changed: boolean; note: string }> {
+  /*
+   * A SITE-WIDE ELEMENT EDIT HAS NO SCREEN OF ITS OWN, SO THE SCREEN IT WAS MADE FROM IS THE SAMPLE.
+   *
+   * The row's screen is the star, which is not an address, so asking for that screen's path would build an
+   * address no route serves. The form carries the screen the owner was looking at, and that page is fetched
+   * with the stored edits switched off so the one row's effect can be seen — and the reach across the
+   * deliverable is counted from the files and reported beside it, so "every screen" is a number rather than a
+   * claim.
+   */
+  if (override.screen === ALL_SCREENS && override.kind !== 'token') {
+    const reach = await reachFor(override.key);
+    const sample = /^[a-z0-9][a-z0-9-]*$/.test(sampleScreen) ? sampleScreen : 'home';
+    const path = sample === 'home' ? '/' : `/${sample}/`;
+    let sampleChanged: boolean | null = null;
+    try {
+      const res = await fetch(new URL(`${path}?oznooverride=1`, request.url), {
+        signal: AbortSignal.timeout(8000),
+        headers: { cookie: request.headers.get('cookie') ?? '' },
+      });
+      if (res.ok) {
+        const plain = await res.text();
+        sampleChanged = applyDesignOverrides(plain, [override]) !== plain;
+      }
+    } catch {
+      sampleChanged = null;
+    }
+    const reachSentence = reach.of === 0
+      ? 'The reach across the screens could not be counted.'
+      : `The design carries this place on ${reach.screens.length} of ${reach.of} screens${reach.screens.length > 0 ? ` (${reach.screens.slice(0, 8).map((r) => r.screen).join(', ')}${reach.screens.length > 8 ? ', …' : ''})` : ''}, and a screen where the key names no single element is left alone.`;
+    /*
+     * AND HOW MANY OF THEM SAID THE SAME WORDS. A place is a position, not a sentence: the wordmark's span is
+     * "History & Archive" on most screens and "Watch" on `/watch/`, so a row can reach 35 screens and rewrite
+     * a different caption on one of them. The count is taken against the wording the SAMPLE screen carries —
+     * the screen the owner was looking at — so "35 screens, and 1 of them says something else" is measured
+     * rather than assumed.
+     */
+    const sampleText = reach.screens.find((row) => row.screen === sample)?.text ?? null;
+    const otherWording = sampleText === null ? 0 : reach.screens.filter((row) => row.text !== sampleText).length;
+    const wordingSentence = reach.screens.length === 0 || sampleText === null
+      ? ''
+      : otherWording === 0
+        ? ' Every one of those screens carried exactly this wording.'
+        : ` ${otherWording} of them carried DIFFERENT wording at that place, and this edit changes it too — the row names a place, not a sentence.`;
+    const sampleSentence = sampleChanged === null
+      ? `The sample screen /${sample}/ could not be fetched to confirm it.`
+      : sampleChanged
+        ? `The sample screen /${sample}/ changed when the edit was applied to it.`
+        : `BUT NOTHING CHANGED ON /${sample}/ — the sample screen does not carry this place, so check the list in the notice before believing the reach.`;
+    return { checked: sampleChanged !== null, changed: sampleChanged === true, note: `Saved on every screen it names. ${reachSentence}${wordingSentence} ${sampleSentence}` };
+  }
+
   if (override.screen === ALL_SCREENS) {
     try {
       const res = await fetch(new URL('/design-theme.css', request.url), {
@@ -270,11 +363,17 @@ export async function POST(request: Request): Promise<Response> {
     if (!KINDS.includes(kind)) {
       return answerAction(input, { ok: false, status: 400, payload: { error: 'unknown_kind' }, notice: 'That is not a kind of design edit.' });
     }
-    const screen = kind === 'token' ? ALL_SCREENS : (input.data.screen ?? '').trim();
+    /*
+     * WHICH SCREEN A ROW BELONGS TO. A token is never one screen's. An element edit is one screen's unless the
+     * owner pressed "change everywhere" — the same form, the same value, one button that says the reach is
+     * fifty-two screens rather than one. The scope is a word this endpoint knows and not a screen name it
+     * trusts, so a hand-written post cannot file a row under a screen that does not exist.
+     */
+    const scopeAll = (input.data.scope ?? '').trim() === 'all';
+    const screen = kind === 'token' || scopeAll ? ALL_SCREENS : (input.data.screen ?? '').trim();
     if (!screenExists(screen)) {
       return answerAction(input, { ok: false, status: 400, payload: { error: 'unknown_screen' }, notice: `There is no design screen called “${screen}”.` });
-    }
-    const key = (input.data.key ?? '').trim();
+    }    const key = (input.data.key ?? '').trim();
     if (key.length === 0) {
       return answerAction(input, { ok: false, status: 400, payload: { error: 'missing_key' }, notice: 'Nothing was named to change.' });
     }
@@ -338,12 +437,13 @@ export async function POST(request: Request): Promise<Response> {
       expectedTokenClass: tokenClass,
     });
 
-    const outcome = await measure(request, override);
+    const outcome = await measure(request, override, (input.data.sampleScreen ?? '').trim());
+    const where = kind === 'token' || screen === ALL_SCREENS ? 'on every screen' : `on /${screen}/`;
     return answerAction(input, {
       ok: true,
       payload: { ok: true, override, verified: outcome.checked, changed: outcome.changed, note: outcome.note },
       notice: outcome.changed
-        ? `Saved: ${kind === 'token' ? `${key} is now ${override.value.value}` : `“${override.label ?? key}” is edited on ${screen}`}. ${outcome.note}`
+        ? `Saved: ${kind === 'token' ? `${key} is now ${override.value.value}` : `“${override.label ?? key}” is edited ${where}`}. ${outcome.note}`
         : outcome.note,
     });
   } catch (error) {

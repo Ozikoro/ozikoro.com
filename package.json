@@ -83,7 +83,6 @@
     "check:sitemap": "bash scripts/check-sitemap.sh",
     "check:body-links": "node scripts/check-body-links.mjs",
     "check:assets": "bash scripts/check-assets.sh",
-    "check:deploy-links": "node scripts/check-deploy-links.mjs",
     "verify:live": "bash scripts/verify-live.sh",
     "serve:review": "bash scripts/serve-review.sh",
     "check:secrets": "bash scripts/check-secrets.sh",

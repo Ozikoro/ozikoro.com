@@ -17,7 +17,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { fillDonate, fillResearcherProfile } from './design-fill.ts';
@@ -33,6 +33,7 @@ import {
   resolveToken,
   scanElements,
   selectorFor,
+  selectorReach,
   themeCss,
   CONTRAST_PAIRS,
   type DesignOverride,
@@ -322,4 +323,155 @@ test('the design’s own palette is measured, and the pairs are real token pairs
     // rather than by a reader. The values are printed by the editor, so they are asserted to be numbers.
     assert.ok(ratio! >= 1 && ratio! <= 21, `${pair.fg} on ${pair.bg} gave an impossible ratio ${ratio}`);
   }
+});
+
+/* ============================================================================================
+ * THE WORDS A READER READS THAT ARE NOT AN ELEMENT'S TEXT
+ *
+ * Found by counting the deliverable: 81 `input` elements across 18 of the 52 screens carry a
+ * `placeholder`, and the search field's — "Search by town, clan, period or author" — is the most-read
+ * sentence on `/archive-index/`. An inventory built from element content offered none of them, so a form's
+ * own words were the one part of the page the editor could not reach.
+ * ========================================================================================== */
+
+test('a form control’s own words are offered, and edited where they actually are', () => {
+  const html = read('archive-index');
+  /* The whole list, not the first page of it: the search field is past place 150 on this screen, which is the
+     wall the offset exists to remove. */
+  const { items } = designInventory(html, 1000);
+  const field = items.find((item) => (item.places ?? []).some((place) => place.attr === 'placeholder'));
+  assert.ok(field, 'no input on /archive-index/ offered its placeholder');
+  const placeholder = (field.places ?? []).find((place) => place.attr === 'placeholder')!;
+  assert.ok(placeholder.value.length > 0, 'the placeholder place carries no current value');
+  // THE KEY NAMES THE ATTRIBUTE, and that is what stops one element's two places sharing one row.
+  assert.match(placeholder.key, /@@placeholder$/);
+  assert.equal(placeholder.key.slice(0, placeholder.key.indexOf('@@')), field.key);
+
+  const override: DesignOverride = { screen: 'archive-index', kind: 'text', key: placeholder.key, value: { text: 'Search the histories' } };
+  const after = applyDesignOverrides(html, [override]);
+  assert.ok(after.includes('placeholder="Search the histories"'), 'the placeholder was not written to the attribute');
+  /*
+   * AND NOT INTO THE ELEMENT'S CONTENT. An edit that landed inside the tag would be an edit that did nothing
+   * visible, and — worse — a `value` written as content would appear as text beside the control.
+   */
+  assert.ok(!after.includes('>Search the histories<'), 'the text landed in the content instead of the attribute');
+  assert.equal(after.length - html.length, 'Search the histories'.length - placeholder.value.length);
+});
+
+test('a value that is data rather than words is refused, not offered', () => {
+  /*
+   * THE OTHER CANDIDATE ATTRIBUTE, DECIDED BY COUNTING. Every `value` in this deliverable belongs to a control
+   * whose value is data: 31 checkbox and radio facet keys on `/archive-index/` (`igbo`, `pre1500`), the
+   * calendar's default year, a date and the search field's example query. **An editor that offered them would
+   * let the owner rename a filter key and silently empty the filter**, which is a fault dressed as a feature —
+   * so `value` is not a text place, and the check refuses it if it arrives from anywhere else.
+   */
+  const html = read('archive-index');
+  const { items } = designInventory(html, 1000);
+  const offered = items.flatMap((item) => item.places ?? []).map((place) => place.attr);
+  assert.ok(offered.includes('placeholder'), 'no placeholder was offered at all');
+  assert.equal(offered.includes('value'), false, 'a value attribute was offered as text');
+  assert.match(html, /value="igbo"/, 'this screen no longer carries the facet keys the note above is about');
+  assert.match(checkOverrideValue('text', 'input[name="q"]@@href', { text: '/evil' }) ?? '', /not an attribute a reader reads/);
+  assert.match(checkOverrideValue('text', 'input[name="q"]@@value', { text: 'anything' }) ?? '', /not an attribute a reader reads/);
+  assert.match(checkOverrideValue('text', 'input[name="q"]@@onclick', { text: 'alert(1)' }) ?? '', /not an attribute a reader reads/);
+});
+
+test('the document title is offered, and it may be edited but never hidden', () => {
+  /*
+   * The words in the browser tab and the heading of a search result. It is written by `seoHead` at serve time
+   * rather than by the design file, so it is the one place where an override has to beat a served value.
+   */
+  const html = read('about');
+  const { items } = designInventory(html);
+  const title = items.find((item) => item.tag === 'title');
+  assert.ok(title, 'the document title was not offered at all');
+  assert.ok(title.can.text, 'the title was offered with no text control');
+  assert.equal(title.can.hide, false, 'the document title was offered as something that may be hidden');
+  const place = (title.places ?? [])[0]!;
+  const after = applyDesignOverrides(html, [{ screen: 'about', kind: 'text', key: place.key, value: { text: 'Who keeps the archive' } }]);
+  assert.match(after, /<title>Who keeps the archive<\/title>/);
+});
+
+/* ============================================================================================
+ * ONE EDIT OR FIFTY-TWO
+ *
+ * The header, the menu and the footer are the same markup in every screen file. Before this, an element edit
+ * could only be filed under one screen, so changing a footer line was 52 edits — while `listDesignOverrides`
+ * had always returned a `*` row for any screen, which meant the mechanism existed and the editor refused it.
+ * ========================================================================================== */
+
+const ALL = readdirSync(DESIGN + '/screens').filter((f) => f.endsWith('.html')).map((f) => ({ name: f.replace(/\.html$/, ''), html: read(f.replace(/\.html$/, '')) }));
+
+test('the reach of a key is measured, and it is the serve step’s own test', () => {
+  const reached = selectorReach(ALL, ['a.skip', 'p.example-flag', '#no-such-id-anywhere']);
+  // The skip link is in almost every screen file; the design's example flag is in fewer.
+  assert.ok((reached.get('a.skip') ?? []).length > 40, `a.skip reached only ${(reached.get('a.skip') ?? []).length} screens`);
+  assert.ok((reached.get('p.example-flag') ?? []).length > 1, 'the design’s example flag reached no more than one screen');
+  // A key that names nothing reaches nothing, and says so rather than being dropped from the map.
+  assert.deepEqual(reached.get('#no-such-id-anywhere'), []);
+  /*
+   * THE WORDS COME BACK WITH THE SCREEN, BECAUSE A PLACE IS NOT A SENTENCE. Measured on this deliverable:
+   * `a.wordmark span:nth-of-type(1)` is the same place on 35 screens and the words are "History & Archive" on
+   * 34 of them and "Watch" on `/watch/`. A count of screens that hid that would be a button that says "change
+   * everywhere" and rewrites a different caption on one page.
+   */
+  const wordmark = selectorReach(ALL, ['a.wordmark span:nth-of-type(1)']).get('a.wordmark span:nth-of-type(1)')!;
+  assert.ok(wordmark.length > 20, `the wordmark reached only ${wordmark.length} screens`);
+  const wordings = new Set(wordmark.map((row) => row.text));
+  assert.ok(wordings.size > 1, 'every screen was reported as holding the same wording, which this design does not');
+  assert.ok([...wordings].some((text) => /Watch/.test(text)), 'the screen whose wordmark says something else was not reported');
+  // The count is the same test the serve step applies: one element, or the edit lands nowhere.
+  for (const row of reached.get('a.skip') ?? []) {
+    const file = ALL.find((s) => s.name === row.screen)!;
+    assert.equal(querySelectorAll(file.html, 'a.skip').length, 1, `${row.screen} carries ${querySelectorAll(file.html, 'a.skip').length} skip links`);
+  }
+});
+
+test('one row filed under * changes the wording on every screen that has the place', () => {
+  const key = 'a.skip';
+  const override: DesignOverride = { screen: '*', kind: 'text', key, value: { text: 'Jump to the content' } };
+  const reached = (selectorReach(ALL, [key]).get(key) ?? []);
+  let changed = 0;
+  for (const screen of ALL) {
+    if (applyDesignOverrides(screen.html, [override]) !== screen.html) changed += 1;
+  }
+  assert.equal(changed, reached.length, 'the screens that changed are not the screens the reach counted');
+  assert.ok(changed > 40, `one row changed only ${changed} screens`);
+  // The same row filed under ONE screen changes that screen and nothing else — which is the difference the
+  // second button in the editor is asking the owner to choose between.
+  const one = applyDesignOverrides(read('about'), [{ screen: 'about', kind: 'text', key, value: { text: 'Jump to the content' } }]);
+  assert.ok(one.includes('>Jump to the content<'));
+  /*
+   * AND THE SCREEN A ROW BELONGS TO IS DECIDED BY WHICH ROWS ARE HANDED IN, NOT BY THIS FUNCTION.
+   * `withStoredDesignOverrides` asks the store for one screen, and the store returns that screen's rows plus
+   * the `*` ones — so a row filed under About is not in the list a donate page is served with. That is the
+   * contract, and it is asserted here in the shape the route uses it rather than by pretending this function
+   * filters.
+   */
+  const rowsForDonate = [{ screen: 'about', kind: 'text' as const, key, value: { text: 'Jump to the content' } }]
+    .filter((row) => row.screen === 'donate' || row.screen === '*');
+  assert.equal(applyDesignOverrides(read('donate'), rowsForDonate), read('donate'));
+});
+
+test('the list of places can be walked past its first page', () => {
+  /*
+   * `/about/` holds 370 editable places and the editor draws 150. The rest were described as "still editable
+   * through the same route" while no address reached them — a limit that cannot be walked past is a wall.
+   */
+  const html = read('about');
+  const first = designInventory(html, 40, 0);
+  const second = designInventory(html, 40, 40);
+  assert.equal(first.total, second.total, 'the two pages of one list disagree about how long it is');
+  assert.ok(second.total > 40, 'this screen is too short to prove paging');
+  assert.equal(first.items.length, 40);
+  assert.equal(second.items.length, 40);
+  assert.equal(first.items[0]!.key, designInventory(html, 1, 0).items[0]!.key);
+  // The second page starts where the first stopped, and the two share nothing.
+  const firstKeys = new Set(first.items.map((item) => item.key));
+  for (const item of second.items) assert.ok(!firstKeys.has(item.key), `${item.key} is on both pages`);
+  // The last page is short and the walk ends there rather than looping.
+  const last = designInventory(html, 40, second.total - 5);
+  assert.equal(last.items.length, 5);
+  assert.equal(designInventory(html, 40, second.total).items.length, 0);
 });

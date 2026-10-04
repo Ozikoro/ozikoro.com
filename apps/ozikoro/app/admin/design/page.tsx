@@ -9,6 +9,28 @@
  * person who made them. **A file mutated in place can do none of those three things**, and that is the whole
  * argument for this screen existing beside the deliverable rather than inside it.
  *
+ * WHAT IT CAN CHANGE, COUNTED FROM THE DELIVERABLE
+ *
+ *   colours                 every colour token `tokens.css` declares, with the number of rules that read each
+ *   type, spacing, shape    the same catalogue's other half: the scale, the leading, the rhythm, the radii
+ *   text                    every place on the SERVED page that holds words a reader reads — an element's own
+ *                           content, and (measured: 81 inputs across 18 screens) a form control's placeholder
+ *   images                  the source, the alternative text and the credit line, which move together
+ *   links                   where a link goes and what it says
+ *   blocks                  whether a block is drawn at all, without deleting anything
+ *
+ * ONE EDIT, OR FIFTY-TWO — AND THE ANSWER IS NOW A CHOICE
+ *
+ * The header, the menu and the footer are the same markup in every one of the 52 screen files, so the wording
+ * in them is on 52 screens at once. An element edit could previously be filed under one screen only, which
+ * made "rename this in the footer" 52 separate edits. **A place the design carries on more than one screen now
+ * offers a second button — change everywhere it appears — which writes ONE row served wherever that place
+ * exists**, and the count beside the button is measured in the deliverable's own files rather than estimated. A
+ * screen where the key no longer names exactly one element is left alone rather than guessed at.
+ *
+ * AND THE LIST IS PAGED, BECAUSE IT IS LONGER THAN A PAGE. `/about/` holds 370 editable places and this screen
+ * draws 150 at a time. A limit nobody can walk past is not a limit, it is a wall.
+ *
  * WHY THE COLOURS COME FIRST
  *
  * The owner asked for "every single part of the design, including the colours", and named the colours first.
@@ -38,8 +60,11 @@ import {
   ALL_SCREENS,
   CONTRAST_PAIRS,
   contrastReport,
+  INVENTORY_LIMIT,
   listDesignOverrides,
   parseDesignTokens,
+  selectorReach,
+  splitTextKey,
   type DesignOverride,
   type DesignToken,
   type InventoryItem,
@@ -50,6 +75,49 @@ import { AtAGlance, Card, Head, Notices } from '../ui';
 export const dynamic = 'force-dynamic';
 
 const DESIGN_DIR = join(process.cwd(), 'public', 'design');
+
+/**
+ * The deliverable's own screen files, read once per process.
+ *
+ * WHY A CACHE AND NOT A READ PER RENDER
+ *
+ * `apps/ozikoro/public/design/` is byte-compared against the handover copy, so its contents cannot change
+ * while this process runs. The reach of a key is therefore a constant of the build, and re-measuring it on
+ * every render would spend a second of the server's time to arrive at the same number.
+ */
+let SCREEN_FILES: { name: string; html: string }[] | null = null;
+async function screenFiles(): Promise<{ name: string; html: string }[]> {
+  if (SCREEN_FILES) return SCREEN_FILES;
+  try {
+    const { readdir } = await import('node:fs/promises');
+    const names = (await readdir(join(DESIGN_DIR, 'screens'))).filter((file) => file.endsWith('.html'));
+    SCREEN_FILES = await Promise.all(
+      names.map(async (file) => ({ name: file.replace(/\.html$/, ''), html: await readFile(join(DESIGN_DIR, 'screens', file), 'utf8') }))
+    );
+  } catch {
+    SCREEN_FILES = [];
+  }
+  return SCREEN_FILES;
+}
+
+const REACH = new Map<string, { screen: string; text: string }[]>();
+
+/**
+ * Which screens each key names exactly one element on.
+ *
+ * THIS IS THE ANSWER TO "ONE EDIT OR FIFTY-TWO?". The header, the menu and the footer are the same markup in
+ * every screen file, so the footer's own words are on fifty-two screens and a page-by-page editor makes the
+ * owner type them fifty-two times. The count is measured from the deliverable and the KEY IS THE KEY THE ROW
+ * IS STORED UNDER — so the number is the reach of the edit that will actually be written.
+ */
+async function reachOf(keys: string[]): Promise<(key: string) => { screen: string; text: string }[]> {
+  const wanted = [...new Set(keys)].filter((key) => key.length > 0 && !REACH.has(key));
+  if (wanted.length > 0) {
+    const reached = selectorReach(await screenFiles(), wanted);
+    for (const key of wanted) REACH.set(key, reached.get(key) ?? []);
+  }
+  return (key: string) => REACH.get(key) ?? [];
+}
 
 /** The screens the deliverable ships, discovered rather than typed, so a new screen appears here by itself. */
 async function designScreens(): Promise<string[]> {
@@ -102,7 +170,7 @@ async function designTokens(): Promise<{ tokens: DesignToken[]; served: Map<stri
  * capability as this screen. A failure is reported rather than hidden: an editor that silently showed the
  * design file's elements instead would offer the owner keys that match nothing on the page he is looking at.
  */
-async function inventoryFor(screen: string): Promise<{ items: InventoryItem[]; total: number } | { error: string }> {
+async function inventoryFor(screen: string, from: number): Promise<{ items: InventoryItem[]; total: number } | { error: string }> {
   const h = await headers();
   const host = h.get('host') ?? '';
   if (host.length === 0) return { error: 'This server could not be reached to read the served page.' };
@@ -116,7 +184,7 @@ async function inventoryFor(screen: string): Promise<{ items: InventoryItem[]; t
      * one that has to be right.
      */
     const path = screen === 'home' ? '/' : `/${screen}/`;
-    const res = await fetch(`${proto}://${host}${path}?ozinventory=1`, {
+    const res = await fetch(`${proto}://${host}${path}?ozinventory=1&from=${Math.max(0, from)}`, {
       headers: { cookie: h.get('cookie') ?? '' },
       cache: 'no-store',
       signal: AbortSignal.timeout(15000),
@@ -244,16 +312,30 @@ function TokenRow({ token, override, value, contrast }: {
 }
 
 /** One place on a screen, with every action that is honest for it. */
-function ElementRow({ item, screen, override }: {
+function ElementRow({ item, screen, from, override, reach, screensTotal }: {
   item: InventoryItem;
   screen: string;
-  override: (kind: 'text' | 'image' | 'link' | 'hide') => DesignOverride | undefined;
+  /** Which page of the place list this row is on, so a save comes back to the same 150. */
+  from: number;
+  override: (kind: 'text' | 'image' | 'link' | 'hide', key?: string) => DesignOverride | undefined;
+  /** Which screens each key names exactly one element on, with the words that screen holds there. */
+  reach: (key: string) => { screen: string; text: string }[];
+  /** How many screens the deliverable ships, so the reach reads as a proportion. */
+  screensTotal: number;
 }) {
-  const textOverride = override('text');
-  const imageOverride = override('image');
-  const linkOverride = override('link');
-  const hidden = Boolean(override('hide'));
+  /** Where a save returns to: the same screen AND the same page of its list. */
+  const backTo = `/admin/design/?screen=${screen}${from > 0 ? `&from=${from}` : ''}`;
+  const imageOverride = override('image', item.key);
+  const linkOverride = override('link', item.key);
+  const hidden = Boolean(override('hide', item.key));
   const heading = /^h[1-4]$/.test(item.tag);
+  /*
+   * ONE ROW PER ELEMENT, ONE FORM PER PLACE THAT HOLDS WORDS. An element's own content and its `placeholder`
+   * are different strings in different places, so they are different rows to edit — and both are offered
+   * together because the owner is looking at one control, not at a database row.
+   */
+  const places = item.places ?? [];
+  const edited = places.some((place) => override('text', place.key)) || imageOverride || linkOverride;
   return (
     <details style={{ borderTop: '1px solid var(--rule)', padding: '.5rem 0' }}>
       <summary style={{ cursor: 'pointer' }}>
@@ -263,35 +345,89 @@ function ElementRow({ item, screen, override }: {
       </summary>
       <p className="small muted" style={{ margin: '.4rem 0' }}>
         <code>{item.key}</code>
-        {textOverride || imageOverride || linkOverride ? <> · <Badge tone="meaning">edited</Badge></> : null}
+        {edited ? <> · <Badge tone="meaning">edited</Badge></> : null}
         {item.textReason ? <><br />{item.textReason}</> : null}
       </p>
 
-      {item.can.text ? (
-        <form method="post" action="/api/admin/design" style={{ margin: '.4rem 0' }}>
-          <input type="hidden" name="action" value="set" />
-          <input type="hidden" name="kind" value="text" />
-          <input type="hidden" name="screen" value={screen} />
-          <input type="hidden" name="key" value={item.key} />
-          <input type="hidden" name="title" value={item.label} />
-          <input type="hidden" name="returnTo" value={`/admin/design/?screen=${screen}`} />
-          <label className="small" htmlFor={`text-${item.key}`}>Text</label>
-          <textarea
-            id={`text-${item.key}`}
-            name="text"
-            rows={item.text.length > 90 ? 3 : 1}
-            defaultValue={textOverride?.value.text ?? ''}
-            placeholder={item.text}
-            style={{ width: '100%', fontFamily: 'inherit' }}
-          />
-          <div style={{ display: 'flex', gap: '.4rem', marginTop: '.3rem', flexWrap: 'wrap' }}>
-            <button className="btn" type="submit">Save text</button>
-            <button className="btn btn-quiet" type="submit" formAction="/admin/design/preview" formMethod="get" formTarget="_blank">Preview</button>
+      {places.map((place) => {
+        const textOverride = override('text', place.key);
+        const screens = reach(place.key);
+        const everywhere = screens.length > 1;
+        /* How many of them hold exactly the wording this row is showing — a place is not a sentence. */
+        const sameWording = screens.filter((row) => row.text === place.value).length;
+        return (
+          <div key={place.key} style={{ margin: '.5rem 0' }}>
+            <form method="post" action="/api/admin/design">
+              <input type="hidden" name="action" value="set" />
+              <input type="hidden" name="kind" value="text" />
+              <input type="hidden" name="screen" value={screen} />
+              <input type="hidden" name="sampleScreen" value={screen} />
+              <input type="hidden" name="key" value={place.key} />
+              <input type="hidden" name="title" value={`${item.label} · ${place.label}`} />
+              <input type="hidden" name="returnTo" value={backTo} />
+              <label className="small" htmlFor={`text-${place.key}`}>
+                {place.label}
+                {place.attr ? <> <code>{place.attr}</code></> : null}
+              </label>
+              <textarea
+                id={`text-${place.key}`}
+                name="text"
+                rows={place.value.length > 90 ? 3 : 1}
+                defaultValue={textOverride?.value.text ?? ''}
+                placeholder={place.value}
+                style={{ width: '100%', fontFamily: 'inherit' }}
+              />
+              <div style={{ display: 'flex', gap: '.4rem', marginTop: '.3rem', flexWrap: 'wrap' }}>
+                <button className="btn" type="submit" name="scope" value="one">Save on /{screen}/</button>
+                {/*
+                  THE ONE EDIT OR FIFTY-TWO ANSWER, IN THE SAME FORM AS THE VALUE.
+
+                  The same wording in the header or the footer is in every screen file, so the owner's choice is
+                  between changing this page and changing everywhere the design carries it. Both buttons submit
+                  the text beside them — a separate form could only re-post the STORED value, which would make
+                  "change it everywhere" a button that changes nothing the first time it is pressed. The count is
+                  measured from the deliverable, and the button appears only when there is more than one screen
+                  to reach.
+                */}
+                {everywhere ? (
+                  <button className="btn btn-quiet" type="submit" name="scope" value="all">
+                    Change everywhere this place is ({screens.length} of {screensTotal} screens
+                    {sameWording < screens.length ? `, ${sameWording} with these words` : ''})
+                  </button>
+                ) : null}
+                <button className="btn btn-quiet" type="submit" formAction="/admin/design/preview" formMethod="get" formTarget="_blank">Preview</button>
+              </div>
+            </form>
+            {everywhere ? (
+              <p className="small muted" style={{ margin: '.2rem 0 0' }}>
+                One row, served on every screen where this key names one element: {screens.slice(0, 6).map((row) => row.screen).join(', ')}
+                {screens.length > 6 ? `, and ${screens.length - 6} more` : ''}.
+                {sameWording < screens.length ? (
+                  <>
+                    {' '}<b>{screens.length - sameWording} of them hold different words at that place</b> —{' '}
+                    {screens.filter((row) => row.text !== place.value).slice(0, 4).map((row) => row.screen).join(', ')}
+                    {screens.length - sameWording > 4 ? ' and others' : ''} — and this button changes those too, because
+                    a row names a place and not a sentence. Use “Save on /{screen}/” for this page alone.
+                  </>
+                ) : (
+                  <> Every one of them holds exactly these words.</>
+                )}
+              </p>
+            ) : null}
+            {textOverride ? (
+              <UndoForm
+                screen={textOverride.screen}
+                kind="text"
+                itemKey={place.key}
+                label={`this ${place.label.toLowerCase()}`}
+              />
+            ) : null}
           </div>
-        </form>
-      ) : null}
-      {textOverride ? (
-        <UndoForm screen={screen} kind="text" itemKey={item.key} label="this text" />
+        );
+      })}
+      {/* A place with no form still says why, so nothing is refused silently. */}
+      {places.length === 0 && !item.textReason ? (
+        <p className="small muted" style={{ margin: '.2rem 0' }}>This element holds no words a reader reads.</p>
       ) : null}
 
       {item.can.image ? (
@@ -302,7 +438,7 @@ function ElementRow({ item, screen, override }: {
           <input type="hidden" name="key" value={item.key} />
           <input type="hidden" name="title" value={item.label} />
           {item.creditKey ? <input type="hidden" name="creditKey" value={item.creditKey} /> : null}
-          <input type="hidden" name="returnTo" value={`/admin/design/?screen=${screen}`} />
+          <input type="hidden" name="returnTo" value={backTo} />
           <p className="small" style={{ margin: 0 }}>Image address<input type="text" name="src" defaultValue={imageOverride?.value.src ?? ''} placeholder={item.src} style={{ width: '100%' }} /></p>
           <p className="small" style={{ margin: 0 }}>Alternative text<input type="text" name="alt" defaultValue={imageOverride?.value.alt ?? ''} placeholder={item.alt || 'Describe the photograph for a reader who cannot see it'} style={{ width: '100%' }} /></p>
           <p className="small" style={{ margin: 0 }}>
@@ -337,7 +473,7 @@ function ElementRow({ item, screen, override }: {
           <input type="hidden" name="screen" value={screen} />
           <input type="hidden" name="key" value={item.key} />
           <input type="hidden" name="title" value={item.label} />
-          <input type="hidden" name="returnTo" value={`/admin/design/?screen=${screen}`} />
+          <input type="hidden" name="returnTo" value={backTo} />
           <p className="small" style={{ margin: 0 }}>Label<input type="text" name="linkLabel" defaultValue={linkOverride?.value.label ?? ''} placeholder={item.text} style={{ width: '100%' }} /></p>
           <p className="small" style={{ margin: 0 }}>Goes to<input type="text" name="href" defaultValue={linkOverride?.value.href ?? ''} placeholder={item.href} style={{ width: '100%' }} /></p>
           <div style={{ display: 'flex', gap: '.4rem', marginTop: '.3rem', flexWrap: 'wrap' }}>
@@ -357,7 +493,7 @@ function ElementRow({ item, screen, override }: {
           <input type="hidden" name="screen" value={screen} />
           <input type="hidden" name="key" value={item.key} />
           <input type="hidden" name="title" value={item.label} />
-          <input type="hidden" name="returnTo" value={`/admin/design/?screen=${screen}`} />
+          <input type="hidden" name="returnTo" value={backTo} />
           <button className="btn btn-quiet" type="submit">{hidden ? 'Show this block again' : 'Hide this block'}</button>
           <span className="small muted" style={{ marginLeft: '.5rem' }}>
             {hidden
@@ -425,16 +561,31 @@ export default async function DesignEditorPage({
   const typeGroups = [...new Set(typeTokens.map((t) => t.group))];
 
   const screen = one('screen') || screens.find((s) => s === 'about') || screens[0] || 'home';
-  const inventory = await inventoryFor(screen);
+  const from = Math.max(0, Number.parseInt(one('from'), 10) || 0);
+  const inventory = await inventoryFor(screen, from);
+  const items = 'items' in inventory ? inventory.items : [];
+  /*
+   * AN EDIT MADE ON EVERY SCREEN IS STILL AN EDIT ON THIS ONE. A site-wide row is filed under `*` and served
+   * on every screen the key names, so a lookup that only searched this screen's rows would hide the Undo
+   * button for the very edits the owner most needs to be able to take back.
+   */
   const screenOverrides = overrides.filter((o) => o.screen === screen);
-  const overrideFor = (kind: string, key: string) => screenOverrides.find((o) => o.kind === kind && o.key === key);
+  const sharedOverrides = overrides.filter((o) => o.screen === ALL_SCREENS && o.kind !== 'token');
+  const overrideFor = (kind: string, key?: string) =>
+    (key === undefined ? undefined : screenOverrides.find((o) => o.kind === kind && o.key === key))
+    ?? (key === undefined ? undefined : sharedOverrides.find((o) => o.kind === kind && o.key === key));
+  const reach = await reachOf(items.flatMap((item) => (item.places ?? []).map((place) => place.key)));
+  /** Where a save returns to: the same screen AND the same page of its list, so a save keeps the place. */
+  const backTo = `/admin/design/?screen=${screen}${from > 0 ? `&from=${from}` : ''}`;
 
   const failedPairs = contrast.filter((row) => !row.pass);
-  const items = 'items' in inventory ? inventory.items : [];
+  const nextFrom = from + items.length;
+  /** How many editable places the served page has, whether or not the list could be read. */
+  const placesTotal = 'items' in inventory ? inventory.total : 0;
 
   return (
     <div className="admin-shell">
-      <Head title="The design">
+      <Head title="Appearance">
         {/*
           One page, opened the way a reader opens it. The preview is a real tab rather than an iframe because
           the site answers `X-Frame-Options: DENY` — deliberately — and that is not a header to weaken so an
@@ -453,7 +604,8 @@ export default async function DesignEditorPage({
             ['Every design screen', `${screens.length} screens, served from the deliverable and editable here`],
             ['Colour tokens', `${colourTokens.length} — ${colourTokens.filter((t) => t.role === 'meaning').length} of them carry meaning, not decoration`],
             ['Type, spacing and shape tokens', `${typeTokens.length}`],
-            ['Edits in force', `${overrides.length}${overrides.length === 0 ? ' — every screen is exactly as the design made it' : ''}`],
+            ['Text places shown', `${items.reduce((n, i) => n + (i.places?.length ?? 0), 0)} of the ${items.length} places on this page, counting the words inside a form control`],
+            ['Edits in force', `${overrides.length}${overrides.length === 0 ? ' — every screen is exactly as the design made it' : ` — ${sharedOverrides.length} of them on every screen`}`],
             ['Where they live', 'the database, applied at serve time'],
             ['The design files', 'not written to, ever — 63 files, checked byte for byte against the handover copy'],
             ['Signed in as', `${account.account.displayName ?? account.account.email} (${[...capabilities].filter((c) => c === 'manage_design').join('') || 'no design capability'})`],
@@ -551,13 +703,23 @@ export default async function DesignEditorPage({
         ))}
       </Card>
 
-      <Card title="One screen at a time">
+      <Card title="One screen at a time, or every screen at once">
         <p className="small muted">
           Every screen is a design file, and several share one file: <code>/about.html</code>,{' '}
           <code>/about/</code> and <code>/about</code> are the same document at three addresses, so an edit made
           here reaches About however a reader arrives at it. <b>An edit belongs to the file, not to the
           address.</b> The list below is of the <b>served</b> page — after the fills have run — which is why a
           heading the archive writes at serve time is offered and a button a fill has deleted is not.
+        </p>
+        <p className="small muted">
+          The header, the menu and the footer are the same markup in every screen file, so their words appear
+          on up to 52 screens. Where the design carries a place on more than one screen the row offers a second
+          button — <b>change everywhere it appears</b> — which writes <b>one</b> row that is served wherever
+          that place exists, instead of the same edit typed 52 times. The count beside it is measured in the
+          deliverable&rsquo;s own files, and a screen where the key no longer names exactly one element is left
+          alone rather than guessed at. <b>The count is of the 52 screens; an article is rendered from the same
+          deliverable and is served by the same row</b>, so the footer words reach 1,051 more documents than
+          the number says — which is the point of a site-wide edit and worth knowing before making one.
         </p>
         <nav aria-label="Design screens">
           <p className="small" style={{ lineHeight: 2 }}>
@@ -579,17 +741,26 @@ export default async function DesignEditorPage({
             <AtAGlance
               rows={[
                 ['Screen', <code key="s">/{screen}/</code>],
-                ['Places offered', `${items.length} of ${inventory.total}`],
+                ['Places on this screen', `${items.length} shown of ${inventory.total}${from > 0 ? `, from number ${from + 1}` : ''}`],
+                ['Text places offered', `${items.reduce((n, i) => n + (i.places?.length ?? 0), 0)}${items.some((i) => (i.places ?? []).some((p) => p.attr)) ? ' — headings and notes, and the words inside a form control' : ''}`],
                 ['Edits on this screen', `${screenOverrides.length}`],
+                ['Edits on every screen', `${sharedOverrides.length}${sharedOverrides.length === 0 ? ' — nothing is changed site-wide' : ', served wherever the design has that place'}`],
                 ['Sections with a heading', `${items.filter((i) => /^h[1-4]$/.test(i.tag)).length}`],
                 ['Photographs', `${items.filter((i) => i.can.image).length}`],
                 ['Links', `${items.filter((i) => i.can.link).length}`],
               ]}
             />
-            {inventory.total > items.length ? (
-              <p className="small muted">
-                The list stops at {items.length} places. The rest are still editable through the same route; this
-                is a limit on one page of the editor, not on what may be changed.
+            {inventory.total > items.length || from > 0 ? (
+              <p className="small" style={{ display: 'flex', gap: 'var(--s-4)', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <span className="muted">
+                  Showing places {from + 1}–{from + items.length} of {inventory.total} on /{screen}/.
+                </span>
+                {from > 0 ? (
+                  <a href={`/admin/design/?screen=${screen}&from=${Math.max(0, from - INVENTORY_LIMIT)}`}>← Previous {INVENTORY_LIMIT}</a>
+                ) : null}
+                {nextFrom < inventory.total ? (
+                  <a href={`/admin/design/?screen=${screen}&from=${nextFrom}`}>Next {Math.min(INVENTORY_LIMIT, inventory.total - nextFrom)} places →</a>
+                ) : null}
               </p>
             ) : null}
             {items.map((item) => (
@@ -597,9 +768,19 @@ export default async function DesignEditorPage({
                 key={item.key}
                 item={item}
                 screen={screen}
-                override={(kind) => overrideFor(kind, item.key)}
+                from={from}
+                override={overrideFor}
+                reach={reach}
+                screensTotal={screens.length}
               />
             ))}
+            {nextFrom < inventory.total ? (
+              <p style={{ marginTop: 'var(--s-4)' }}>
+                <a className="btn btn-quiet" href={`/admin/design/?screen=${screen}&from=${nextFrom}`}>
+                  Next {Math.min(INVENTORY_LIMIT, inventory.total - nextFrom)} places on /{screen}/ →
+                </a>
+              </p>
+            ) : null}
           </>
         )}
       </Card>
@@ -610,18 +791,24 @@ export default async function DesignEditorPage({
           time: nothing is deleted from the design, and every removal is written to the audit trail with your
           name on it.
         </p>
+        <p className="small muted">
+          <b>An edit made on every screen is not removed by “put this page back”.</b> It is one row filed under
+          every screen, so it is undone in the list below — one row, one Undo — or by “put every screen back”.
+          That is deliberate: a site-wide change belongs to no single page, and a button on the page you happen
+          to be looking at is the wrong place to delete it from.
+        </p>
         <div style={{ display: 'flex', gap: 'var(--s-4)', flexWrap: 'wrap' }}>
           <form method="post" action="/api/admin/design">
             <input type="hidden" name="action" value="reset-screen" />
             <input type="hidden" name="screen" value={screen} />
-            <input type="hidden" name="returnTo" value={`/admin/design/?screen=${screen}`} />
+            <input type="hidden" name="returnTo" value={backTo} />
             <button className="btn" type="submit" disabled={screenOverrides.length === 0}>
               Put /{screen}/ back to the design ({screenOverrides.length})
             </button>
           </form>
           <form method="post" action="/api/admin/design">
             <input type="hidden" name="action" value="reset-all" />
-            <input type="hidden" name="returnTo" value={`/admin/design/?screen=${screen}`} />
+            <input type="hidden" name="returnTo" value={backTo} />
             <button className="btn btn-quiet" type="submit" disabled={overrides.length === 0}>
               Put every screen back to the design ({overrides.length})
             </button>
@@ -648,7 +835,7 @@ export default async function DesignEditorPage({
                     <form method="post" action="/api/admin/design">
                       <input type="hidden" name="action" value="remove" />
                       <input type="hidden" name="id" value={String(override.id)} />
-                      <input type="hidden" name="returnTo" value={`/admin/design/?screen=${screen}`} />
+                      <input type="hidden" name="returnTo" value={backTo} />
                       <button className="btn btn-quiet" type="submit">Undo</button>
                     </form>
                   </td>

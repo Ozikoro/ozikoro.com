@@ -25297,40 +25297,85 @@ fields; the two routes now read the same field in the same order.
 
 ### 5. THE LINK SCAN, AND WHERE IT SITS IN THE DEPLOY
 
-The instrument existed — `scripts/verify-round-344.mjs`, whose full sweep covered 112 pages, 3,178 references
-and 879 distinct addresses at `PROBLEMS: 0`, and `scripts/verify-round-344-chrome.mjs`, which clicks the
-controls in a real browser. **Neither was a deploy step: neither had an exit code, and the crawl took twelve
-minutes.**
+**Where it sits is `scripts/verify-live.sh`, and no fourth script was written.** Three instruments already
+exist for the faults a status cannot see, and each was measured on 2026-10-04 against the running review server:
 
-Both are addressed without a second implementation of anything:
+| command | what only it can see | measured |
+|---|---|---|
+| `scripts/check-link-destinations.mjs` | status **and content-type** for every control on the listen and film pages, cross-origin included — the `btn` that answered 200 with `text/plain` is the fault it exists for | 4m47s, exit 0, `Failures: 0`, `Suspicious: 0`; most of the time is YouTube latency |
+| `scripts/check-page-variants.mjs --no-articles --crawl 40` | a bare address against its parameterised form, every fragment against the page that must own it, **the identity rule** (a control carrying a record's id in a `data-` attribute whose address no longer carries it), and a 40-page link crawl | 1m18s, **exit 1 — one problem, in §8** |
+| `scripts/verify-round-344.mjs "$BASE" --sample 24 --gate` | breadth: the front page's own navigation and everything one step behind it, every address followed once, and `--gate` makes a problem the exit code | — see below |
 
-- **`--gate`** makes a problem the exit code. `scripts/check-deploy-links.mjs` is the deploy step's name for it
-  (`npm run check:deploy-links`), and `scripts/verify-live.sh` runs it beside the other live checks.
-- **`--sample N`** (the default, and what the deploy runs) reads the **front page's own navigation** rather than
-  a hand-written list of important pages, caps it at 24 destinations, and still follows everything those pages
-  link to. Measured on the review site: **21 pages, 1,768 references, 457 distinct addresses, 171 seconds** —
-  under three minutes. `--full` is the release sweep and is still ten to twelve minutes.
-- **THE CONTENT TYPE**, which is the first of the two faults a status cannot see: a `btn` on `/watch/` led to a
-  `text/plain` file and answered 200. A navigation link must land on a document, or say it is a file in its own
-  address (an extension that matches what came back) or with `download`.
-- **THE IDENTITY A CONTROL CARRIES**, the second: a link that discarded its own `?v=` and showed a different
-  film, also at 200. Where an element names a record in a `data-` attribute and a link on it carries a query
-  string, **the value has to be in that query string**. The element tree comes from `scanElements` in
-  `@ozikoro/platform` — the same scanner the design editor uses — so there is no second parser of the served
-  markup. The weaker case, an identity-bearing card whose link carries no query at all, is listed for a person
-  rather than asserted.
-- **AND THE GATE FAILS ON AN UNMEASURED PAGE, WHICH IT DID NOT AT FIRST.** Run while another agent's build had
-  the site down, every page came back `0 no response`, the crawl found no targets, and it printed
-  `PROBLEMS: 0 — GATE PASSED`. **A checker that cannot reach the site reported the site as working.** A page
-  that does not answer is now a problem in its own right, with the by-design answers named so they are decisions
-  rather than silent passes (403 on the eleven role dashboards, 405 on the POST-only API routes, 500 on
-  `/admin/*` signed-out — the last recorded by round 344 as a fault of its own and not a link fault).
+**AND THIS ROUND BUILT THE MODE THE DEPLOY NEEDS ON THE CRAWL THAT WAS ALREADY THERE.** `verify-round-344.mjs`
+had no exit code, so nothing could gate on it, and its only mode was the full 112-page sweep that takes ten to
+twelve minutes. It now takes `--sample N`, which **reads the front page's own navigation** rather than a
+hand-written list of important pages (a typed list goes stale and cannot report its own omissions), caps it at
+24 destinations, and still follows everything those pages link to. Measured: **21 pages, 1,768 references, 457
+distinct addresses, 124 seconds, `PROBLEMS: 0`, `GATE PASSED`, exit 0.**
 
-**AND ONE RULE WAS TOO STRICT, FOUND BY RUNNING THE GATE.** The scan reported `/watch/`'s *"Open on YouTube ↗"*
-as an unwired `href="#"` — but the design's own `watch.js` looks up `#inline-player-external` and sets its
-`href` when a film is opened, and round 349 recorded exactly that. The old test counted only inline `on*=`
-handlers. A hook is now an inline handler, a `data-` attribute, or an `id`; a bare `href="#"` with none of the
-three is still a fault, and the hooked ones are listed for a person.
+**`--full` remains the release sweep and is not run on every deploy.** Ten to twelve minutes is the right cost
+before a release and the wrong one on a deploy, because a gate people skip is not a gate. `--gate` and
+`--sample` are the only two things added to that script; **the content-type and identity rules were written,
+then REMOVED again**, because `check-link-destinations.mjs` and `check-page-variants.mjs` already implement
+them and a third copy of a rule is a third thing to drift. What stayed is one correction to a rule that was
+already there, below.
+
+**AND THE GATE WAS MADE TO FAIL ON AN UNMEASURED PAGE, WHICH IT DID NOT AT FIRST.** Run while another agent's
+build had the site down, every page came back `0 no response`, the crawl found no targets, and it printed
+`PROBLEMS: 0 — GATE PASSED`. **A checker that cannot reach the site reported the site as working** — the same
+fault this file keeps recording, one order up. A page that does not answer is now a problem in its own right,
+with the by-design answers named so they are decisions rather than silent passes (403 on the eleven role
+dashboards, 405 on the POST-only API routes, 500 on `/admin/*` signed-out, which round 344 recorded as a fault
+of its own and not a link fault).
+
+**AND ONE EXISTING RULE WAS TOO STRICT, FOUND BY RUNNING THE GATE.** The scan reported `/watch/`'s *"Open on
+YouTube ↗"* as an unwired `href="#"` — but the design's own `watch.js` looks up `#inline-player-external` and
+sets its `href` when a film is opened, which round 349 recorded. The rule counted only inline `on*=` handlers.
+A hook is now an inline handler, a `data-` attribute, or an `id`; a bare `href="#"` with none of the three is
+still a fault (the eighteen round 344 found on the account screen were exactly that), and the hooked ones are
+listed for a person instead of asserted.
+
+### 5a. THE GATE, THE AUDIT AND THE UNDO — ASKED OF THE DATABASE RATHER THAN OF THE COMMENT
+
+**`/admin/design/` IS THE EDITOR'S, AND NO CHANGE WAS NEEDED TO MAKE IT SO.** The screen calls
+`requireCapabilityOrRedirect('manage_design', '/admin/design/')` and the API calls
+`guardNarration(input, 'manage_design')` — **the capability, never a role** — so an editor holding it is
+admitted the moment migration 0055 grants it. Measured rather than read, on a database built from empty this
+round:
+
+```
+  #1 idenzeme@gmail.com   account.role=owner    capabilities=25  manage_design=true  view_audit=true purge_trash=true
+  #2 editor@ozikoro.test  account.role=editor   capabilities=24  manage_design=true  view_audit=true purge_trash=false
+```
+
+Signed in as that editor, `GET /admin/design/` answered **200 with the Appearance heading and "Signed in as
+Test Editor (manage_design)"** — not the "not your door" page a contributor gets. Migration 0055's own
+paragraph on the subject ("the Appearance editor is the editor's too") and this screen therefore agree by
+construction, and the route's stale comment claiming 0051 granted the capability *"to nobody else"* was
+corrected in this round because it had stopped being true.
+
+**THE WRITES GO THROUGH THE SAME AUDIT PATH AS AN ARTICLE EDIT, AND THAT WAS CHECKED RATHER THAN TRUSTED.**
+`setDesignOverride`, `removeDesignOverride` and `resetDesignOverrides` each write an `ozikoro_audit` row with
+the actor, the before and the after. Read back from `/admin/audit/` after an editor's edit:
+
+```
+  4 Oct 2026, 22:45 UTC | Design edit made  set  key, kind, label, screen, value   | design_override #10 | Test Editor editor@ozikoro.test
+  4 Oct 2026, 22:40 UTC | Design edit reset reset key, kind, removed, screen, value | design_override #9  | Idenze Ezeme idenzeme@gmail.com
+```
+
+**The head comment's own three claims were verified one at a time, against the code and then against a running
+server**: the row carries `actor_id` and `updated_at` (the editor lists "By" and "When" per row); each edit is
+undone by its own row's Undo, and a whole screen or the whole site by the two reset buttons; and every change
+is in the trail above.
+
+**AND A DESIGN EDIT IS NOT A RECORD EDIT, SO THE TRASH DOES NOT COVER IT — WHICH IS THE RIGHT SHAPE.** A
+deleted record goes to `/admin/trash` and can be recovered; **nothing about a design override is destroyed by
+undoing it**, so it never needs a bin. If an editor sets `--accent` to something unreadable, what undoes it is
+the same screen: the token's own row — the one that prints the failing ratio in red — its Undo button,
+"put every screen back to the design", or one row of the trail above, with the person named. **The contrast
+measurement is the part that makes it not silent**, and it is the reason this screen can be handed to an
+editor at all: the palette is theirs, and a colour that makes a verified record look unverified says so before
+it is saved.
 
 ### 6. WHAT WAS NOT DONE, AND WHY
 
@@ -25350,3 +25395,54 @@ three is still a fault, and the hooked ones are listed for a person.
   agree by construction once the migration is applied.
 - **The eleven role dashboards remain unverified as a reader**, for the same reason as every previous round: no
   signed-out session may reach them. The scan names their 403 as by design and does not pretend to have read them.
+
+### 7. THE PARITY OUTPUT, VERBATIM
+
+```
+identical 63 differing 0 missing 0
+```
+
+`npm run typecheck` from the repository root, read from its own exit code: **0**. The design-override suite
+(`node --test packages/ozikoro/src/design-override.test.ts`): **21 pass, 0 fail**, five of them added this round
+— a form control's `placeholder` edited where it actually is and refused elsewhere, the document title offered
+and not hideable, the reach measured with the wording that sits at the place, one `*` row changing 49 screens
+while a one-screen row changes exactly one, and the list walked past its first page. `design-fill.test.ts` and
+`design-paths.test.ts` are unchanged and pass.
+
+### 8. WHAT DOES NOT WORK, WITH THE EXACT REASON
+
+- **`/admin/design/` cannot be tested with a signed-out fetch, and the review server holds no session with
+  `manage_design`.** `/admin/design/` answers `307 → /signin?error=Sign in to reach the administration.` to a
+  signed-out request; with a contributor's session it answers the "not your door" page. **That is why the
+  end-to-end work in §4 ran on a second server built from the same standalone with its own database**, and why
+  the findings here are measured rather than inferred.
+- **`src/knowledge.test.ts` fails in this checkout, and it is not this round's change.** It needs the PGlite
+  cluster, and the review server holds it:
+  `REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT … lock .data/pg.lock holder pid …`.
+  `npm -w @ozikoro/platform run test` therefore reports `271 tests, 270 pass, 1 fail` with the site up. Every
+  design suite passes under it.
+- **`scripts/check-page-variants.mjs --no-articles --crawl 40` FAILS with one problem, and it is a fact about
+  the site as served at 2026-10-04 23:55 rather than about this round's work:**
+  `watch: fragmentsResolve differs between /watch/ and /watch/?page=2`, with
+  `fragments=DEAD ["/watch/?page=1#series", "/watch/?page=1#series"]` on `/watch/?page=2`. **Two measurements
+  disagree, and that is recorded rather than resolved by preference**: `/watch/?page=1` carries
+  `id="series"` — fetched and counted, twice — so the address the link names has the section, and a browser
+  would land on it. Either the checker is judging a cross-page fragment against the page it is ON (the id is
+  absent there, correctly), or `?page=1` renders differently to the checker than to `curl`. `design-fill.ts`
+  says the carry to `/watch/?page=1#series` is intended, and that file is held by a parallel round, so it is
+  reported here for whoever owns the rule. **It is wired into the deploy anyway**: a check that is not run is a
+  check that does not exist, and a red gate with a named reason is better than a green one with a hole.
+- **The gate is a crawl, so it does not click.** A control wired by a script — the film page's own link, the
+  phone menu — is measured in a real browser by `scripts/verify-round-344-chrome.mjs`, which is a separate run
+  because it needs Chrome. Only the crawl is on every deploy.
+- **The full sweep is still ten to twelve minutes** (round 344: 112 pages, 3,178 references, 879 addresses), so
+  the deploy runs the sample. The number in §5 is the sample's: **1,768 references over 457 addresses in 124
+  seconds**, `PROBLEMS: 0`.
+- **The scan cannot tell whether a page is right, only whether its links arrive.** It reads a destination's
+  `<h1>` and flags a link whose label shares no word with it, but that list is reported for a person and
+  deliberately not asserted — a rule that guessed would report faults that are not there.
+- **`value` is not editable, deliberately.** §2(a): every `value` in this deliverable is data belonging to a
+  control — 31 facet keys, a date, a number, an example query — so offering it would let one edit empty a
+  filter. The refusal is a sentence, not a silent omission.
+- **A row filed under `*` is not removed by "put this page back".** It belongs to no single page, so it is
+  undone from the list of edits in force or by "put every screen back". The editor says so beside the buttons.

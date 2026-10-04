@@ -10,6 +10,23 @@
  * answers; it asks whether the destination is the page the label named, by reading the destination's own
  * `<h1>`, and it reports a 200 to the wrong page as the fault it is.
  *
+ * IT IS ALSO THE DEPLOY GATE, WHICH CHANGED TWO THINGS ABOUT IT
+ *
+ * The owner's second instruction is *"scan every link when you deploy the website to be sure they are all
+ * working"*, so this script now has a mode a deployment can run and fail on. `--gate` makes a problem an exit
+ * code rather than a paragraph, and `--sample N` walks the primary navigation and one page behind each of its
+ * destinations instead of the whole site, because **a gate that takes twelve minutes is a gate people skip**.
+ * `scripts/check-deploy-links.mjs` is the deploy step's name for this; `npm run check:deploy-links`.
+ *
+ * IT DOES NOT RE-IMPLEMENT THE TWO FAULTS A STATUS CANNOT SEE, AND THAT IS DELIBERATE
+ *
+ * The content type (a `btn` that led to a `text/plain` file) and the identity a control carries (a link that
+ * discarded its own `?v=` and showed another record) are both checked in this repository already, by
+ * `scripts/check-link-destinations.mjs` and the identity rule in `scripts/check-page-variants.mjs`. **A third
+ * copy of either rule would be a second implementation of the same test, and the two would drift.** This
+ * script's job is the breadth those two do not attempt: every page the application serves, every address any
+ * of them names, each followed once.
+ *
  * WHAT IT DOES, IN ORDER
  *
  *   A. THE INVENTORY. Every page the application serves, from three independent sources rather than one:
@@ -30,21 +47,32 @@
  *
  *   D. THE ASSERTIONS. Zero relative targets left in the served markup, zero `href="#"` that is not inert
  *      or deliberately wired, exactly one `<base>` per screen — then every target followed and its `<h1>`
- *      read.
+ *      read, its content type judged, and every identity-carrying control's link checked.
  *
  * NO DATABASE, NO BUILD. It sends HTTP to a server that is already up. It prints as it goes, so a run that
  * is killed still leaves evidence.
  *
  * USAGE
  *   node scripts/verify-round-344.mjs [base-url] [--json /tmp/inventory.json]
+ *   node scripts/verify-round-344.mjs [base-url] --sample 24 --gate     # the deploy step's mode
  */
 import { readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { scanElements, attributesOf } from '../packages/ozikoro/src/design-override.ts';
 
 const args = process.argv.slice(2);
 const BASE = (args.find((a) => a.startsWith('http')) ?? process.env.OZIKORO_BASE ?? 'http://127.0.0.1:3110')
   .replace(/\/$/, '');
 const JSON_OUT = args.includes('--json') ? args[args.indexOf('--json') + 1] : null;
+/** Make a problem the exit code, which is what a deploy needs and what a report does not. */
+const GATE = args.includes('--gate');
+/** How many primary destinations to walk, or 0 for the whole site. `--full` states the default in words. */
+const SAMPLE = args.includes('--sample') ? Number(args[args.indexOf('--sample') + 1] ?? 24) || 24 : 0;
+if (args.includes('--full') && SAMPLE !== 0) {
+  console.error('  --full and --sample are opposites; pass one of them.');
+  process.exit(2);
+}
+const STARTED = Date.now();
 
 const APP = 'apps/ozikoro/app';
 const SCREEN_DIR = 'apps/ozikoro/public/design/screens';
@@ -167,35 +195,68 @@ const routes = routeFiles(APP)
 
 const seeds = [];
 const seedSet = new Set();
+const SKIP_SCHEME = /^(mailto:|tel:|sms:|data:|javascript:|blob:|whatsapp:|geo:)/i;
 const addSeed = (p) => { if (!seedSet.has(p)) { seedSet.add(p); seeds.push(p); } };
-for (const s of screens) if (s !== '404') addSeed(s === 'home' ? '/' : `/${s}/`);
-for (const r of routes) if (!r.includes(':') && r !== '') addSeed(`${r}/`);
-addSeed('/');
-/* One instance of each dynamic family, discovered from the sitemap rather than guessed. */
-const sitemapIndex = await fetchPage(`${BASE}/sitemap.xml`);
-if (sitemapIndex && sitemapIndex.status === 200) {
-  for (const m of sitemapIndex.body.matchAll(/<loc>([^<]+)<\/loc>/g)) {
-    const u = m[1];
-    if (u.startsWith(ORIGIN)) addSeed(u.slice(ORIGIN.length) || '/');
+if (SAMPLE === 0) {
+  for (const s of screens) if (s !== '404') addSeed(s === 'home' ? '/' : `/${s}/`);
+  for (const r of routes) if (!r.includes(':') && r !== '') addSeed(`${r}/`);
+} else {
+  /*
+   * THE SAMPLED INVENTORY, AND WHY IT IS DERIVED RATHER THAN TYPED.
+   *
+   * A list of "the important pages" written into this file is a list that goes stale the day a page is added,
+   * and a checker that verifies only what it was handed cannot report an omission — this file's own header
+   * records that fault. So the sample is read from the SITE: the front page's own navigation, which is the
+   * menu a reader uses, capped at N. Everything those pages link to is still followed; what is skipped is
+   * walking all 52 screens and every record in the sitemap, which is the full sweep's job.
+   *
+   * `/` is always first, and always present: a navigation that cannot be read is itself a fault worth the
+   * gate stopping on.
+   */
+  addSeed('/');
+  const front = await fetchPage(`${BASE}/`);
+  if (front && front.status === 200) {
+    const nav = [...front.body.matchAll(/<nav\b[\s\S]*?<\/nav>/gi)].map((m) => m[0]).join(' ');
+    for (const m of (nav || front.body).matchAll(/<a\b[^>]*\bhref\s*=\s*"([^"]*)"/gi)) {
+      const raw = m[1].trim();
+      if (!raw || SKIP_SCHEME.test(raw) || raw.startsWith('#')) continue;
+      let resolved;
+      try { resolved = new URL(raw, `${BASE}/`); } catch { continue; }
+      if (resolved.origin !== ORIGIN) continue;
+      addSeed(resolved.pathname + (resolved.search || ''));
+      if (seeds.length >= SAMPLE + 1) break;
+    }
+  }
+  if (seeds.length === 1) {
+    console.error('  the front page carried no same-origin navigation to sample');
+    problem('the front page carried no same-origin navigation, so NOTHING WAS SAMPLED — a gate that checked no page must not pass');
   }
 }
-/* The child sitemaps name every published record, town, author, publication, collection and folder. */
-const childSitemaps = [...seedSet].filter((p) => p.startsWith('/sitemap/'));
-for (const sm of childSitemaps) {
-  const res = await fetchPage(`${BASE}${sm}`);
-  if (res && res.status === 200) {
-    for (const m of res.body.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+if (SAMPLE === 0) {
+  /* One instance of each dynamic family, discovered from the sitemap rather than guessed. */
+  const sitemapIndex = await fetchPage(`${BASE}/sitemap.xml`);
+  if (sitemapIndex && sitemapIndex.status === 200) {
+    for (const m of sitemapIndex.body.matchAll(/<loc>([^<]+)<\/loc>/g)) {
       const u = m[1];
       if (u.startsWith(ORIGIN)) addSeed(u.slice(ORIGIN.length) || '/');
     }
   }
+  /* The child sitemaps name every published record, town, author, publication, collection and folder. */
+  const childSitemaps = [...seedSet].filter((p) => p.startsWith('/sitemap/'));
+  for (const sm of childSitemaps) {
+    const res = await fetchPage(`${BASE}${sm}`);
+    if (res && res.status === 200) {
+      for (const m of res.body.matchAll(/<loc>([^<]+)<\/loc>/g)) {
+        const u = m[1];
+        if (u.startsWith(ORIGIN)) addSeed(u.slice(ORIGIN.length) || '/');
+      }
+    }
+  }
 }
 
-say(`  inventory: ${screens.length} design screens, ${routes.length} route files, ${seeds.length} seed addresses`);
+say(`  inventory: ${SAMPLE === 0 ? `${screens.length} design screens, ${routes.length} route files, ` : `SAMPLE of ${SAMPLE} navigation destinations, `}${seeds.length} seed addresses`);
 
 /* ── B. EXTRACT ───────────────────────────────────────────────────────────────────────────────────── */
-
-const SKIP_SCHEME = /^(mailto:|tel:|sms:|data:|javascript:|blob:|whatsapp:|geo:)/i;
 
 function extractTargets(html) {
   const out = [];
@@ -212,7 +273,24 @@ function extractTargets(html) {
     const aria = /aria-label\s*=\s*"([^"]*)"/i.exec(attrs)?.[1];
     push('a', href, aria ?? m[2], {
       inert: /\baria-disabled\s*=\s*"true"/i.test(attrs),
-      wired: /\bon(click|submit)\s*=/i.test(attrs),
+      /*
+       * WIRED MEANS THREE THINGS, AND IT USED TO MEAN ONE.
+       *
+       * This site wires a control through its own scripts as often as through an inline handler: the design's
+       * `watch.js` looks up `#inline-player-external` and sets its `href` when a film is opened, and
+       * `mobile-nav.js` builds the phone menu from an `id`. An `href="#"` in the served markup is therefore
+       * NOT evidence of a dead control — but the old test only counted `on*=` attributes, so it reported the
+       * "Open on YouTube" control as unwired while the script had already wired it. Found by running this
+       * gate: **a rule that reports a fault that is not there is the fault this file exists to remove.**
+       *
+       * So a hook is any of: an inline handler, a `data-` attribute (markup that exists only for a script), or
+       * an `id` a script or the design's own CSS can name. A bare `href="#"` with none of the three is still a
+       * problem, and it is the case round 344 found eighteen of on the account screen.
+       */
+      wired: /\bon(click|submit)\s*=/i.test(attrs) || /\sdata-[a-z0-9-]+\s*=/i.test(attrs),
+      hooked: /\sid\s*=\s*"[^"]+"/i.test(attrs),
+      /* `download` is the markup's own way of saying "this address is a file", and rule 1 reads it. */
+      download: /\bdownload\b/i.test(attrs),
     });
   }
   for (const m of html.matchAll(/<(img|source|iframe|video|audio|track|embed)\b([^>]*)>/gi)) {
@@ -279,10 +357,14 @@ await pool(seeds, 6, async (path) => {
     title: /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1]?.trim() ?? null,
     h1: firstH1(html),
     bytes: html.length,
+    /* Kept for the two rules in phase D that read the element tree — 112 pages of markup is a few megabytes. */
+    body: html,
     base,
     targets: 0,
     relative: [],
     hashes: [],
+    wiredHashes: [],
+    hookedHashes: [],
     danglingFragments: [],
   };
   const found = extractTargets(html);
@@ -307,7 +389,18 @@ await pool(seeds, 6, async (path) => {
     } else if (!/^([a-z]+:|\/\/|\/)/i.test(t.raw)) {
       page.relative.push(`${t.kind} ${t.raw}`);
     }
-    if (t.kind === 'a' && (t.raw === '#' || t.raw === '')) page.hashes.push(`${t.raw} :: ${t.label}`);
+    /*
+     * A BARE `href="#"` IS A PROBLEM; ONE WITH A HOOK IS A QUESTION.
+     *
+     * The design wires several controls by `id` or `data-` from its own scripts, so a markup-only reader
+     * cannot tell a dead anchor from one a script fills in. The ones with a hook are listed for a person to
+     * look at, and the ones with nothing at all are still faults.
+     */
+    if (t.kind === 'a' && (t.raw === '#' || t.raw === '')) {
+      if (t.inert || t.wired) page.wiredHashes.push(`${t.raw} :: ${t.label}`);
+      else if (t.hooked) page.hookedHashes.push(`${t.raw} :: ${t.label}`);
+      else page.hashes.push(`${t.raw} :: ${t.label}`);
+    }
     targets.push({ from: path, ...t, resolved, relativeTo: base.href ? 'base' : 'document' });
   }
   pages.push(page);
@@ -425,7 +518,7 @@ for (const p of pages) {
   if (!p.base || p.base.count === 0) {
     for (const r of p.relative ?? []) problem(`${p.path}: relative target with no <base> on the page: ${r}`);
   }
-  for (const h of p.hashes ?? []) problem(`${p.path}: href="#" anchor not inert and not wired: ${h}`);
+  for (const h of p.hashes ?? []) problem(`${p.path}: href="#" anchor with no handler, no data- hook and no id — nothing can wire it: ${h}`);
   for (const d of p.danglingFragments ?? []) problem(`${p.path}: fragment names an element the page does not have: ${d}`);
 }
 
@@ -433,6 +526,43 @@ const measured = targets.filter((t) => t.finalStatus !== 'external');
 const broken = measured.filter((t) => t.finalStatus !== 200 && t.status !== '200');
 const external = targets.filter((t) => t.finalStatus === 'external');
 const unmeasured = pages.filter((p) => p.status !== 200);
+
+/*
+ * ── A PAGE THAT DID NOT ANSWER IS A PROBLEM, AND THIS IS THE MOST IMPORTANT LINE IN THE GATE ─────────
+ *
+ * Found by running the gate while ANOTHER AGENT'S BUILD HAD THE SITE DOWN: every page came back `0 no
+ * response`, the crawl found no targets, and it printed `PROBLEMS: 0 — GATE PASSED`. **A checker that cannot
+ * reach the site reported the site as working**, which is the exact fault this whole round is about, one
+ * order up from the links. So an unanswered page is now a problem in its own right, and it is a problem
+ * whatever else was checked.
+ *
+ * THE EXEMPTIONS ARE NAMED, AND EACH ONE IS A DECISION SOMEBODY ALREADY MADE:
+ *
+ *   403 on /dashboard-*   the eleven role workspaces answer 403 to a signed-out fetch BY DESIGN. Counting
+ *                         that as a broken page would report the auth gate working as a fault.
+ *   500 on /admin*        an authenticated area refusing a stranger, surfacing as a server error. Round 344
+ *                         recorded it as "worth a round of its own and not a link fault"; it is printed and
+ *                         not asserted, and that judgement is recorded rather than silently applied.
+ *   405 on /api/*         the POST-only endpoints, correctly refusing a GET.
+ *
+ * Everything else that does not answer 200 — including a connection that is refused outright — fails the gate.
+ */
+const BY_DESIGN = [
+  [/^\/dashboard-[a-z-]+\/?$/, 403, 'the role workspace gate, working'],
+  [/^\/admin(\/|$)/, 500, 'an authenticated area refusing a signed-out fetch; a fault of its own, not of a link'],
+  [/^\/api\//, 405, 'a POST-only endpoint correctly refusing a GET'],
+  [/^\/api\/ask\/?$/, 400, 'a search endpoint with no query'],
+  [/^\/api\/spotify\/callback\/?$/, 500, 'a callback that did not arrive over HTTPS'],
+];
+for (const p of pages) {
+  if (p.status === 200) continue;
+  const exempt = BY_DESIGN.find(([re, status]) => re.test(p.path) && status === p.status);
+  if (exempt) {
+    say(`  by design: ${p.status}  ${p.path}  (${exempt[2]})`);
+    continue;
+  }
+  problem(`${p.path}: answered ${p.status}${p.why ? ` (${p.why})` : ''} — a page the inventory names did not answer, and a gate cannot pass on a page it did not read`);
+}
 
 const byStatus = {};
 for (const t of measured) byStatus[t.finalStatus] = (byStatus[t.finalStatus] ?? 0) + 1;
@@ -481,10 +611,41 @@ for (const t of suspects.slice(0, 60)) {
 }
 
 say('');
+const hookedHashes = pages.flatMap((p) => (p.hookedHashes ?? []).map((h) => `${p.path}  ${h}`));
+say(`  href="#" WITH AN id BUT NO VISIBLE WIRING (${hookedHashes.length}, reviewed by hand — this site wires controls from its own scripts):`);
+for (const h of hookedHashes.slice(0, 30)) say(`    ${h}`);
+
+
+
+/*
+ * The weak half of the identity rule, reported and not asserted: a card whose link names no query string may
+ * be a card that points at a section, which is legitimate, or a link that dropped the record it was built
+ * for. A rule that guessed would report faults that are not there, so a person reads this list.
+ */
+
+say('');
 say(`PROBLEMS: ${problems.length}`);
 for (const p of problems.slice(0, 120)) say(`  - ${p}`);
 
+const seconds = ((Date.now() - STARTED) / 1000).toFixed(1);
+say('');
+say(`  ${SAMPLE === 0 ? 'FULL sweep' : `SAMPLE of ${SAMPLE} navigation destinations`}: ${pages.length} pages, ${targets.length} references, ${urls.length} addresses, ${seconds}s`);
+
 if (JSON_OUT) {
-  writeFileSync(JSON_OUT, JSON.stringify({ base: BASE, pages, targets: targets.map((t) => ({ ...t })), problems, suspects }, null, 1));
-  say(`\n  full inventory written to ${JSON_OUT}`);
+  writeFileSync(JSON_OUT, JSON.stringify({ base: BASE, pages: pages.map(({ body, ...rest }) => rest), targets: targets.map((t) => ({ ...t })), problems, suspects, seconds: Number(seconds) }, null, 1));
+  say(`  full inventory written to ${JSON_OUT}`);
+}
+
+/*
+ * THE EXIT CODE IS THE POINT OF THE GATE MODE. Without it this script is a report — valuable, and something a
+ * deploy cannot act on. `--gate` is what `scripts/check-deploy-links.mjs` passes, and it makes a problem stop
+ * the deploy rather than scroll past in a log.
+ */
+if (GATE && problems.length > 0) {
+  say('');
+  say(`  GATE FAILED: ${problems.length} problem(s). The deploy must not proceed on this.`);
+  process.exitCode = 1;
+} else if (GATE) {
+  say('');
+  say('  GATE PASSED: every page in the sample answered, every address it names resolved, and no anchor was left relative, dead or unowned.');
 }

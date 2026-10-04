@@ -36,6 +36,7 @@ import {
   can,
   decodeDesignPreview,
   designInventory,
+  INVENTORY_LIMIT,
   withStoredDesignOverrides,
   DASHBOARD_MODE_COOKIE,
   DASHBOARD_MODE_MAX_AGE_SECONDS,
@@ -370,7 +371,14 @@ async function inventoryResponse(html: string, url: URL): Promise<Response | nul
     if (!viewer || !(await can(db, viewer.account.id, 'manage_design'))) {
       return new Response('Forbidden', { status: 403, headers: { 'cache-control': 'no-store' } });
     }
-    return Response.json(designInventory(html), { headers: { 'cache-control': 'no-store' } });
+    /*
+     * FROM WHERE THE LAST PAGE OF THE LIST STOPPED. `/about/` holds 370 editable places and the editor draws
+     * 150 of them, so without an offset the other 220 were described as reachable while no address reached
+     * them. The offset is a count and never a selector, so nothing here can name a place the page does not
+     * have, and it is clamped because a hand-typed `from` must not turn into a negative slice.
+     */
+    const from = Math.max(0, Number.parseInt(url.searchParams.get('from') ?? '0', 10) || 0);
+    return Response.json({ ...designInventory(html, INVENTORY_LIMIT, from), from }, { headers: { 'cache-control': 'no-store' } });
   } catch (error) {
     console.error('design-screen: could not build the design inventory', error);
     return Response.json(

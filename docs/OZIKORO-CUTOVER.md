@@ -424,6 +424,37 @@ The two SHAs must be the same one that was reviewed, and the dirty count must be
 path must be individually accounted for. **If the remotes name different repositories, stop and
 settle that first**: it decides what "deploying the reviewed revision" even means.
 
+### The link scan, and where it sits in this deploy
+
+The owner's instruction: *"then scan every link when you deploy the website to be sure they are all
+working."* **There is no deploy script in this repository to add a step to** — the deploy is the manual
+sequence above, run on the host, and §1 records that the host's own tree is not this one. So the scan is a
+command, and this is where it belongs:
+
+```bash
+# against the CANDIDATE, before anything is switched over — not against the live site afterwards
+BASE=http://127.0.0.1:3110 ./scripts/verify-live.sh      # every live check, one of them the link scan
+```
+
+`scripts/verify-live.sh` is this project's runner for "the things that need a running server", so the checks
+are wired there rather than into a fourth script. Three of them are the instruments that see what a status
+cannot, and each was measured on 2026-10-04 against a running review server:
+
+| command | what only it can see | time |
+|---|---|---|
+| `scripts/check-link-destinations.mjs` | status **and content-type** for every control on the listen and film pages, cross-origin included — a `btn` that answered 200 with `text/plain` is the fault it exists for | 4m47s, mostly YouTube latency |
+| `scripts/check-page-variants.mjs --no-articles --crawl 40` | a bare address against its parameterised form; every fragment against the page that must own it; **the identity rule** — a control carrying a record's id in a `data-` attribute whose address no longer carries it | 1m18s |
+| `scripts/verify-round-344.mjs --sample 24 --gate` | the breadth: the front page's own navigation and everything one step behind it, every address followed once, with `--gate` making a problem an exit code | 124s (21 pages, 1,768 references, 457 addresses) |
+
+**A non-zero exit means do not switch over.** Two things are stated rather than hidden:
+
+- **`--full` is the release sweep, not the deploy sweep.** `verify-round-344.mjs` with no `--sample` walks all
+  112 pages and ~879 addresses and takes **ten to twelve minutes** — the right tool before a release and the
+  wrong one on every deploy, because a gate people skip is not a gate. `check-page-variants.mjs` without
+  `--no-articles` adds the whole article family and is slower again.
+- **None of them clicks.** A control wired by a script is measured by
+  `scripts/verify-round-344-chrome.mjs` in a real browser, which needs Chrome and is a separate pre-release run.
+
 ---
 
 ## 3. The delta sync

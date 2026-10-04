@@ -731,6 +731,14 @@ export interface InventoryItem {
   text: string;
   /** Which actions this element can honestly take. */
   can: { text: boolean; hide: boolean; image: boolean; link: boolean };
+  /**
+   * EVERY PLACE ON THIS ELEMENT THAT HOLDS WORDS, WHICH IS NOT ONLY ITS CONTENT.
+   *
+   * A reader reads a form's `placeholder` and a button's `value` exactly as they read a heading, and neither
+   * is an element's text: `innerHtml` never sees them and a text override keyed to the selector alone would
+   * replace the wrong thing. So each place names its own attribute, and its key carries it.
+   */
+  places?: TextPlace[];
   /** Why `text` is unavailable, when it is. */
   textReason?: string;
   /** `image` — the current source, alt text, and where the credit lives. */
@@ -743,6 +751,114 @@ export interface InventoryItem {
 }
 
 /**
+ * One place on an element that holds words: its content, or one attribute of it.
+ *
+ * `attr` is absent for the element's own content and names the attribute otherwise, and the place's `key` is
+ * the element's selector either way — with the attribute appended for an attribute, so that one element
+ * carrying both a `placeholder` and a `value` is two places rather than one row that can only hold one of
+ * them.
+ */
+export interface TextPlace {
+  /** What the override is stored under: the selector, or `selector@@attribute`. */
+  key: string;
+  /** The attribute this place edits, or null for the element's own content. */
+  attr: string | null;
+  /** What the owner calls it — the design's own words where it has any. */
+  label: string;
+  /** What the page has there now. */
+  value: string;
+}
+
+/**
+ * The separator between a selector and the attribute a text place edits.
+ *
+ * WHY NOT THE ATTRIBUTE IN THE VALUE'S JSON, WHICH NEEDS NO NEW GRAMMAR
+ *
+ * Because the row's identity is `(screen, kind, key)`, and a search field carrying both a `placeholder` and a
+ * `value` would be two text edits with one identity — so the second would overwrite the first with nothing
+ * said. The attribute therefore belongs in the key, and the separator is a pair no selector this grammar can
+ * produce ever contains: `@@` is not a character the tag, class, id or attribute-value grammar reads.
+ */
+export const ATTRIBUTE_SEPARATOR = '@@';
+
+/** Split a stored key into the selector it names and the attribute it edits, if any. */
+export function splitTextKey(key: string): { selector: string; attr: string | null } {
+  const at = key.indexOf(ATTRIBUTE_SEPARATOR);
+  if (at === -1) return { selector: key, attr: null };
+  return { selector: key.slice(0, at), attr: key.slice(at + ATTRIBUTE_SEPARATOR.length) || null };
+}
+
+/**
+ * The attributes whose value a reader reads as words.
+ *
+ * MEASURED, AND ONE OF THE TWO CANDIDATES IS NOT HERE. `placeholder` is offered because the deliverable has
+ * 81 inputs carrying one across 18 of the 52 screens, and the search field's is the most-read sentence on
+ * `/archive-index/`. `value` is NOT offered, and the reason is the rule this editor exists to keep: on this
+ * deliverable every `value` belongs to a control a reader does not read it as words — 31 checkbox and radio
+ * facet keys (`igbo`, `pre1500`), one number, one date, one search default and four example strings — so
+ * offering it would be a control for something that is not there, and editing a facet key would silently
+ * break the filter it names. The design's button labels are `<button>` elements, whose content is already a
+ * text place.
+ */
+export const TEXT_ATTRIBUTES: readonly string[] = ['placeholder'];
+
+/** The input types whose `placeholder` a reader reads: the ones a person types into. */
+const TYPED_INPUT_TYPES = new Set([
+  'text', 'search', 'email', 'password', 'tel', 'url', 'number', 'date', 'datetime-local', 'month', 'week', 'time',
+]);
+
+/**
+ * The words this element holds that a reader reads, content first.
+ *
+ * WHY AN ATTRIBUTE IS OFFERED AT ALL
+ *
+ * Measured on the deliverable: 81 `input` elements across 18 of the 52 screens carry a `placeholder`, and the
+ * search field's — "Search by town, clan, period or author" — is the most-read sentence on `/archive-index/`.
+ * The element-content-only rule offered none of them, so a form's own words were the one part of the page the
+ * design editor could not reach.
+ */
+export function textPlacesOf(html: string, element: HtmlElement, selector: string): { places: TextPlace[]; reason?: string } {
+  const attrs = attributesOf(element);
+  const places: TextPlace[] = [];
+  const content = textOf(html, element);
+  let reason: string | undefined;
+  if (TEXT_TAGS.has(element.tag)) {
+    if (content.length === 0) {
+      reason = 'This element is empty, so there is nothing to change.';
+    } else {
+      /*
+       * REPLACING AN ELEMENT'S TEXT REPLACES EVERYTHING INSIDE IT, so the offer depends on what is in there.
+       *
+       * A nested `<a>` REFUSES it: everything on these pages is reached by a link, and an edit that deleted
+       * one would leave a word that looks like a link and is not. Inline emphasis — `<strong>`, `<em>`,
+       * `<small>` — is offered WITH the warning, because losing a bold phrase is a change the owner can see
+       * and undo, and refusing it would make a sentence like `/donate/`'s notice (which wraps its first
+       * clause in `<strong>`) uneditable as the sentence it is.
+       */
+      const inner = innerHtml(html, element);
+      const containsLink = /<a[\s>]/i.test(inner);
+      const markup = [...new Set([...inner.matchAll(/<([a-z][a-z0-9-]*)/gi)].map((m) => (m[1] ?? '').toLowerCase()))];
+      if (containsLink) {
+        reason = 'This contains a link. Replacing its text would remove the link, so it is not offered — edit the link itself, or the text inside it.';
+      } else {
+        places.push({ key: selector, attr: null, label: 'Text', value: content });
+        if (markup.length > 0) {
+          reason = `Replacing this text also removes the markup inside it (${markup.map((t) => `<${t}>`).join(', ')}). The emphasis goes; the words are yours.`;
+        }
+      }
+    }
+  }
+  const inputType = element.tag === 'input' ? (attrs.get('type') ?? 'text').toLowerCase() : element.tag === 'textarea' ? 'text' : '';
+  for (const attr of TEXT_ATTRIBUTES) {
+    const value = attrs.get(attr);
+    if (value === undefined) continue;
+    if (!(element.tag === 'textarea' || (element.tag === 'input' && TYPED_INPUT_TYPES.has(inputType)))) continue;
+    places.push({ key: `${selector}${ATTRIBUTE_SEPARATOR}${attr}`, attr, label: 'Placeholder', value });
+  }
+  return { places, reason };
+}
+
+/**
  * The tags a text override is offered for.
  *
  * Not every element with text in it: a text override replaces the element's WHOLE content, so offering it
@@ -750,13 +866,23 @@ export interface InventoryItem {
  * vocabulary the design's screens actually use, and it is paired with the rule that the element must have
  * no element children at all.
  */
-const TEXT_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'p', 'figcaption', 'button', 'summary', 'li', 'dt', 'dd', 'blockquote', 'legend', 'label', 'td', 'th', 'caption', 'strong', 'b', 'small', 'span', 'em', 'i']);
+const TEXT_TAGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'p', 'figcaption', 'button', 'summary', 'li', 'dt', 'dd', 'blockquote', 'legend', 'label', 'td', 'th', 'caption', 'strong', 'b', 'small', 'span', 'em', 'i', 'option', 'textarea', 'title']);
+
+/**
+ * The one element that is text-only, and why it is listed apart from the rest.
+ *
+ * `<title>` is the words in the browser tab and the heading of a search result — a reader reads it on every
+ * screen, and it is written by the application's `seoHead` rather than by the design file, so it is the one
+ * place where an override has to beat a serve-time value rather than a file. **It may be edited and never
+ * hidden**: hiding a document's title is not "hiding a block", it is leaving the tab blank.
+ */
+const TEXT_ONLY = new Set(['title']);
 
 /** The container vocabulary a block may be hidden by: things a reader would call a block. */
 const BLOCK_TAGS = new Set(['section', 'div', 'figure', 'aside', 'article', 'nav', 'header', 'footer', 'ul', 'ol', 'form', 'table', 'details', 'p', 'blockquote']);
 
 /** Tags that may never be hidden: hiding the document, its head or its scripts is not "a block". */
-const NEVER_HIDDEN = new Set(['html', 'head', 'body', 'script', 'style', 'main', 'title', 'link', 'meta']);
+const NEVER_HIDDEN = new Set(['html', 'head', 'body', 'script', 'style', 'main', 'link', 'meta']);
 
 /** How many places a screen's inventory offers, so a very large page cannot produce a huge one. */
 export const INVENTORY_LIMIT = 150;
@@ -883,6 +1009,57 @@ function labelFor(html: string, element: HtmlElement): string {
 }
 
 /**
+ * How many of the deliverable's screens carry each of these places.
+ *
+ * THE ANSWER TO "IS THIS ONE EDIT OR FORTY?". The header and the footer are the same markup in every screen
+ * file, so the wording in them is on fifty-two screens and no page-by-page editor can change it once. This
+ * counts, from the FILES, the screens where each key names exactly one element — which is the same test the
+ * serve step applies (`applyDesignOverrides` edits nothing when a key matches zero or two elements), so the
+ * number is the reach of the edit rather than an estimate of it.
+ *
+ * It is measured on the deliverable and not on the served pages, and that is deliberate: the files are
+ * byte-frozen so the count is stable and costs one pass, where 52 served pages are 52 database round trips on
+ * the single process that also serves readers. A fill may add or remove an element on a screen, so the count
+ * is what the design carries; the save path measures the screens the edit actually reached.
+ */
+export function selectorReach(screens: { name: string; html: string }[], keys: string[]): Map<string, { screen: string; text: string }[]> {
+  const reached = new Map<string, { screen: string; text: string }[]>();
+  for (const key of keys) reached.set(key, []);
+  /* One parse per key, and a null parse is a key that names nothing anywhere — counted as zero, not skipped. */
+  const steps = new Map(keys.map((key) => [key, parseSelector(splitTextKey(key).selector)]));
+  for (const screen of screens) {
+    const { elements } = scanCached(screen.html);
+    for (const key of keys) {
+      const parsed = steps.get(key);
+      if (parsed === null || parsed === undefined) continue;
+      let match: HtmlElement | null = null;
+      let matches = 0;
+      for (const element of elements) {
+        if (matchesSelector(element, parsed)) {
+          matches += 1;
+          match = element;
+          if (matches > 1) break;
+        }
+      }
+      if (matches !== 1 || !match) continue;
+      /*
+       * THE WORDS THERE NOW ARE PART OF THE MEASUREMENT, NOT DECORATION.
+       *
+       * The same selector names the same PLACE on every screen, and the place does not always hold the same
+       * words: `a.wordmark span:nth-of-type(1)` is "History & Archive" on 35 screens and "Watch" on `/watch/`.
+       * An editor that reported only the first number would offer a button saying "change everywhere it
+       * appears" and quietly rewrite a different sentence on the screens where it differed. **Saying how many
+       * screens carry exactly this wording is the difference between a count and a claim.**
+       */
+      const { attr } = splitTextKey(key);
+      const text = attr ? (attributesOf(match).get(attr) ?? '') : textOf(screen.html, match);
+      reached.get(key)!.push({ screen: screen.name, text });
+    }
+  }
+  return reached;
+}
+
+/**
  * Everything on a screen the owner may edit, with the page's current value for each.
  *
  * Run against the SERVED page (after the fills), because that is the document an override will be applied
@@ -890,8 +1067,16 @@ function labelFor(html: string, element: HtmlElement): string {
  * inventory built from the file would offer the owner a button the same fill has already deleted. **The
  * list is therefore of what is actually on the page**, which is also why a screen whose fill removed
  * something simply does not offer it, and says so by omission rather than by pretending.
+ *
+ * `offset` exists because the list is longer than any one page of it. `/about/` holds 370 places and the
+ * editor draws 150, so without an offset the other 220 were described as "still editable through the same
+ * route" while no route offered them. **A limit that cannot be walked past is not a limit, it is a wall.**
  */
-export function designInventory(html: string, limit: number = INVENTORY_LIMIT): { items: InventoryItem[]; total: number } {
+export function designInventory(
+  html: string,
+  limit: number = INVENTORY_LIMIT,
+  offset: number = 0
+): { items: InventoryItem[]; total: number } {
   const { elements } = scanCached(html);
   const items: InventoryItem[] = [];
   const taken = new Set<string>();
@@ -912,11 +1097,19 @@ export function designInventory(html: string, limit: number = INVENTORY_LIMIT): 
      * A TEXT-BEARING TAG IS OFFERED EVEN WHEN IT HAS MARKUP INSIDE IT — the decision about whether its text
      * may be replaced is made below, where what is inside it can be named. A tag that is only a container is
      * offered when it is a block with a name, because that is what the owner would point at to hide it.
+     *
+     * AND AN ELEMENT WITH NO TEXT OF ITS OWN IS STILL OFFERED WHEN IT HOLDS WORDS IN AN ATTRIBUTE. `<input>`
+     * is not a text tag and never will be — it has no content — yet its `placeholder` is a sentence a reader
+     * reads, so the places are collected BEFORE the decision about whether this element belongs in the list.
      */
     const hideEligible = classes.length > 0 || attrs.has('id');
-    if (!isImage && !isLink && !TEXT_TAGS.has(element.tag) && !(hideEligible && BLOCK_TAGS.has(element.tag))) continue;
+    const places = isImage
+      ? { places: [] as TextPlace[], reason: undefined as string | undefined }
+      : textPlacesOf(html, element, key);
+    if (!isImage && !isLink && places.places.length === 0 && !(hideEligible && BLOCK_TAGS.has(element.tag))) continue;
 
     total += 1;
+    if (total <= offset) continue;
     if (items.length >= limit) continue;
 
     const item: InventoryItem = {
@@ -925,40 +1118,19 @@ export function designInventory(html: string, limit: number = INVENTORY_LIMIT): 
       label: labelFor(html, element),
       text,
       can: {
-        text: false,
+        text: places.places.length > 0,
         /*
          * A BLOCK, AND NOT EVERY ELEMENT WITH A CLASS. Hiding a `<span>` that is part of a sentence is not
          * "hiding a block without deleting it" — it is a hole inside a line — so the offer is limited to the
          * container vocabulary a reader would point at, and to the text elements that carry a class.
          */
-        hide: hideEligible && (BLOCK_TAGS.has(element.tag) || TEXT_TAGS.has(element.tag)),
+        hide: !TEXT_ONLY.has(element.tag) && hideEligible && (BLOCK_TAGS.has(element.tag) || TEXT_TAGS.has(element.tag)),
         image: isImage,
         link: isLink,
       },
     };
-
-    if (TEXT_TAGS.has(element.tag) && text.length > 0) {
-      /*
-       * REPLACING AN ELEMENT'S TEXT REPLACES EVERYTHING INSIDE IT, so the offer depends on what is in there.
-       *
-       * A nested `<a>` REFUSES it: everything on these pages is reached by a link, and an edit that deleted
-       * one would leave a word that looks like a link and is not. Inline emphasis — `<strong>`, `<em>`,
-       * `<small>` — is offered WITH the warning, because losing a bold phrase is a change the owner can see
-       * and undo, and refusing it would make a sentence like `/donate/`'s notice (which wraps its first
-       * clause in `<strong>`) uneditable as the sentence it is.
-       */
-      const inner = innerHtml(html, element);
-      const containsLink = /<a[\s>]/i.test(inner);
-      const markup = [...new Set([...inner.matchAll(/<([a-z][a-z0-9-]*)/gi)].map((m) => (m[1] ?? '').toLowerCase()))];
-      item.can.text = !containsLink;
-      if (containsLink) {
-        item.textReason = 'This contains a link. Replacing its text would remove the link, so it is not offered — edit the link itself, or the text inside it.';
-      } else if (markup.length > 0) {
-        item.textReason = `Replacing this text also removes the markup inside it (${markup.map((t) => `<${t}>`).join(', ')}). The emphasis goes; the words are yours.`;
-      }
-    } else if (TEXT_TAGS.has(element.tag)) {
-      item.textReason = 'This element is empty, so there is nothing to change.';
-    }
+    if (item.can.text) item.places = places.places;
+    if (places.reason) item.textReason = places.reason;
 
     if (isImage) {
       item.text = attrs.get('alt') ?? '';
@@ -1037,6 +1209,15 @@ export function checkOverrideValue(
 
   if (kind === 'text') {
     if ((value.text ?? '').length > 2000) return reject('That is longer than 2,000 characters. A heading or a note, not an essay.');
+    /*
+     * A KEY MAY NAME AN ATTRIBUTE, AND ONLY ONE OF THE TWO A READER READS. The stored value is written into
+     * an attribute of the element the selector names, so an attribute this editor does not offer — `href`,
+     * `onclick`, `style` — would be a way to write markup and behaviour through the text field.
+     */
+    const attribute = splitTextKey(key).attr;
+    if (attribute !== null && !TEXT_ATTRIBUTES.includes(attribute)) {
+      return reject(`“${attribute}” is not an attribute a reader reads as text.`);
+    }
     return null;
   }
   if (kind === 'hide') return null;
@@ -1162,7 +1343,9 @@ export function applyDesignOverrides(html: string, overrides: DesignOverride[], 
 
   for (const override of ordered) {
     if (checkOverrideValue(override.kind, override.key, override.value) !== null) continue;
-    const steps = parseSelector(override.key);
+    /* A text key may name an attribute rather than the element's content; the selector is the same either way. */
+    const { selector, attr } = splitTextKey(override.key);
+    const steps = parseSelector(selector);
     if (!steps) continue;
     const matches = nodes.filter((node) => matchesSelector(node, steps));
     /* ONE KEY, ONE ELEMENT. A key that matches two elements is a key that edits something the owner did not
@@ -1178,6 +1361,16 @@ export function applyDesignOverrides(html: string, overrides: DesignOverride[], 
       continue;
     }
     if (override.kind === 'text') {
+      /*
+       * AN ATTRIBUTE IS NOT THE ELEMENT'S CONTENT. `placeholder` and a button's `value` are words a reader
+       * reads and are not inside the element, so a content edit keyed to the same element would replace the
+       * wrong thing — which is why the key says which of the two it means.
+       */
+      if (attr) {
+        const openTag = setAttribute(out.slice(element.start, element.openEnd), attr, override.value.text ?? '');
+        edits.push({ start: element.start, end: element.openEnd, replacement: openTag });
+        continue;
+      }
       if (element.closeStart === -1) continue;
       edits.push({ start: element.openEnd, end: element.closeStart, replacement: escapeText(override.value.text ?? '') });
       continue;
@@ -1291,7 +1484,7 @@ export function decodeDesignPreview(raw: string | null | undefined): DesignOverr
       const kind = record.kind;
       if (kind !== 'token' && kind !== 'text' && kind !== 'image' && kind !== 'link' && kind !== 'hide') continue;
       if (typeof record.key !== 'string' || record.key.length === 0 || record.key.length > 400) continue;
-      if (kind !== 'token' && parseSelector(record.key) === null) continue;
+      if (kind !== 'token' && parseSelector(splitTextKey(record.key).selector) === null) continue;
       const value: DesignOverrideValue =
         record.value !== null && typeof record.value === 'object' ? (record.value as DesignOverrideValue) : {};
       if (checkOverrideValue(kind, record.key, value) !== null) continue;

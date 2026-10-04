@@ -165,9 +165,22 @@ export async function setDesignOverride(db: Db, input: SetDesignOverrideInput): 
      */
     throw new DesignOverrideError('A colour or type token applies to every screen, so it is filed under “*”.');
   }
-  if (input.kind !== 'token' && input.screen === ALL_SCREENS) {
-    throw new DesignOverrideError('A text, image, link or visibility edit belongs to one screen.');
-  }
+  /*
+   * AN ELEMENT EDIT MAY BE SITE-WIDE, AND THE PREVIOUS RULE SAID IT COULD NOT.
+   *
+   * The rule was "a text, image, link or visibility edit belongs to one screen", and it was right about the
+   * ROW — one screen's own heading is one screen's heading. It was wrong about the PAGE: the header, the menu
+   * and the footer are the same markup in all fifty-two screen files, so the footer's "Academy — Learn Igbo",
+   * or the label on a menu item, is one decision the owner was made to repeat fifty-two times. **That is the
+   * opposite of what he asked for**, and `selectorReach` measures exactly how many screens a given key
+   * reaches, so the editor can say "on 52 screens" before he decides.
+   *
+   * So `*` is allowed for every kind, and the meaning is narrow and stated rather than assumed: **apply this
+   * wherever this key names exactly one element.** The serve step already enforces that half —
+   * `applyDesignOverrides` edits nothing when a key matches zero or two elements — so a site-wide row can only
+   * ever land where it names one thing, and never as a shape that sweeps a page.
+   */
+
 
   const before = await db.one<Row>(
     `select id, screen, kind, key, label, value, note, actor_id, null::text as actor_name, created_at, updated_at

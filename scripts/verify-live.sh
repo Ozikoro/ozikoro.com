@@ -54,6 +54,30 @@ run_check() {
 }
 
 run_check "links a reader can click"   bash scripts/check-links.sh   "$BASE" 120
+# ── THE OWNER'S SECOND INSTRUCTION: "scan every link when you deploy the website" ─────────────────────
+#
+# THE THREE INSTRUMENTS THAT SEE WHAT A STATUS CANNOT, AND THEY ARE ALREADY IN THE REPOSITORY. A 200 is not
+# evidence: a `btn` led to a `text/plain` file, a link discarded its own `?v=` and showed another record, and
+# a tile named six towns and opened one address — all three answered 200. Each of those has its own check,
+# and the gap this closes is not a fourth check but the fact that none of them was in the sequence a person
+# runs before a deploy.
+#
+# The modes are chosen so the gate is minutes rather than tens of minutes, and each is stated with the time
+# it was measured at (2026-10-04, on this machine, against a running review server):
+#
+#   check-link-destinations.mjs              status AND content-type for every control on the listen and
+#                                            film pages, cross-origin addresses included — 4m47s, most of
+#                                            it YouTube's latency
+#   check-page-variants.mjs --no-articles     the bare/parameterised families, every fragment against the page
+#     --crawl 40                              that must own it, the identity rule and a 40-page link crawl
+#                                            — 1m18s
+#   verify-round-344.mjs --sample 24 --gate   the broad sweep: the front page's own navigation and everything
+#                                            one step behind it — 124s measured (21 pages, 1,768 references,
+#                                            457 addresses). `--full` is the release sweep and takes ten to
+#                                            twelve minutes; it is not run here.
+run_check "a control lands where it promises"  node scripts/check-link-destinations.mjs
+run_check "bare and parameterised agree"       node scripts/check-page-variants.mjs --no-articles --crawl 40
+run_check "every link on the sampled sweep"    node scripts/verify-round-344.mjs "$BASE" --sample 24 --gate
 run_check "pages a crawler is told of" bash scripts/check-sitemap.sh "$BASE" 300
 run_check "assets a page must load"    bash scripts/check-assets.sh  "$BASE" 10
 run_check "the 404 a reader lands on" bash scripts/check-not-found.sh "$BASE"
