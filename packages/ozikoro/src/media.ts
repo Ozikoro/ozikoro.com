@@ -566,6 +566,27 @@ export async function listMediaRegister(
  */
 const WORDPRESS_RESIZE = /-\d+x\d+(?=\.[a-z]+$)/i;
 
+/**
+ * `-scaled`, WHICH IS WORDPRESS'S OWN NAME FOR THE LARGEST COPY OF AN IMAGE ABOVE ITS BIG-IMAGE THRESHOLD.
+ *
+ * WHEN WORDPRESS UPLOADS AN IMAGE LARGER THAN 2,560 PX IT KEEPS THE ORIGINAL AND WRITES A `-scaled`
+ * COPY, AND THE ATTACHMENT'S OWN FILE NAME BECOMES THE SCALED ONE. Every `<img src>` WordPress then
+ * emits names the resized variants of that SAME attachment — `…-642x317.png` — and **`-scaled` is
+ * therefore a name for the same picture as the resized spelling, not a different file.**
+ *
+ * Strip the resize suffix from `…-642x317.png` and you get `….png`, which is an address no row holds:
+ * the row holds `…-scaled.png`. So the archive had the file, the body asked for a resize of it, and
+ * the resolver returned `null` — the picture came out as an empty box.
+ *
+ * MEASURED, and this is why the suffix is worth a comment of its own rather than one more line in a
+ * regex: **293 of the 376 addresses that survive `rewriteBodyImages` across the 1,024 published bodies
+ * that still carry an old-site address are this case, in 40 articles, and every one of the 293 sits in
+ * a `srcset`** — which is the attribute a browser actually loads and the one `img-src 'self'` refuses.
+ * `/ichi-mark-the-igbo-scarification/` alone carries ten of them, and one of those ten is the image
+ * the browser reported as *"violates the following Content Security Policy directive"*.
+ */
+const WORDPRESS_SCALED = /-scaled(?=\.[A-Za-z0-9]+$)/i;
+
 /** Maps an address the old WordPress site served to the address this archive serves the same file from. */
 export type MediaUrlResolver = (url: string) => string | null;
 
@@ -584,6 +605,18 @@ export type MediaUrlResolver = (url: string) => string | null;
  * whole safety property of the function.** A third of the addresses that do not match were never on
  * ozikoro.com at all — a BBC or a Google image quoted in an article — and substituting anything for those
  * would be putting a different photograph on a history page, which is worse than an empty box.
+ *
+ * ── THREE LAYERS, IN THIS ORDER, AND THE ORDER IS THE SAFETY PROPERTY ─────────────────────────────────
+ *
+ *   1. `exact`  — the row whose `source_url` is the address itself.
+ *   2. `base`   — the same address with WordPress's `-<width>x<height>` suffix removed, which is what
+ *                 already resolved a body quoting `…-680x541.jpg` against the row holding `….jpg`.
+ *   3. `aliased` — **added by round 347, and consulted LAST**: the row's `source_url` with WordPress's
+ *                 `-scaled` removed. See `WORDPRESS_SCALED` for the measurement.
+ *
+ * A key is registered in layer 3 **only if neither of the first two already claims it**, and layer 3 is
+ * only ever consulted after both have missed. So this change cannot alter one address that already
+ * resolved — it can only turn a `null` into the file the archive already holds for that same attachment.
  */
 export function mediaUrlMap(
   rows: ReadonlyArray<{ source_url: string | null; storage_key: string | null }>
@@ -596,7 +629,29 @@ export function mediaUrlMap(
     exact.set(m.source_url, own);
     base.set(m.source_url.replace(WORDPRESS_RESIZE, ''), own);
   }
-  return (url) => exact.get(url) ?? base.get(url.replace(WORDPRESS_RESIZE, '')) ?? null;
+
+  /*
+   * `…-scaled.png` ALSO ANSWERS FOR `….png`, WHICH IS THE ADDRESS A BODY WRITTEN BEFORE THE SCALE QUOTES.
+   *
+   * Both spellings are registered, because a body can quote either one: the scaled name itself, and the
+   * plain name that stripping the resize suffix produces from a `…-642x317.png`.
+   */
+  const aliased = new Map<string, string>();
+  for (const m of rows) {
+    if (!m.source_url || !m.storage_key) continue;
+    const unscaled = m.source_url.replace(WORDPRESS_SCALED, '');
+    if (unscaled === m.source_url) continue;
+    const own = mediaPath(m.storage_key);
+    for (const key of [unscaled, unscaled.replace(WORDPRESS_RESIZE, '')]) {
+      if (!exact.has(key) && !base.has(key) && !aliased.has(key)) aliased.set(key, own);
+    }
+  }
+
+  return (url) =>
+    exact.get(url) ??
+    base.get(url.replace(WORDPRESS_RESIZE, '')) ??
+    aliased.get(url.replace(WORDPRESS_RESIZE, '')) ??
+    null;
 }
 
 /**

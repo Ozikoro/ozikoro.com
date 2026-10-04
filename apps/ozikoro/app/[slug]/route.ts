@@ -22,13 +22,134 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { getDb, type Db } from '@ozituma/db/client';
+import { fillArticle, mediaPath, mediaUrlResolver, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
 const SCREEN = join(process.cwd(), 'public', 'design', 'screens', 'article.html');
+
+/**
+ * THE FORM WORDPRESS STORES A SLUG IN WHEN THE TITLE IT CAME FROM HAS A NON-ASCII LETTER.
+ *
+ * `sanitize_title()` runs the title through `utf8_uri_encode()`, which writes every byte of every
+ * non-ASCII character as a lowercase `%xx` — so the attachment-title page whose title contains `ǹ` was
+ * published at `/entrance-to-an-igbo-compound-%c7%b9gwulu-onitsha-1903-1918-herbert-wimberley/` and the
+ * **percent signs are part of the slug in the database**, not an encoding of it. `post_name` in the dump
+ * holds them literally, and so does the record's `slug` and its `legacy_url`.
+ *
+ * **AND NEXT DECODES THE PATH BEFORE ROUTING.** `params.slug` therefore arrives as
+ * `…-ǹgwulu-…`, which is not equal to the stored `…-%c7%b9gwulu-…`, so the record's own published
+ * address answered **404 while the row, the body and the slug were all in the cluster**. Measured on the
+ * served site before this: 1 of the 1,057 published WordPress addresses, and the only one that is a post.
+ *
+ * The round trip is exact because UTF-8 is: re-encoding the decoded slug reproduces the stored one byte
+ * for byte. There is exactly one such slug among the 1,051 published records.
+ */
+function wordpressUriEncode(slug: string): string {
+  let out = '';
+  for (const byte of new TextEncoder().encode(slug)) {
+    out += byte < 0x80 ? String.fromCharCode(byte) : `%${byte.toString(16).padStart(2, '0')}`;
+  }
+  return out;
+}
+
+/** The record's own title, escaped before it is written into markup this route composes itself. */
+function escapeText(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * A PUBLISHED WORDPRESS PAGE, SERVED AT ITS OWN ADDRESS FROM ITS OWN ROW.
+ *
+ * A page is not a record: every archive query excludes `is_page = true` on purpose (migration 0036), so a
+ * page that no design screen draws had no address at all. `/about/` and `/home/` answer because
+ * `middleware.ts` rewrites them to the deliverable's own screens; `/authors/` and `/privacy-policy/` are
+ * 301s to the directory and the notice that replaced them. **`/nze/` is neither** — its content is a
+ * complete, self-contained HTML document that no screen draws and no other page holds — so it is served
+ * here, which is what the owner's rule asks for: *"every record keeps the address it was published at."*
+ *
+ * WHAT IS RETURNED IS THE RECORD'S OWN BYTES. `body_html` is carried verbatim, exactly as WordPress
+ * published it, because this is a published page and not a draft: the display does not withhold, rewrite
+ * or paraphrase any of it. Two things are decided here rather than taken from the row:
+ *
+ *   * **A PAGE WITH NO CONTENT IS NOT A PAGE**, and it returns `null` so the address stays a 404.
+ *     WordPress page 11024, "Construction", holds 0 bytes, 0 words, `_elementor_data` `[]` and
+ *     `_elementor_css` `status: empty`. Inventing a notice for it would be inventing the page.
+ *   * **AN `<h1>` IS ADDED ONLY IF THE BODY HAS NONE**, because the archive's accessibility rule is one
+ *     `<h1>` per page. `/nze/`'s own document carries one, so it is used as it stands; a page written as
+ *     plain prose would otherwise have no heading at all. That is a measurement of the body, not a guess
+ *     about it.
+ *
+ * The head is the archive's own `seoHead(…, kind: 'page')`, so the canonical is the record's real
+ * address and the JSON-LD is the same graph every other page carries. The body's images go through the
+ * same `rewriteBodyImages` resolver the articles use, so a page cannot be the one place an old-site
+ * address survives.
+ *
+ * **AND THE `<body>` CARRIES NO CLASS, WHICH IS A DECISION AND WAS MEASURED.** The archive's reading pages
+ * wear `.sx-reading-body`, and `showcase.css` gives that class `background:#fff`. `/nze/`'s own document
+ * sets `body { background: radial-gradient(…) }` — and a CLASS beats a TYPE selector whatever the document
+ * order, so the archive's white would have painted over the record's own page and the browser probe read
+ * `body background-image: none`. **WordPress served the record's gradient**, because a theme's body rule
+ * and the record's are both `body` and the later one wins. So the class is dropped, the record's own
+ * styling stands, and `main.css` still gives a page that has none of its own the site's typography.
+ */
+async function servePublishedPage(db: Db, slug: string): Promise<Response | null> {
+  const page = await db.one<{
+    id: number; slug: string; title: string; body_html: string | null; legacy_url: string | null;
+    published_at: Date | null; modified_at: Date | null;
+  }>(
+    `select id, slug, title, body_html, legacy_url, published_at, modified_at
+       from ozikoro_article
+      where status = 'published' and is_page = true and (slug = $1 or slug = $2)`,
+    [slug, wordpressUriEncode(slug)]
+  );
+
+  const body = page?.body_html ?? '';
+  if (!page || body.trim() === '') return null;
+
+  const resolveImage = await mediaUrlResolver(db);
+  const content = rewriteBodyImages(body, resolveImage);
+  const path = page.legacy_url ?? `/${page.slug}/`;
+  const hasHeading = /<h1[\s>]/i.test(content);
+
+  const document = `<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeText(page.title)}</title>
+</head><body>
+${
+    hasHeading
+      ? ''
+      : `<main id="article"><article class="sx-book-reader"><header class="sx-article-opening"><div class="sx-article-title"><p class="eyebrow">Page</p><h1>${escapeText(page.title)}</h1></div></header></article></main>`
+  }
+${content}
+</body></html>`;
+
+  return new Response(
+    withSeoHead(
+      document,
+      seoHead(
+        {
+          path,
+          title: page.title,
+          description: null,
+          kind: 'page',
+          published: page.published_at ? new Date(page.published_at).toISOString() : null,
+          updated: page.modified_at ? new Date(page.modified_at).toISOString() : null,
+          reference: `OZ-PAGE-${String(page.id).padStart(4, '0')}`,
+          trail: [
+            { name: 'Ozikoro', path: '/' },
+            { name: page.title, path },
+          ],
+        },
+        ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+      )
+    ),
+    { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
+  );
+}
 
 export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -58,10 +179,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
        from ozikoro_article a
        left join ozikoro_topic t on t.id = a.topic_id
        left join ozikoro_contributor c on c.id = a.author_id
-      where a.slug = $1 and a.status = 'published' and a.is_page = false`,
-    [clean]
+      where a.slug in ($1, $2) and a.status = 'published' and a.is_page = false`,
+    [clean, wordpressUriEncode(clean)]
   );
-  if (!row) return new Response('Not found', { status: 404 });
+  if (!row) {
+    /*
+     * NOT AN ARTICLE, SO IT MAY BE A PAGE. Every archive query excludes `is_page = true` on purpose, which
+     * is why a page has no address unless a design screen or a redirect happens to answer for it. See
+     * `servePublishedPage` for what a page is served as, and for why a page with no content stays a 404.
+     */
+    const page = await servePublishedPage(db, clean);
+    if (page) return page;
+    return new Response('Not found', { status: 404 });
+  }
 
   const related = await db.rows<{ slug: string; title: string; topic: string | null; image: string | null }>(
     `select a.slug, a.title, t.name as topic,

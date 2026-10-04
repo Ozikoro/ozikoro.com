@@ -22835,6 +22835,309 @@ checkout and has nothing to do with this round — PGlite is single-process and 
   untracked in this checkout — several agents are working in it at once. `/towns/` now reads `imageKey` from
   it, so that field is part of this round's change and the file is carried in the commit.
 
+---
+
+## ROUND 347 — FIVE OF 1,057 PUBLISHED WORDPRESS ADDRESSES WERE UNSERVED, NOT FOUR OF SIX, AND 293 BODY IMAGES WERE REFUSED BY A POLICY THE RESOLVER COULD NOT SATISFY
+
+**The owner's rule from the beginning of this project is *"every record keeps the address it was published
+at."*** §7.10 of the reconciliation named four of the six published WordPress pages as 404s and reported
+them rather than touching them. This round asks the whole question — **every published address of any kind,
+measured against the dump** — and answers it three ways: two addresses are sent to the page that replaced
+them, one is served at its own address from its own row, and one is left a 404 **because nothing is behind
+it.** The count is not four of six; it is **five of 1,057**, and the fifth is not a page.
+
+### 1. WHAT ACTUALLY SERVES `/about/` AND `/home/`, READ AND NOT GUESSED
+
+The brief for this round was to find the mechanism before copying it. There were three candidates — a
+`legacy_url` redirect, a route at `app/<slug>`, or a middleware entry — and it is the **third**:
+
+```
+middleware.ts:  DESIGN_SCREENS.has('about') → NextResponse.rewrite('/design-screen/about')
+                DESIGN_SCREENS.has('home')  → NextResponse.rewrite('/design-screen/home')
+app/design-screen/[screen]/route.ts reads public/design/screens/<screen>.html and fills it
+```
+
+So the two that answer do so **because the deliverable drew a screen for them**, and `legacy_url` plays no
+part at all: `/about/` and `/home/` are filled design screens, not the `about` and `home` rows. That is why
+neither mechanism was available for the other four — the design drew no `authors.html`,
+`privacy-policy.html`, `nze.html` or `construction.html`, and `towns` is deliberately absent from
+`DESIGN_SCREENS` for the reason recorded beside that list.
+
+### 2. THE SIX PUBLISHED PAGES, READ OUT OF THE CLUSTER
+
+Every figure below is a column of `ozikoro_article`, read from a **copy** of the cluster
+(`.data/scratch-r347/pg`, `cp -Rc` while the review server held the original). The dump's own
+`wpc9_posts` says the same six things: **6 rows with `post_type='page' AND post_status='publish'`**, and
+one draft (the Contact page, round 343's).
+
+| wp id | slug | title | `legacy_url` | words | body | what it turned out to be |
+|---:|---|---|---|---:|---:|---|
+| 453 | `about` | About US | `/about/` | 245 | 9,616 B | **200** — the design's `about.html`, filled |
+| 7551 | `home` | Home | `/home/` | 417 | 92,651 B | **200** — the design's `home.html`, filled |
+| 455 | `authors` | Authors | `/authors/` | 72 | 17,390 B | the **"Our Team" directory**: Founder Idenze Ezeme and four Writers, each card `href="/author/<slug>/"` |
+| 477 | `privacy-policy` | Privacy Policy | `/privacy-policy/` | 626 | 7,835 B | **Ozi Ikoro's own 2020 notice** — `contact@ozikoro.com`, "cookies or analytics tools", newsletters |
+| 10980 | `nze` | nze | `/nze/` | 1,155 | 19,884 B | **not the author page** — a complete HTML document titled *"A Question for Your Journey"* |
+| 11024 | `construction` | Construction | `/construction/` | **0** | **0 B** | **nothing at all**: `_elementor_data` is `[]` and `_elementor_css` records `status: empty` |
+
+### 3. THE FOUR, DECIDED FROM WHAT EACH PAGE IS RATHER THAN FROM ITS SLUG
+
+**`/authors/` → 301 `/researchers/`.** The WordPress page is the author directory: five named people, each
+card a link to `/author/<slug>/`. `/researchers/` is this archive's directory of the people who wrote it,
+and **all five of those bylines are on it** — fetched and read, not assumed: its ten `/author/<slug>/` links
+are `aka`, `chinemerem`, `chizobem-chinedu-opiah`, `chuka`, `ghostofokello`, `kosiso`, `nze`, `nzubechi`,
+`okenwa`, `ossai`. The destination is the same thing and holds more of it, so the address goes there.
+Destination read: **200, `h1` "Researchers", canonical `/researchers/`.**
+
+**`/privacy-policy/` → 301 `/privacy/`.** `/privacy/` is this platform's notice, built from what the
+platform actually does, **and it is the one that is true of this site** — the 2020 page describes cookies or
+analytics tools, newsletters, a mailing address and promotional email, and this platform has no analytics
+script, no advertising network and no newsletter to disclose. Two notices in competition would be worse than
+either, so the record keeps its address by a permanent redirect and the canonical stays on `/privacy/`,
+which is where `/privacy/`'s own `<link rel="canonical" href="https://ozikoro.com/privacy/">` already
+points (read before deciding, as the brief asked). Destination read: **200, `h1` "Privacy".**
+
+**`/nze/` → SERVED AT ITS OWN ADDRESS, and the redirect the brief anticipated was NOT taken.** The brief's
+hypothesis was that this is the author address and should follow the shape of
+`301 /author/ozikoro/ → /author/nze/`. **Its content says otherwise, and that is why the title and the
+content were read before anything was written.** The record is a complete, self-contained HTML document —
+`<!DOCTYPE html><html lang="en"><head>…<title>A Question for Your Journey</title>` — with its own inline
+stylesheet, its own inline script and its own `<h1>` ("Are you a God‑fearing man?"), and it says nothing
+about the archive. `301 /nze/ → /author/nze/` would have been **a wrong destination**: the fault this
+repository already records as a link that opens a stranger's profile, arrived at by guessing from a slug.
+So the record is served at the address it was published at, from its own row, by a page branch in
+`app/[slug]/route.ts`:
+
+* the **record's own bytes are returned verbatim** — nothing is withheld, rewritten or paraphrased, because
+  this is a *published* page and not a draft;
+* the head is the archive's own `seoHead(…, kind: 'page')`, so the canonical is
+  `https://ozikoro.com/nze/` and the JSON-LD is the same graph every other page carries;
+* **an `<h1>` is added only if the body has none**, because the archive's accessibility rule is one `<h1>`
+  per page. `/nze/`'s document supplies one, so none was added — measured, and re-measured in the browser
+  (`1` `<h1>`, in section 7);
+* a page whose whole content is empty returns `null`, which is what keeps `/construction/` a 404:
+* **the `<body>` carries no class, and that was a decision taken from a measurement.** The archive's reading
+  pages wear `.sx-reading-body`, and `showcase.css` gives that class `background:#fff`. `/nze/`'s own
+  document sets `body { background: radial-gradient(…) }`, and **a class beats a type selector whatever the
+  document order**, so the archive's white painted over the record's own page — the browser probe read
+  `body background-image: "none"` — while **WordPress served the gradient**, because a theme's body rule and
+  the record's are both `body` and the later one wins. The class is therefore dropped so the record's own
+  styling stands, and `main.css` still gives a page with none of its own the site's typography.
+
+Destination read: **200, `h1` "Are you a God‑fearing man?", title "nze", canonical `/nze/`** — and the
+page's own option controls are present in the DOM, so what was served is the record rather than a summary.
+
+**`/construction/` → LEFT A 404, deliberately.** WordPress page 11024, title "Construction", is *empty*:
+`post_content` is 0 bytes, WordPress counts 0 words, `_elementor_data` is `[]` and `_elementor_css` says
+`status: empty`. It is a placeholder. **An address with nothing behind it is not the same fault as an
+address whose page exists**, and a notice there would have to be invented, so nothing was invented and
+nothing was served. It is the one address this round leaves answering 404, and it is counted apart from the
+failures rather than hidden among them.
+
+### 4. THE SWEEP — FIVE UNSERVED, NOT FOUR, AND THE FIFTH IS A POST
+
+**Every published address in the dump was requested, not sampled.** The list is built from the full SQL
+dump's `wpc9_posts` (§9's tokeniser output, 9,144 rows): `post_type in ('post','page') AND
+post_status='publish'` → **1,057 addresses: 1,051 posts and 6 pages.** Measured on the review server before
+this round's change:
+
+```
+1,052 × 200
+    5 × 404   /authors/  /construction/  /nze/  /privacy-policy/
+              /entrance-to-an-igbo-compound-%c7%b9gwulu-onitsha-1903-1918-herbert-wimberley/   ← A POST
+```
+
+**So "four of six" is an undercount, and the undercount is the whole point of measuring the class rather
+than the category.** The reconciliation's §7.10 is a true statement about *pages*; the question the owner's
+rule asks is about *addresses*, and one published **post** was answering 404 with its row, its body and its
+slug all in the cluster.
+
+**Why it 404'd, and it is not an import gap.** WordPress stores a slug in `sanitize_title()`'s
+`utf8_uri_encode()` form, so the percent signs are **part of the slug in the database**: the row's `slug`
+and `legacy_url` are `entrance-to-an-igbo-compound-%c7%b9gwulu-…` literally. **Next decodes the path before
+routing**, so `params.slug` arrives as `…-ǹgwulu-…`, which is not equal to the stored string — the article
+route compared a decoded path against an encoded column and found nothing. The fix is a second spelling in
+the lookup: `wordpressUriEncode()` re-encodes the decoded slug byte for byte, and the query matches
+`a.slug in ($1, $2)`. There is exactly **one** such slug among the 1,051 published records, and the address
+now answers **200 with its own `h1`**, "Entrance to an Igbo Compound (ǹgwùlù), Onitsha, 1903–1918 – Herbert
+Wimberley".
+
+After the change, the same 1,057 requests answer **1,056 × 200 and 1 × 404**, and the one 404 is
+`/construction/`, deliberately (section 3).
+
+### 5. THE TWO ARTICLE-BODY IMAGES REFUSED BY `img-src`
+
+The brief carries a backend measurement of two hotlinks a browser refused. **Re-measured on the current
+build, one of the two was already fixed and one was not, and the difference matters:**
+
+| the address the body holds | the row the archive holds | state |
+|---|---|---|
+| `…/Igbo-Men-with-Ichi-Scarification-Thomas-W.-Northcote-642x317.png` | **media 3457**, `ozikoro/400-…-Northcote-scaled.png`, `wp_media_id` **400** | **already rewritten** — round 343 added media 6981 (`…-300x148.png`) whose stripped base is the key this address needs |
+| `…/questioning8c86e7b536618f95fd3d8e9cf9fc8ce-768x461.jpg` | **media 3200**, `ozikoro/1616-…-scaled.jpg`, `wp_media_id` **1616** | **still refused** |
+
+**Both are in one article: `/ichi-mark-the-igbo-scarification/` (record 1040).** And in both cases **the
+archive holds the identical image by its own record**: not a similar subject but the same WordPress
+attachment, which is why the match is stated as the media row and the `wp_media_id` rather than as a
+resemblance.
+
+**What was wrong, and why it was not a data gap.** WordPress writes `<name>-scaled.<ext>` for the largest
+copy of an image above its 2,560-pixel threshold, and every resized variant it emits — `…-642x317.png`,
+`…-768x461.jpg` — is a resize **of that same attachment**. `mediaUrlMap` stripped WordPress's
+`-<width>x<height>` suffix but not its `-scaled` suffix, so `…-642x317.png` stripped to `….png`, which is
+an address no row holds, and the resolver returned `null` and left the hotlink exactly as it was. The fix
+is a **third layer** in `mediaUrlMap`, consulted **last** and only for keys no real row claims, so it
+cannot change one address that already resolved — it can only turn a `null` into the file the archive
+already holds.
+
+**AND THE COUNT THE BRIEF ASKED FOR IS THE REAL FINDING.** Applied to all **1,024** published bodies that
+still carry an old-site address, before and after:
+
+| | before | after |
+|---|---:|---:|
+| distinct old-site addresses surviving `rewriteBodyImages` | **376** | **83** |
+| …**in an image-loading attribute, which a browser requests and `img-src` refuses** | **293** | **0** |
+| …in the theme's lazy-load attribute, which a browser never requests (see §8) | 73 | 73 |
+| …in an `<a href>` only, which `img-src` does not refuse | 10 | 10 |
+| articles affected | **40** | 17 |
+| …all 293 of them the same cause | `-scaled` | — |
+
+The worst single article was `mgba-okpukpu-the-traditional-igbo-bone-setting-and-bone-healing-process` with
+47; `/ichi-mark-the-igbo-scarification/` carried ten, all of them in a `srcset`, and one of those ten is the
+image the browser reported. **The `-e<timestamp>` class round 343 found is already closed** — measured, 0 of
+the surviving addresses are that case — so no rule was added for it and none is needed.
+
+### 6. `/towns/` — EVERY IMAGE, AND THE ONE THAT WAS A 404
+
+`/towns/` carries **75 `<img>` across 66 distinct `src`** (the same photograph can appear on two cards).
+Every one was fetched and its content type read, and **65 of the 66 answered 200 with an image type. The
+failure is named:**
+
+```
+404  text/plain;charset=UTF-8
+/media/ozikoro/10853-this-1935-photograph-captures-an-ulakwo-priest-alongside-george-thomas-basden-an-ethnographer-and-missionary-the-image-offers-a-historical-glimpse-into-the-cultural-interactions-between-european-mission.jpg
+   — the card for Nsukka, whose featured image is media row 34
+```
+
+**The file was in the building the whole time.** `.data/media/ozikoro/10853-…jpg` is 151,620 bytes,
+`ozikoro_media` row 34 holds the key and `filesize_bytes` 151,620, and `getStorage().get(key)` returns the
+bytes. What refused it was **the media route's own key allowlist**: `KEY_PATTERN` admitted
+`[A-Za-z0-9._\- ()[\],'&+]` to a length of **180**, and this file name is **206 characters**. The same
+pattern refused **seven more real files** because their names carry an `@` — WordPress's `name@2x.webp`
+retina spelling. So **8 of the 3,443 media rows were unreachable while their bytes were in the store**, and
+one of them is drawn on a page a reader uses.
+
+**AND THE REGISTER WAS RENAMED AND PAGINATED WHILE THIS ROUND WAS VERIFYING IT, WHICH IS MEASURED RATHER
+THAN SMOOTHED OVER.** A sibling round (349) renamed the register to **`/clan-towns/`** — `/towns`,
+`/towns/`, `/towns.html`, `/clans` and `/clans/` are 301s to it — and paginated it **18 to a page**, because
+the owner asked for the two registers to be one page. So the same 75 images are now spread over eleven pages
+and **a probe that reads page 1 and calls it the register would report 11 images and no Igbodo card at
+all.** Walked page by page on the register as it is now served, the figures are unchanged: **75 `<img>`
+across 66 distinct `src`, and 66 of 66 answering 200 with an image content type.** The two Igbodo cards are
+on pages 4 and 10.
+
+**This is the media round's fix and it is in this checkout, not this round's** — `packages/ozikoro/src/media-key.ts`
+(round 348) admits `@`, raises the bound to the filesystem's own 255 and adds a `..` lookahead, and the
+route now reads that shared constant. Measured after this round's build, which carries it:
+**66 of 66 distinct images on the register return 200 with an image content type**, and the browser probe in
+§8 finds a bitmap behind every one. Naming the failure and verifying the fix is this round's part; the fix
+itself belongs to the round that wrote it.
+
+### 7. THE IGBODO CARDS — BOTH POINT AT WHAT THEY SAY THEY POINT AT
+
+The brief asked for the card a reader would click for Igbodo on `/towns/`, and warned that the register
+holds two published entries named Igbodo. Measured on the served page, **there are two cards, and each one
+says which it is in its own region line**:
+
+| the card's region `<small>` | name | `href` as served | followed, read |
+|---|---|---|---|
+| `Enugu` | Igbodo | `/town/igbodo/` | **200**, `h1` "Igbodo" — the Enugu section (Aku, Ukehe are named on it) |
+| `Delta` | Igbodo | `/town/igbodo-northern-ika/` | **200**, `h1` "Igbodo" — the Ika town (Ika is named on it) |
+
+**Both cards were first read on `/towns/` and re-read on the register's new address page by page** (see §6;
+the register is paginated, and these two are on pages 4 and 10), so the `href`s below are the register's
+answer at both addresses it has had. Round 349 also put the supplying record's name into each card's
+`<small>` line, which is why the region line below is longer than a state name. **So there is no wrong
+destination here, and that is a measurement rather than an absence of one:** the
+register's own notes in `design-fill.ts` say the Ika town is `igbodo-northern-ika` and the Enugu section is
+`igbodo`, and each card's `href` matches its own region. The reader who wants the Ika town clicks the Delta
+card and lands on the Ika town. **The one real oddity is a picture, not a link, and round 346 already
+reported it:** both cards draw media `11219-obi-of-igbodo.jpg`, which is the Ika town's obi, because one
+record is linked to both entities. It is not fixed here for the reason that round gave — narrowing the rule
+would take the correct photograph off the Ika town too.
+
+### 8. HOW IT WAS VERIFIED
+
+```
+node scripts/verify-round-347.mjs                     PROBLEMS: 0   (22 notes)
+OZIKORO_SWEEP=1 node scripts/verify-round-347.mjs     PROBLEMS: 0 — 1,057 addresses, 0 not 200
+                                                      excluding the one deliberate /construction/ 404
+node scripts/verify-round-347-chrome.mjs              PROBLEMS: 0   (a real browser, 11 pages)
+npm run typecheck            (from the repository root)                 exit 0
+bash scripts/serve-review.sh                          READY on 3110 (see the note below)
+python3 -c "…parity…"                                 identical 63 differing 0 missing 0
+```
+
+**One build of this round was refused, and the reason is a shared-checkout race rather than this round's
+change.** `next build` failed with `.next/types/app/clans/page.ts(2,24): Cannot find module
+'../../../../app/clans/page.js'` — a **generated** type file for a route a sibling round had just moved out
+of `app/clans/`. `apps/ozikoro/tsconfig.json` includes `.next/types/**/*.ts`, so a stale generated tree
+fails the build's typecheck; the repository's own recorded remedy is to clear that generated tree, which
+regenerates on the next build (`.next` itself — the thing the rules protect — was not touched, and the
+running server never stopped answering). The build that carries this round is the one a sibling round ran
+afterwards, and every measurement above is against it.
+
+* **The register is read page by page, and that is a correction the probe needed.** The register is 188 rows
+  over eleven pages of 18; **a probe that fetched page 1 and called it the register would have reported 11
+  images and no Igbodo card.** Both probes now walk the pages and carry `?page=`, and the figures they
+  report — 75 `<img>`, 66 distinct, 66 of 66 answering, 75 painted — are the register's, not a page's.
+* **Every address is followed and the destination's own `h1` is read**, never its status alone: `/authors/`
+  → 301 → `/researchers/` ("Researchers"), `/privacy-policy/` → 301 → `/privacy/` ("Privacy"), `/nze/` 200
+  (its own document's `h1`), `/construction/` still 404, and `/about/` and `/home/` unchanged at 200 so the
+  comparison the brief asked for is in the same run. **Both spellings are checked** — `/authors` and
+  `/privacy-policy` without the slash — because the slash-less form is a *rewrite* that never re-enters the
+  middleware, so a lookup on `pathname` alone would have left those two a 404.
+* **The sweep is the full 1,057, not a sample**, with a transport error retried once and reported as its own
+  kind of unknown rather than as a 404 (the first run at 24 connections produced eleven socket failures on a
+  development server, and a dropped socket is not an address that does not answer).
+* **The browser probe reads `naturalWidth`,** because that is the only measurement that separates a blocked
+  image from an absent one. On Chrome 154: **the register's `/towns/`, 75 `<img>` across 66 distinct `src`,
+  75 painted, 0 with `naturalWidth` 0**, and no CSP refusal in the console — measured on the build that
+  carried this round's change; **`/ichi-mark-the-igbo-scarification/` 7
+  images, 7 painted, 0 old-site addresses left in the DOM** and no CSP refusal; **`/nze/` exactly one `<h1>`
+  — the record's own — with its three option controls in the DOM**, the canonical on its own address, and
+  **`body background-image` reading the record's own `radial-gradient(circle at 50% 30%, …)`**, which is the
+  measurement that proves the document's styling is the document's and not the archive's white.
+  Two things about the instrument are recorded because both produced a false alarm first: a target created
+  with `Target.createTarget({url})` stayed on `about:blank` on this Chrome and had to be given
+  `Page.navigate` as well, and **without scrolling, 67 of `/towns/`'s 75 lazy images read `naturalWidth` 0
+  on a page where every image is reachable** — the probe measuring itself rather than the page.
+* **The design deliverable was not touched**, and the parity line above is that measurement.
+
+### 9. WHAT DOES NOT WORK
+
+* **`/construction/` is still a 404, deliberately.** The address has a published row and nothing behind it.
+  Serving a notice would be inventing the page; the alternative — leaving it — is the state the owner's rule
+  is silent about, and it is named here rather than papered over.
+* **73 image addresses survive in the theme's lazy-load attribute and are named, not fixed.**
+  `trx_addons` writes `<img src="…/plugins/trx_addons/components/lazy-load/images/placeholder.png"
+  data-trx-lazyload-src="…/uploads/2025/05/Monkey-…jpg" style="height:0;padding-top:100%">`. `rewriteBodyImages`
+  handles `src` and `srcset`; the real address is in the plugin's own attribute, so the browser never
+  requests it and the picture is simply **absent** — not blocked, because nothing ever asked for it. 63 of
+  the 73 have a media row; 10 do not. **They are left for a round that can restore the plugin's behaviour as
+  well as its address:** the `src` is a 0-height placeholder box and the image only becomes visible when the
+  theme's script runs, so rewriting the address alone would put a picture inside a zero-height box and call
+  it fixed.
+* **10 old-site addresses survive in `<a href>` only** — mostly `.mp4` files. `img-src` does not refuse a
+  link, so no browser error hides them, but they leave the site; 9 have a media row and 1 does not. This is
+  the links sweep's class rather than this round's.
+* **`/privacy/`'s own text still says the repository holds no privacy notice.** Round 342's doc comment in
+  `app/privacy/page.tsx` reasons from `data/nzeora-wp/pages.json` — *"it is Nzeora.com's"* — and **misses
+  `data/ozikoro-wp/pages.json`, which holds Ozi Ikoro's own `privacy-policy` page (wp id 477)**. The comment
+  is now half wrong about its own subject: the page it describes as absent is in the cluster and its address
+  is the 301 added here. The prose of `/privacy/` is unaffected and remains the true notice; the comment is
+  reported because it is the record of a decision that was taken on a partial reading.
+* **Every other published address answers 200.** After the change the same 1,057 requests answer
+  **1,056 × 200 and 1 × 404**, and the one 404 is `/construction/`.
+
 ## ROUND 348 — THE ARCHIVE'S 3,447 FILES LEFT THIS MACHINE FOR THE BUCKET, AND THE EIGHT KEYS THE ROUTE WOULD HAVE REFUSED WENT WITH THEM
 
 *(347 is another agent's round and was in flight in the same checkout while this one was written.)*
