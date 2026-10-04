@@ -1165,6 +1165,20 @@ const WATCH = readFileSync(join(SCREENS, 'watch.html'), 'utf8');
 /** Every `data-video-id` on a page, in order — the page's own list of the films it claims. */
 const filmIds = (html: string) => [...html.matchAll(/data-video-id="([^"]*)"/g)].map((m) => m[1]!);
 
+/**
+ * The cards inside one `<section id="…">`, or `null` when this page does not draw that section at all.
+ *
+ * **`null` and `[]` are different answers and the difference is the point**: a section that is drawn with an
+ * empty grid is the fault the owner found, and a section that is not drawn is the fix. A helper that returned
+ * `[]` for both could not tell them apart.
+ */
+const sectionIds = (html: string, id: string): string[] | null => {
+  const start = html.indexOf(`<section class="sx-watch-section" id="${id}"`);
+  if (start === -1) return null;
+  const end = html.indexOf('</section>', start);
+  return filmIds(html.slice(start, end));
+};
+
 /** One article row, shaped the way the route passes it. */
 const record = (slug: string, title: string, topic: string | null, body_html: string) =>
   ({ slug, title, topic, body_html });
@@ -1332,7 +1346,10 @@ test('the dance and oral films are NOT removed: no film is dropped for having "d
     record('egwu-ogene', 'Egwu Ogene: The Heartbeat of Igbo Culture and Music', 'Cultural Heritage', EMBED('la4vThM0MUo')),
     record('cuba', 'Carabalí Isuama', 'Historical Studies', EMBED('bPXKduoup8I')),
   ]);
-  const ids = filmIds(fillWatch(WATCH, films));
+  // Both pages, because eleven archive films plus the design's own six are more than one page of 15. The
+  // subject of this test is that no film is DROPPED, not which of the two pages draws it — and since the
+  // design's own six cards are drawn first, the last two of these eleven are on page 2.
+  const ids = [...filmIds(fillWatch(WATCH, films)), ...filmIds(fillWatch(WATCH, films, { page: 2 }))];
   for (const f of films) {
     assert.ok(ids.includes(f.id), `${f.id} (${f.title}) must stay: it is a danced or oral performance, not a record`);
   }
@@ -1363,7 +1380,10 @@ test('page 1 of /watch/ draws 15 cards, and the pager says which page of how man
   assert.equal(filmIds(page1).length, 15, 'page 1 must draw exactly 15 cards');
   assert.ok(page1.includes('page 1 of 2'), 'the page must state which page of how many');
   assert.ok(page1.includes('Showing films 1–15 of 24'), 'the count must come from the real cards');
-  assert.ok(page1.includes('href="?page=2"'), 'Next must be a real link, not a script');
+  assert.ok(page1.includes('href="/watch/?page=2"'), 'Next must be a real link, not a script');
+  // Root-absolute, because the head this route writes carries `<base href="/">`: a relative `?page=2`
+  // resolves against the site root and lands on the front page. The browser run measured that.
+  assert.ok(!page1.includes('href="?page=2"'), 'a relative pager link resolves against <base href="/">');
   assert.ok(!/<script[^>]*>[^<]*page=/i.test(page1), 'paging must not be done in script');
 });
 
@@ -1395,13 +1415,42 @@ test('the pager appears only when there is more than one page, and the count is 
   assert.ok(twoPages.includes('page 1 of 2'));
 });
 
+test('the control sits between the two sections — under the main videos, above Unspoken Stories', () => {
+  /*
+   * The owner's words: *"it is supposed to show under the main videos before unspoken stories own"*. The
+   * control used to be inserted before `</main>`, which put it below both sections and below the second
+   * section's films. The order in the served document is what this test reads.
+   */
+  const films = synthFilms(18);
+  const page1 = fillWatch(WATCH, films);
+  const pagerAt = page1.indexOf('aria-label="Pagination"');
+  assert.ok(pagerAt !== -1, 'a two-page index needs its control');
+  const section1End = page1.indexOf('</section>', page1.indexOf('<section class="sx-watch-section" id="new"'));
+  const section2Start = page1.indexOf('<section class="sx-watch-section" id="series"');
+  assert.ok(section1End !== -1 && section2Start !== -1, 'both design sections are on page 1');
+  assert.ok(pagerAt > section1End, 'the control must come after the main videos');
+  assert.ok(pagerAt < section2Start, 'and before the Unspoken Stories section, as the owner asked');
+
+  // On page 2 the second section is not drawn, so the control stands after the only section there — which is
+  // still where it is needed, for "Previous".
+  const page2 = fillWatch(WATCH, films, { page: 2 });
+  const pager2At = page2.indexOf('aria-label="Pagination"');
+  const section1End2 = page2.indexOf('</section>', page2.indexOf('<section class="sx-watch-section" id="new"'));
+  assert.ok(pager2At > section1End2, 'page 2 keeps the control under the section it pages');
+});
+
 test('a page past the end shows the count and a link, never another page’s films', () => {
   const films = synthFilms(18);
   const beyond = fillWatch(WATCH, films, { page: 99 });
   assert.deepEqual(filmIds(beyond), [], 'page 99 must not show page 1 or page 2’s cards');
+  // No section either: this page draws no films, so a heading over an empty grid would be the fault the owner
+  // found on page 1 of the real page. A page that does not exist must not wear the sections of one that does.
+  assert.equal(sectionIds(beyond, 'new'), null, 'no first section on a page that does not exist');
+  assert.equal(sectionIds(beyond, 'series'), null, 'no second section either');
   assert.ok(beyond.includes('There is no page 99'), 'the page must say so');
   assert.ok(beyond.includes('24 films in 2 pages'), 'and state the real size of the index');
-  assert.ok(beyond.includes('href="?page=1"'), 'and offer the way back');
+  assert.ok(beyond.includes('href="/watch/?page=1"'), 'and offer the way back');
+  assert.ok(beyond.includes('/watch/?page=1#new'), 'and the anchors go to the page that draws them');
 });
 
 test('page 0, a negative page and a page that is not a number all fall back to page 1', () => {
@@ -1416,17 +1465,35 @@ test('page 0, a negative page and a page that is not a number all fall back to p
 test('a pager link keeps every other parameter the reader arrived with', () => {
   const films = synthFilms(18);
   const html = fillWatch(WATCH, films, { page: 1, query: '?ozpreview=abc123&page=1' });
-  assert.ok(html.includes('href="?ozpreview=abc123&amp;page=2"'), 'the design preview must survive Next');
+  assert.ok(html.includes('href="/watch/?ozpreview=abc123&amp;page=2"'), 'the design preview must survive Next');
 });
 
-test('a section with no cards on this page says where its films are', () => {
-  // The series grid's three cards fall on page 2, and the design's own filter row links to `#series`. The
-  // section is kept and says so, rather than standing empty with no explanation.
+test('a section with no cards on this page is not drawn, and its anchor is carried to the page that draws it', () => {
+  /*
+   * THIS TEST SUPERSEDES ONE THAT ASSERTED THE NOTE — `"These films are on page 2 of this list."` — kept in
+   * the section shell on page 1 so its heading still stood over something. **The owner found that shell on
+   * `/watch/` and asked why "Unspoken Stories" was empty.** A heading with no cards under it, with or without
+   * a sentence explaining it, is the fault: the section must not be drawn on a page that has none of its
+   * films, and the note is gone with it.
+   *
+   * The design's own second section is not irrelevant — it carries the owner's `[Re:]Entanglements` films —
+   * so it is not removed either: it is drawn on the page that has its cards. What makes that the same page 1
+   * the reader lands on is that the design's own six cards are drawn first (see `fillWatch`): twelve in
+   * section 1 and three in section 2, with section 1's remaining nine on page 2.
+   */
   const films = synthFilms(18);
   const page1 = fillWatch(WATCH, films);
-  assert.ok(page1.includes('id="series"'), 'the design’s section must survive paging');
-  assert.ok(page1.includes('These films are on page 2 of this list.'), 'and must say where its films are');
-  assert.ok(page1.includes('href="?page=2"'));
+  assert.equal(sectionIds(page1, 'new')?.length, 12, 'section 1 draws twelve cards on page 1');
+  assert.equal(sectionIds(page1, 'series')?.length, 3, 'section 2 draws its own three cards on page 1');
+  assert.ok(!page1.includes('These films are on page'), 'no page may point at another page for its films');
+
   const page2 = fillWatch(WATCH, films, { page: 2 });
-  assert.ok(!page2.includes('These films are on page'), 'page 2 carries the series, so no note is needed');
+  assert.equal(sectionIds(page2, 'new')?.length, 9, 'section 1 continues with nine cards on page 2');
+  assert.equal(sectionIds(page2, 'series'), null, 'a section with no cards here is not drawn at all');
+  assert.ok(!page2.includes('These films are on page'), 'and it is not explained instead of drawn');
+  // The design's own filter row links to `#series`, and "Selected films" links to it too ("Browse series ↓").
+  // With the section gone from this page, that anchor must go to the page that draws it — not be left
+  // pointing at nothing.
+  assert.ok(page2.includes('/watch/?page=1#series'), 'the anchor must be carried to the page that has it');
+  assert.ok(!page2.includes('href="#series"'), 'a bare `#series` would point at a section that is not here');
 });

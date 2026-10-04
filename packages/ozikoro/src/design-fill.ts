@@ -389,8 +389,12 @@ export function extractArchiveFilms(
  *     are read from the document and re-emitted, so the `[Re:]Entanglements` films survive by construction —
  *     and a page whose films are all music returns the design untouched, exactly as a page whose films are
  *     all already drawn does.
- *   * **The list is paged at `WATCH_PAGE_SIZE`,** with the page carried in `?page=`. The section shells stay
- *     on every page; a section whose cards are on another page says where they are instead of standing empty.
+ *   * **The list is paged at `WATCH_PAGE_SIZE`,** with the page carried in `?page=`, and **a section whose
+ *     cards are all on another page is not drawn on this page at all** — no heading, no empty grid and no note
+ *     saying where its films went. The cards are distributed so that both of the design's own sections carry
+ *     films on page 1, and an anchor the design's own markup points at is carried to the page that draws the
+ *     section. **A heading with no cards under it is the fault this rule exists to remove**, and the owner
+ *     found it by asking why "Unspoken Stories" was empty.
  */
 export function fillWatch(html: string, films: RealFilm[], options: WatchFillOptions = {}): string {
   let out = dropExampleFlag(html);
@@ -421,15 +425,24 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
    * on page 1 and on page 2, and the number of cards across the pages would exceed the number of distinct
    * films.
    *
-   * The section shells are kept on every page, because the design's own filter row links to `#new` and
-   * `#series`; a page that dropped a section would leave those anchors pointing at nothing, which is the
-   * fault class this work exists to remove. **A section with no cards on this page says so and links to the
-   * page that has them** — see below — rather than showing an empty grid with no explanation.
+   * AND WHY THE DESIGN'S OWN SIX CARDS COME FIRST, AHEAD OF THE ARCHIVE'S EIGHTEEN.
+   *
+   * The archive's films are longer than a page, so **whichever section the sequence ends with is pushed
+   * off page 1 entirely.** Ending with the second grid's three cards is exactly what made "Unspoken Stories"
+   * a heading over an empty grid on page 1, with a note pointing at page 2 — the fault the owner reported.
+   * The design's own six cards are the page's own selection, so they are drawn first, in the design's
+   * document order: section 1's three, then section 2's three, then the archive's films appended to
+   * section 1. **Both of the design's sections therefore carry cards on page 1** — twelve and three of the
+   * fifteen — and page 2 carries section 1's remaining nine.
+   *
+   * **No film moves out of the section it belongs in.** The archive's films are still appended *after the
+   * first grid's own cards*, which is round 326's rule that stopped the fill deleting the owner's
+   * `[Re:]Entanglements` films, and they are still de-duplicated against the whole document's
+   * `data-video-id` values.
    */
   const slots: { html: string; grid: number }[][] = grids.map((g, gi) =>
     watchCards(out.slice(g.open, g.close)).map((card) => ({ html: card, grid: gi })));
-  slots[0]!.push(...added.map((f) => ({ html: renderFilmCard(f), grid: 0 })));
-  const list = slots.flat();
+  const list = [...slots.flat(), ...added.map((f) => ({ html: renderFilmCard(f), grid: 0 }))];
 
   const totalPages = Math.max(1, Math.ceil(list.length / WATCH_PAGE_SIZE));
   const requested = Math.trunc(Number(options.page ?? 1));
@@ -437,24 +450,58 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
   const beyond = Number.isFinite(requested) && requested > totalPages;
   const href = (p: number) => watchPageHref(options.query, p);
 
+  /*
+   * A SECTION WITH NO CARDS ON THIS PAGE IS NOT DRAWN ON THIS PAGE.
+   *
+   * A heading over an empty grid is the fault the owner found — *"why is the 'Unspoken Stories' now empty?"*
+   * — and a sentence saying the films are on another page is still a section that reads as broken. So the
+   * whole `<section>` goes: no heading, no empty grid, no note. **A film can stand on exactly one page**,
+   * because the page size is fixed by the owner and a page's cards are a slice of one list, so a section
+   * omitted here is drawn — heading and grid and films together — on the page that holds its cards.
+   *
+   * THE ANCHOR STILL RESOLVES, which is why removing the section is not the whole of it. The design's own
+   * filter row links to `#new` and `#series`, and "Selected films" links to `#series` as well ("Browse
+   * series ↓"), so a reader on a page without that section would click a link that goes nowhere. **Every
+   * `href="#<id>"` whose section this page does not draw is rewritten to the page that DOES draw it**, with
+   * the anchor kept on the end, so the link lands on the section itself. The address is built by the same
+   * `href` helper the pager uses, so it is root-absolute for the same reason the pager is: this document's
+   * head carries `<base href="/">` (`fillDashboardLinks`), against which a bare `?page=1` would resolve to
+   * the front page.
+   */
   let rebuilt = out;
-  // Backwards, so an insertion after one grid cannot move an earlier grid's offsets.
+  const omitted: { id: string; page: number }[] = [];
+  // Backwards, so removing or filling one section cannot move an earlier section's offsets.
   for (let gi = grids.length - 1; gi >= 0; gi--) {
     const g = grids[gi]!;
     const mine = beyond ? [] : list.slice((page - 1) * WATCH_PAGE_SIZE, page * WATCH_PAGE_SIZE)
       .filter((s) => s.grid === gi).map((s) => s.html);
-    if (mine.length === 0 && !beyond) {
-      // Where this section's films actually are. Derived from the list, never assumed to be page 2.
-      const at = list.findIndex((s) => s.grid === gi);
-      if (at !== -1) {
-        const onPage = Math.floor(at / WATCH_PAGE_SIZE) + 1;
-        const note = `<p class="sx-source-note">These films are on page ${onPage} of this list. ` +
-          `<a href="${esc(href(onPage))}">Go to page ${onPage} <span aria-hidden="true">→</span></a></p>`;
-        rebuilt = rebuilt.slice(0, g.close + 6) + '\n    ' + note + rebuilt.slice(g.close + 6);
+    if (mine.length === 0) {
+      const open = rebuilt.lastIndexOf('<section', g.open);
+      const close = open === -1 ? -1 : rebuilt.indexOf('</section>', g.close);
+      if (open !== -1 && close !== -1) {
+        const tag = rebuilt.slice(open, rebuilt.indexOf('>', open) + 1);
+        const id = /\bid="([^"]*)"/.exec(tag)?.[1];
+        // Where this section's films actually are. Derived from the list, never assumed to be page 2.
+        const at = list.findIndex((s) => s.grid === gi);
+        if (id !== undefined && at !== -1) {
+          omitted.push({ id, page: Math.floor(at / WATCH_PAGE_SIZE) + 1 });
+        }
+        rebuilt = rebuilt.slice(0, open) + rebuilt.slice(close + '</section>'.length);
       }
+      continue;
     }
-    rebuilt = rebuilt.slice(0, g.open) +
-      (mine.length > 0 ? '\n  ' + mine.join('\n  ') + '\n' : '') + rebuilt.slice(g.close);
+    rebuilt = rebuilt.slice(0, g.open) + '\n  ' + mine.join('\n  ') + '\n' + rebuilt.slice(g.close);
+  }
+
+  /*
+   * THE SECTION'S ADDRESS, CARRIED BY THE LINKS THAT POINTED AT ITS ANCHOR. `href="#series"` becomes
+   * `href="/watch/?page=1#series"` — the page that draws the section, plus the anchor, so the browser
+   * scrolls to it. `split`/`join` rather than a regular expression, because the id is read from the
+   * document and must be matched literally.
+   */
+  for (const section of omitted) {
+    const target = `${href(section.page)}#${section.id}`;
+    rebuilt = rebuilt.split(`href="#${section.id}"`).join(`href="${esc(target)}"`);
   }
 
   /*
@@ -471,6 +518,24 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
    * `btn-ghost` rather than the design pager's `btn-quiet`: `btn-quiet` is `color: var(--ink)` for the
    * light-page body it was drawn for, and this screen is `body.sx-watch-body` on `var(--night)`. `btn-ghost`
    * is the design's own night-body button — the watch page's "Open on YouTube" and "Close player".
+   *
+   * AND WHERE IT SITS: BETWEEN THE TWO SECTIONS, NOT AT THE FOOT OF THE PAGE.
+   *
+   * The owner's words: *"it is supposed to show under the main videos before unspoken stories own"*. So the
+   * control is inserted **immediately after the first film section's `</section>`** — under the "Selected
+   * films" grid and above the "Unspoken Stories" heading — rather than before `</main>`, which put it below
+   * both sections and below the second section's films. On a page where the second section is not drawn
+   * (page 2) the same rule puts it after the only section there, which is where it is still needed for
+   * "Previous". On a page past the last there is no section left to stand under, so it falls back to the
+   * end of `<main>`.
+   *
+   * **ONE CONTROL, NOT ONE PER SECTION.** The owner's sentence decides placement, and placement is all it
+   * decides. Two independently paged sections over this index — 21 films and 3 — sharing the one `page`
+   * parameter would draw 18 cards on page 1 and 6 on page 2 **and repeat the second section's three films
+   * on the page of the first**, which is the double-count the flat list exists to prevent; giving the second
+   * section its own parameter would break the published `?page=` contract and the 15-a-page count the owner
+   * asked for. The second section holds three films, fewer than one page, so it has no page of its own to
+   * control.
    */
   const pager = beyond
     ? `<div class="wrap"><p class="sx-source-note">There is no page ${page}: this index holds ${list.length} ` +
@@ -488,10 +553,19 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
       ? `<div class="wrap">${renderWatchPager(page, totalPages, list.length, href)}</div>`
       : '';
   if (pager !== '') {
-    const closeMain = rebuilt.lastIndexOf('</main>');
-    rebuilt = closeMain === -1
-      ? rebuilt + pager
-      : rebuilt.slice(0, closeMain) + pager + '\n' + rebuilt.slice(closeMain);
+    // The first film section left standing, as a range in `rebuilt`. `<section` alone would find the hero
+    // and the inline player, so the class is matched.
+    const first = rebuilt.indexOf('<section class="sx-watch-section"');
+    const end = first === -1 ? -1 : rebuilt.indexOf('</section>', first);
+    if (end === -1) {
+      const closeMain = rebuilt.lastIndexOf('</main>');
+      rebuilt = closeMain === -1
+        ? rebuilt + pager
+        : rebuilt.slice(0, closeMain) + pager + '\n' + rebuilt.slice(closeMain);
+    } else {
+      const after = end + '</section>'.length;
+      rebuilt = rebuilt.slice(0, after) + '\n' + pager + rebuilt.slice(after);
+    }
   }
   return rebuilt;
 }

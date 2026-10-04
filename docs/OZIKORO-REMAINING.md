@@ -19655,3 +19655,162 @@ identical 63 differing 0 missing 0
   `investors`, `journeys`, `sponsors`), because its `ROUTE` map has no entry for them — the dashboards are served
   by the middleware rewrite to `/design-screen/[screen]`, which the check does not know about. **It was not
   touched here and it fails identically on the parent commit.**
+## ROUND 331 — THE `Next` LINK WENT TO THE FRONT PAGE, AND A SECTION WITH NO CARDS IS NO LONGER DRAWN
+
+The owner, on `/watch/`: *"why is the 'Unspoken Stories' now empty? is it irrelevant or you forgot? if it is
+irrelevant, remove, if not, fix"* — and then, before this round was finished: *"the next page is not working,
+and it is supposed to show under the main videos before unspoken stories own"*. Two faults on one page, and
+the second one is why the round that had "verified" the first had not seen it.
+
+### 1. THE EMPTY BLOCK IS THE DESIGN'S OWN SECOND SECTION — NOT ONE THE FILL ADDS
+
+`apps/ozikoro/public/design/screens/watch.html:13`:
+
+```html
+<section class="sx-watch-section" id="series"><div class="wrap"><header class="sx-watch-section-head"><div><p
+class="eyebrow">Continue a collection</p><h2>Unspoken Stories</h2></div></header><div class="sx-video-grid">
+```
+
+with three cards inside it. **So the design does draw exactly two sections, and the second is neither a fill
+invention nor irrelevant**: it holds the owner's own `[Re:]Entanglements` films (`Unspoken Stories 2: Unnamed
+Children`, `Unspoken Stories 3: Yainkain`) and the Ilọ Ụwa conference talk. The fill creates no section of its
+own anywhere; every section on the page is one of the design's two.
+
+**It was empty because the fill pages ONE flat list and the list ended with the second grid's three cards.**
+`slots[0].push(...added)` followed by `slots.flat()` put section 1's twenty-one cards (the design's three plus
+the archive's eighteen) first, so page 1's fifteen slots were all section 1's and section 2's cards were
+positions 22–24 — page 2. The measured before, from the served page:
+
+| page 1 before this round | section heading | cards |
+|---|---|---|
+| `#new` | Selected films | 15 |
+| `#series` | Unspoken Stories | **0**, under `These films are on page 2 of this list. Go to page 2 →` |
+
+**A heading with a sentence under it and no films.** The intention had been to keep the `#series` anchor
+resolving; the result is the section that reads as broken, which is what the owner saw. `?page=99` was the
+same fault twice over: **two** headings over two empty grids, with the out-of-range note above them.
+
+### 2. THE `Next` LINK WAS `href="?page=2"`, AND `<base href="/">` MADE IT THE FRONT PAGE
+
+The served href was exactly `href="?page=2"` — relative. The served head carries `<base href="/">` (inserted
+by `fillDashboardLinks`, `design-fill.ts:2446`), so the browser resolves it against the site root, not against
+`/watch/`. Measured in headless Chrome over the DevTools protocol, with a real mouse click on the served
+anchor, before this round's fix:
+
+```
+before click   http://127.0.0.1:3110/watch/      h1 "Watch history come closer."      15 cards
+after click    http://127.0.0.1:3110/?page=2     h1 "The stories of our towns, clans and kingdoms…"   0 cards
+```
+
+**A 200 on the wrong page.** And **no fetch can see it**: the HTML is byte-identical either way, so
+`curl /watch/?page=2` renders page 2 correctly while the link on the page goes to the front page. That is why
+round 330's own probe was described in this file as "not claimed here" — the instrument that would have caught
+it was written, run against the page, and its result was not read into the record. The class of fault is the
+day's: correct status, correct markup, wrong in a browser.
+
+### 3. WHAT WAS DONE
+
+* **Every address the fill writes from `/watch/` is root-absolute** (`WATCH_PATH = '/watch/'`), so `Next`
+  reaches `/watch/?page=2` and not `/?page=2`. This is also the screen's canonical address, which the route's
+  own generated `<link rel="canonical" href="https://ozikoro.com/watch/">` already said.
+* **The control now sits between the two sections** — under the "Selected films" grid and above the
+  "Unspoken Stories" heading — as the owner asked, instead of at the foot of the page below both sections.
+  The insertion point is the closing `</section>` of the first film section left standing; on page 2 that is
+  the only section, and on a page past the last there is no section left to stand under, so it falls back to
+  the end of `<main>`.
+* **One control, not one per section.** The owner's sentence decides placement, and placement is all it
+  decides. Two independently paged sections over this index — twenty-one films and three — sharing the one
+  `page` parameter would draw **18 cards on page 1 and 6 on page 2 and repeat the second section's three films
+  on the page of the first**, which is the double-count the flat list exists to prevent; giving the second
+  section its own parameter would break the published `?page=` contract and the fifteen-a-page count the owner
+  asked for. The second section holds three films, fewer than one page, so it has no page of its own to
+  control.
+* **A section with no cards on a page is not drawn on that page at all** — no heading, no empty grid, no note.
+  The whole `<section>` goes. A film can stand on exactly one page, so a section omitted here is drawn with
+  its heading and its grid and its films on the page that holds its cards.
+* **Its anchor is carried to that page, which is what keeps the omission honest.** The design's own filter row
+  links to `#new` and `#series`, and "Selected films" links to `#series` too ("Browse series ↓"). Every
+  `href="#<id>"` whose section this page does not draw is rewritten to the page that does draw it, with the
+  anchor kept: page 2 serves `href="/watch/?page=1#series"`. The address is built by the same helper the pager
+  uses, so it inherited the root-absolute form and cannot reintroduce §2.
+* **The films are distributed so that no section is empty on any page.** The design's own six cards are drawn
+  first, in the design's document order — section 1's three, then section 2's three — and the archive's films
+  are appended to section 1 after them, which keeps round 326's rule intact and keeps the de-duplication
+  against the whole document's `data-video-id` values. **No film moves out of the section it belongs in.**
+  Page 1 is twelve in section 1 and three in section 2; page 2 is section 1's remaining nine.
+
+| after this round | page 1 | page 2 |
+|---|---|---|
+| `#new` "Selected films" | **12** | **9** |
+| `#series` "Unspoken Stories" | **3** | not drawn (its cards are all on page 1) |
+| the control | under section 1, above section 2 | under the only section |
+| sections with an empty grid | **0** | **0** |
+
+### 4. VERIFIED
+
+* **The served pages, fetched and counted** (`/watch/`, `/watch/?page=2`, `/watch/?page=99`): 15 and 9 cards,
+  **24 distinct across the two, none repeated**, page 1's control between the two sections, no section with
+  zero cards on any page, and **no "These films are on page …" note anywhere**.
+* **The pair that caught §2, repeated after the fix.** The href as served, and the URL after a real click:
+
+```
+served href of Next on /watch/           href="/watch/?page=2"
+click (headless Chrome, real mouse)  ->  Page.frameNavigated http://127.0.0.1:3110/watch/?page=2
+                                         h1 "Watch history come closer."  9 cards  #new 9  pager "page 2 of 2"  no rel="next"
+click "← Previous" on page 2         ->  http://127.0.0.1:3110/watch/?page=1
+click "Series" in the filter row on page 2 -> http://127.0.0.1:3110/watch/?page=1#series
+                                         h1 "Watch history come closer."  15 cards  #new 12  #series 3
+click Next at /watch and /watch.html ->  http://127.0.0.1:3110/watch/?page=2   (both spellings)
+```
+
+  The click point is proved with `document.elementFromPoint` before the click (`hitIsControl: true`,
+  `hitText: "Next →"`) and the navigation with a `Page.frameNavigated` event, because a first attempt at this
+  probe clicked a point that had scrolled out of the viewport, reported "no navigation", and was wrong.
+* **No section renders as an empty box in a browser**: page 1's sections measure 2177 px and 741 px with 12 and
+  3 cards, and page 2's single section 1833 px with 9 cards.
+* **The bad page is honest and wears no sections**: `/watch/?page=99` draws no films and **no section at all**,
+  and states `There is no page 99: this index holds 24 films in 2 pages.` with links to page 1 and the last.
+  `/watch?page=2` and `/watch.html?page=2` draw page 2; `?page=abc`, `?page=0` and `?page=-3` all fall back to
+  page 1 with all 15 cards; `?page=2.7` truncates to page 2.
+* **An independent instrument, run against this build** (`scripts/verify-round-330.mjs`, output
+  `/tmp/wr330/verify-330.json`, run at 14:37 by the agent of round 330): page 1's `next` is
+  `/watch/?page=2`, `seriesCards: 3`, **0 poster frames failed to load** and the grid is three columns wide;
+  page 2's `prev` is `/watch/?page=1` and `seriesCards: null`; **with every script disabled**
+  (`Emulation.setScriptExecutionDisabled`) the same click on the same `<a>` reaches `/watch/?page=2` and draws
+  the same 9 cards; `problems: []`, `logs: []`.
+* **`node --test packages/ozikoro/src/design-fill.test.ts`: 57 tests, 57 pass, 0 fail**, from 56. One test was
+  rewritten because its premise was this round's fault — *"a section with no cards on this page says where its
+  films are"* asserted the note and the empty shell — and the dance-film test now reads both pages, because
+  eleven archive films plus the design's six are more than one page and its subject is that no film is
+  dropped, not which page draws it. Two tests are new: the control's place between the sections, and the
+  omitted section with its carried anchor.
+* **`npm run typecheck`** from the repository root, read from its own exit code and not a pipe's: **exit 0**.
+* **The build**: `bash scripts/serve-review.sh --rebuild`, **exit 0**, 140 s, built into `.next-next` and
+  swapped in; `artefact complete: server.js present, 52 design screens`.
+* **The design is inviolable.** `git status --porcelain design/ apps/ozikoro/public/design/` returns nothing,
+  and the brief's own check prints `identical 63 differing 0 missing 0`, below, verbatim.
+
+### 5. WHAT DOES NOT WORK
+
+* **The freshness check cannot see a source file written while a build is running.** A file written at
+  14:30:51 is *older* than the `BUILD_ID` touched at 14:30:53, so `serve-review.sh --check` reported
+  `build current — a run would restart only` while the served page still had the old control at the foot of
+  the page — half of this round's change was in the running build and half was not. It was built with
+  `--rebuild`, which is the script's own flag for exactly this. **The pair to remember is `--check` plus a
+  fetch of the page, not `--check` alone.**
+* **Four of the six filter links in the design's own nav row are dead and were dead before this round** —
+  `#short`, `#oral`, `#places` and `#conversations` name sections `watch.html` does not draw. `#new` and
+  `#series` both resolve on page 1, and on page 2 `#series` is carried to the page that draws it; the other
+  four are the design's markup and are reported, not fixed, because fixing them means editing the design.
+* **The `/watch/` search box still posts to a dead address** (`<form action="watch.html">` resolves to
+  `/watch/watch.html?q=…`), and **`/watch-video/` still shows one fixed film for every card** — both unchanged
+  and both reported before.
+* **Anything else that writes a relative address into a served screen has the same bug as §2**, because
+  `<base href="/">` is in the head of every screen `fillDashboardLinks` touches. Every link this round writes
+  is root-absolute; the hunt for others is not finished.
+* **Three other agents' work was uncommitted in `design-fill.ts` while this round ran**, and one index had
+  staged hunks from two of them. This commit was built from `HEAD` plus this round's regions only, through a
+  path-scoped temporary index, so **the colour fix on the out-of-range note's links, round 330's staged §7
+  amendment and the staged `scripts/verify-round-330.mjs` are not in it.** The staged index is also a hazard:
+  if it is committed as it stands it will drop this round's `design-fill.ts` changes and this entry, because
+  those paths must be re-staged after this commit.
