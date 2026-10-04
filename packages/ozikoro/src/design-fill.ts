@@ -1835,7 +1835,7 @@ function destinationFor(screen: string, label: string): string | undefined {
 }
 
 /**
- * EVERY SCREEN THE ROUTE REWRITES WHOSE DESIGN CARRIES PLACEHOLDER LINKS.
+ * EVERY SCREEN WHOSE DESIGN LINKS THE ROUTE HAS TO RESOLVE.
  *
  * The fourteen dashboards came first, and then a measurement found **thirty-six more `href="#"` on six
  * screens that are served live and return 200**: `/publication/`, `/researcher-profile/`, `/academy/`,
@@ -1843,11 +1843,38 @@ function destinationFor(screen: string, label: string): string | undefined {
  * transform covers them rather than a second one being written beside it — **two transforms would drift,
  * and the one that drifted would be the one nobody was looking at.**
  *
+ * The criterion is the design's own links, not the `href="#"` alone: a screen whose menu is written as bare
+ * sibling filenames needs the same rewrite even when it carries no placeholder at all (see the four added
+ * below). So the set is "screens whose links the route resolves", and the placeholder count is one symptom
+ * of that rather than the definition.
+ *
  * The set is written here rather than in the route so the route and `design-fill.test.ts` cannot disagree
  * about which screens are covered.
  */
 export const LINKED_SCREENS: string[] = [
   'publication', 'researcher-profile', 'academy', 'archive-index', 'upload', 'watch',
+  /*
+   * AND THE FOUR WITH NO PLACEHOLDER LINK AT ALL, BECAUSE THE OTHER HALF OF THE SAME TRANSFORM IS THE ONE
+   * THEY NEED.
+   *
+   * `home`, `documents`, `publications` and `404` carry **not one `href="#"` between them**, so the fault
+   * that named this set walked past them. What they do carry is the menu written the design's way — a bare
+   * sibling filename — and that resolves against whatever address the screen is *served* from:
+   *
+   *     at /                       archive-index.html -> /archive-index.html       200 (the design screen)
+   *     at /documents/             archive-index.html -> /documents/archive-index.html   404
+   *
+   * Measured on the served pages: **`/documents/`, `/publications/` and `/404/` answered 200 with every
+   * single menu item — and the whole footer — 404ing**, because the relative address resolved one level
+   * too deep. `/` was the one screen where the relative addresses happened to work, so its fault was
+   * invisible in a different way: its `researcher-profile.html` reached `/researcher-profile/`, one
+   * stranger's profile, and answered 200.
+   *
+   * They are added to this set rather than given a second rule, because the transform that makes the
+   * design's relative links absolute is already here and **two transforms would drift, with the one nobody
+   * looked at drifting first.**
+   */
+  '404', 'documents', 'home', 'publications',
 ];
 
 /**
@@ -1993,6 +2020,28 @@ export function fillDashboardLinks(html: string, screen: string): string {
     // answers only because the middleware rewrites it to this route — **a link that reaches the design
     // screen rather than the archive**, and the archive's own page is one segment away.
     'archive-index.html': '/archive/',
+    /*
+     * `researcher-profile.html` IS ONE PERSON'S PAGE AND EVERY LABEL ON IT IS A DIRECTORY'S.
+     *
+     * The design's profile screen is a demonstration of a profile, and the person in it — "Dr Chinwe
+     * Ị̀kẹ̀jìànị̀", with an invented institution, ORCID and seven papers — does not exist. `fillResearcherProfile`
+     * serves that screen as **one real contributor**, which is right for a profile and wrong for a directory.
+     *
+     * Measured across the deliverable: **twenty anchors in nine screens name this file, and seventeen of them
+     * say *Researchers*, *Researcher profiles* or *Researchers and publications*.** The directory's address is
+     * `/researchers/`, it is served by the application's own route, and the design's own breadcrumb already
+     * points there (`fillResearcherProfile` writes it). Without this entry the fallback below resolved all
+     * seventeen to `/researcher-profile/` — **which answers 200 with one stranger's profile.** That is the
+     * owner's report: "on the menu, the 'Researchers' is not working, it is dead link." It was not dead. It
+     * reached the wrong page, and a 200 is what let it survive every check.
+     *
+     * The remaining three anchors name the design's example person: two bylines and a citation on the design's
+     * one publication record. They resolve here with the rest, because **the archive holds no such person and
+     * a link to the directory is honest where a link to a stranger is** — and on the screen they are written
+     * on, `fillPublicationRecord` removes them outright: there is no publication to carry a byline or a
+     * citation, and the page says so.
+     */
+    'researcher-profile.html': '/researchers/',
   };
   /*
    * THE SUFFIX IS CARRIED, AND THAT IS NOT A DETAIL.
@@ -2011,6 +2060,24 @@ export function fillDashboardLinks(html: string, screen: string): string {
     (_m, file: string, suffix: string) =>
       `href="${screenLinks[file] ?? `/${file.replace(/\.html$/, '')}/`}${suffix}"`
   );
+
+  /*
+   * AN `aria-current="page"` THAT NAMES ANOTHER PAGE GOES.
+   *
+   * The rule above has just turned the nav's `Researchers` item into a link to `/researchers/` — **the
+   * application's directory, which no design screen serves.** Three of the design's screens had marked that
+   * item `aria-current="page"`: `publication.html`, `researcher-profile.html` and `upload.html`. The marker
+   * was already untrue on the first two, which are a publication record and the deposit form, and it is
+   * untrue on the third for the same reason the owner reported the link: `/researcher-profile/` is one
+   * person's page, not the directory.
+   *
+   * `aria-current="page"` means *this link is the page you are on*. A screen reader announces it as the
+   * current page, so a marker left on a link that leaves the page is a lie told only to the readers who
+   * cannot see that the page did not change. It is removed rather than re-pointed or weakened: the design's
+   * menu has no item for a profile, a record or the deposit form, so on those three screens **no item is
+   * current, and the honest nav says nothing.**
+   */
+  out = out.replace(/<a href="\/researchers\/" aria-current="page">/g, '<a href="/researchers/">');
 
   return out;
 }

@@ -62,7 +62,7 @@ function dashboards(): { name: string; html: string }[] {
 }
 
 /**
- * The six screens the SAME transform covers and which are not dashboards.
+ * The screens the SAME transform covers and which are not dashboards.
  *
  * Read from `LINKED_SCREENS` rather than typed again, so **a screen added to the transform is asserted
  * against the real file automatically** and a screen quietly removed from it fails here instead of passing
@@ -149,9 +149,16 @@ test('every non-dashboard screen in the transform is free of placeholder links t
    * served live and return 200. **A dead link is the same fault wherever it is**, so the same transform covers
    * them and the same assertion holds them to it — including the count, because a screen whose placeholders
    * stop being rewritten would otherwise pass by having none left to rewrite.
+   *
+   * A LATER MEASUREMENT ADDED FOUR MORE, AND THEY CARRIED NO PLACEHOLDER AT ALL: `home`, `documents`,
+   * `publications` and `404`. Their fault was the other half of the same transform — a menu written as bare
+   * sibling filenames, which resolves one level too deep at `/documents/`, `/publications/` and `/404/`.
+   * **Each of those three screens answered 200 with every menu item and the whole footer 404ing.** So the
+   * loop below asserts the resolution as well as the placeholder, and a screen that stops being rewritten
+   * fails here whichever half of the transform it needed.
    */
   const screens = linkedScreens();
-  assert.equal(screens.length, 6, `expected the six non-dashboard screens; found ${screens.length}`);
+  assert.equal(screens.length, 10, `expected the ten non-dashboard screens; found ${screens.length}`);
 
   let totalBefore = 0;
   for (const { name, html } of screens) {
@@ -168,11 +175,18 @@ test('every non-dashboard screen in the transform is free of placeholder links t
         `${name}: ${before} placeholders went, but nothing was marked or wired`
       );
     }
+    /*
+     * AND NOT ONE BARE SIBLING FILENAME IS LEFT. This is the assertion that would have caught the owner's
+     * report: on `/` the `researcher-profile.html` item survived every check because it resolved, and it
+     * resolved to a page that answers 200 and is not the page the label promises.
+     */
+    assert.doesNotMatch(after, /href="[a-z0-9-]+\.html/, `${name}: a relative screen link survived the transform`);
+    assert.doesNotMatch(after, /<a href="\/researcher-profile\/"/, `${name}: a link still reaches the single-profile screen`);
   }
 
-  // The design carries thirty-six across the six. A number that changed means the design changed, and the
-  // count is how this test notices rather than passing on a screen that no longer has any.
-  assert.equal(totalBefore, 36, `expected 36 placeholders across the six screens; found ${totalBefore}`);
+  // The design carries thirty-six across the six screens that have placeholders; the four added later carry
+  // none, which is why the count is still 36 and is asserted separately from the size of the set.
+  assert.equal(totalBefore, 36, `expected 36 placeholders across the six screens that carry them; found ${totalBefore}`);
 });
 
 test('a bare button label on a non-dashboard screen becomes a non-link that says why', () => {
@@ -185,6 +199,33 @@ test('a bare button label on a non-dashboard screen becomes a non-link that says
   // The archive's own indexes are wired; the design's example topics are not.
   assert.match(fillDashboardLinks(screen('archive-index'), 'archive-index'), /<a class="small" href="\/clans\/">All 62 clans →<\/a>/);
   assert.match(fillDashboardLinks(screen('researcher-profile'), 'researcher-profile'), /<a href="\/researchers\/">Researchers<\/a>/);
+});
+
+test('the menu’s `Researchers` item is the directory, and stops claiming to be the page', () => {
+  /*
+   * THE OWNER'S REPORT, AS AN ASSERTION.
+   *
+   * *"on the menu, the 'Researchers' is not working, it is dead link."* The item was not dead: every one of
+   * the seventeen anchors that said *Researchers*, *Researcher profiles* or *Researchers and publications*
+   * resolved to `/researcher-profile/`, **one real contributor's page, which answers 200.** So the assertion
+   * cannot be "the link resolves" — it has to be the address, on every screen that carries the menu.
+   */
+  for (const { name, html } of linkedScreens()) {
+    const out = fillDashboardLinks(html, name);
+    assert.doesNotMatch(out, /href="\/researcher-profile\/"/, `${name}: the menu still reaches the single-profile screen`);
+    assert.doesNotMatch(out, /href="researcher-profile\.html"/, `${name}: a relative profile link survived`);
+  }
+  assert.match(fillDashboardLinks(screen('researcher-profile'), 'researcher-profile'), /<li><a href="\/researchers\/">Researchers<\/a><\/li>/);
+
+  /*
+   * AND THE THREE SCREENS THAT MARKED IT `aria-current="page"` NO LONGER DO — because the marker now sits on
+   * a link to another page. `/researchers/` is the application's directory, not a design screen, so no
+   * design screen can honestly claim it as the page the reader is on.
+   */
+  for (const name of ['publication', 'researcher-profile', 'upload']) {
+    const out = fillDashboardLinks(screen(name), name);
+    assert.doesNotMatch(out, /aria-current="page">Researchers/, `${name}: the current-page marker survived on a link elsewhere`);
+  }
 });
 
 test('a relative link with a fragment keeps the fragment and stops being relative', () => {

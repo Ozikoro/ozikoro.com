@@ -18379,3 +18379,91 @@ one `.next`.
 
 **`apps/ozikoro/public/design/` was not touched, and `git status --porcelain` over `design/` returns
 nothing.**
+
+---
+
+## ROUND 324 — THE MENU'S `Researchers` WAS NOT DEAD, IT WAS ONE STRANGER'S PROFILE
+
+The owner's report was *"on the menu, the 'Researchers' is not working, it is dead link."* **It was not dead.**
+`researcher-profile.html` resolves at `/researcher-profile/`, the middleware serves the design's profile screen
+there, and it answers **200** — with one real contributor in it. The owner was right that it does not do what the
+label says, and a 200 is exactly why every check before this one passed it.
+
+### 1. THE MEASUREMENT, AND THE NUMBER THAT MAKES IT MORE THAN A ONE-LINE CHANGE
+
+**Twenty anchors in nine screens name `researcher-profile.html`, and seventeen of them say *Researchers*,
+*Researcher profiles* or *Researchers and publications*.** (An earlier count in the brief said nineteen and
+sixteen; the second `Chinwe Ị̀kẹ̀jìànị̀` byline, the one carrying `class="small"`, was missed.) The directory is
+`/researchers/`, served by the application's own route — `app/researchers/page.tsx`, `h1 Researchers`, listing the
+eleven contributors with published records and linking each to `/author/<slug>/`.
+
+| | before | after |
+|---|---|---|
+| `Researchers` on `/` | `/researcher-profile/` → **h1 Chuka Odike** | `/researchers/` → **h1 Researchers** |
+| the same item on the other eight screens | same profile, or 404 | `/researchers/` → h1 Researchers |
+| `aria-current="page"` on the item | 3 screens | 0 screens |
+
+### 2. THE THREE PERSON ANCHORS, AND WHY THE DIRECTORY IS THE HONEST ANSWER
+
+The other three anchors name the design's own example person: the byline `Chinwe Ị̀kẹ̀jìànị̀` twice and the
+breadcrumb citation `Ị̀kẹ̀jìànị̀, C.` once, all on the design's single publication record. **She does not exist** —
+the design's own banner says its researcher is invented, and `fillResearcherProfile`'s comment records the same
+person as the demonstration the archive refuses to present. There is no `/author/<slug>/` for her because there
+is no such byline, so a citation cannot be pointed at a real author. All three resolve with the rest, to
+`/researchers/`, and **on the screen they are written on `fillPublicationRecord` removes them outright**: there
+is no deposited publication, so there is no byline and no citation to carry. Verified on the served page — zero
+occurrences of the name.
+
+### 3. `aria-current="page"`, WHICH NAMED A PAGE IT WAS NOT ON
+
+Three screens marked the item current: `publication.html`, `researcher-profile.html` and `upload.html`. The
+marker was already untrue on the first two — a publication record and the deposit form are not the directory —
+and the rewrite makes it untrue on the third as well. **`aria-current="page"` is announced to a screen reader as
+"this is the page you are on"**, so it is removed rather than weakened: the design's menu has no item for a
+profile, a record or the deposit form, and on those three screens no item is current.
+
+### 4. THE FOUR SCREENS NOBODY HAD CHECKED, WHERE THE WHOLE MENU WAS DEAD
+
+`fillDashboardLinks` only ran for the fourteen dashboards and six screens carrying `href="#"`. Four screens that
+carry the menu were in neither set — `home`, `documents`, `publications`, `404` — and **not one of them carries a
+placeholder**, so the fault that named the set walked past them. Their menu is written as bare sibling filenames,
+which resolve against the address the screen is *served* from:
+
+* `/` — the one address where the relative links happen to resolve, which is how `researcher-profile.html`
+  reached a stranger and answered 200;
+* `/documents/`, `/publications/` and `/404/` — **every menu item returned 404**, measured: `archive-index.html`
+  resolved to `/documents/archive-index.html` and was not a route. Six items and the whole footer on three live
+  screens.
+
+They were added to the same set rather than given a second rule, because the transform that makes the relative
+links absolute is already there and two transforms drift.
+
+### 5. WHAT WAS SEEN, BECAUSE A 200 IS NOT A WORKING LINK
+
+* **Every nav item on all nine screens fetched, with the `h1` of what answers** — *Researchers → `/researchers/`
+  → h1 Researchers* on all nine. The full before/after is in the round's measurement table; the four screens
+  above went from **404 on every item** to 200 on the promised page.
+* **A real browser, because a fetch is not a click.** Headless Chrome: every nav item on `/` clicked, and the
+  `Researchers` item clicked on each of the nine screens. Every one landed on the promised address —
+  `Researchers → /researchers/ → h1 Researchers`, nine times.
+* **Design parity** — `identical 63 differing 0 missing 0`, run at the end. The design was read as a template and
+  not one byte written.
+
+### 6. WHAT DOES NOT WORK, WITH THE EXACT ERROR
+
+* **Six links written by the fills themselves are still relative and 404**, and they are a different mechanism —
+  markup that arrives *after* the transform has run. `/publication/` carries `cite.html`, `upload.html` and
+  `publications.html`; `/researcher-profile/` carries `upload.html` and `publications.html`; `/publications/`
+  carries `upload.html`. Fetched: `/publication/cite.html` **404**, `/publication/upload.html` **404**,
+  `/publication/publications.html` **404**, `/researcher-profile/upload.html` **404**,
+  `/researcher-profile/publications.html` **404**, `/publications/upload.html` **404**. The fix is in the fills
+  (`fillPublications`, `fillPublicationRecord`, `fillResearcherProfile`), which should write `/upload/`, `/cite/`
+  and `/publications/` — not in the rewrite map, which cannot see text it did not write.
+* **One label reads differently from the page it reaches.** On `/` the menu's `Archive` item goes to
+  `/documents/`, whose `h1` is *Published work, ready to read.* — and the same screen is labelled `Documents` in
+  every other screen's menu. Both labels are right about the destination; the design simply uses two words for
+  it. Reported, not changed: the labels are the design's.
+* **The four screens that needed the transform were found by a fetch of the served page, not by a test.** The
+  test asserted only the screens that carried `href="#"`; it now asserts the resolution as well, so a screen that
+  stops being rewritten fails whichever half of the transform it needed.
+
