@@ -22065,3 +22065,215 @@ identical 63 differing 0 missing 0
   first against a copy at `.data/scratch-r341-pg`, then applied to the real cluster in one window: SIGTERM,
   wait, migrate, three backfills, restart with `serve-review.sh`. **No `kill -9` was sent and no lock was
   removed.**
+
+
+---
+
+## ROUND 344 — EVERY LINK, MENU AND CONTROL ON EVERY PAGE: 505 STALE ADDRESSES REDIRECTED, EVERY IN-PAGE ANCHOR MADE AN ADDRESS ON ITS OWN PAGE, AND TWENTY PAGES THAT WERE REPORTED UNREACHABLE WHILE THEY ANSWERED 200
+
+**The owner's gating condition, taken literally: every link, every menu, every control, on every page the site
+serves.** This round built the inventory from the application rather than from a list, followed every address
+it found, and read each destination's own `<h1>` rather than trusting its status. It found three faults that a
+status code cannot see — **an in-page anchor that left the page, a script that 404'd and took the phone menu
+with it, and a film page that showed the wrong film** — and it closed a class of 505 addresses a reader may
+already have in their history.
+
+`scripts/verify-round-344.mjs` (the crawl) and `scripts/verify-round-344-chrome.mjs` (the same controls,
+clicked in headless Chrome) are the instruments; both are in the repository and both print a summary.
+
+### 1. THE INVENTORY, AND HOW A RELATIVE ADDRESS WAS RESOLVED
+
+Built from **three independent sources**, because a checker that verifies only what it was handed cannot
+report an omission — the fault `check-screen-coverage.mjs` records in its own header:
+
+| source | count |
+|---|---|
+| the 52 design screens, at the addresses `middleware.ts` serves them | 52 |
+| the route files under `apps/ozikoro/app/`, walked rather than listed | 107 |
+| every address a link, form, `src`, `srcset` candidate or meta refresh on those pages points at | — |
+| **seed addresses** (the three above, plus one instance of each dynamic family from `/sitemap.xml`) | **112 pages fetched** |
+| target references extracted from all 112 | **2,048** |
+| distinct addresses among them | **796**, each fetched once |
+
+**Relative addresses are resolved the way a browser resolves them, not the way a string join would.** The
+document's own `<base>` is read first and `new URL(raw, base.href ?? documentUrl)` is what resolves, so the two
+cases that got an earlier probe wrong are both handled:
+
+```
+/watch/     ?page=2   resolves against <base href="/">  ->  /watch/?page=2   (the pager, measured in Chrome)
+/about/     #main     resolves against <base href="/">  ->  /#main          (and THAT is the fault in §3)
+```
+
+### 2. EVERY BROKEN LINK FOUND — BEFORE AND AFTER
+
+**The 316 relative anchors of round 336 are fixed and this round re-measured them: zero broken.** Of 1,889
+same-origin target references followed, **every one that a signed-out reader can reach answers 200**, and the
+only non-200s are the addresses that are *supposed* to refuse (below). No `href` in any served page is
+relative any more, and no form posts to an address that does not resolve.
+
+The one genuine broken **address** is the class the owner met as `/collections/about.html`:
+
+| source | label | address as served | before | after |
+|---|---|---|---|---|
+| a bookmark / history entry, not the site | — | `/collections/about.html` | **404** | **301 → `/about/`** |
+
+Measured at the served markup: **26 screens name `about.html` and not one of them carries a relative
+`about.html`** — `/collections/` carries `<a href="/about/">About`, absolute. So nothing on the site links
+there; the address came from a page served *before* the round-336 fix, and the archive's own rule decides it:
+*"an address once reachable keeps working — it does not say it keeps working as the wrong thing."*
+
+**The scale was measured rather than sampled: for each of the 52 screens, the `<sibling>.html` names its own
+markup contains give 505 distinct `<screen>/<sibling>.html` addresses**, and every destination is one of the
+52 screens, so `/<destination>/` is a page this site serves. All 505 now 301 to it.
+
+The rule is narrowed deliberately, and the narrowing is the safety: **both segments must be names in the
+deliverable's `DESIGN_FILES` set.** A relative link could only ever have named a file sitting beside the
+screens, so a first segment that is not a screen is not this address — which is what stops it shadowing a real
+two-segment route (`/documents/<slug>/`, `/town/<slug>/`, `/author/<slug>/`), none of whose first segments is
+a design file. And it cannot undo the `towns`/`account` separation: neither is in `DESIGN_SCREENS`, so neither
+is rewritten to a screen, but both are in `DESIGN_FILES` and `/towns.html` and `/account.html` already
+redirect to their pages — this rule only ever does the same thing one segment deeper.
+
+### 3. EVERY ANCHOR THAT LED TO THE WRONG PAGE, EVEN AT 200 — THE LIST THAT MATTERS
+
+**This is the largest fault the round found, and it is on every screen.** The `<base href="/">` that round 336
+made the mechanism for relative *filenames* also decides what a **fragment-only** address means — and the
+answer is the site root. Measured in Chrome, on the served pages, before the fix:
+
+```
+/watch/      #videos    ->  http://127.0.0.1:3110/#videos      NOT /watch/#videos
+/about/      #main      ->  http://127.0.0.1:3110/#main
+/listen/     #episodes  ->  http://127.0.0.1:3110/#episodes
+/documents/  #library   ->  http://127.0.0.1:3110/#library
+```
+
+**Every skip link, every table of contents, every filter row and every index anchor on every served screen
+left the page for the front page.** A 200 at the wrong document — the same class as the `Next` button, and
+invisible to `curl` because `curl` cannot resolve a fragment.
+
+The cure is not to remove the base: **it is what makes the address a script writes work**, and the design's
+`mobile-nav.js` injects `<a href="igbo-calendar.html">` at run time, which nothing in the served markup can
+rewrite. So the fragment is made absolute instead — `#series` becomes `/watch/#series` — by the same function,
+now told **the address the page is served at, query included**, because `#series` on `/watch/?page=2` must stay
+on page 2 and a rule using the path alone would send the reader back to page 1.
+
+After: `/about/#main`, `/documents/#library`, `/listen/#episodes`, `/watch/#series`, `/watch/#videos`, and the
+article's `#sources`, `#citation` and `#related`, all present in the served markup as absolute self-references.
+`PROBLEMS: 0` from the crawl, and the Chrome probe reads every fragment's resolved `.href` from the DOM.
+
+### 4. EVERY CONTROL THAT LOOKED PRESSABLE AND WAS NOT
+
+**1. The phone menu, dead on two screens, from a script that 404'd.** `market-days.js` ends by loading its own
+sibling — `new URL('mobile-nav.js', document.currentScript.src)` — so on `/igbo-calendar/` and `/market-days/`,
+which take the *extended* copy from `/design-screen-assets/market-days.js`, it requested
+`/design-screen-assets/mobile-nav.js`, **an address nothing served.** Measured 404 in a browser on both.
+`showcase.css` hides the entire primary menu below 40rem and the only control that opens it is the
+`.mobile-menu-button` that `mobile-nav.js` injects — **so on those two screens the menu was not degraded on a
+phone, it was unreachable.** `mobile-nav.js` is now an identity entry in the same allow-list, serving the
+design's own bytes from the address its sibling asks for. *(The same 404 was reported on `/cultural-calendar/`,
+where it was only a wasted request: that screen also loads `/design/mobile-nav.js` directly.)*
+
+**2. Eighteen `href="#"` on the account screen.** All eighteen decided one at a time and wired, **not** by
+adding `account` to `LINKED_SCREENS`: that transform's table is written for the dashboards and would have
+replaced live controls with "Not built yet" text. The platform bar, the masthead brand, the section tab and the
+seven-item menu take the destinations the *same labels* reach on the other 51 screens (`home.html` carries the
+identical seven); `Terms of Use` and `Privacy Policy` take `/about/#terms`, **the deliverable's own "Terms &
+privacy" destination**, whose section says the binding terms must be supplied; and the three `onclick`
+controls keep their handler **and gain a real address** (`/join/`, `/signin/`) so they work when the script
+does not. *Removing the `href` instead would have been worse than the fault: an `<a>` without one is not
+focusable, so the fix would have taken those controls from the readers who cannot use a mouse.*
+**0 left.**
+
+**3. A film whose page was about a different film.** `/watch/` draws 24 archive films, and `/watch-video/` had
+one fixed film — the design's `Faces | Voices` — with the design's publisher, its YouTube id and its
+project-page link. **Two views of the same fault from both ends: a card that names one film and a page about
+another, and a page no card could reach.** Now `?v=<id>` selects from the same `extractArchiveFilms` result
+`/watch/` is built from, filling the player, the `h1`, the facts line, the side panel and the document title
+from the record — and **not** inheriting the publisher sentence, which is true of the design's film and false
+of the archive's (`Publisher: not recorded`). An id the archive does not hold is a 404 rather than a silent
+fallback. And the film's page is reachable: `fillWatch` adds one control to the inline player — the one place
+the reader has already named a film — and `watch.js` is extended by one line and served from
+`/design-screen-assets/watch.js` to point it at that film.
+
+**4. `app/listen/page.tsx` — unreachable, and its sentence was false.** It said *"the archive holds no audio
+yet, so the library is empty"*, which was true of the `audio` table and false of the archive: `/listen/` is
+served by the design screen, filled from `ozikoro_episode`, and lists the recordings that exist. Deleted, and
+`check-screen-coverage.mjs` moved `listen` to the route that actually renders it — which is the **fourth**
+thing that checker needed.
+
+### 5. THE PAGES THAT EXIST BUT LEAD NOWHERE USEFUL
+
+- **`/watch-video/`** — now one film's page, addressable at `?v=<id>`, reachable from the player, 24 films.
+- **`/researchers/<slug>/`** — **the two are different things and neither redirects to the other.** A research
+  profile is keyed by account id and is an *additional* thing (institution, interests, publications); a byline
+  is keyed by contributor slug and is a list of records. `ozikoro_contributor.account_id` is set only when an
+  editor approves a claim, so joining them on a matching name would be inventing an identity — the directory
+  says so on the page. `/researchers/<id>/` answers (measured: `/researchers/199/` → 200, `h1` "Idenze Ezeme"),
+  `/researchers/<slug>/` is not an address this site serves, and **nothing links to it.**
+- **`/author/<slug>/`** — now reads `avatar_url` and `bio`, which the row already held, in the design's own
+  `.profile-head` / `.avatar` / `.stat-row` idiom that `/researchers/` uses. It showed *less* about a writer
+  than the page the reader arrived from. Where the record links a public research profile the head links it;
+  where it does not, the page offers `/claims/` rather than guessing at an identity.
+- **`app/listen/page.tsx`** — deleted (above).
+- **`/oral-recordings/`** — re-verified at the tip: 200, `<base href="/">`, its meta refresh rewritten to
+  `content="0;url=/listen/"` and its visible link `/listen/`. **No relative address remains**, and both
+  destinations are the real page.
+- **`/favicon.ico` and `/apple-touch-icon.png`** — **both answer 200 `image/x-icon` / `image/png`.** The
+  favicon is the design's own file; the first measurement of 404 was a `public/` file that the running server
+  had not been restarted to see (`next` reads the `public` directory at start-up). `apple-touch-icon.png` was
+  added by a sibling round.
+
+### 6. WHAT COULD NOT BE MEASURED, AND WHY
+
+**The eleven role dashboards answer 403 to a signed-out fetch and are UNVERIFIED.** `/dashboard-admin/`,
+`/dashboard-editor/`, `/dashboard-independent-researcher/`, `/dashboard-knowledge-holder/`,
+`/dashboard-moderation/`, `/dashboard-reader/`, `/dashboard-researcher/`, `/dashboard-review/`,
+`/dashboard-reviewer/`, `/dashboard-student/`, `/dashboard-teacher/` and `/dashboard-workflow/`. No account was
+created and no database was written, so **their links and menus are measured only by their markup, not by a
+reader**; the four that are not gated (`/dashboard-account/`, `/dashboard-states/`, `/dashboard-reader/` and
+`/dashboard-workflow/` at the time of the crawl) are in the inventory.
+
+- **The `/admin/*` pages answer 500 to a signed-out fetch** — an authentication failure surfacing as a server
+  error, which is worth a round of its own and is not a link fault. `/admin/*` is also in the API group below.
+- **The API routes answer 405 to a `GET`**, correctly: they are POST endpoints. `/api/ask/` answers 400
+  without a query. `/api/spotify/callback/` answers 500 to a bare GET, also correct — it refuses a callback
+  that did not arrive over HTTPS.
+- **Off-origin addresses were not fetched (159 references).** They are `https://ozituma.com/`,
+  `https://learn.ozituma.com/` — **now retired and rewritten to `/academy/`** — YouTube addresses and the
+  Google Fonts hosts. `ozituma.com` was confirmed 200 out of band.
+
+### 7. THE PARITY OUTPUT, VERBATIM
+
+```
+identical 63 differing 0 missing 0
+```
+
+### 8. WHAT DOES NOT WORK
+
+- **The review server on 3110 is not stable enough for a long crawl, and that is a measurement about the
+  server rather than about the site.** The first version of the probe fetched 24 addresses at once and the
+  server stopped answering: **1,289 of 1,762 targets came back with no response at all**, which reads exactly
+  like 1,289 broken links. At six at a time with a retry on a dead connection it completes cleanly. A design
+  screen runs several database queries per request, and a burst of them saturates the single PGlite process.
+  **A probe that takes the site down measures itself.** One run of this round was also lost to a concurrent
+  `next build` of another round that left `.next` without `BUILD_ID` and without its design screens: `/`
+  answered 404 while the probe said every link was broken.
+- **Two images in an article body are refused by the browser and will 404 after cutover.** Reported by another
+  round and confirmed here: `https://ozikoro.com/wp-content/uploads/2024/09/Igbo-Men-with-Ichi-Scarification-…-642x317.png`
+  and `…/questioning8c86e7b5…-768x461.jpg` render `naturalWidth === 0` — `img-src 'self' data: https://i.ytimg.com`
+  refuses the host, so `curl` would call them 200. **`rewriteBodyImages` did not rewrite them**, which means
+  the archive holds no media row for those two paths. *It holds local copies of the same subjects, and
+  substituting one for the other would be inventing a caption and a provenance* — so they are reported rather
+  than guessed at.
+- **The React routes the middleware shadows are still dead code.** `/about/`, `/watch/`, `/photographs/`,
+  `/documents/`, `/ledger/`, `/projects/`, `/topics/`, `/cite/`, `/careers/`, `/material-culture/`,
+  `/folklore/`, `/igbo-calendar/`, `/cultural-calendar/`, `/publications/`, `/type-test/` and
+  `/oral-recordings/` each have an `app/<name>/page.tsx` that `middleware.ts` never routes to, because the
+  same name is in its `DESIGN_SCREENS` set. **They are unreachable, so no reader meets them and no link
+  reaches them** — but they are a second implementation of a page, and one of them (`/listen/`) was stating
+  something false until this round deleted it. Removing the rest is a round with a decision in it rather than a
+  deletion.
+- **`check-screen-coverage.mjs` now verifies the generic route, and its `ALIAS` entries are still counted
+  rather than resolved.** They name a route by pattern, and the file behind one is not always the literal path
+  — `/folklore-reader` is aliased to `/folklore/[slug]`, which does not exist. That weakness is recorded in the
+  file rather than papered over.

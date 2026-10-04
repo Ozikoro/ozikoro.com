@@ -99,6 +99,46 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
    */
   const resolveImage = await mediaUrlResolver(db);
 
+  /*
+   * WHICH CLAN, TOWN OR PLACE THIS RECORD IS LINKED TO — §3.1, AND THE HEAD'S LARGEST GAP.
+   *
+   * `ozikoro_article_entity` has held these links all along and **the article head used none of them**: the
+   * listing card printed a `Place` chip and the record it named offered no way to follow it. A reader could
+   * see that *Ute-Okpu* is a place and could not open Ute-Okpu from the record.
+   *
+   * The role comes from the link rather than from the entity's kind, because one record can link to the same
+   * name twice — `an-igbo-family-shrine-…` links to `Onicha` as a clan and again as a town — and the kind
+   * alone cannot tell a reader which of the two is meant. See `RealArticle.entities` in `design-fill.ts`.
+   */
+  const entities = await db.rows<{ kind: string; slug: string; name: string; role: string }>(
+    `select e.kind, e.slug, e.name, ae.role
+       from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
+      where ae.article_id = $1
+      order by ae.role, e.name`,
+    [row.id]
+  );
+
+  /*
+   * THE TWO FACETS NO RECORD CAN FILL, COUNTED RATHER THAN ASSUMED.
+   *
+   * The head states that no period and no source type is recorded. **That sentence has to stop being true the
+   * moment it is** — the day an editor dates a record or attaches a source — so the figures are read from the
+   * same tables the filter rail reads rather than written down. `period_label` and `source_type` are null on
+   * every published row today, and `ozikoro_article_source` is empty. Read from `ozikoro_article` by its own
+   * name in the subqueries, because a table alias is not in scope inside a correlated subquery.
+   */
+  const totals = await db.one<{ published: number; with_period: number; with_source: number }>(
+    `select
+       (select count(*)::int from ozikoro_article where status = 'published' and is_page = false) as published,
+       (select count(*)::int from ozikoro_article
+         where status = 'published' and is_page = false
+           and ((period_label is not null and period_label <> '') or period_start is not null)) as with_period,
+       (select count(*)::int from ozikoro_article
+         where status = 'published' and is_page = false
+           and ((source_type is not null and source_type <> '')
+                or exists (select 1 from ozikoro_article_source s where s.article_id = ozikoro_article.id))) as with_source`
+  );
+
   const article: RealArticle = {
     title: row.title,
     topic: row.topic,
@@ -124,6 +164,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
       topic: r.topic,
       image: r.image ? mediaPath(r.image) : null,
     })),
+    /*
+     * WHAT THE RECORD BELONGS TO, AND WHAT THE ARCHIVE CANNOT SAY ABOUT IT. Orders: the entity links are
+     * what the chips render, `archiveTotals` is what decides whether the period/source sentence appears —
+     * and it appears only while the figure behind it is still zero, so recording one period retires the
+     * sentence for every record at once rather than leaving 1,051 pages claiming a fact that stopped being
+     * true. See `RealArticle` in `design-fill.ts`.
+     */
+    entities,
+    archiveTotals: {
+      published: Number(totals?.published ?? 0),
+      withPeriod: Number(totals?.with_period ?? 0),
+      withSource: Number(totals?.with_source ?? 0),
+    },
     resolveImage,
   };
 
@@ -211,8 +264,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
      * at `/<slug>/`. `designScriptPaths` above was written for exactly this reason and this is its
      * sibling; **the two routes are the pair that made one implementation necessary**, and
      * `design-paths.test.ts` reads both files so a third cannot repeat the omission.
+     *
+     * IT IS TOLD THE RECORD'S ADDRESS, so the article's own in-page anchors — `#sources`, `#citation`,
+     * `#related` — become addresses on this record rather than on the site root. The `<base href="/">` this
+     * function writes would otherwise resolve `#sources` to `/#sources`: measured in Chrome on four screens,
+     * and **the front page is not the record**. See `design-paths.ts` and the design-screen route.
      */
-    filled = designScreenLinks(filled);
+    filled = designScreenLinks(filled, `/${clean}/`);
 
     /*
      * THE SHARE CONTROL IS A LINK FIRST AND A BUTTON SECOND.

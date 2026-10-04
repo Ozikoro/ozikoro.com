@@ -168,6 +168,15 @@ function article(episode: RealArticle['episode']): string {
     path: '/a-record/',
     context: 'Context.',
     reference: 'OZ-H-0001',
+    /*
+     * THE HEAD'S OWN FIELDS, SO THE FIXTURE IS THE SHAPE THE ROUTE PASSES.
+     *
+     * `entities` is empty because this test is about the listen panel, and `archiveTotals` carries the
+     * archive's real measurement at the time of writing. A fixture that omitted them would not compile,
+     * and this file is where the article screen's own markup is asserted.
+     */
+    entities: [],
+    archiveTotals: { published: 1051, withPeriod: 0, withSource: 0 },
     related: [],
     episode,
   });
