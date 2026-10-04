@@ -4556,37 +4556,98 @@ export function fillCulturalCalendar(
    * read by the one extension in `extendMarketDaysScript`, and by nothing else.
    *
    * **AND NOTHING HERE CLAIMS AN EVENT.** The cell keeps its design class, gains the hook, and gains no
-   * `has-event`, no `data-event-*`, no `button` and no `href` — the CSS reads those as "this day has something"
-   * and the archive holds 0 events, which the note below the grid still says in the page's own words.
+   * `has-event` — the CSS reads that class as "this day has an event" and the archive holds 0 events, which
+   * the note below the grid still says in the page's own words.
+   *
+   * ================================================================================================
+   * BUT EVERY DATE IS A CONTROL AGAIN, WHICH IS THE FAULT THIS PASS EXISTS TO REPAIR
+   * ================================================================================================
+   *
+   * The owner reported it in his own terms: *"why is the events that is clickable not showing there anymore?
+   * you added the market days, then removed the functions of the calendar. it is supposed to be showing, and
+   * when clicked, you see the events, and the entire thing that was originally built there."*
+   *
+   * **He is right about the cause.** The round that added the market-day stamp also rebuilt this grid as
+   * `<div class="sx-cultural-day"><span>4</span></div>` — a plain date with no control in it. Before that pass
+   * the grid was the design's own markup, and the design's own markup is four `has-event` days each holding a
+   * `<button type="button" data-event-date=…>` — **which is exactly what `cultural-calendar.js` binds to.**
+   * `const buttons = [...document.querySelectorAll('[data-event-date]')]` finds nothing in a grid of `div`s,
+   * `buttons.forEach(...)` therefore registers no listener at all, and `if (buttons[0]) selectDay(buttons[0])`
+   * never runs. That is the whole of it: a script that finds nothing to bind to is silent, the page stays 200,
+   * and the markup that replaced the control looks deliberate.
+   *
+   * **WHAT IS RESTORED IS THE CONTROL, NOT THE DEMONSTRATION.** The design's four example events — "Verified
+   * event title appears here", "Community-submitted event", "2 events" — were never records and are not
+   * coming back; the archive holds no event table and 0 events, and inventing one here of all places is what
+   * this file forbids. So every date of the real month is a real button, and the data it carries is the truth
+   * about that date: the date itself, and, in each of the four slots the design's script fills the panel from,
+   * the statement that no event is recorded for it. Choose the 4th and the panel says so for the 4th; choose
+   * the 19th and it says so for the 19th. **The control works and the content is empty, which is the state the
+   * archive is actually in.**
+   *
+   * WHY `<button>` AND NOT A CLICK HANDLER ON THE CELL. A `div` with a listener cannot be reached by keyboard
+   * and is not announced as a control, and the design's own event cells were buttons for that reason. The
+   * button is the design's element in the design's position, so nothing about the interaction is new — only
+   * what it says.
+   *
+   * AND `data-event-date` IS THE DESIGN'S OWN HOOK, not one invented here: it is the attribute the served
+   * `cultural-calendar.js` queries for and the one it builds `?date=` from for the event page. Reusing it is
+   * what makes the design's script run unmodified — **the deliverable is inviolable, so the served markup has
+   * to meet it where it already is.**
    */
   const marketMonth = `${month.year}-${String(month.monthIndex).padStart(2, '0')}`;
-  const days = Array.from(
-    { length: daysInMonth },
-    (_, i) => `<div class="sx-cultural-day" data-market-day-cell><span>${i + 1}</span></div>`
-  );
+  const days = Array.from({ length: daysInMonth }, (_, i) => {
+    const day = i + 1;
+    const date = `${marketMonth}-${String(day).padStart(2, '0')}`;
+    const spoken = `${day} ${month.label} ${month.year}`;
+    /*
+     * THE FOUR DATA SLOTS ARE THE PANEL'S OWN, IN THE PANEL'S OWN ORDER OF USE. `data-title` becomes the
+     * panel's heading, `data-status` its badge, `data-meta` its place line and `data-description` its body;
+     * each is the honest sentence for THIS date rather than the month, because a date is what the reader
+     * chose. **None of them says an event exists, and none of them is a placeholder.**
+     */
+    return `<div class="sx-cultural-day" data-market-day-cell><button type="button" data-event-date="${date}" data-title="No event is recorded for ${esc(spoken)}" data-status="No event recorded" data-meta="No organiser, place or verification date is recorded for ${esc(spoken)}" data-description="The archive holds no event for this date, and nothing has been invented to fill it. An event appears here once its organiser, place and source are recorded and verified." aria-pressed="false"><span>${day}</span></button></div>`;
+  });
   /*
    * ================================================================================================
-   * AND THE SMALL CORNER OF STYLE THAT MAKES THE LABEL READ AS CONTEXT RATHER THAN AS GRAFFITI
+   * AND THE SMALL CORNER OF STYLE THAT KEEPS A PLAIN DATE FROM WEARING AN EVENT'S FACE
    * ================================================================================================
    *
-   * Measured in the browser before this existed: the date and its market day both sat hard against the cell's
-   * left edge with nothing between them, because `.sx-cultural-day > span` is `display:block` and the cell's
-   * own `padding:.65rem` is written for the BUTTON the design put inside an event date — a plain cell has no
-   * padding of its own. **The design's stylesheet is not the place to fix that** (it is inviolable), so this
-   * is a served-page style block, exactly as the inert controls' colour is an inline corner of the served page.
+   * **The design's own rule paints EVERY button inside a day cell `var(--gold-bright)`** —
+   * `.sx-cultural-day button{…background:var(--gold-bright);color:var(--night)…}` — because in the design the
+   * only button a day cell ever held was a day WITH an event. Now that every date is a control, the design's
+   * rule would paint all thirty-one cells gold, and **gold is the page's own word for "this date has an
+   * event"** — the intro sentence beside the grid says so. A grid of gold cells over a panel reading "no
+   * event recorded" is a page contradicting itself in the first thing a reader sees.
    *
-   * IT TOUCHES NOTHING THAT HAS AN EVENT: the rule is scoped to `.sx-cultural-day[data-market-day-cell]`, the
-   * marker the fill puts only on its plain dates, and the button inside an event date is untouched. **The type
-   * scale is the design's own**: the date keeps the cell's inherited size, the market day is the page's `.small`
-   * step below it, and `.muted` is the same token the design uses for secondary text. Both are set with
-   * `font-size:inherit` on the number and `1em`-relative units on the label, so a change to the design's base
-   * size moves both rather than leaving the pair out of step.
+   * So the button keeps the design's geometry — its padding, its `display:flex`, its size, its full-width
+   * fill — and takes the cream the plain cell already had, with the date and its market day in the same muted
+   * token the design uses for a plain date's number. **What is left of the gold is the interaction state**:
+   * hover, keyboard focus and the selected date all keep the design's emerald, because `.is-selected` and
+   * `:focus-visible` are the design's own words for "this is the date you chose".
+   *
+   * THE SELECTORS ARE SCOPED TO THE FILL'S OWN MARKER, `.sx-cultural-day[data-market-day-cell]`, so a cell the
+   * design draws with an event in it — none today, and the day the archive has one — is untouched and keeps
+   * its gold. **They also have to be more specific than the design's own rules, and they are**: the design's
+   * `.sx-cultural-day button` is one class and an element, this is a class, an attribute and an element. The
+   * hover and selected rules are written out again here rather than left to the design's, because the design's
+   * `.sx-cultural-day.is-selected button` is LESS specific than the base rule above and would otherwise lose
+   * to it — a selected date that never changes colour is the fault that would have followed.
+   *
+   * THE TYPE SCALE IS THE DESIGN'S: the number drops from the event button's bold serif to the plain date's
+   * own step, and the market day is `1em`-relative so a change to the design's base size moves both together.
    */
   const dayStyle = `<style>
-      .sx-cultural-day[data-market-day-cell]{padding:.65rem}
-      .sx-cultural-day[data-market-day-cell]>span,
-      .sx-cultural-day[data-market-day-cell]>.sx-cal-market-day{display:block;padding:0}
-      .sx-cultural-day[data-market-day-cell]>.sx-cal-market-day{margin-top:.35em;font-size:.78em;line-height:1.2}
+      .sx-cultural-day[data-market-day-cell]{padding:0}
+      .sx-cultural-day[data-market-day-cell] button{background:var(--paper-raised);color:var(--text);justify-content:flex-start;gap:.35em}
+      .sx-cultural-day[data-market-day-cell] button>span{font:400 1rem/1.2 var(--font-serif);color:var(--text-muted)}
+      .sx-cultural-day[data-market-day-cell] button>.sx-cal-market-day{font-size:.78em;font-weight:400;text-transform:none;line-height:1.2;color:var(--text-muted)}
+      .sx-cultural-day[data-market-day-cell] button:hover,
+      .sx-cultural-day[data-market-day-cell] button:focus-visible,
+      .sx-cultural-day[data-market-day-cell].is-selected button{background:var(--emerald);color:var(--on-night)}
+      .sx-cultural-day[data-market-day-cell] button:hover>span,
+      .sx-cultural-day[data-market-day-cell] button:focus-visible>span,
+      .sx-cultural-day[data-market-day-cell].is-selected button>span{color:var(--on-night)}
     </style>`;
   /*
    * THE GRID'S OWN `aria-label` IS RE-DATED TOO. The design writes `aria-label="October 2026 cultural events
@@ -4640,7 +4701,7 @@ export function fillCulturalCalendar(
     );
     out = out.replace(
       /(<p data-event-description>)[\s\S]*?(<\/p>)/,
-      '$1The archive holds no event record, so no date is interactive and none can be selected. Nothing has been invented to fill the calendar, and an event appears only once its organiser, place and source are recorded and verified.$2'
+      '$1The archive holds no event for any date this month. Choose a date above and this panel states what is recorded for it — which today is nothing, because no event has an organiser, a place and a source behind it. Nothing has been invented to fill the calendar.$2'
     );
   } else {
     out = out.replace(
@@ -4655,9 +4716,29 @@ export function fillCulturalCalendar(
    *
    * `cultural-event.html` becomes `/cultural-event/`, which is served and states plainly that no event is
    * recorded. **The screen keeps its promise and the destination keeps its honesty.**
+   *
+   * ================================================================================================
+   * AND IT HAS TO MATCH BOTH SPELLINGS, WHICH IS A FAULT THIS PASS FOUND RATHER THAN ANTICIPATED
+   * ================================================================================================
+   *
+   * `designScreenLinks` is called on the raw design file near the top of the request, before any fill runs,
+   * and its own last rule rewrites every sibling `…​.html` address to the address this site serves:
+   * `href="upload.html"` becomes `href="/upload/"`, `href="cultural-event.html"` becomes
+   * `href="/cultural-event/"`. **So by the time this function sees the panel, the `href="upload.html"` these
+   * three patterns were written against is not there any more and none of them matched.**
+   *
+   * Measured on the served page before this was fixed: `Submit an event` and `Suggest a correction` were
+   * ordinary `<a href="/upload/">` links — not inert, not announced as unavailable, and pointing at the
+   * publication-deposit screen the design pointed them at — while the offline unit test, which calls this
+   * fill on the raw design file with no link pass in front of it, **passed**. The test agreed with the code
+   * and the page did not, which is the shape of fault this file records more than once.
+   *
+   * The patterns therefore accept either spelling, and the safe one is the one the route actually produces.
+   * They are left order-independent rather than reordered so that this fill does not depend on being called
+   * before or after the link pass — a dependency on call order is what broke it.
    */
   out = out.replace(
-    /<a class="btn btn-gold" data-event-story href="cultural-event\.html">Read event story<\/a>/,
+    /<a class="btn btn-gold" data-event-story href="(?:cultural-event\.html|\/cultural-event\/)">Read event story<\/a>/,
     '<a class="btn btn-gold" data-event-story href="/cultural-event/">Read event story</a>'
   );
   /*
@@ -4672,11 +4753,11 @@ export function fillCulturalCalendar(
    * the note below them says the same thing in the page's own words, for the reader who does not hover.
    */
   out = out.replace(
-    /<a class="btn" href="upload\.html">Submit an event<\/a>/,
+    /<a class="btn" href="(?:upload\.html|\/upload\/)">Submit an event<\/a>/,
     '<a class="btn" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8" title="Not built yet — no route on this site accepts an event submission">Submit an event</a>'
   );
   out = out.replace(
-    /<a class="btn btn-quiet" href="upload\.html">Suggest a correction<\/a>/,
+    /<a class="btn btn-quiet" href="(?:upload\.html|\/upload\/)">Suggest a correction<\/a>/,
     '<a class="btn btn-quiet" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8" title="Not built yet — no route on this site accepts a correction">Suggest a correction</a>'
   );
   /*
@@ -4710,17 +4791,41 @@ export function fillCulturalCalendar(
 
   /* ------------------------------------------------------------------ the interaction rule, kept. */
   /*
-   * THE SENTENCE THAT EXPLAINS THE SCREEN, AND THE ONE THING THE OLD FILL GOT RIGHT TO REWRITE.
+   * THE SENTENCE THAT EXPLAINS THE SCREEN, AND WHAT IT HAS TO SAY NOW THAT EVERY DATE IS A CONTROL.
    *
-   * It is a RULE — "only dates with event entries are interactive" — and a rule is true in every month. The
-   * old fill replaced it with a statement about today, which was honest and still worth having, so both are
-   * kept: the rule first, then what it means for the month on screen.
+   * The design's rule is *"Only dates with event entries are interactive."* — and the round that removed the
+   * event buttons left the rule standing while making it TRUE of nothing, with a second sentence after it
+   * ("every date above is a plain date") that described the deleted control as though it were the design's
+   * intent. **The restored control makes the rule false**: every date above is interactive now, and a page
+   * that says otherwise is the contradiction this whole pass exists to remove.
+   *
+   * So the rule becomes the rule the page actually keeps: every date can be chosen, and what the panel says
+   * depends on whether an event is recorded for it. The second sentence states this month's answer, which is
+   * that none has one — and the design's own closing clause about production events is left exactly where the
+   * design wrote it, after both.
    */
   out = out.replace(
     /Only dates with event entries are interactive\./,
     month.events === 0
-      ? 'Only dates with event entries are interactive. No date in this month has an entry, so every date above is a plain date.'
-      : 'Only dates with event entries are interactive.'
+      ? 'Every date above can be chosen, and the panel says what the archive holds for the date you choose. No date in this month has an event recorded.'
+      : 'Every date above can be chosen. A date with no event entry says so when you choose it.'
+  );
+
+  /* ------------------------------------------------------------------ the intro's own rule. */
+  /*
+   * THE SENTENCE ABOVE THE GRID, WHICH THE FILL HAD LEFT ALONE AND WHICH THE RESTORED CONTROL MAKES FALSE.
+   *
+   * The design writes *"Gold dates have events. Plain dates are not clickable."* — **and that was true of the
+   * grid this fill drew in the round that removed the buttons.** With the buttons restored, the second half is
+   * false in the other direction: every plain date is clickable, and a reader told otherwise will not try.
+   * It is replaced rather than deleted, because the first half is the legend for the page's own colour and a
+   * reader still needs it the day a month has an event in it.
+   */
+  out = out.replace(
+    /<p>Gold dates have events\. Plain dates are not clickable\.<\/p>/,
+    month.events === 0
+      ? '<p>No date this month has an event. Every date can still be chosen, and the panel says what the archive holds for the date you choose.</p>'
+      : '<p>Gold dates have events. Every date can be chosen; a date with no event says so.</p>'
   );
 
   /* ------------------------------------------------------------------ the country list. */
@@ -4753,12 +4858,26 @@ export function fillCulturalCalendar(
    * label and no day. The route rewrites a `src="../name.js"` to `/design/name.js`, the same pass that fixed
    * every other screen's scripts.
    *
-   * WHAT IT SAYS ABOUT ITSELF, IN ONE BREATH
+   * WHAT IT SAYS, AND WHY THE FIRST VERSION OF THIS SENTENCE WAS WRONG
    *
    * A stamp reading "Nkwọ" over today's date reads as a fact about the reader's own town, and it is not one:
-   * **it is one archive's demonstration from a fixed anchor, and a community keeping a different anchor keeps
-   * a different market day.** `fillIgboCalendar` already states that for `/igbo-calendar/`, and the sentence
-   * is carried here rather than dropped for space — because the space is the reason not to drop it.
+   * **a community that keeps a different anchor keeps a different market day.** That qualification is real and
+   * stays. What the owner objected to was its SHAPE, in his own words: *"why is this 'A demonstration
+   * reckoning from a fixed anchor — 1 January 2026 taken as Orie, repeating the four-day cycle — not a claim
+   * that every Igbo community uses the same one. The Igbo calendar states the basis in full.' there? fix."*
+   *
+   * **Every clause of that sentence is about the build rather than about the calendar.** "A demonstration
+   * reckoning" is the archive describing its own prototype; "not a claim that…" is a disclaimer attached to
+   * the page's own work; and "states the basis in full" is a remark about the contents of another page. A
+   * reader who came to find out which day it is learns nothing from any of the three, and the same objection
+   * was upheld against five sentences of this class on `/about/` an hour before this one was reported.
+   *
+   * So the same fact is stated as a fact about the calendar: communities do not all keep one anchor, so a town
+   * that keeps another keeps another market day — and the anchor this page reckons from, because a day without
+   * its anchor cannot be read. The link to the Igbo calendar stays, because the reader who now wonders what
+   * their own town keeps is exactly the reader who wants it; **it is named as a destination rather than
+   * vouched for as a complete account**, which is the claim that made the old last clause about the other page
+   * rather than about this one.
    */
   const marketDay = `
       <aside class="wrap" style="margin-top:var(--s-6)">
@@ -4766,7 +4885,7 @@ export function fillCulturalCalendar(
           <p class="eyebrow" style="margin:0">Today&rsquo;s Igbo market day</p>
           <p style="margin:0"><strong data-market-day>Market day</strong><span class="small muted"> · <time data-modern-date>Today</time></span></p>
         </div>
-        <p class="sx-source-note small" style="margin-top:var(--s-3)">A demonstration reckoning from a fixed anchor — ${esc(month.anchor)} — not a claim that every Igbo community uses the same one. <a href="/igbo-calendar/">The Igbo calendar</a> states the basis in full.</p>
+        <p class="sx-source-note small" style="margin-top:var(--s-3)">The four-day cycle is kept from different anchors in different communities, so a town that keeps another anchor keeps another market day; the anchor used here is ${esc(month.anchor)}. <a href="/igbo-calendar/">The Igbo calendar</a> sets out the cycle and the sources behind this account.</p>
       </aside>`;
   /*
    * INSERTED AFTER THE HERO, FOUND BY ITS OWN CLASS. A page without the hero is left alone rather than
@@ -5098,7 +5217,7 @@ const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> 
   {
     claim: 'The Gregorian equivalents of the thirteen months',
     state: false,
-    note: 'Given as ranges against a solar year, and the article states no reckoning that turns a Gregorian day into an Igbo day, month or year. <strong>This page therefore prints no such conversion</strong>, and the market-day view above remains this archive’s own four-day demonstration.',
+    note: 'Given as ranges against a solar year, and the article states no reckoning that turns a Gregorian day into an Igbo day, month or year. <strong>This page therefore prints no such conversion</strong>, and the market-day view above remains this archive’s own four-day reckoning, from the anchor stated above.',
   },
   {
     claim: 'The rituals, shrines and festivals described under each of the thirteen months',
@@ -5308,7 +5427,7 @@ function igboCalendarAddendum(basis: string): string {
 
         <h2>The thirteen months</h2>
         <p>This is the centre of what the article adds. <strong>The names and the Gregorian ranges are the article’s system table, which attributes them to Onwuejeogwu (1981); the descriptions are the article’s “Months and meanings” section, which the article states is the Nri-Igbo calendar of the Nri kingdom.</strong> The two are kept apart in the table below because they carry different weight. <strong>What this page can say is that the article says Nri reckons the year in these thirteen months, and that Nri is not all of Igboland.</strong></p>
-        <p><strong>The Gregorian column is a range and not a date.</strong> February–March for the first month describes roughly where in the solar year it falls; it is not a rule that turns a Gregorian day into an Igbo one. The reckoning above works the other way round: it takes a Gregorian date and gives the market day under one stated anchor. The article supplies nothing that would join the two, so this page prints no such conversion, and the market-day view above remains a demonstration of four-day reckoning rather than a converter for the thirteen months.</p>
+        <p><strong>The Gregorian column is a range and not a date.</strong> February–March for the first month describes roughly where in the solar year it falls; it is not a rule that turns a Gregorian day into an Igbo one. The reckoning above works the other way round: it takes a Gregorian date and gives the market day under one stated anchor. The article supplies nothing that would join the two, so this page prints no such conversion, and the market-day view above remains a reckoning of the four-day week from one stated anchor rather than a converter for the thirteen months.</p>
         <p>Each month is a button. Press it, or press Enter on it, and the article’s description of that month opens in the row beneath. <strong>The descriptions are written into the page either way</strong>, so they are readable, findable and printable with JavaScript switched off.</p>
         <div class="sx-table-wrap">
           <table class="sx-ledger-table">
@@ -5368,7 +5487,7 @@ ${claimSource}
           </table>
         </div>
         <h3>What this page has not done</h3>
-        <p>It has not converted a Gregorian date into an Igbo day, month or year. It has not drawn the eight-day cycle. It has not given any festival a date of its own. It has not repeated the article’s year count for the Nri calendar as a fact. It has not put any of this into the market-day reckoning above, which remains this archive’s demonstration from the fixed anchor stated at <i>${esc(basis)}</i>. And it has not created an event record: <strong>the archive holds no event for any of these festivals</strong>, and <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself. Each of those is a thing the material could be made to say and the sources do not carry, which is why it is not said.</p>
+        <p>It has not converted a Gregorian date into an Igbo day, month or year. It has not drawn the eight-day cycle. It has not given any festival a date of its own. It has not repeated the article’s year count for the Nri calendar as a fact. It has not put any of this into the market-day reckoning above, which remains this archive’s reckoning from the fixed anchor stated at <i>${esc(basis)}</i>. And it has not created an event record: <strong>the archive holds no event for any of these festivals</strong>, and <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself. Each of those is a thing the material could be made to say and the sources do not carry, which is why it is not said.</p>
         ${monthToggle}
       </section>`;
 }
@@ -5437,9 +5556,18 @@ const YEAR_BUILDER = '  function renderYear(){if(!yearInput||!yearGrid)return;co
  * by the builders and not by this.
  *
  * AND IT DOES NOT WRITE THE LABEL ITSELF, SO THE TYPE SCALE IS THE DESIGN'S. It appends a `<small class="muted">`
- * and lets the page's own stylesheet size and colour it; `.sx-cultural-day > span` is the date, and the label
- * sits under it as its context. **No `has-event`, no `data-event-*`, no `button`, no `href`: an inert date does
- * not become a claim about an event, and the page still says the archive holds none.
+ * and lets the page's own stylesheet size and colour it; the date is the cell's `<span>`, and the label sits
+ * under it as its context. **No `has-event` and no event claim of any kind**: a plain date does not become a
+ * claim about an event, and the page still says the archive holds none.
+ *
+ * ── AND IT GOES INSIDE THE DATE'S BUTTON WHEN THERE IS ONE ───────────────────────────────────────
+ *
+ * The grid's cells hold a `<button>` now (see `fillCulturalCalendar`), so a label appended to the CELL would
+ * land after a control that already fills the cell's whole height — a stray word under every date, and the
+ * market day outside the thing a reader presses. The design's own event cell writes its label INSIDE its
+ * button (`<button><span>4</span><small>2 events</small></button>`), so the label goes where the design puts
+ * it, found by the button rather than assumed: **a cell with no button — `/igbo-calendar/`'s month view, or a
+ * grid drawn by a future fill — takes the label itself, exactly as before.**
  *
  * ================================================================================================
  * THE CODE GOES INSIDE THE DESIGN'S OWN IIFE, ON THE LINE AFTER `marketDay` IS DECLARED
@@ -5472,7 +5600,9 @@ const MARKET_CELL_FILLER = [
   '      const marketLabel = document.createElement("small");',
   `      marketLabel.className = "muted ${MARKET_CELL_MARKER}";`,
   '      marketLabel.textContent = marketDay(marketDate);',
-  '      marketDays[k - 1].appendChild(marketLabel);',
+  /* The date's own button when the cell holds one, so the day sits inside the control the reader presses. */
+  '      const marketTarget = marketDays[k - 1].querySelector("button") || marketDays[k - 1];',
+  '      marketTarget.appendChild(marketLabel);',
   '    }',
   '  }',
   '  /* The Igbo market day on every date the fill drew. */',
@@ -5571,16 +5701,25 @@ export function extendMarketDaysScript(script: string): string {
 /**
  * `/igbo-calendar/` and `/market-days/` — the four-day market week, and the account behind it.
  *
- * THE ANCHOR IS A DEMONSTRATION AND THE DESIGN ALREADY SAYS SO
+ * THE ANCHOR IS ONE RECKONING AMONG SEVERAL, AND THE PAGE SAYS SO AS A FACT ABOUT THE CALENDAR
  *
- * The design's own note is the honest one: *"This prototype sets 1 January 2026 as Orie and repeats the
- * four-day cycle. It is not a claim that every Igbo community uses the same anchor."* The brief adds that it
- * must never be presented as universal.
+ * The design's own note reads *"This prototype sets 1 January 2026 as Orie and repeats the four-day cycle. It
+ * is not a claim that every Igbo community uses the same anchor."* **The qualification is right and the words
+ * are wrong**: "this prototype" is the archive describing its own build, and "not a claim that…" is a
+ * disclaimer attached to the page's own work rather than information about the calendar. The owner reported
+ * exactly this class of sentence on `/cultural-calendar/` — *"why is this 'A demonstration reckoning from a
+ * fixed anchor …' there? fix."* — and the same objection holds on this page, where the sentence is longer and
+ * begins "This page reckons the cycle from a fixed anchor: … It is this archive's demonstration of one
+ * reckoning, not a claim that every Igbo community uses the same one."
  *
- * **So the conversion is kept exactly as the design computes it, and the words around it are made to say what
- * it is.** The one change is to the words that call the reader's own today's date an example: the date shown is
- * the real date, and the market day is this archive's demonstration reckoning of it, labelled as such before
- * the answer rather than after it.
+ * **So the fact is kept and the build is taken out of it.** A community that keeps a different anchor keeps a
+ * different market day, which is the thing a reader needs to know and the thing the design's own sentence was
+ * trying to protect; the anchor this page uses is stated, because a market day without its anchor cannot be
+ * read. What goes is "demonstration", "prototype" and the disclaimer's grammar.
+ *
+ * **And the conversion is kept exactly as the design computes it.** The one other change is to the words that
+ * call the reader's own today's date an example: the date shown is the real date, and the market day is this
+ * page's reckoning of it under the anchor it states, said before the answer rather than after it.
  *
  * ============================================================================================
  * AND THE ACCOUNT SITS BELOW IT, ATTRIBUTED, WHICH IS THE WHOLE OF THIS ROUND'S WORK
@@ -5627,8 +5766,19 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
     'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar, the system behind it: the thirteen months of the year, the festivals the account names, the naming tradition that follows the day of a child’s birth, and where all of it comes from.'
   );
   out = out.replace(
-    /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\./,
-    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. It is this archive's demonstration of one reckoning, not a claim that every Igbo community uses the same one.`
+    /*
+     * BOTH OF THE DESIGN'S SENTENCES GO, AND THE SECOND ONE IS WHY THIS PATTERN IS NOT THE OLD ONE.
+     *
+     * The design writes two: *"This prototype sets 1 January 2026 as Orie and repeats the four-day cycle. It is
+     * not a claim that every Igbo community uses the same anchor."* **The old pattern replaced only the first**,
+     * so the served page carried the new sentence AND the design's leftover disclaimer right after it —
+     * measured on `/igbo-calendar/`: "…not a claim that every Igbo community uses the same one. It is not a
+     * claim that every Igbo community uses the same anchor." The same thing twice, the second time in the
+     * design's own voice. The pattern now takes the pair, so the replacement is the whole of what a reader reads
+     * there.
+     */
+    /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\.\s*It is not a claim that every Igbo community uses the same anchor\./,
+    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.`
   );
   out = out.replace(
     /A production result should always name its source\./,
@@ -5650,7 +5800,7 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
    */
   out = out.replace(
     /The supplied helper sets 1 January 2026 as Orie and repeats the four-day cycle\. This is a design basis, not a claim that every Igbo community uses the same anchor\./,
-    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. It is this archive's demonstration of one reckoning, not a claim that every Igbo community uses the same one.`
+    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.`
   );
   out = out.replace(
     /verify the anchor, community basis, timezone and whether the day changes at sundown\./,

@@ -22343,3 +22343,225 @@ identical 63 differing 0 missing 0
   rather than resolved.** They name a route by pattern, and the file behind one is not always the literal path
   — `/folklore-reader` is aliased to `/folklore/[slug]`, which does not exist. That weakness is recorded in the
   file rather than papered over.
+
+
+---
+
+## ROUND 345 — THE CALENDAR THE MARKET DAYS ATE: EVERY DATE IS A CONTROL AGAIN, AND SIX SENTENCES THAT EXPLAINED THE BUILD
+
+The owner reported two faults on `/cultural-calendar/`, and the second one names its own cause: *"why is the
+events that is clickable not showing there anymore? you added the market days, then removed the functions of
+the calendar. it is supposed to be showing, and when clicked, you see the events, and the entire thing that
+was originally built there."* **He is right about the cause, and the mechanism is a one-line replacement
+recorded in this file as a fix.** The other fault is a sentence the page used to explain the archive's own
+reckoning to a reader — *"why is this 'A demonstration reckoning from a fixed anchor — 1 January 2026 taken as
+Orie, repeating the four-day cycle — not a claim that every Igbo community uses the same one. The Igbo calendar
+states the basis in full.' there? fix."*
+
+The design file is untouched: **`identical 63 differing 0 missing 0`**, and `apps/ozikoro/public/design/` is
+byte-identical to `design/calm-comfort-construct/public/design`.
+
+### 1. THE SCRIPT THAT WAS SUPPOSED TO BIND THE CLICKS, AND WHY IT DID NOT
+
+`/design/cultural-calendar.js` — **the design's own script, 28 lines, served 200, and not modified** — is the
+one that binds them:
+
+```js
+const buttons = [...document.querySelectorAll('[data-event-date]')];
+const panel = document.querySelector('[data-event-panel]');
+if (!panel || !title || !status || !meta || !description) return;
+const selectDay = (button) => { …title.textContent = button.dataset.title… };
+buttons.forEach((button) => button.addEventListener('click', () => selectDay(button)));
+if (buttons[0]) selectDay(buttons[0]);
+```
+
+It binds **`[data-event-date]`**, fills the panel from that button's four `data-` slots, marks the button's
+`.sx-cultural-day` with `is-selected`, sets `aria-pressed`, and points `[data-event-story]` at
+`cultural-event.html?date=…`.
+
+**It found nothing to bind to, and that is the whole fault.** Measured on the served page before this round:
+43 `data-*` event attributes, 41 day cells, `0` handlers. The grid's cells were
+`<div class="sx-cultural-day" data-market-day-cell><span>11</span></div>` — no `data-event-date` anywhere — so
+`buttons` was the empty array, `buttons.forEach` registered no listener at all, and `if (buttons[0])` never
+ran. A script that finds nothing to bind to is silent, the page answers 200, and the markup that replaced the
+control looks deliberate.
+
+### 2. WHAT HAPPENED, FROM THE LOG AND THE DIFF
+
+The round that did it is **one commit, `b3887be` — "Serve the African cultural calendar with its affordances,
+54 countries and the market day"**, and it is *the same round that added the market-day stamp*. Before it, the
+fill never touched the grid at all: it left the design's own markup in place, which is why the owner remembers
+clickable events. The grid the design draws has four `has-event` days, each holding a
+`<button type="button" data-event-date="2026-10-04" data-title="Verified event title appears here" …>` — the
+design's **demonstration** events ("Community-submitted event", "2 events"), which are not records and were
+correctly not carried into an archive that holds no event table.
+
+What that round did to remove them:
+
+```diff
+-  … the fill deleted the contents of .sx-event-layout with fillContainer
++  const days = Array.from({ length: daysInMonth }, (_, i) =>
++    `<div class="sx-cultural-day"><span>${i + 1}</span></div>`);
+```
+
+**It removed the design's fabricated events and the design's control together.** `ed87049` then wrote the
+market day on every one of those cells, which is the second half of the owner's account: the market-day work
+did not remove the calendar's functions, but it arrived in the same round and on the same grid, and from a
+reader's side of the screen the two are one change. His causal sentence is the correct one.
+
+### 3. WHAT WAS FIXED, AND WHAT WAS DELIBERATELY NOT RESTORED
+
+**Every date of the real month is a real `<button>` again**, carrying the design's own hooks and the truth
+about that date:
+
+```html
+<button type="button" data-event-date="2026-10-11"
+        data-title="No event is recorded for 11 October 2026"
+        data-status="No event recorded"
+        data-meta="No organiser, place or verification date is recorded for 11 October 2026"
+        data-description="The archive holds no event for this date, and nothing has been invented to fill it. …"
+        aria-pressed="false"><span>11</span></button>
+```
+
+**The design's four demonstration events are not restored, because they were never records.** The archive's
+only `%event%` tables are `learn_xp_event` and `spotify_event`; there is no cultural-event table and the route
+passes `events: 0`. So the control works and the content is empty, which is the state the archive is actually
+in: choose the 11th and the panel says so about the 11th; choose the 19th and it says so about the 19th. **The
+limitation is stated rather than papered over — there are no events to show, and inventing one in a calendar
+is the one thing this file forbids.**
+
+Three consequences of the restored control had to be corrected with it, because each was a sentence the page
+had been given while the dates were inert:
+
+* the panel's own text said *"no date is interactive and none can be selected"*;
+* the intro above the grid said *"Plain dates are not clickable"*;
+* the note below it said *"Only dates with event entries are interactive. No date in this month has an entry,
+  so every date above is a plain date."*
+
+All three are now the page's real rule: *"Every date above can be chosen, and the panel says what the archive
+holds for the date you choose. No date in this month has an event recorded."*
+
+**And the gold came off the plain dates.** The design paints *every* button inside a day cell
+`var(--gold-bright)` (`#e8c766`), because in the design the only button a cell ever held was a day **with** an
+event — and this page's own legend calls gold the mark of an event. Thirty-one gold cells over a panel reading
+"no event recorded" is a page contradicting itself in the first thing a reader sees, so a served-page rule
+scoped to the fill's own cells takes the gold off and leaves the design's emerald for hover, focus and the
+chosen date. Measured in the browser: a plain date computes `rgb(255, 253, 248)` (`--paper-raised`), the chosen
+one `rgb(13, 92, 69)` (`--emerald`).
+
+**The market day moved inside the button.** `extendMarketDaysScript` appends its `<small>` to the cell, which
+is right for a bare cell and wrong now that the cell holds a full-height button — the label would land *after*
+the control, a stray word under every date. It is now appended to the cell's button when there is one, found
+by `querySelector("button")` rather than assumed, so a grid with no buttons (`/igbo-calendar/`'s month view)
+still stamps its cells.
+
+### 4. THE TWO FAULTS FOUND ON THE WAY, WHICH THE TESTS COULD NOT SEE
+
+**A. `Submit an event` and `Suggest a correction` were being served as working links.** `designScreenLinks`
+runs near the top of the request and rewrites the design's sibling addresses — `href="upload.html"` becomes
+`href="/upload/"` — and `fillCulturalCalendar`'s three affordance patterns were written against
+`href="upload.html"`. So on the served page none of them matched: both controls were ordinary links to the
+publication-deposit screen, with no `aria-disabled` and no explanation, **while the unit test that calls the
+fill on the raw design file — with no link pass in front of it — passed.** The patterns now accept either
+spelling, a test runs the two passes in the route's own order, and the served page carries zero `/upload/`
+links and two inert controls.
+
+**B. `/igbo-calendar/` said the same thing twice.** The design's basis note is two sentences; the fill's
+pattern matched only the first, so the page read *"…not a claim that every Igbo community uses the same one. It
+is not a claim that every Igbo community uses the same anchor."* — the fill's sentence followed by the
+design's leftover disclaimer. The pattern now takes the pair.
+
+**C. The dead `design-screen-assets/market-days.js` tag did not reproduce.** Reported as a 404 before this
+round; measured on the built site, `/design-screen-assets/market-days.js` answers **200 with 5,681 bytes** (the
+extended copy), `/design-screen-assets/mobile-nav.js` **200 with 1,887 bytes**, and the browser's own network
+log for `/cultural-calendar/`, `/igbo-calendar/` and `/market-days/` reports no response at or above 400. The
+tag was not repointed, nothing was restored, and the address it names is the address the route serves.
+
+### 5. THE SENTENCE, AND EVERY OTHER ONE OF ITS CLASS FOUND
+
+The reported sentence was on the market-day stamp and every clause of it was about the build: "a demonstration
+reckoning" is the archive describing its own prototype, "not a claim that…" is a disclaimer attached to the
+page's own work, and "states the basis in full" is a remark about another page's contents. **The fact it
+protected is real and is kept, as a fact about the calendar:**
+
+> The four-day cycle is kept from different anchors in different communities, so a town that keeps another
+> anchor keeps another market day; the anchor used here is 1 January 2026 taken as Orie, repeating the
+> four-day cycle. The Igbo calendar sets out the cycle and the sources behind this account.
+
+The link stays, named as a destination rather than vouched for. Every other instance of the class found, with
+its wording and where it sits:
+
+| # | where | the wording | what was done |
+|---|---|---|---|
+| 1 | `/cultural-calendar/`, the market-day stamp | "A demonstration reckoning from a fixed anchor — … — not a claim that every Igbo community uses the same one. The Igbo calendar states the basis in full." | **fixed** — the sentence above |
+| 2 | `/igbo-calendar/` and `/market-days/`, the basis note | "It is this archive's demonstration of one reckoning, not a claim that every Igbo community uses the same one." | **fixed** — the same fact in the page's own terms |
+| 3 | `/igbo-calendar/`, the duplicate after it | "It is not a claim that every Igbo community uses the same anchor." (the design's leftover, uncancelled by the fill) | **fixed** |
+| 4 | `/igbo-calendar/`, the `meta`/`og:description` and JSON-LD | "…month view, with the anchor stated as a demonstration." | **fixed** — "…under the anchor this page states." |
+| 5 | `/igbo-calendar/` and `/market-days/`, the statement of what the archive cannot substantiate | "the market-day view above remains this archive's own four-day demonstration" / "remains a demonstration of four-day reckoning rather than a converter" / "remains this archive's demonstration from the fixed anchor stated at …" | **fixed** — "reckoning", three times |
+| 6 | `/cultural-event/`, the notice at the top of the reading column | "The design drew one here with a title, a date, a place, an organiser and an “example record” label — none of it is carried over, because none of it is a record." | **reported, not fixed** |
+| 7 | `/material-culture/`, the empty object register | "The design drew one example card here, with a reference of its own; it is not carried over, because it is not a record." | **reported, not fixed** |
+
+**6 and 7 are the two the previous round escalated, and I agree they are the same class** — both name the
+design to the reader and explain the build rather than the subject. They are left for the owner because they
+sit outside both faults he reported and outside the three screens he named, they are on pages he has not
+complained about today, and the sentence they are part of already carries the honest state without them. If he
+wants the class gone, the edit is the same in both: drop the clause, keep "the archive holds no record".
+
+Two further sentences are reported and NOT changed, because they are not about the build but about content the
+page does not yet hold: the design's hero lede on `/cultural-calendar/` — *"Choose a highlighted day to see its
+events, organiser, place and verification status"* — and the route's own description for the screen, *"Events
+by date, with organiser, place and verification status recorded per event."* Both promise events; the panel
+and the grid now say there are none. They are the owner's call, not this round's.
+
+### 6. HOW IT WAS VERIFIED — A CLICK, IN A BROWSER
+
+A 200 is not a working page, so the instrument is `scripts/verify-round-345-chrome.mjs`: headless Chrome over
+the DevTools protocol, which **clicks the eleventh date and reads the DOM after the event**. It printed `ALL
+CHECKS PASSED`, and its readings are the evidence:
+
+    31 clickable dates in 34 cells (31 dates + 3 leading blanks)
+    clicked the date carrying "2026-10-11" (the 11th control)
+      its own cell carries the market day "Eke", and it is INSIDE the button: true
+      aria-pressed="true"   cell has is-selected=true
+      URL after the click: http://127.0.0.1:3110/cultural-calendar/   (the click selects in place)
+      the panel now reads:
+        heading     "No event is recorded for 11 October 2026"
+        badge       "No event recorded"
+        meta        "No organiser, place or verification date is recorded for 11 October 2026"
+        description "The archive holds no event for this date, and nothing has been invented to fill it. …"
+      selected cells: 1   dates announcing themselves pressed: 1
+      the story link, resolved by the browser:
+        http://127.0.0.1:3110/cultural-event.html?date=2026-10-11
+        -> http://127.0.0.1:3110/cultural-event/?date=2026-10-11   h1: "No event is recorded"
+      computed background — a plain date: rgb(255, 253, 248); the chosen date: rgb(13, 92, 69)
+      no console error, and every subresource below 400 (16 responses)
+    /igbo-calendar/   stamp "Orie" · "Sun, 4 Oct 2026", 12 month cards, 365 dated cells, 0 console errors
+    /market-days/     stamp "Orie" · "Sun, 4 Oct 2026", month view 34 cells, 0 console errors
+    the market-day scripts, fetched by name from Node:
+      /design-screen-assets/market-days.js   200  5681 bytes
+      /design/cultural-calendar.js           200  1551 bytes
+      /design/mobile-nav.js                  200  1887 bytes
+
+**No console error was reported on any of the four pages**, and the row "0 handlers" that reached the owner
+cannot recur silently: `packages/ozikoro/src/design-fill.test.ts` now RUNS the design's own script against the
+fill's own output in a stub — 31 listeners, the first date auto-selected, the eleventh clicked, and the panel's
+four slots read back — so a fill that stops writing a hook fails the suite before it reaches a reader.
+
+    npm run typecheck, from the repository root     exit 0, seven workspaces
+    design parity (the required check)             identical 63 differing 0 missing 0
+    packages/ozikoro/src/design-fill.test.ts       73 tests, 73 pass, 0 fail
+    scripts/verify-round-345-chrome.mjs            ALL CHECKS PASSED (twice, run to run)
+
+### 7. WHAT DOES NOT WORK
+
+* **There are no events, and no click can show one.** The archive holds no cultural-event table and no event
+  record; the four the design drew were demonstration copy and are not restored. The calendar's control is
+  real and the state it opens onto is empty, which is what the panel says in the reader's own words.
+* **The two month arrows do nothing, and they never did.** `.sx-calendar-arrow` on this screen is bound by no
+  script — the design's `cultural-calendar.js` does not mention it, and `market-days.js`'s month view
+  (`data-prev-month` / `data-next-month`) belongs to the Igbo calendar's grid, which this screen does not
+  carry. Wiring them would mean a client-side redraw of a server-rendered month and an address to name the
+  month, which is a new control rather than a restored one. Reported rather than invented.
+* **Three things beside the grid are the design's and do nothing.** The country and
+  region selects filter nothing, "Go to date" does not move the grid, and the hero's lede promises events.
+  None of these is a regression from this round and none is fixed here.

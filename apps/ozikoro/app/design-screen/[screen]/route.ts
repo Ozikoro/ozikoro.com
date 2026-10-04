@@ -111,7 +111,7 @@ const SCREEN_SEO: Record<string, { title: string; description: string; kind?: 'a
   projects: { title: 'Projects — Ozikoro', description: 'Programmes the archive has embarked on.', kind: 'list' },
   publications: { title: 'Publications — Ozikoro', description: 'Research papers, essays and reports, each stating whether it completed peer review.', kind: 'list' },
   igbo_calendar: { title: 'Igbo calendar — Ozikoro', description: 'The four-day market cycle, date lookup and month view.', kind: 'page' },
-  'igbo-calendar': { title: 'Igbo calendar — Ozikoro', description: 'The four-day market cycle, date lookup and month view, with the anchor stated as a demonstration.', kind: 'page' },
+  'igbo-calendar': { title: 'Igbo calendar — Ozikoro', description: 'The four-day market cycle, date lookup and month view, under the anchor this page states.', kind: 'page' },
   'cultural-calendar': { title: 'African cultural calendar — Ozikoro', description: 'Events by date, with organiser, place and verification status recorded per event.', kind: 'list' },
   journeys: { title: 'Journeys & Places — Ozikoro', description: 'Discovery by place and time across the archive.', kind: 'list' },
   'material-culture': { title: 'Material culture — Ozikoro', description: 'Objects, makers and communities held in the archive.', kind: 'list' },

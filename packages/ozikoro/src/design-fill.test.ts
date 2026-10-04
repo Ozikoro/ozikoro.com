@@ -45,6 +45,7 @@ import {
   fillCulturalCalendar,
   fillIgboCalendar,
 } from './design-fill.ts';
+import { designScreenLinks } from './design-paths.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** The deliverable's screens, four levels up: packages/ozikoro/src -> the repository root. */
@@ -56,6 +57,14 @@ const SCREENS = join(HERE, '..', '..', '..', 'design', 'calm-comfort-construct',
  * afterwards**, so this test proves the extension is a transform in memory and not an edit to either copy.
  */
 const SCRIPT = join(HERE, '..', '..', '..', 'design', 'calm-comfort-construct', 'public', 'design', 'market-days.js');
+/**
+ * The design's own `cultural-calendar.js`, which binds the month grid's `[data-event-date]` dates.
+ *
+ * **Read from the deliverable for the same reason as `market-days.js`**: the fill has to meet the served markup
+ * where the design's script already looks, and a test that asserted the fill's own idea of the hook would agree
+ * with a fill the design's script cannot bind. The click test below runs THIS file.
+ */
+const CALENDAR_SCRIPT = join(HERE, '..', '..', '..', 'design', 'calm-comfort-construct', 'public', 'design', 'cultural-calendar.js');
 
 function dashboards(): { name: string; html: string }[] {
   return readdirSync(SCREENS)
@@ -349,29 +358,35 @@ test('the calendar’s four affordances survive the fill, which they did not bef
    *
    * **A test written against a fixture would have passed**, because the fixture would have been the output of
    * the same mistake. These assertions run against the handed-over HTML.
+   *
+   * THE FOURTH STRING IS THE ONE THAT HAS SINCE CHANGED ITS WORDS, and the change is asserted where it belongs
+   * rather than here: the calendar's dates are real controls again, so the OLD sentence would now be false (it
+   * said only dates with an event entry are interactive, and every date above is). What has to survive is the
+   * sentence's place and its job — telling the reader what the grid does — which the assertions further down
+   * read, both above the grid and below it.
    */
   const out = calendarAt(2026, 10, 0);
 
   assert.match(out, />Read event story<\/a>/);
   assert.match(out, />Submit an event<\/a>/);
   assert.match(out, />Suggest a correction<\/a>/);
-  assert.match(out, /Only dates with event entries are interactive\./);
+  assert.ok(!out.includes('Only dates with event entries are interactive.'), 'the rule that the restored controls made false is still on the page');
   // The container the old fill emptied is still there, and so are its two halves.
   assert.match(out, /<div class="sx-event-layout">/);
   assert.match(out, /<div class="sx-cultural-grid"[^>]*>/);
   assert.match(out, /<aside class="sx-event-day-panel"/);
 });
 
-test('the calendar grid is plain days for the month it names, and no invented event', () => {
+test('the calendar grid is the month it names, every date a control, and no invented event', () => {
   const out = calendarAt(2026, 10, 0);
 
   // October 2026's 1st is a Thursday, so three blanks line the 1st up under `Thu`.
   assert.match(
     out,
-    /aria-label="October 2026 cultural events calendar"\s+data-market-month="2026-10">\s*<style>[\s\S]*?<\/style>\s*<div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day" data-market-day-cell><span>1<\/span><\/div>/
+    /aria-label="October 2026 cultural events calendar"\s+data-market-month="2026-10">\s*<style>[\s\S]*?<\/style>\s*<div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day" data-market-day-cell><button type="button" data-event-date="2026-10-01"/
   );
   // 31 numbered days, and 3 blanks — the design's own grid held 28 cells, four of which were examples.
-  assert.equal((out.match(/<div class="sx-cultural-day" data-market-day-cell><span>\d+<\/span><\/div>/g) ?? []).length, 31);
+  assert.equal((out.match(/<div class="sx-cultural-day" data-market-day-cell><button type="button"/g) ?? []).length, 31);
   assert.equal((out.match(/sx-cultural-day is-empty/g) ?? []).length, 3);
 
   /*
@@ -394,22 +409,140 @@ test('the calendar grid is plain days for the month it names, and no invented ev
   /*
    * THE ONE STYLE BLOCK, AND WHERE IT IS.
    *
-   * `.sx-cultural-day > span` is `display:block` and the cell's own padding is written for the BUTTON the design
-   * puts inside an event date, so a plain date and its market day sat hard against the cell's corner with no
-   * space between them. The correction has to be in the served page — `public/design/` may not change — **and it
-   * has to be in the BODY**: the route replaces the whole `<head>` with the generated SEO head after this fill
-   * returns, so a rule written into the head is discarded before anyone sees it. It is also written in AFTER
-   * `fillContainer`, because that call replaces everything between the grid's tags.
+   * Every date is a `<button>` now, and the design paints every button inside a day cell `--gold-bright` —
+   * because in the design the only button a cell ever held was a day WITH an event. The served-page rule takes
+   * that gold off the fill's own cells and leaves the interaction state. It has to be in the served page —
+   * `public/design/` may not change — **and it has to be in the BODY**: the route replaces the whole `<head>`
+   * with the generated SEO head after this fill returns, so a rule written into the head is discarded before
+   * anyone sees it. It is also written in AFTER `fillContainer`, because that call replaces everything between
+   * the grid's tags.
    */
-  assert.match(out, /<div class="sx-cultural-grid"[^>]*><style>\s*\.sx-cultural-day\[data-market-day-cell\]\{padding:\.65rem\}/);
+  assert.match(out, /<div class="sx-cultural-grid"[^>]*><style>\s*\.sx-cultural-day\[data-market-day-cell\]\{padding:0\}/);
+  assert.match(out, /\.sx-cultural-day\[data-market-day-cell\] button\{background:var\(--paper-raised\)/);
+  assert.match(out, /\.sx-cultural-day\[data-market-day-cell\]\.is-selected button\{background:var\(--emerald\)/);
   assert.ok(!out.slice(0, out.indexOf('</head>')).includes('sx-cal-market-day'), 'the market-day rule is in the head, which the route replaces');
 
   /*
    * AND NOT ONE TRACE OF THE DESIGN'S EXAMPLE EVENTS. Each of these appears in the design file and would be a
-   * published cultural-event claim if it survived — a date, an event count, a title, an organiser.
+   * published cultural-event claim if it survived — a title, an event count, an organiser.
+   *
+   * **`data-event-date` and `data-title` ARE DELIBERATELY NOT ON THIS LIST ANY MORE.** They were, in the round
+   * that replaced the design's four example buttons with plain `div`s — and that is the round this page's own
+   * owner reported, because removing the design's hooks removed the design's script's only reason to run. The
+   * hooks are back; what must not come back is a fabricated event behind them, so the assertions below read
+   * what they now say instead of asserting they are gone.
    */
-  for (const gone of ['has-event', 'data-event-date', 'Verified event title appears here', '2 events', 'Community-submitted event', 'Exhibition event pattern', 'data-title=']) {
+  for (const gone of ['has-event', 'Verified event title appears here', '2 events', 'Community-submitted event', 'Exhibition event pattern', 'Awaiting organiser verification']) {
     assert.ok(!out.includes(gone), `the design's example event survived the fill as: ${gone}`);
+  }
+});
+
+test('every date is a real control, and the panel it opens is the honest state of that date', () => {
+  /*
+   * THE OWNER'S SECOND REPORT ON THIS PAGE, IN HIS WORDS: *"why is the events that is clickable not showing
+   * there anymore? you added the market days, then removed the functions of the calendar. it is supposed to be
+   * showing, and when clicked, you see the events, and the entire thing that was originally built there."*
+   *
+   * The cause was `data-event-date` disappearing with the design's example grid: `cultural-calendar.js` binds
+   * nothing when nothing answers that selector. **This test asserts the hooks are back, one per date, carrying
+   * the truth about that date** — the archive holds no event table, so the truth is the date and its absence,
+   * and no demonstration title is resurrected to fill the slot.
+   */
+  const out = calendarAt(2026, 10, 0);
+  const buttons = [...out.matchAll(/<button type="button" data-event-date="([^"]+)" data-title="([^"]+)" data-status="([^"]+)" data-meta="([^"]+)" data-description="([^"]+)" aria-pressed="false"><span>(\d+)<\/span><\/button>/g)];
+
+  assert.equal(buttons.length, 31, 'every date of the month must be a control the design’s script can bind');
+  for (const [index, button] of buttons.entries()) {
+    const whole = button[0]!;
+    const date = button[1]!;
+    const title = button[2]!;
+    const status = button[3]!;
+    const meta = button[4]!;
+    const description = button[5]!;
+    const day = index + 1;
+    assert.equal(date, `2026-10-${String(day).padStart(2, '0')}`, 'the buttons are not in date order, or a date is wrong');
+    assert.equal(Number(button[6]), day);
+    // The four slots the design's script writes the panel from, each saying the truth for ITS OWN date.
+    assert.equal(title, `No event is recorded for ${day} October 2026`);
+    assert.equal(status, 'No event recorded');
+    assert.ok(meta.includes(`${day} October 2026`), 'the meta line must name the date the reader chose');
+    assert.match(description, /^The archive holds no event for this date/);
+    // And not one of them claims an event, an event count or a demonstration title.
+    assert.ok(!whole.includes('has-event'), 'a date claims an event');
+    assert.ok(!/\d+ events?\b/.test(description), 'a description claims a number of events');
+  }
+});
+
+test('the design’s own cultural-calendar.js binds the restored dates and fills the panel on a click', () => {
+  /*
+   * **A CLICK IS THE ONLY PROOF OF A CONTROL, AND THIS IS THE OFFLINE HALF OF IT.** The markup assertions above
+   * cannot tell a button that works from a button nothing listens to — that is exactly how this fault reached
+   * the owner, twice. So the SERVED script is run here, in a stub of the four DOM calls it makes, and a click is
+   * dispatched at the eleventh date: what the panel then says is what a reader would see.
+   *
+   * The stub's buttons are built by PARSING THE FILL'S OWN OUTPUT rather than by hand, so a fill that stops
+   * writing a hook fails here.
+   */
+  const out = calendarAt(2026, 10, 0);
+  const parsed = [...out.matchAll(/<button type="button" data-event-date="([^"]+)" data-title="([^"]+)" data-status="([^"]+)" data-meta="([^"]+)" data-description="([^"]+)" aria-pressed="false">/g)];
+  assert.equal(parsed.length, 31);
+
+  const panelParts = new Map<string, { textContent?: string; href?: string; focus?: () => void }>(
+    ['[data-event-title]', '[data-event-status]', '[data-event-meta]', '[data-event-description]', '[data-event-story]'].map((selector) => [
+      selector,
+      selector === '[data-event-story]' ? { href: '', focus: () => undefined } : { textContent: '', focus: () => undefined },
+    ])
+  );
+  const pressed = new Map<number, string>();
+  const handlers: Array<() => void> = [];
+  const buttons = parsed.map((m, index) => ({
+    dataset: { eventDate: m[1], title: m[2], status: m[3], meta: m[4], description: m[5] },
+    setAttribute: (name: string, value: string) => {
+      if (name === 'aria-pressed') pressed.set(index, value);
+    },
+    closest: () => ({ classList: { toggle: () => undefined } }),
+    addEventListener: (name: string, handler: () => void) => {
+      if (name === 'click') handlers.push(handler);
+    },
+  }));
+  const panel = {
+    hidden: true,
+    focus: () => undefined,
+    scrollIntoView: () => undefined,
+    querySelector: (selector: string) => panelParts.get(selector) ?? null,
+  };
+  const scope = globalThis as unknown as { document?: unknown; window?: unknown };
+  const realDocument = scope.document;
+  const realWindow = scope.window;
+  scope.document = {
+    querySelectorAll: (selector: string) => (selector === '[data-event-date]' ? buttons : []),
+    querySelector: (selector: string) => (selector === '[data-event-panel]' ? panel : null),
+  };
+  scope.window = { matchMedia: () => ({ matches: false }) };
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function(readFileSync(CALENDAR_SCRIPT, 'utf8'))();
+
+    // One listener per date, which is the whole of what the design's script does with the grid.
+    assert.equal(handlers.length, 31, 'the design’s script bound no click to the dates — the control is dead');
+    // And the script's own first-date selection ran, so the panel is not left on its no-script sentence.
+    assert.equal(pressed.get(0), 'true');
+    assert.equal(panelParts.get('[data-event-title]')?.textContent, 'No event is recorded for 1 October 2026');
+
+    // CLICK THE ELEVENTH DATE and read the panel a reader would be looking at.
+    handlers[10]!();
+    assert.equal(pressed.get(10), 'true');
+    assert.equal(pressed.get(0), 'false', 'the previously selected date was left selected');
+    assert.equal(panelParts.get('[data-event-title]')?.textContent, 'No event is recorded for 11 October 2026');
+    assert.equal(panelParts.get('[data-event-status]')?.textContent, 'No event recorded');
+    assert.equal(panelParts.get('[data-event-meta]')?.textContent, 'No organiser, place or verification date is recorded for 11 October 2026');
+    assert.match(panelParts.get('[data-event-description]')?.textContent ?? '', /^The archive holds no event for this date/);
+    // The story link follows the date, at the design's own relative address, which the served page's `<base>` resolves.
+    assert.equal(panelParts.get('[data-event-story]')?.href, 'cultural-event.html?date=2026-10-11');
+    assert.equal(panel.hidden, false);
+  } finally {
+    if (realDocument === undefined) delete scope.document; else scope.document = realDocument;
+    if (realWindow === undefined) delete scope.window; else scope.window = realWindow;
   }
 });
 
@@ -436,12 +569,18 @@ test('the market-day hook is on every cell and the month marker on the grid, and
   // And one month, stated once, in the same tag as the grid's own accessible name.
   assert.equal((out.match(/data-market-month="2026-10"/g) ?? []).length, 1);
   /*
-   * THE CELLS STAY INERT. The label is CONTEXT for the date and not a claim about an event: no link, no button,
-   * no hover state, and none of the hooks the grid's CSS reads as "this day has something".
+   * THE CELLS CARRY A CONTROL AND NO CLAIM. The label is CONTEXT for the date, and the button is what the
+   * reader presses; **what must not be in the grid is the one class the page reads as "this day has an event"**,
+   * or any title, organiser or event count — the archive holds 0 events and the grid must not say otherwise.
    */
-  for (const claim of ['has-event', 'data-event-', '<button', '<a ']) {
-    assert.ok(!grid.includes(claim), `the month grid claims an event, or an interaction, with: ${claim}`);
+  assert.ok(!grid.includes('has-event'), 'the month grid claims an event');
+  assert.ok(!grid.includes('<a '), 'the month grid turned a date into a link');
+  for (const claim of ['Verified event title', '2 events', 'Community-submitted event', 'Exhibition event pattern', 'data-status="Verified']) {
+    assert.ok(!grid.includes(claim), `the month grid carries an invented event: ${claim}`);
   }
+  // Every date is a button, and every button says the same thing about its own date: nothing is recorded.
+  assert.equal((grid.match(/<button type="button" data-event-date="/g) ?? []).length, 31);
+  assert.equal((grid.match(/data-status="No event recorded"/g) ?? []).length, 31);
 });
 
 test('the design’s own script stamps Eke, Orie, Afọ and Nkwọ on the grid, four days apart, from its anchor', () => {
@@ -452,18 +591,31 @@ test('the design’s own script stamps Eke, Orie, Afọ and Nkwọ on the grid, 
   assert.equal(cells, 31);
 
   /*
-   * RUN THE SERVED SCRIPT, IN A STUB OF THE TWO CALLS IT MAKES.
+   * RUN THE SERVED SCRIPT, IN A STUB OF THE CALLS IT MAKES.
    *
-   * `document.querySelector("[data-market-month]")` and `createElement("small")` are the whole of what the
-   * spliced lines touch; everything else the script asks for is absent here and its dispatches return early,
-   * exactly as they do on the cultural calendar, which has none of those elements either.
+   * `document.querySelector("[data-market-month]")`, the cell's own `querySelector("button")` and
+   * `createElement("small")` are the whole of what the spliced lines touch; everything else the script asks for
+   * is absent here and its dispatches return early, exactly as they do on the cultural calendar, which has none
+   * of those elements either.
+   *
+   * **AND THE STUB WATCHES WHERE THE LABEL LANDED.** Every cell but the last answers `querySelector("button")`
+   * with a button stub, so the test can tell a label appended INSIDE the control from one appended after it —
+   * the last cell answers `null`, which is the `/igbo-calendar/` case, and proves the fallback still stamps a
+   * cell that has no button in it.
    */
   const stamped: string[] = [];
-  const cellStubs = Array.from({ length: cells }, () => ({
-    appendChild(element: { className: string; textContent: string }) {
+  const intoButton: boolean[] = [];
+  const cellStubs = Array.from({ length: cells }, (_, index) => {
+    const record = (element: { className: string; textContent: string }, insideButton: boolean) => {
       stamped.push(element.textContent);
-    },
-  }));
+      intoButton.push(insideButton);
+    };
+    const cell: { appendChild: (element: { className: string; textContent: string }) => void; querySelector?: () => unknown } = {
+      appendChild: (element) => record(element, false),
+    };
+    cell.querySelector = () => (index < cells - 1 ? { appendChild: (element: { className: string; textContent: string }) => record(element, true) } : null);
+    return cell;
+  });
   const gridStub = {
     getAttribute: () => `${marker[1]}-${marker[2]}`,
     querySelectorAll: () => cellStubs,
@@ -507,6 +659,13 @@ test('the design’s own script stamps Eke, Orie, Afọ and Nkwọ on the grid, 
 
   assert.equal(stamped.length, cells, 'a cell the fill drew was left without a market day');
   assert.deepEqual(stamped, expected);
+  /*
+   * AND EVERY LABEL WENT INSIDE THE BUTTON THE CELL HOLDS, except the one cell whose stub has none — which is
+   * the fallback, not a miss. **A label appended after a full-height button is a stray word under the date and
+   * outside the thing a reader presses**, which is why this is asserted rather than assumed.
+   */
+  assert.equal(intoButton.filter(Boolean).length, cells - 1, 'a market-day label was appended outside the date’s button');
+  assert.equal(intoButton[cells - 1], false, 'a cell with no button must take the label itself');
   // The anchor itself, which no cell of October can show: the 1st of January 2026 is Orie.
   assert.equal(cycle[((1 + 0) % 4 + 4) % 4], 'Orie');
   // And the four-day cycle, checked against four days of this month rather than one.
@@ -528,17 +687,34 @@ test('the design’s own script stamps Eke, Orie, Afọ and Nkwọ on the grid, 
 
 test('the calendar panel is honest before its script runs, and keeps every hook the script needs', () => {
   /*
-   * `cultural-calendar.js` fills the panel when a date is clicked. **With no event there is no date to click,
-   * so the panel's HTML is what a reader sees — including a reader whose JavaScript never arrives, which on
-   * this audience's connections is a real case rather than a theoretical one.** "Choose a highlighted date"
-   * over a grid with nothing highlighted is the page describing an interface it does not have.
+   * `cultural-calendar.js` fills the panel when a date is chosen, so the panel's own HTML is what a reader sees
+   * until then — **and it is all a reader whose JavaScript never arrives ever sees**, which on this audience's
+   * connections is a real case rather than a theoretical one. It must therefore state the archive's actual
+   * state, and it must not describe an interface the page does not have.
+   *
+   * **THE DESIGN'S HEADING IS KEPT, AND THAT IS A DECISION WITH A RECORD BEHIND IT.** An earlier pass rewrote
+   * the `<h2>` to "No event is recorded", which read honestly and **cost the page a heading the design draws** —
+   * `check-design-parity.mjs` reported *"/cultural-calendar — missing h2 'choose a highlighted date'"*. The
+   * heading is the panel's accessible name for a control a reader now really does use — choose a date — and the
+   * design puts the standing of the chosen date in the badge, the meta line and the description, which is where
+   * an event's verification state would live too. So the heading stays as delivered and the state is stated in
+   * the three slots built for it.
    */
   const out = calendarAt(2026, 10, 0);
 
-  assert.doesNotMatch(out, /Choose a highlighted date/);
-  assert.match(out, /<h2 data-event-title>No event is recorded<\/h2>/);
+  assert.match(out, /<h2 data-event-title>Choose a highlighted date<\/h2>/);
   assert.match(out, /<span class="sx-event-badge" data-event-status>No date has an event<\/span>/);
-  assert.match(out, /<p data-event-description>The archive holds no event record[\s\S]*?<\/p>/);
+  assert.match(out, /<p class="sx-event-meta" data-event-meta>No organiser, place or verification date is recorded for any date this month<\/p>/);
+  assert.match(out, /<p data-event-description>The archive holds no event for any date this month\.[\s\S]*?<\/p>/);
+  /*
+   * AND NO SENTENCE THE RESTORED CONTROL MAKES FALSE. Both of these were on the served page and both were true
+   * of the grid the round before this one drew — a grid of `div`s. **A page that says no date can be selected
+   * while every date is a button is the contradiction the owner reported**, so they are asserted absent rather
+   * than left to be noticed again.
+   */
+  assert.doesNotMatch(out, /no date is interactive/);
+  assert.doesNotMatch(out, /plain date/i);
+  assert.doesNotMatch(out, /Plain dates are not clickable/);
   // The hooks the script looks for are all still present, so the same markup works the day an event exists.
   for (const hook of ['data-event-panel', 'data-event-title', 'data-event-status', 'data-event-meta', 'data-event-description', 'data-event-story']) {
     assert.ok(out.includes(hook), `the panel lost the hook its own script looks for: ${hook}`);
@@ -546,6 +722,14 @@ test('the calendar panel is honest before its script runs, and keeps every hook 
   // The month the page names is the month the panel names, and it is not the design's example month.
   assert.doesNotMatch(out, /October 2026 · demonstration month/);
   assert.match(out, /<time>October 2026 · no verified event<\/time>/);
+  /*
+   * THE TWO SENTENCES BESIDE THE GRID SAY THE SAME AS THE GRID DOES: every date is a control, and the panel
+   * answers for the date chosen. The design's own sentences said the opposite — "Plain dates are not clickable"
+   * above it and "Only dates with event entries are interactive" below it — and are replaced rather than
+   * deleted, because the legend for the page's gold is still needed the day a month has an event in it.
+   */
+  assert.match(out, /<p>No date this month has an event\. Every date can still be chosen, and the panel says what the archive holds for the date you choose\.<\/p>/);
+  assert.match(out, /Every date above can be chosen, and the panel says what the archive holds for the date you choose\. No date in this month has an event recorded\./);
 });
 
 test('a control with no route behind it stops being a link and says why', () => {
@@ -573,6 +757,32 @@ test('a control with no route behind it stops being a link and says why', () => 
   assert.match(out, /<strong>No submission route exists on this site yet<\/strong>/);
   // The one affordance that CAN honestly work keeps its link and reaches a real page.
   assert.match(out, /<a class="btn btn-gold" data-event-story href="\/cultural-event\/">Read event story<\/a>/);
+});
+
+test('the affordances are inert in the order the route really runs them: the link pass first, the fill second', () => {
+  /*
+   * **A TEST THAT CALLS THE FILL ON THE RAW DESIGN FILE PROVES NOTHING ABOUT THE SERVED PAGE, AND THIS IS THE
+   * FAULT IT MISSED.** The route calls `designScreenLinks` near the top of the request, before any fill, and
+   * that pass rewrites every sibling `…​.html` address to the address this site serves: `href="upload.html"`
+   * becomes `href="/upload/"`. The three affordance patterns in `fillCulturalCalendar` were written against the
+   * raw `href="upload.html"` — so on the real page none of them matched, and **`Submit an event` and `Suggest a
+   * correction` were served as ordinary links** to the publication-deposit screen while the test above, which
+   * feeds the fill the design file with no link pass in front of it, passed.
+   *
+   * Measured on the served page: both controls carried `href="/upload/"` and neither carried `aria-disabled`.
+   * So this test runs the two passes in the order the route runs them, and asserts the result a reader gets.
+   */
+  const linked = designScreenLinks(screen('cultural-calendar'));
+  // The link pass is what produces the spelling the old patterns could not see.
+  assert.match(linked, /href="\/upload\/"/);
+  assert.match(linked, /href="\/cultural-event\/"/);
+
+  const out = fillCulturalCalendar(linked, { label: 'October', year: 2026, monthIndex: 10, events: 0, anchor: MARKET_DAY_ANCHOR });
+  assert.doesNotMatch(out, /href="\/upload\/"/, 'an affordance with no route behind it was served as a working link');
+  assert.equal((out.match(/aria-disabled="true"/g) ?? []).length, 2, 'the two unbuilt controls are not both inert on the served page');
+  assert.match(out, /<a class="btn btn-gold" data-event-story href="\/cultural-event\/">Read event story<\/a>/);
+  // And every date is still a control after the link pass, which rewrites addresses and not attributes.
+  assert.equal((out.match(/data-event-date="/g) ?? []).length, 31);
 });
 
 test('the country selector holds the countries of Africa, grouped by the region beside it', () => {
@@ -686,10 +896,23 @@ test('today’s Igbo market day is a compact stamp filled by the design’s own 
   assert.match(out, /<div class="spread" style="gap:var\(--s-3\)">/);
   assert.match(out, /<p class="sx-source-note small"/);
 
-  // The basis is stated, and it is the SAME sentence the Igbo calendar states.
+  /*
+   * THE BASIS IS STATED, AND IT IS STATED AS A FACT ABOUT THE CALENDAR RATHER THAN ABOUT THE BUILD.
+   *
+   * The owner reported the sentence that used to sit here: *"why is this 'A demonstration reckoning from a fixed
+   * anchor — 1 January 2026 taken as Orie, repeating the four-day cycle — not a claim that every Igbo community
+   * uses the same one. The Igbo calendar states the basis in full.' there? fix."* Every clause of it was about
+   * the archive's own prototype or about another page's contents. **The fact it protected is kept — a stamp
+   * reading "Nkwọ" over today's date is not a fact about the reader's town — and the words that explained the
+   * build are gone.** The assertions below therefore check both halves: the fact is present, and none of the
+   * three phrases the owner objected to survives anywhere on either page.
+   */
   assert.ok(out.includes(MARKET_DAY_ANCHOR), 'the stamp does not name its anchor');
-  assert.match(out, /not a claim that every Igbo community uses the same one/);
-  assert.match(out, /<a href="\/igbo-calendar\/">The Igbo calendar<\/a> states the basis in full\./);
+  assert.match(out, /The four-day cycle is kept from different anchors in different communities, so a town that keeps another anchor keeps another market day; the anchor used here is 1 January 2026 taken as Orie, repeating the four-day cycle\./);
+  assert.match(out, /<a href="\/igbo-calendar\/">The Igbo calendar<\/a> sets out the cycle and the sources behind this account\./);
+  for (const gone of ['A demonstration reckoning', 'not a claim that every Igbo community', 'states the basis in full']) {
+    assert.ok(!out.includes(gone), `the sentence the owner reported survived as: ${gone}`);
+  }
   assert.match(fillIgboCalendar(screen('igbo-calendar')), new RegExp(MARKET_DAY_ANCHOR));
 });
 
@@ -733,9 +956,26 @@ test('the Igbo calendar keeps every part of the design, and the account goes bel
   // Four day cards, and the twelve-month grid container, are still drawn by the design.
   assert.equal((out.match(/data-day-card=/g) ?? []).length, 4);
 
-  // The anchor caveat the fill already made is unchanged, and it is still the same sentence.
+  /*
+   * THE ANCHOR CAVEAT IS STATED, AND IT NO LONGER CALLS THE PAGE'S OWN RECKONING A DEMONSTRATION.
+   *
+   * This page carried the same self-explaining sentence the owner reported on `/cultural-calendar/`, and here it
+   * was longer: *"This page reckons the cycle from a fixed anchor: … It is this archive's demonstration of one
+   * reckoning, not a claim that every Igbo community uses the same one."* The fact is kept — communities do not
+   * all keep one anchor, so a town that keeps another keeps another market day — and the words about the build
+   * go. **The account below the design states the same qualification again, and neither copy may call it a
+   * demonstration**, which is asserted here and in the account's own test.
+   */
   assert.ok(out.includes(MARKET_DAY_ANCHOR), 'the page no longer names its anchor');
-  assert.match(out, /It is this archive's demonstration of one reckoning/);
+  assert.match(out, /Communities do not all keep the same anchor, so a town that keeps another one keeps another market day\./);
+  assert.ok(!out.includes("this archive's demonstration of one reckoning"), 'the page still calls its own reckoning a demonstration');
+  assert.ok(!out.includes('design basis'), 'the design’s own “design basis” wording survived the fill');
+  /*
+   * AND THE DESIGN'S LEFTOVER DISCLAIMER GOES WITH IT. The design writes TWO sentences and the old pattern took
+   * only the first, so the served page said the same thing twice — the fill's sentence and then *"It is not a
+   * claim that every Igbo community uses the same anchor."* Measured on `/igbo-calendar/` before this fix.
+   */
+  assert.ok(!out.includes('It is not a claim that every Igbo community uses the same anchor'), 'the design’s duplicate disclaimer is still on the page');
 
   // The new material is BELOW the design's own last block — the owner's "put these things below there".
   const basis = out.indexOf('<div class="sx-basis-note">');
@@ -926,7 +1166,8 @@ test('the archive’s own verification of the account is stated, not omitted', (
 test('the other screen that loads this script states its anchor too', () => {
   const out = fillIgboCalendar(screen('market-days'));
   assert.match(out, /This page reckons the cycle from a fixed anchor: 1 January 2026 taken as Orie, repeating the four-day cycle\./);
-  assert.match(out, /It is this archive's demonstration of one reckoning/);
+  assert.match(out, /Communities do not all keep the same anchor, so a town that keeps another one keeps another market day\./);
+  assert.ok(!out.includes("this archive's demonstration of one reckoning"), 'the screen still calls its own reckoning a demonstration');
   assert.match(out, /verify the anchor, the community basis, the timezone, the spellings and whether the day changes at sundown\./);
   assert.ok(!out.includes('The supplied helper sets'), 'the design is still talking about its own helper');
   // The account arrives on this screen too, and the page-specific wording is not used on it.
