@@ -424,7 +424,8 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
    */
   const shown = new Set([...out.matchAll(/data-video-id="([^"]*)"/g)].map((m) => m[1]));
   const added = films.filter((f) => !shown.has(f.id) && !WATCH_MUSIC_FILMS.has(f.id));
-  if (added.length === 0) return out;
+  // The design's own page, with the design's own five unreachable controls taken off it. See the function.
+  if (added.length === 0) return dropUnreachableFragments(out);
 
   /*
    * ONE ORDERED LIST OF EVERY CARD THE PAGE DRAWS, AND WHICH GRID EACH CARD BELONGS TO.
@@ -602,7 +603,14 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
     /(<div class="sx-inline-player-actions">)/,
     '$1<a class="btn btn-ghost" id="inline-player-page" href="/watch-video/" hidden>This film’s page</a>'
   );
-  return rebuilt;
+  /*
+   * AND LAST, THE FILTER ROW NAMES ONLY THE SECTIONS THIS PAGE DRAWS.
+   *
+   * It runs HERE, after the section that carries no cards on this page has been removed and its anchor moved
+   * to the page that does hold it — so a later page keeps its working `/watch/?page=1#series` and loses only
+   * the four names the deliverable never drew. See `dropUnreachableFragments`.
+   */
+  return dropUnreachableFragments(rebuilt);
 }
 
 /** What the fill needs to know about the request that asked for a page of `/watch/`. */
@@ -612,6 +620,44 @@ export type WatchFillOptions = {
   /** The request's own query string, so a pager link keeps every other parameter it was asked with. */
   query?: string;
 };
+
+/**
+ * REMOVE EVERY IN-PAGE LINK WHOSE TARGET THIS DOCUMENT DOES NOT CARRY.
+ *
+ * **A nav item is not a section.** The owner's rule for this round, and the reason `/watch/`'s filter row is
+ * the first caller: the design's own `watch.html` writes SEVEN controls —
+ *
+ *     New · Short histories · Oral traditions · Places & communities · Conversations · Series · A–Z
+ *
+ * — and draws exactly TWO sections for the first six of them to land on:
+ *
+ *     <section class="sx-watch-section" id="new">      "Selected films"
+ *     <section class="sx-watch-section" id="series">   "Unspoken Stories"
+ *
+ * **`#short`, `#oral`, `#places` and `#conversations` name four sections the deliverable never drew**, in the
+ * design or since. They are not "not yet built": there is no factory, gathering or interview section anywhere
+ * in the file, and the page's own hero says the grid holds *"films, talks and remembered stories"*. So the
+ * design intended five categories and drew two; the five names are aspirational, and a reader who pressed one
+ * of the four got a page that did not move. `#series` is real but is **only on the page that draws it** —
+ * `fillWatch` already carries that anchor to the page holding the section, which is why this pass runs after
+ * that carry and cannot see it any more.
+ *
+ * It is deliberately a rule over the DOCUMENT rather than a list of four ids: a fourth section added to the
+ * design, or a fifth name added to the row, is then handled without anyone remembering this function. **It is
+ * also deliberately only about a bare `#fragment`** — `href="/watch/?page=1#series"` is a link to another page
+ * that carries the section, which is a working control and not this pass's business.
+ *
+ * The caller decides where to run it: `fillWatch` runs it on BOTH of its exits, because the early return for
+ * "every film is already drawn" is exactly the page a database that is down serves, and the design's markup
+ * there carries the same five controls.
+ */
+export function dropUnreachableFragments(html: string): string {
+  const ids = new Set([...html.matchAll(/\bid="([^"]*)"/g)].map((m) => m[1]));
+  return html.replace(
+    /<a\b[^>]*\bhref="#([^"]+)"[^>]*>[\s\S]*?<\/a>/g,
+    (match: string, fragment: string) => (ids.has(fragment) ? match : '')
+  );
+}
 
 /**
  * `watch.js`, with ONE line appended: the film's own page, pointed at the film that was just opened.
@@ -1419,7 +1465,41 @@ export function fillTopics(html: string, entries: RealAzEntry[]): string {
     end = close + '</section>'.length;
     cursor = out.indexOf('<section class="sx-az-letter"', end);
   }
-  return out.slice(0, first) + blocks + out.slice(end);
+  out = out.slice(0, first) + blocks + out.slice(end);
+
+  /*
+   * ── AND THE LETTERS THAT JUMP TO THEM, WHICH IS THE HALF THAT WAS LEFT BEHIND ────────────────────
+   *
+   * The design draws two things that must agree: a run of `<section class="sx-az-letter" id="a">…` and a
+   * `<nav class="sx-az-jump">` above it whose items are `<a href="#a">A</a>` for a letter the design had a
+   * section for and `<span>B</span>` for one it did not. **The pass above replaces the SECTIONS and never
+   * touched the NAV**, so the served page kept the design's own twelve anchors while the archive's own
+   * letters took the sections' place.
+   *
+   * The two then disagreed by exactly the letters the archive's data does not produce. Measured on the
+   * served page before this change: `/topics/#s` and `/topics/#t` were written on every `/topics/` view and
+   * the page carried no `id="s"` and no `id="t"` — it carries `a b c d e f h i l m n` (and the `#` bucket as
+   * `num`) `o p r u v`. **`#s` is the interesting one and it is a fill's fault rather than the design's:**
+   * the design DID draw a section `s`, and the archive holds no topic or place beginning with S, so the
+   * target went while the anchor stayed. `#t` was dead in the deliverable too — `topics.html` links it and
+   * never drew `id="t"` — so removing it is the honest end, and inventing an S or a T to match a label is
+   * the one thing this archive's rule forbids.
+   *
+   * So the nav is rebuilt from the SAME `byLetter` map the sections were built from, in the design's own
+   * grammar: a letter with a section is an anchor, a letter without one is a `<span>`. **`#` is deliberately
+   * not added**, because the design's jump row does not carry one and a nav item the design never drew is
+   * not this pass's to invent. The page's own `num` section is still reachable by scrolling, exactly as it
+   * is today.
+   */
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const jump = letters
+    .map((letter) => (byLetter.has(letter) ? `<a href="#${letter.toLowerCase()}">${letter}</a>` : `<span>${letter}</span>`))
+    .join('');
+  out = out.replace(
+    /(<nav class="sx-az-jump" aria-label="Alphabet">)[\s\S]*?(<\/nav>)/,
+    (_m, open: string, close: string) => `${open}${jump}${close}`
+  );
+  return out;
 }
 
 /** A town as the archive holds it. */
@@ -1855,6 +1935,29 @@ export function fillArticle(html: string, a: RealArticle): string {
   } else {
     // **No approved episode, so no button.** The panel goes rather than sitting there inert.
     out = out.replace(/<section[^>]*\bid="listen"[^>]*>[\s\S]*?<\/section>/, '');
+    /*
+     * AND THE SIDEBAR'S OWN LINK TO IT GOES WITH THE PANEL, WHICH IS THE WHOLE OF THIS ROUND'S LARGEST FAULT.
+     *
+     * The design's reading page carries the panel (`<section class="sx-listen-panel" id="listen">`) **and** a
+     * link to it in the left column — `<details><summary>Reading tools</summary>` … `<a href="#listen">Listen</a>`.
+     * Served as an article, the panel is kept only when the record has an approved, playable episode; on every
+     * other record the branch above removes it, because an inert player is not a state a reader should meet.
+     * **The link was not removed with it**, so the page promised a section it had just deleted.
+     *
+     * MEASURED ON THE SERVED ARCHIVE, AND THAT IS WHY THE FIX IS CONDITIONAL RATHER THAN A DELETION:
+     *
+     *   `/how-tortoise-got-his-bumpy-shell/` — an approved episode — carries `id="listen"`, the
+     *       `<audio data-listen-audio>` element and a working `#listen`; the link is right and stays.
+     *   `/the-war-dance-festival-ila-oso-in-uzuakoli/` — no episode — carries no `id="listen"` anywhere and
+     *       no player, so its `#listen` scrolled nowhere. 1,049 of 1,051 published records are this second
+     *       case, which is why round 355's forty-page walk found 25 dead fragments and never one that worked.
+     *
+     * **The two travel together or neither does.** An empty `#listen` anchor left behind for the link to land
+     * on would be inventing a section to satisfy a label — this archive's own rule forbids it — and removing
+     * the link unconditionally would break the records where the panel really is on the page. **A nav item is
+     * not a section.**
+     */
+    out = out.replace(/<a\b[^>]*\bhref="#listen"[^>]*>[\s\S]*?<\/a>/, '');
   }
 
   // The image, its alternative text, and the honest caption.
@@ -1922,6 +2025,28 @@ export function fillArticle(html: string, a: RealArticle): string {
   const body = tidyBody(safe, a.image);
 
   /*
+   * ── AND THE RECORD'S OWN IN-PAGE TARGETS GET THE SAME ROOM ABOVE THEM AS THE FRAME'S ──────────────
+   *
+   * `body` now keeps the `name` attributes an archived body's own links point at (see the allowlist in
+   * `content.ts`), so `[1]` in a record's text scrolls to its footnote and `[1]` at the foot scrolls back.
+   * **A target that scrolls correctly can still be the one line the reader cannot see:** the browser puts a
+   * fragment's target at the very top of the viewport, and `.sx-reader-header` is `position: sticky; top: 0`
+   * — so the marker lands underneath it. That is round 352's measurement, and `fillArticleProse` already
+   * answers it for the frame's own anchors with `scroll-margin-top`. **A record's footnote marker is the same
+   * kind of target and gets the same offset.**
+   *
+   * MEASURED IN CHROME BEFORE THIS LINE EXISTED, with the `name` anchors restored by script: jumping to one
+   * landed it at `top = 0` under a 53 px header, its whole 24 px box inside the covered band.
+   *
+   * It runs AFTER `tidyBody` and that is not incidental: `sanitiseArchiveHtml` drops `style` by design, so an
+   * offset written before it would be removed with the Elementor `font-size` it is right to remove. This adds
+   * one declaration to elements that are fragment targets and to nothing else.
+   */
+  const anchoredBody = body.replace(/<a\b([^>]*\bname="[^"]+"[^>]*)>/g, (whole: string, attrs: string) =>
+    /\bstyle="/.test(attrs) ? whole : `<a${attrs} style="scroll-margin-top:6rem">`
+  );
+
+  /*
    * INTO THE DESIGN'S FRAME, NOT OVER IT.
    *
    * The article's words go into the slots the design drew — `#opening`, `#record`, `#context`, `#sources`,
@@ -1932,10 +2057,10 @@ export function fillArticle(html: string, a: RealArticle): string {
    * headings and moved the citation to the top. **Both were design decisions and neither was this work's to
    * make.** The frame wins; the record's words fit it.
    */
-  const refs = extractReferences(body);
+  const refs = extractReferences(anchoredBody);
   const rest = refs.length > 0
-    ? body.replace(/<h[2-4][^>]*>\s*(?:\d+\.\s*)?(?:references?|sources?|bibliography|works cited|further reading)[^<]*<\/h[2-4]>[\s\S]*$/i, '')
-    : body;
+    ? anchoredBody.replace(/<h[2-4][^>]*>\s*(?:\d+\.\s*)?(?:references?|sources?|bibliography|works cited|further reading)[^<]*<\/h[2-4]>[\s\S]*$/i, '')
+    : anchoredBody;
   /*
    * THE FIRST PARAGRAPH, WHICHEVER PARAGRAPH IT IS.
    *
@@ -3214,6 +3339,63 @@ function n(value: number): string {
 }
 
 /**
+ * GIVE AN ELEMENT THE ID THAT THE DESIGN'S OWN LINKS ALREADY NAME.
+ *
+ * ── THE FAULT, MEASURED ─────────────────────────────────────────────────────────────────────────────
+ *
+ * Fourteen of the deliverable's screens link six fragments into `about.html`:
+ *
+ *     about.html#entrust   #privacy   #access   #partners   #licensing   #contact
+ *
+ * — the four footer columns ("Institutional access" under Research, "Partners" under Platform, and
+ * "Privacy"/"Licensing & reuse"/"Entrusting material" under Terms) plus the front page's own door, *"Entrust
+ * a community history — How material is held and who may read it."* **The deliverable's `about.html` carried
+ * three ids: `main`, `faq` and `terms`** — so every one of those six links reached the right page and then
+ * did nothing at all. The design's own fault, not a fill's: it drew the sections and forgot the ids.
+ *
+ * ── THE DECISION, WHICH IS THE WHOLE JUDGEMENT OF THIS PASS ─────────────────────────────────────────
+ *
+ * **The page DRAWS five of the six things those labels name, and it is the id that is missing — not the
+ * section.** So the id is put on the element that is already there, found by its own words:
+ *
+ *     #entrust     "How a record earns its place" — how material is held and who may read it, which is
+ *                  the sentence the front page's door promises and the section's own four principles
+ *                  ("Community terms: Depositors define access and reuse") answer
+ *     #privacy     <h2>Privacy</h2> at the foot, beside Terms and Licensing, where the design put it —
+ *                  **and NOT the `<h3>Privacy</h3>` in the institution block, which is a summary of the
+ *                  same state rather than the notice itself**
+ *     #licensing   <h2>Licensing</h2>, the same block
+ *     #partners    <h3>Partnerships</h3> — "Institutions, sponsors and media" — the enquiry route the
+ *                  footer's own "Partners" item is for
+ *     #contact     <h2>Talk to Ozi Ikoro Limited</h2>, the contact section
+ *
+ * The sixth, `#access` ("Institutional access", "Request access", "What the tier covers"), is **not on this
+ * page under any id and is not on it at all**: the deliverable's `about.html` has no institutional-access
+ * section, and neither has the served page — its only sentences about access are the FAQ's *"some research
+ * publications are access-controlled by their authors and can be requested"* and Licensing's *"each record
+ * displays its own access and reuse terms"*, which are statements about **records**, not a tier a reader can
+ * hold. **Inventing a section to satisfy that label is the one thing this archive's rule forbids**, so the
+ * link comes off the served screens instead — see `designScreenLinks` in `design-paths.ts`, which is where
+ * the design's own addresses are resolved at serve time.
+ *
+ * ── WHY IT IS ANCHORED TO THE WORDS RATHER THAN TO A SELECTOR ───────────────────────────────────────
+ *
+ * A page whose markup has moved on **does not gain an anchor somewhere it was never designed to be**: the
+ * pattern fails, the page is served as it is, and the link to it comes off with the `#access` one. That is
+ * the same failure the article's `Download PDF` control takes, and for the same reason.
+ *
+ * It replaces only the FIRST match, which matters here because "Privacy" appears twice on the page.
+ */
+function anchorHeading(html: string, tag: string, label: string, id: string): string {
+  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`<${tag}(?![^>]*\\bid=")([^>]*)>(\\s*${escaped}\\s*)</${tag}>`);
+  const match = pattern.exec(html);
+  if (!match) return html;
+  return `${html.slice(0, match.index)}<${tag}${match[1]} id="${id}">${match[2]}</${tag}>`
+    + html.slice(match.index + match[0].length);
+}
+
+/**
  * A filled `.sx-people` card: a real contributor, with their own portrait where the archive holds one.
  *
  * **THE COMMENT THAT USED TO STAND HERE WAS WRONG, AND IT WAS WRONG IN THE WAY THAT MATTERS: it asserted a
@@ -3488,6 +3670,18 @@ export function fillAbout(html: string, d: AboutData): string {
     /<p class="small"[^>]*>Official email, address and phone to be supplied[^<]*<\/p>/,
     `<p class="small" style="margin-top:var(--s-4);color:#cfc4ac">Official address and telephone number have not been supplied. Corrections and material for the archive: <a href="mailto:archive@ozikoro.com">archive@ozikoro.com</a> — the address the design's own upload screen carries.</p>`
   );
+
+  /*
+   * AND THE IDS THE DESIGN'S FOURTEEN FOOTERS HAVE BEEN LINKING SINCE THE HANDOVER, ON THE SECTIONS IT
+   * ALREADY DRAWS. Read `anchorHeading` above for the fault, for which five of the six are answered here,
+   * and for why the sixth (`#access`) is not — it names a section no page draws, so its link comes off the
+   * served screens in `designScreenLinks` rather than a section being invented for it here.
+   */
+  out = anchorHeading(out, 'h2', 'How a record earns its place', 'entrust');
+  out = anchorHeading(out, 'h2', 'Privacy', 'privacy');
+  out = anchorHeading(out, 'h2', 'Licensing', 'licensing');
+  out = anchorHeading(out, 'h3', 'Partnerships', 'partners');
+  out = anchorHeading(out, 'h2', 'Talk to Ozi Ikoro Limited', 'contact');
 
   return out;
 }
@@ -6602,6 +6796,91 @@ export function fillWatchVideo(
   const siblings = topicName
     ? (related ?? []).filter((f) => f.id !== film.id && f.topic === topicName).slice(0, 3)
     : [];
+  /*
+   * ── THE RELATED BLOCK IS A LIST OF ROWS, ON THE OWNER'S INSTRUCTION (round 357) ──────────────────
+   *
+   * His words: *"i have a problem with the way you presented the related viewing. i expected to be smaller
+   * with a thumbnail on the left, the title on the right type of thing, so redesign it and make it look
+   * better"*. What stood here was one `<p>` of three links separated by middots — no thumbnail, no row and no
+   * hierarchy — and the titles are long enough that it wrapped into a wall of text.
+   *
+   * THE ROW IS THE DESIGN'S OWN SHAPE FOR A RELATED ITEM, ONE STEP SMALLER. `showcase.css` already draws a
+   * related entry as a grid with the image in one track and the words in the next: `.sx-related-list a` is
+   * `grid-template-rows: 9rem 1fr`, and at `max-width: 60rem` the design turns that same entry into EXACTLY
+   * the row asked for, `grid-template-columns: 8rem 1fr`. So the thumbnail width, the serif title and the
+   * bronze small label all come from that block, and the image frame is the design's own `.sx-video-thumb`.
+   * The rules live in `apps/ozikoro/public/watch-video.css`, which this screen links after the design's own
+   * sheets — `public/design/` is inviolable and its card stays a tile.
+   *
+   * ── WHERE A ROW SENDS A READER, WHICH WAS A DECISION AND NOT A DEFAULT ────────────────────────────
+   *
+   * The block used to hand the reader to `youtube.com/watch?v=<id>` and leave the archive. **Every film that
+   * can appear here is an archive film**: `siblings` is filtered out of the same `extractArchiveFilms` result
+   * `/watch/` is drawn from and this page's own `?v=` was resolved against, so each one has a viewing page on
+   * this origin. Measured this round: `/watch-video/?v=LL8YX0pXzdI`, `…?v=SHPEwGDOI7c` and `…?v=jOMjbchyNXg`
+   * all answer 200 and their `<h1>` is the row's own title. So a row goes to `/watch-video/?v=<id>` and the
+   * reader stays inside, where the page can say what the archive holds about the film. **The design's six
+   * example films are not affected by this**: they are 404 at `/watch-video/?v=` and this block never named
+   * them — the archive's own topic rule replaced them in round 351.
+   *
+   * ── AND THE META LINE CARRIES ONLY WHAT THE ARCHIVE KNOWS ─────────────────────────────────────────
+   *
+   * The design's card fills its small-caps slot with `Archive film · Plays on this page`, and the second half
+   * of that is FALSE for a row: a row navigates rather than playing in place, so the claim is dropped rather
+   * than copied. The topic is the block's own heading, so repeating it on every row would be noise. What is
+   * left is the one fact the archive holds about each of these films that the block does not already say —
+   * how many records carry it, from `f.records`, in the same sentence the facts line above uses. **No
+   * publisher, no duration and no claim about playing anywhere are written, because the archive records none
+   * of them.** The repetition of that sentence across rows is the design's own behaviour, not an oversight:
+   * `renderFilmCard` prints one fixed meta line on every archive card.
+   *
+   * ── THE THUMBNAIL, AND WHAT A ROW SHOWS WHEN IT FAILS ─────────────────────────────────────────────
+   *
+   * `https://i.ytimg.com/vi/<id>/hqdefault.jpg` is the design's own convention — `renderFilmCard` above and
+   * the design's `watch.html` both use it — and `next.config.ts` names `i.ytimg.com` in `img-src`. **But this
+   * fill derives the address from an id rather than fetching it, so it cannot know whether the film is still
+   * there — and the markup alone cannot carry that either.** So the `<img>` is given three things the design's
+   * own card does not need, and each was decided from a measurement rather than from a guess:
+   *
+   *   * `alt=""`. The film's own title is the text immediately beside the poster, so the image is decorative
+   *     and a failure must not print the title a second time as alt text.
+   *   * **`onerror="this.remove()"`** — the fetch that cannot be made at all: a reader offline, a blocked host,
+   *     a network that gives up. **Measured in Chrome, `alt=""` alone still leaves the browser's broken-image
+   *     icon painted in the frame**, which is the fault this exists to remove; removing the element removes it.
+   *   * **`onload="if(this.naturalWidth&lt;320)this.remove()"`** — YouTube's own answer to an id it no longer
+   *     holds. **Measured: `hqdefault.jpg` for an unknown id answers 404 with a 120x90 grey placeholder JPEG,
+   *     and Chrome PAINTS it**, so without this the row would show a grey rectangle where a film should be.
+   *     Every poster the archive actually draws was measured at **480x360**, so 320 has a fourfold margin and
+   *     a poster below it is not a poster.
+   *
+   * With the `<img>` gone, the design's own `--night-2` frame and its gold hairline remain — sized by
+   * `.sx-video-thumb`'s `aspect-ratio: 16/9`, not by the image — and the label that frame carries behind the
+   * image becomes the only thing painted: **a designed dark frame that says `No thumbnail`. Never a
+   * broken-image icon, never a grey platform placeholder, never an empty hole.** See `watch-video.css`, where
+   * the label is the `::after` of the same frame and the image is given the stacking position that covers it
+   * while it is on screen.
+   *
+   * **THE HANDLER IS INLINE AND ADDS NO SCRIPT TAG.** This page loads `mobile-nav.js` and nothing else, and
+   * `script-src 'self' 'unsafe-inline'` in `next.config.ts` admits an inline handler — the pattern this
+   * repository already uses, and `scripts/verify-round-344.mjs` counts one as a wired control.
+   */
+  const heldBy = (count: number): string =>
+    count > 1 ? `Held in ${count} Ozikoro archive records` : 'Held in one Ozikoro archive record';
+  const relatedBody = siblings.length > 0
+    ? siblings
+        .map((f) =>
+          `<a class="sx-video-row" href="/watch-video/?v=${esc(f.id)}">`
+            + `<span class="sx-video-thumb">`
+            + `<img src="https://i.ytimg.com/vi/${esc(f.id)}/hqdefault.jpg" alt="" width="128" height="72" loading="lazy" onerror="this.remove()" onload="if(this.naturalWidth&lt;320)this.remove()">`
+            + `</span>`
+            + `<span class="sx-video-row-copy">`
+            + `<span class="sx-video-row-title">${esc(f.title)}</span>`
+            + `<span class="sx-video-row-meta">${heldBy(f.records)}</span>`
+            + `</span></a>`
+        )
+        .join('')
+    : `<p style="margin-top:var(--s-3)">The archive holds no other film filed under this topic, so this list `
+      + `is not filled from elsewhere.</p>`;
   out = out.replace(
     /<section[^>]*\bid="transcript"[^>]*>[\s\S]*?<\/section>/,
     `<section class="sx-transcript"><div class="wrap">`
@@ -6614,13 +6893,7 @@ export function fillWatchVideo(
               ? `No other film under ${esc(topicName)}`
               : 'Related viewing'
         }</h2>`
-      + `<p style="margin-top:var(--s-3)">${
-          siblings.length > 0
-            ? siblings
-                .map((f) => `<a href="https://www.youtube.com/watch?v=${esc(f.id)}">${esc(f.title)} ↗</a>`)
-                .join(' · ')
-            : 'The archive holds no other film filed under this topic, so this list is not filled from elsewhere.'
-        }</p>`
+      + `${siblings.length > 0 ? `<div style="margin-top:var(--s-3)">${relatedBody}</div>` : relatedBody}`
       + `</div></div></section>`
   );
   // The film itself is a target too — the design's own skip link names it — and it lands the same way.

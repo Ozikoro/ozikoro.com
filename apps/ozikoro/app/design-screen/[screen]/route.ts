@@ -2081,7 +2081,26 @@ export async function GET(
         // A dashboard, a search page and the form behind the auth gate are not for indexing.
         noindex: name.startsWith('dashboard') || name === 'search' || name === 'upload' || name === 'signin',
       },
-      ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+      [
+        '/design/styles/main.css',
+        '/design/styles/showcase.css',
+        '/a11y.css',
+        /*
+         * THE RELATED-VIEWING ROW IS THE ARCHIVE'S OWN LAYOUT, SO ITS SHEET IS NAMED HERE RATHER THAN EDITED
+         * INTO THE DELIVERABLE.
+         *
+         * The design draws a related item as a 16:9 poster tile in a three-column grid, and the owner asked
+         * for a row — a thumbnail on the left and the title on the right — on the film page's related block.
+         * `public/design/` is inviolable and is byte-compared against the handover copy, so the new rules
+         * live in `/watch-video.css`, which this application owns.
+         *
+         * **IT IS ONE SCREEN'S SHEET, AND THAT IS WHY IT IS APPENDED CONDITIONALLY.** No other design screen
+         * carries a `.sx-video-row`, so the other fifty-one keep exactly the head they had. It comes after
+         * `showcase.css` on purpose: the row sizes the design's own `.sx-video-thumb` from the outside rather
+         * than redeclaring it, which only works if the design's declaration is already in the cascade.
+         */
+        ...(name === 'watch-video' ? ['/watch-video.css'] : []),
+      ]
     )
   );
 

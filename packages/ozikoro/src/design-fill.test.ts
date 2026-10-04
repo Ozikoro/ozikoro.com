@@ -32,6 +32,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillAbout, fillDashboardLinks } from './design-fill.ts';
+import { fillTopics } from './design-fill.ts';
 import { MARQUEE_PLACES, fillHome, fillMarquee } from './design-fill.ts';
 import { HOME_STRIP_PLACES, fillHomeTowns, fillTown } from './design-fill.ts';
 import { extractArchiveFilms, fillWatch, renderFilmCard } from './design-fill.ts';
@@ -1901,6 +1902,72 @@ test('a section with no cards on this page is not drawn, and its anchor is carri
   assert.ok(!page2.includes('href="#series"'), 'a bare `#series` would point at a section that is not here');
 });
 
+test('the watch filter row names only the sections the page draws', () => {
+  /*
+   * ── FIVE NAMES OVER TWO SECTIONS, IN THE DELIVERABLE ITSELF ──────────────────────────────────────
+   *
+   * The design's own `watch.html` writes seven controls in `<nav class="sx-filter-row">` —
+   *
+   *     New · Short histories · Oral traditions · Places & communities · Conversations · Series · A–Z
+   *
+   * — and draws exactly two sections for the first six to land on:
+   *
+   *     <section class="sx-watch-section" id="new">      "Selected films"
+   *     <section class="sx-watch-section" id="series">   "Unspoken Stories"
+   *
+   * **`#short`, `#oral`, `#places` and `#conversations` name four sections the deliverable never drew, in the
+   * design or since** — there is no factory, gathering or interview section anywhere in the file, and the
+   * hero says the grid holds "films, talks and remembered stories". The design intended five categories and
+   * drew two, so the four names are aspirational: **a nav item is not a section**, and a reader who pressed
+   * one got a page that did not move. `#series` is real but lives only on the page that draws it, which
+   * `fillWatch` already carries it to — hence the page-2 half of this test.
+   *
+   * THE ASSERTION IS "EVERY ANCHOR IN THE ROW HAS A SECTION", not a list of four ids to delete. A fifth name
+   * added to the row, or a third section added to the design, is then handled without anyone editing the fill.
+   */
+  const rowAnchors = (html: string) => {
+    const row = /<nav class="sx-filter-row"[\s\S]*?<\/nav>/.exec(html);
+    assert.ok(row, 'the design’s own filter row must still be on the page');
+    return [...row[0].matchAll(/href="#([^"]+)"/g)].map((m) => m[1]);
+  };
+  const pageIds = (html: string) => new Set([...html.matchAll(/\bid="([^"]*)"/g)].map((m) => m[1]));
+
+  const films = synthFilms(18);
+  const page1 = fillWatch(WATCH, films);
+  const anchors1 = rowAnchors(page1);
+  const ids1 = pageIds(page1);
+  for (const anchor of anchors1) {
+    assert.ok(ids1.has(anchor), `the filter row links #${anchor}, which page 1 does not carry`);
+  }
+  assert.ok(anchors1.includes('new') && anchors1.includes('series'), 'the two real sections must stay linked');
+  // The row's last item, `A–Z`, is a link to another page and not a fragment at all — so it is not in this
+  // list, and `#videos` (the page's own skip target, on `<main>`) is outside the row for the same reason.
+  assert.ok(!anchors1.includes('topics'), 'a screen address is not a fragment and must not be read as one');
+
+  const page2 = fillWatch(WATCH, films, { page: 2 });
+  const anchors2 = rowAnchors(page2);
+  const ids2 = pageIds(page2);
+  for (const anchor of anchors2) {
+    assert.ok(ids2.has(anchor), `the filter row links #${anchor}, which page 2 does not carry`);
+  }
+  // `#series` is genuinely absent from page 2, so no bare anchor may remain — the carried address is a
+  // different link, to the page that draws the section, and is asserted in the test above.
+  assert.ok(!page2.includes('href="#series"'));
+  assert.ok(page2.includes('href="#new"'), 'page 2 still draws the first section and still links it');
+
+  /*
+   * AND THE PAGE A DATABASE THAT IS DOWN SERVES — the early return for "every film is already drawn". It is
+   * the design's markup, so it carries the same five controls, and it must get the same treatment.
+   */
+  const untouched = fillWatch(WATCH, []);
+  const anchors0 = rowAnchors(untouched);
+  const ids0 = pageIds(untouched);
+  for (const anchor of anchors0) {
+    assert.ok(ids0.has(anchor), `the filter row links #${anchor}, which the unfilled design page does not carry`);
+  }
+  assert.deepEqual(filmIds(untouched), filmIds(WATCH), 'and every card the design drew is still on it');
+});
+
 /* ============================================================================================
  * ROUND 332 — `/listen/` IS A DERIVATION OF THE EPISODE RECORDS, NOT A LIST OF ARTICLES
  * ============================================================================================
@@ -2183,6 +2250,137 @@ test('the people note does not claim the authors supplied no portrait, a card sh
 });
 
 /* ------------------------------------------------------------------------------------------------
+ * THE DESIGN'S OWN FOOTERS LINK SIX `about.html` FRAGMENTS, AND THE ABOUT PAGE CARRIES THREE IDS
+ * ------------------------------------------------------------------------------------------------
+ *
+ * Fourteen of the deliverable's screens link `about.html#entrust`, `#privacy`, `#access`, `#partners`,
+ * `#licensing` and `#contact`. The deliverable's `about.html` has `main`, `faq` and `terms` — **so every one
+ * of those six links reached the right page and then did nothing at all**, on every screen that carries the
+ * footer, since the handover. The design drew the sections and forgot the ids; that is the design's fault and
+ * not a fill's, and it is the reason the check that found it called them inherited.
+ *
+ * **WHAT THE PAGE REALLY DRAWS, WHICH IS THE WHOLE JUDGEMENT HERE.** Five of the six labels name a section
+ * that IS on the page under no id at all:
+ *
+ *     #entrust     "How a record earns its place" — the front page's own door promises "How material is held
+ *                  and who may read it", and this section's four principles answer it, "Community terms:
+ *                  Depositors define access and reuse" among them
+ *     #privacy     <h2>Privacy</h2> at the foot, beside Terms and Licensing, where the design put it
+ *     #licensing   <h2>Licensing</h2>, the same block
+ *     #partners    <h3>Partnerships</h3> — "Institutions, sponsors and media"
+ *     #contact     <h2>Talk to Ozi Ikoro Limited</h2>, the contact section
+ *
+ * The sixth, `#access` ("Institutional access", "Request access", "What the tier covers"), is on no page
+ * under any id: the deliverable never drew an institutional-access section, and the served page's only
+ * sentences about access describe a RECORD's terms and a publication's availability. **A section is not
+ * invented for it, so its link comes off the serve instead** — see `design-paths.test.ts`.
+ */
+
+test('the about page carries the five ids the design’s footers have been linking all along', () => {
+  const html = readFileSync(join(SCREENS, 'about.html'), 'utf8');
+  assert.equal((html.match(/\bid="/g) ?? []).length, 3, 'the deliverable must still carry only its own three ids');
+
+  const out = fillAbout(html, {
+    published: 1051, inReview: 0, media: 3488, towns: 188,
+    sources: 293, licences: 61, folklores: 41, photographs: 3462, documents: 12,
+    contributors: [],
+  });
+
+  assert.match(out, /<h2 id="entrust">How a record earns its place<\/h2>/);
+  assert.match(out, /<h2 id="privacy">Privacy<\/h2>/);
+  assert.match(out, /<h2 id="licensing">Licensing<\/h2>/);
+  assert.match(out, /<h3 id="partners">Partnerships<\/h3>/);
+  assert.match(out, /<h2 id="contact">Talk to Ozi Ikoro Limited<\/h2>/);
+
+  /*
+   * EACH ID APPEARS EXACTLY ONCE, WHICH IS NOT A FORMALITY. "Privacy" is on this page twice — the design's
+   * own `<h2>Privacy</h2>` at the foot and the institution block's `<h3>Privacy</h3>` summary — and a rule
+   * that put the id on both would make `#privacy` resolve to whichever the browser met first. The anchor is
+   * deliberately the design's own `<h2>`: that is where the notice is, and the institution block is a
+   * statement about what has not been supplied.
+   */
+  for (const id of ['entrust', 'privacy', 'licensing', 'partners', 'contact']) {
+    assert.equal((out.match(new RegExp(`id="${id}"`, 'g')) ?? []).length, 1, `id="${id}" must be written once`);
+  }
+  // And nothing is invented: `#access` is still not on the page, because no section of that kind exists.
+  assert.doesNotMatch(out, /id="access"/);
+  // The installable ids are still there and unchanged.
+  for (const id of ['main', 'faq', 'terms']) assert.match(out, new RegExp(`id="${id}"`));
+});
+
+test('a page whose markup has moved on gains no anchor it was never designed to have', () => {
+  /*
+   * The same failure mode the article's "Download PDF" control takes: the pattern is anchored to the words,
+   * so a screen that no longer carries the heading is served as it is rather than having an id fitted to a
+   * heading somewhere else. This is asserted rather than assumed because the alternative — matching
+   * `<section class="wrap section">` by position — would silently anchor the wrong section, which is exactly
+   * the fault this pass is fixing one screen over.
+   */
+  const out = fillAbout('<html><body><main id="main"><h2>Something else entirely</h2></main></body></html>', {
+    published: 1, inReview: 0, media: 0, towns: 0,
+    sources: 0, licences: 0, folklores: 0, photographs: 0, documents: 0,
+    contributors: [],
+  });
+  assert.doesNotMatch(out, /id="privacy"/);
+  assert.doesNotMatch(out, /id="entrust"/);
+});
+
+/* ------------------------------------------------------------------------------------------------
+ * THE A–Z JUMP ROW, AND THE LETTERS THE ARCHIVE'S OWN DATA DOES NOT PRODUCE
+ * ------------------------------------------------------------------------------------------------
+ *
+ * `topics.html` draws two things that must agree: the run of `<section class="sx-az-letter" id="a">` blocks
+ * and a `<nav class="sx-az-jump">` whose items are anchors for letters with a section and spans for letters
+ * without. `fillTopics` replaced the SECTIONS from the archive's own entries and never touched the NAV, so
+ * the served page kept the design's own twelve anchors over the archive's own letters.
+ *
+ * Measured on the served page before this change: `/topics/#s` and `/topics/#t` were written on every view
+ * and the page carried no `id="s"` and no `id="t"`. **`#s` is a fill's fault** — the design did draw a
+ * section `s`, and the archive holds no topic or place beginning with S, so the target went and the anchor
+ * stayed. **`#t` was dead in the deliverable too**: `topics.html` links it and never drew `id="t"`.
+ */
+
+test('the A–Z jump row names exactly the letters the page draws, whatever the data holds', () => {
+  const html = readFileSync(join(SCREENS, 'topics.html'), 'utf8');
+  const jumpAnchors = (out: string) => {
+    const nav = /<nav class="sx-az-jump"[\s\S]*?<\/nav>/.exec(out);
+    assert.ok(nav, 'the design’s own A–Z jump row must still be on the page');
+    return [...nav[0].matchAll(/href="#([^"]+)"/g)].map((m) => m[1]);
+  };
+  const sectionIds = (out: string) =>
+    [...out.matchAll(/<section class="sx-az-letter" id="([^"]*)"/g)].map((m) => m[1]);
+
+  const cases: { name: string; href: string; kind: 'Category' | 'Place' }[][] = [
+    // The archive's own case: no S and no T anywhere.
+    [{ name: 'Art', href: '/archive-index?topic=art', kind: 'Category' }, { name: 'Abagana', href: '/town/abagana/', kind: 'Place' }],
+    // One beginning with S — the letter the design drew and the archive's data dropped must come back.
+    [{ name: 'Slavery and Trade', href: '/archive-index?topic=slavery', kind: 'Category' }],
+    // Nothing at all: no section, and therefore no anchor for any letter.
+    [],
+  ];
+  for (const entries of cases) {
+    const out = fillTopics(html, entries);
+    const ids = new Set(sectionIds(out));
+    for (const anchor of jumpAnchors(out)) {
+      assert.ok(ids.has(anchor), `the jump row links #${anchor}, which the page does not draw (${JSON.stringify(entries.map((e) => e.name))})`);
+    }
+  }
+
+  // And on the archive's own data: S and T are gone as anchors, and the letters that ARE drawn are links.
+  const out = fillTopics(html, [
+    { name: 'Anthropology and Ethnography', href: '/archive-index?topic=anthropology-and-ethnography', kind: 'Category' },
+    { name: 'Cultural Heritage', href: '/archive-index?topic=cultural-heritage', kind: 'Category' },
+    { name: 'Abagana', href: '/town/abagana/', kind: 'Place' },
+  ]);
+  const jump = /<nav class="sx-az-jump"[\s\S]*?<\/nav>/.exec(out)![0];
+  assert.match(jump, /<a href="#a">A<\/a>/);
+  assert.match(jump, /<a href="#c">C<\/a>/);
+  assert.match(jump, /<span>B<\/span>/, 'a letter with nothing under it is a span, as the design draws it');
+  assert.doesNotMatch(jump, /href="#s"/, 'the design drew S; the archive holds nothing under it');
+  assert.doesNotMatch(jump, /href="#t"/, 'T was never drawn, in the deliverable or since');
+});
+
+/* ------------------------------------------------------------------------------------------------
  * ROUND 338 — ONE FILM'S PAGE, AND THE LINE THAT LINKS IT
  * ---------------------------------------------------------------------------------------------- */
 
@@ -2342,7 +2540,11 @@ test('a film’s page offers the archive’s own neighbours, never the design’
   assert.doesNotMatch(out, /Unspoken Stories/, 'the design’s own series name is presented as this record’s');
   assert.doesNotMatch(out, /NBj1CvaDgbM|3NnklFf2rXA|g1z_-5jqPG0/, 'a design example film is offered as related');
   assert.match(out, /More films under Cultural Heritage/, 'the archive’s own topic does not head the list');
-  assert.match(out, /youtube\.com\/watch\?v=SHPEwGDOI7c/, 'the film from the same topic is not offered');
+  assert.match(
+    out,
+    /<a class="sx-video-row" href="\/watch-video\/\?v=SHPEwGDOI7c">/,
+    'the film from the same topic is not offered as a row on this archive’s own page'
+  );
   assert.doesNotMatch(out, /jOMjbchyNXg/, 'a film from another topic was offered as related');
 
   /*
@@ -2361,6 +2563,72 @@ test('a film’s page offers the archive’s own neighbours, never the design’
   const alone = fillWatchVideo(screen, films[0]!, [films[0]!]);
   assert.match(alone, /No other film under Cultural Heritage/);
   assert.doesNotMatch(alone, /youtube\.com\/watch\?v=(?!LL8YX0pXzdI)/);
+  assert.doesNotMatch(alone, /class="sx-video-row"/, 'a row was drawn where the topic holds no other film');
+});
+
+test('a related row is a thumbnail and a title on this archive’s own page, and says only what is held', () => {
+  /*
+   * THE OWNER'S INSTRUCTION, ROUND 357: *"i expected to be smaller with a thumbnail on the left, the title on
+   * the right type of thing, so redesign it and make it look better"*. Before this the block was one `<p>` of
+   * three links separated by middots — no thumbnail, no row, no hierarchy.
+   *
+   * THREE THINGS ARE ASSERTED HERE AND EACH IS A DECISION RATHER THAN A SHAPE:
+   *
+   *   * it is a ROW — the design's own `.sx-video-thumb` frame and the design's own `i.ytimg.com` poster
+   *     convention, at the size `.sx-related-list` uses for the same entry below 60rem;
+   *   * it goes to `/watch-video/?v=<id>` and NOT to YouTube. **Every film that can appear here is an archive
+   *     film** — it comes out of the same `extractArchiveFilms` result this page's own `?v=` was resolved
+   *     against — so it has a page of its own on this origin, and a row that names an archive film and opens
+   *     YouTube leaves the archive to say less about it;
+   *   * its meta line carries the holding count and nothing else. `Archive film · Plays on this page` is the
+   *     design's card wording and **the second half is false for a row** — a row navigates rather than playing
+   *     in place — so neither half is copied, and the publisher, which the archive does not record, is not
+   *     invented.
+   *
+   * AND A THUMBNAIL THAT FAILS IS DECORATIVE, LABELLED AND REMOVED. `alt=""` because the film's own title is
+   * the text beside it, so a failure never prints the title twice as alt text; and the words `No thumbnail`
+   * sit behind the image in the frame's own `--night-2` ground, so a failure is a designed dark frame rather
+   * than a hole. **The two handlers are the part a unit test CAN still check, and the part that was measured
+   * wrong without them**: `alt=""` alone leaves Chrome's broken-image icon painted in the frame, and an id
+   * YouTube no longer holds answers 404 with a 120x90 grey placeholder JPEG that Chrome paints as though it
+   * were a poster. So the element removes itself on either, which is why the markup is asserted here — the
+   * frame, the hairline and the label those handlers leave behind are in `watch-video.css` and are measured in
+   * a real browser by `scripts/verify-round-357.mjs`.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
+  const films = extractArchiveFilms([
+    { slug: 'a', title: 'A Film', topic: 'Cultural Heritage', body_html: '<iframe src="https://www.youtube.com/embed/LL8YX0pXzdI"></iframe>' },
+    { slug: 'b', title: 'Ojeh & Arishi Festival', topic: 'Cultural Heritage', body_html: '<iframe src="https://www.youtube.com/embed/SHPEwGDOI7c"></iframe>' },
+  ]);
+  const out = fillWatchVideo(screen, films[0]!, films);
+
+  assert.match(
+    out,
+    /<a class="sx-video-row" href="\/watch-video\/\?v=SHPEwGDOI7c">/,
+    'the related film’s row does not open this archive’s own page for it'
+  );
+  /* The poster is the design's own convention and the design's own frame class, with an empty alt. */
+  assert.match(
+    out,
+    /<span class="sx-video-thumb"><img src="https:\/\/i\.ytimg\.com\/vi\/SHPEwGDOI7c\/hqdefault\.jpg" alt="" width="128" height="72" loading="lazy" onerror="this\.remove\(\)" onload="if\(this\.naturalWidth&lt;320\)this\.remove\(\)"><\/span>/,
+    'the row does not carry the design’s own poster frame, or it lost a handler a failed poster needs'
+  );
+  /*
+   * AND THE TWO FAILURES ARE NAMED, so that removing either handler is a decision rather than an edit: an
+   * image that cannot be fetched at all, and the placeholder YouTube serves for a film it no longer holds.
+   */
+  assert.match(out, /onerror="this\.remove\(\)"/, 'a poster that cannot be fetched leaves a broken-image icon');
+  assert.match(
+    out,
+    /onload="if\(this\.naturalWidth&lt;320\)this\.remove\(\)"/,
+    'the platform’s grey placeholder for a removed film is drawn as though it were a poster'
+  );
+  /* The title is the archive’s own, and the meta states the holding rather than a claim about playing. */
+  assert.match(out, /<span class="sx-video-row-title">Ojeh &amp; Arishi Festival<\/span>/);
+  assert.match(out, /<span class="sx-video-row-meta">Held in one Ozikoro archive record<\/span>/);
+  assert.doesNotMatch(out, /Plays on this page/, 'a row claims to play in place, which it does not');
+  /* Followed rather than assumed: no row hands the reader to YouTube. */
+  assert.doesNotMatch(out, /youtube\.com\/watch\?v=SHPEwGDOI7c/, 'a related row still leaves the archive');
 });
 
 test('a film’s page does not carry the design’s own "for this design" into a real record', () => {
@@ -2641,7 +2909,11 @@ test('the reading section is replaced by the design’s own Related viewing bloc
     'the related block is not where the reading section stood'
   );
   assert.match(out, /More films under Cultural Heritage/, 'the archive’s own topic does not head the list');
-  assert.match(out, /youtube\.com\/watch\?v=SHPEwGDOI7c/, 'the film from the same topic is not offered');
+  assert.match(
+    out,
+    /<a class="sx-video-row" href="\/watch-video\/\?v=SHPEwGDOI7c">/,
+    'the film from the same topic is not offered as a row'
+  );
 
   /*
    * EVERY IN-PAGE ANCHOR ON THE SERVED PAGE POINTS AT AN ID THE PAGE CARRIES — followed, not assumed. This is

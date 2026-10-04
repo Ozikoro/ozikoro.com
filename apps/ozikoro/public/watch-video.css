@@ -1,0 +1,174 @@
+/*
+ * Ozikoro — the related-viewing row on a film's page.
+ *
+ * WHY THIS FILE EXISTS, AND WHY IT IS NOT IN `public/design/`
+ *
+ * `apps/ozikoro/public/design/` is the approved deliverable and is byte-compared against the handover copy
+ * (`scripts/check-design-parity.mjs`), so not one byte of it changes. Its own related entry is a TILE —
+ * `.sx-video-card` is a 16:9 poster in a three-column grid — and the owner has asked for something else on
+ * this one block. **The layout is new and it is authorised**; it therefore lives in a stylesheet the archive
+ * owns and is served alongside the design rather than edited into it.
+ *
+ * WHY IT IS LINKED BY THE SCREEN AND NOT PUT IN `app/globals.css`
+ *
+ * **`globals.css` is not on this page.** The fifty-two design screens are served by a route handler
+ * (`app/design-screen/[screen]/route.ts`) that writes its own `<head>` through `seoHead`, and the sheets it
+ * names are `/design/styles/main.css`, `/design/styles/showcase.css`, `/a11y.css` and the generated
+ * `/design-theme.css`. Nothing on that page loads the application's stylesheet, so a rule written there
+ * would be dead code that reads as live. This sheet is added to that list for the `watch-video` screen only.
+ *
+ * IT LOADS AFTER `showcase.css`, WHICH IS WHAT LETS IT SIZE THE DESIGN'S OWN ATOM RATHER THAN REDECLARE IT.
+ *
+ * ── THE SHAPE, AND WHY EACH NUMBER IS THE ONE IT IS ─────────────────────────────────────────────────
+ *
+ * The row is the design's own related entry, one step smaller. `.sx-related-list a` in `showcase.css` already
+ * puts a related item's image and words in two tracks, and below 60rem the design itself turns that entry
+ * into a left-right row at `grid-template-columns: 8rem 1fr`. So:
+ *
+ *   thumbnail   8rem wide, its height from the design's own `aspect-ratio: 16/9` on `.sx-video-thumb` —
+ *               128x72 px. 8rem is the small end of the range the brief allowed and it is the design's own
+ *               number, which is why it is chosen over 9 or 10rem: **the whole complaint is that the block is
+ *               too big**, so the row errs small. The frame, its `--night-2` ground, its
+ *               `rgba(201,168,76,.22)` hairline and its `object-fit: cover` are all `.sx-video-thumb`'s, used
+ *               exactly as the design declares them and not restated here.
+ *   gap         `var(--s-4)` (1rem) between the frame and the words.
+ *   title       `600 1rem/1.35 var(--font-serif)` — **copied from `.sx-related-list strong`**, the design's
+ *               own title for a related item. It is 16px, not the 1.2rem `.sx-video-card h3`, which is the
+ *               size the owner is complaining about.
+ *   meta        `700 var(--t-xs)/var(--lh-ui) var(--font-sans)`, uppercase with the design's own
+ *               `--ls-caps`, in `var(--bronze)` — the design's own small label in `.sx-related-list small`
+ *               (`#8a5a2b`), and the same shape as `.sx-video-meta` (uppercase, 700, .72rem).
+ *   hover       `transform: scale(1.035)` on the image, which is the design's own `.sx-video-card:hover img`
+ *               and therefore the quieter of the two the design already draws — the alternative,
+ *               `.sx-related-list a:hover`'s `translateY(-3px)` with a shadow, is a card lift and this is not
+ *               a card. The title darkens to `var(--link)`, the design's link colour on this cream band.
+ *
+ * NOTHING IS DECORATED: no shadow, no gradient, no radius, no animation beyond the transform the design
+ * already uses on this exact image class.
+ *
+ * ── COLOUR, AND THE ONE PLACE THE BRIEF'S TOKEN LIST DOES NOT APPLY ──────────────────────────────────
+ *
+ * The brief for this change named `--on-night` and `--on-night-muted`, which are the design's video-card
+ * colours. **They are the wrong tokens HERE, because this block is not on the night ground.** The fill puts
+ * the block inside `<section class="sx-transcript">`, which `showcase.css` declares as
+ * `background: var(--cream); color: var(--text)` — the design's cream band — inside
+ * `.sx-transcript-copy`, which is `background: var(--paper-raised)`. `--on-night` is `#f3ead6`; on
+ * `--paper-raised` `#fffdf8` that is a contrast ratio of about 1.2:1, i.e. invisible. So the text takes the
+ * design's tokens for the surface it is actually on — `--text-heading` for the title and `--bronze` for the
+ * label, both of which the design itself uses on this band — and `--on-night-muted` is used only where the
+ * design's own video atom puts it: **inside the dark `--night-2` thumbnail frame**, for the label a missing
+ * image reveals. No colour is introduced that the design does not already declare.
+ *
+ * ── A THUMBNAIL THAT DOES NOT LOAD ───────────────────────────────────────────────────────────────────
+ *
+ * The address is derived from a video id by the design's own convention, so the fill cannot know whether the
+ * film is still on YouTube. **TWO failures were measured in Chrome, and the second is not the one the obvious
+ * answer covers:**
+ *
+ *   * an image that cannot be fetched at all — an offline reader, a blocked host, a network that gives up —
+ *     fires `error`, and **`alt=""` alone does NOT stop the browser painting its broken-image icon in the
+ *     frame** (measured and photographed: the torn-page glyph in the corner). So the fill gives the `<img>`
+ *     `onerror="this.remove()"`.
+ *   * an id YouTube no longer holds is not a broken image either: `hqdefault.jpg` answers **404 with a 120x90
+ *     grey placeholder JPEG, and Chrome paints it as though it were a poster.** Every real poster measured
+ *     480x360, so the fill also gives the `<img>`
+ *     `onload="if(this.naturalWidth&lt;320)this.remove()"`.
+ *
+ * Both handlers remove the element, and what is left is the frame the design already declares:
+ *
+ *   * the frame's own `--night-2` ground and its gold hairline, sized by `.sx-video-thumb`'s
+ *     `aspect-ratio: 16/9` rather than by the image, so the row's shape does not change when a poster goes;
+ *   * and `::after` carries the words `No thumbnail` in the design's `--on-night-muted` inside that frame.
+ *     **The label is painted behind the image**, and the image is given the stacking position that covers it
+ *     while a poster is on screen — so a reader sees the poster when there is one and the label when there is
+ *     not, with no second layout and nothing left to load.
+ *
+ * THE PAGE CARRIES NO SCRIPT TAG FOR THIS. The two handlers are attributes on the image the fill writes; the
+ * only script on this screen is still the design's own `mobile-nav.js`, and `script-src 'self'
+ * 'unsafe-inline'` in `next.config.ts` admits an inline handler.
+ *
+ * ── 320 PX ───────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * A fixed-width thumbnail beside a `minmax(0, 1fr)` track cannot overflow: the text track is allowed to be
+ * narrower than its content and breaks rather than pushing, which is the correction `a11y.css` already makes
+ * to the design's own `1fr` tracks (WCAG 2.2 SC 1.4.10). Below 40rem the frame steps down to 6rem — the
+ * design's own narrow number for this same entry, `.sx-related-list a{grid-template-columns:6rem 1fr}` — and
+ * the title carries `overflow-wrap: anywhere` for a migrated title that has no space in it. Measured at
+ * 320 px: see the round's report.
+ */
+
+.sx-video-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--s-4);
+  /*
+   * `start` rather than the default `stretch`: a stretched grid item has a definite height, and a definite
+   * height beats `aspect-ratio`, so the design's 16:9 frame would be pulled to the height of the longest
+   * title in the block. This is what keeps every row's thumbnail the same shape.
+   */
+  align-items: start;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.sx-video-row + .sx-video-row {
+  margin-top: var(--s-3);
+}
+
+.sx-video-row .sx-video-row-copy {
+  min-width: 0;
+}
+
+.sx-video-row .sx-video-row-title {
+  display: block;
+  color: var(--text-heading);
+  font: 600 1rem/1.35 var(--font-serif);
+  /* A migrated title can be a filename with no space in it — the same correction `a11y.css` carries. */
+  overflow-wrap: anywhere;
+}
+
+.sx-video-row .sx-video-row-meta {
+  display: block;
+  margin-top: var(--s-1);
+  color: var(--bronze);
+  font: 700 var(--t-xs)/var(--lh-ui) var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+.sx-video-row:hover .sx-video-row-title,
+.sx-video-row:focus-visible .sx-video-row-title {
+  color: var(--link);
+}
+
+.sx-video-row:hover .sx-video-thumb img,
+.sx-video-row:focus-visible .sx-video-thumb img {
+  transform: scale(1.035);
+}
+
+/* The label a failed thumbnail reveals: painted behind the image, inside the design's own dark frame. */
+.sx-video-row .sx-video-thumb img {
+  position: relative;
+  z-index: 1;
+}
+
+.sx-video-row .sx-video-thumb::after {
+  content: "No thumbnail";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--s-1);
+  color: var(--on-night-muted);
+  font: 600 var(--t-xs)/1 var(--font-sans);
+  letter-spacing: var(--ls-caps);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+@media (max-width: 40rem) {
+  .sx-video-row {
+    grid-template-columns: 6rem minmax(0, 1fr);
+    gap: var(--s-3);
+  }
+}
