@@ -17548,3 +17548,22 @@ that writes to the live cluster is only as safe as its last step, and nothing en
 enforced now is that the specific damage cannot be written by accident. The server was left up, the probe account
 was deleted and its session revoked through the app's own sign-out, and `git status` confirms nothing of the probe
 is in the tree.
+
+### 9. WHO COMMITTED WHAT, BECAUSE THE TREE IS SHARED
+
+Written down because the record must be true even where the working practice was not tidy.
+
+The override wiring in `app/design-screen/[screen]/route.ts` — `withDesignOverrides()`, `withThemeLink()`,
+`inventoryResponse()` and their two call sites — was **committed by round 316's pass (`10b937d`), not by this
+round's commit (`651a4eb`)**. That pass ran `git add` over the tree while this change was in flight, so the file
+entered the index carrying both its `mediaUrlResolver` refactor and this round's override layer, and it was
+committed with the photographs work. **This round's commit message claims otherwise**, and cannot be corrected
+without rewriting a commit another pass may already be built on, so the correction is here instead.
+
+What `651a4eb` does contain is the rest of the layer: the table and the capability, the pure module and its
+tests, the store, the theme stylesheet, the editor and its two routes, the admin nav link, the middleware fix
+and this record. The split changes nothing about the code — the same lines are in `HEAD` either way — and
+everything it does change is about attribution: **a shared checkout where four passes run `git add` concurrently
+produces commits whose messages describe somebody else's files, and the only defence is to name the file, the
+commit and the reason in the record.** The rule this round should have followed, and the rule worth carrying:
+stage by path, commit by path, and check `git show --stat HEAD` before believing your own message.
