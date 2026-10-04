@@ -20,7 +20,6 @@ import { Route as MapRouteImport } from './routes/map'
 import { Route as MasteryRouteImport } from './routes/mastery'
 import { Route as MyLearningRouteImport } from './routes/my-learning'
 import { Route as OnyeOziRouteImport } from './routes/onye-ozi'
-import { Route as ProgrammesRouteImport } from './routes/programmes'
 import { Route as ResourcesRouteImport } from './routes/resources'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as TimelineRouteImport } from './routes/timeline'
@@ -37,6 +36,7 @@ import { Route as LearnSlugRouteImport } from './routes/learn.$slug'
 import { Route as PathsIndexRouteImport } from './routes/paths.index'
 import { Route as PathsSlugRouteImport } from './routes/paths.$slug'
 import { Route as PracticeSlugRouteImport } from './routes/practice.$slug'
+import { Route as ProgrammesIndexRouteImport } from './routes/programmes.index'
 import { Route as ProgrammesSlugRouteImport } from './routes/programmes.$slug'
 import { Route as RegionsSlugRouteImport } from './routes/regions.$slug'
 import { Route as ResearchSlugRouteImport } from './routes/research.$slug'
@@ -97,11 +97,6 @@ const MyLearningRoute = MyLearningRouteImport.update({
 const OnyeOziRoute = OnyeOziRouteImport.update({
   id: '/onye-ozi',
   path: '/onye-ozi',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProgrammesRoute = ProgrammesRouteImport.update({
-  id: '/programmes',
-  path: '/programmes',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResourcesRoute = ResourcesRouteImport.update({
@@ -184,10 +179,15 @@ const PracticeSlugRoute = PracticeSlugRouteImport.update({
   path: '/practice/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProgrammesIndexRoute = ProgrammesIndexRouteImport.update({
+  id: '/programmes/',
+  path: '/programmes/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ProgrammesSlugRoute = ProgrammesSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => ProgrammesRoute,
+  id: '/programmes/$slug',
+  path: '/programmes/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const RegionsSlugRoute = RegionsSlugRouteImport.update({
   id: '/regions/$slug',
@@ -227,7 +227,6 @@ export interface FileRoutesByFullPath {
   '/mastery': typeof MasteryRoute
   '/my-learning': typeof MyLearningRoute
   '/onye-ozi': typeof OnyeOziRoute
-  '/programmes': typeof ProgrammesRouteWithChildren
   '/resources': typeof ResourcesRoute
   '/search': typeof SearchRoute
   '/timeline': typeof TimelineRoute
@@ -250,6 +249,7 @@ export interface FileRoutesByFullPath {
   '/units/$slug': typeof UnitsSlugRoute
   '/courses/': typeof CoursesIndexRoute
   '/paths/': typeof PathsIndexRoute
+  '/programmes/': typeof ProgrammesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -263,7 +263,6 @@ export interface FileRoutesByTo {
   '/mastery': typeof MasteryRoute
   '/my-learning': typeof MyLearningRoute
   '/onye-ozi': typeof OnyeOziRoute
-  '/programmes': typeof ProgrammesRouteWithChildren
   '/resources': typeof ResourcesRoute
   '/search': typeof SearchRoute
   '/timeline': typeof TimelineRoute
@@ -286,6 +285,7 @@ export interface FileRoutesByTo {
   '/units/$slug': typeof UnitsSlugRoute
   '/courses': typeof CoursesIndexRoute
   '/paths': typeof PathsIndexRoute
+  '/programmes': typeof ProgrammesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -300,7 +300,6 @@ export interface FileRoutesById {
   '/mastery': typeof MasteryRoute
   '/my-learning': typeof MyLearningRoute
   '/onye-ozi': typeof OnyeOziRoute
-  '/programmes': typeof ProgrammesRouteWithChildren
   '/resources': typeof ResourcesRoute
   '/search': typeof SearchRoute
   '/timeline': typeof TimelineRoute
@@ -323,6 +322,7 @@ export interface FileRoutesById {
   '/units/$slug': typeof UnitsSlugRoute
   '/courses/': typeof CoursesIndexRoute
   '/paths/': typeof PathsIndexRoute
+  '/programmes/': typeof ProgrammesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -338,7 +338,6 @@ export interface FileRouteTypes {
     | '/mastery'
     | '/my-learning'
     | '/onye-ozi'
-    | '/programmes'
     | '/resources'
     | '/search'
     | '/timeline'
@@ -361,6 +360,7 @@ export interface FileRouteTypes {
     | '/units/$slug'
     | '/courses/'
     | '/paths/'
+    | '/programmes/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -374,7 +374,6 @@ export interface FileRouteTypes {
     | '/mastery'
     | '/my-learning'
     | '/onye-ozi'
-    | '/programmes'
     | '/resources'
     | '/search'
     | '/timeline'
@@ -397,6 +396,7 @@ export interface FileRouteTypes {
     | '/units/$slug'
     | '/courses'
     | '/paths'
+    | '/programmes'
   id:
     | '__root__'
     | '/'
@@ -410,7 +410,6 @@ export interface FileRouteTypes {
     | '/mastery'
     | '/my-learning'
     | '/onye-ozi'
-    | '/programmes'
     | '/resources'
     | '/search'
     | '/timeline'
@@ -433,6 +432,7 @@ export interface FileRouteTypes {
     | '/units/$slug'
     | '/courses/'
     | '/paths/'
+    | '/programmes/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -447,7 +447,6 @@ export interface RootRouteChildren {
   MasteryRoute: typeof MasteryRoute
   MyLearningRoute: typeof MyLearningRoute
   OnyeOziRoute: typeof OnyeOziRoute
-  ProgrammesRoute: typeof ProgrammesRouteWithChildren
   ResourcesRoute: typeof ResourcesRoute
   SearchRoute: typeof SearchRoute
   TimelineRoute: typeof TimelineRoute
@@ -462,6 +461,7 @@ export interface RootRouteChildren {
   LearnSlugRoute: typeof LearnSlugRoute
   PathsSlugRoute: typeof PathsSlugRoute
   PracticeSlugRoute: typeof PracticeSlugRoute
+  ProgrammesSlugRoute: typeof ProgrammesSlugRoute
   RegionsSlugRoute: typeof RegionsSlugRoute
   ResearchSlugRoute: typeof ResearchSlugRoute
   SourcesSlugRoute: typeof SourcesSlugRoute
@@ -469,6 +469,7 @@ export interface RootRouteChildren {
   UnitsSlugRoute: typeof UnitsSlugRoute
   CoursesIndexRoute: typeof CoursesIndexRoute
   PathsIndexRoute: typeof PathsIndexRoute
+  ProgrammesIndexRoute: typeof ProgrammesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -548,13 +549,6 @@ declare module '@tanstack/react-router' {
       path: '/onye-ozi'
       fullPath: '/onye-ozi'
       preLoaderRoute: typeof OnyeOziRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/programmes': {
-      id: '/programmes'
-      path: '/programmes'
-      fullPath: '/programmes'
-      preLoaderRoute: typeof ProgrammesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/resources': {
@@ -669,12 +663,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PracticeSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/programmes/': {
+      id: '/programmes/'
+      path: '/programmes'
+      fullPath: '/programmes/'
+      preLoaderRoute: typeof ProgrammesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/programmes/$slug': {
       id: '/programmes/$slug'
-      path: '/$slug'
+      path: '/programmes/$slug'
       fullPath: '/programmes/$slug'
       preLoaderRoute: typeof ProgrammesSlugRouteImport
-      parentRoute: typeof ProgrammesRoute
+      parentRoute: typeof rootRouteImport
     }
     '/regions/$slug': {
       id: '/regions/$slug'
@@ -714,18 +715,6 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ProgrammesRouteChildren {
-  ProgrammesSlugRoute: typeof ProgrammesSlugRoute
-}
-
-const ProgrammesRouteChildren: ProgrammesRouteChildren = {
-  ProgrammesSlugRoute: ProgrammesSlugRoute,
-}
-
-const ProgrammesRouteWithChildren = ProgrammesRoute._addFileChildren(
-  ProgrammesRouteChildren,
-)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AccountRoute: AccountRoute,
@@ -738,7 +727,6 @@ const rootRouteChildren: RootRouteChildren = {
   MasteryRoute: MasteryRoute,
   MyLearningRoute: MyLearningRoute,
   OnyeOziRoute: OnyeOziRoute,
-  ProgrammesRoute: ProgrammesRouteWithChildren,
   ResourcesRoute: ResourcesRoute,
   SearchRoute: SearchRoute,
   TimelineRoute: TimelineRoute,
@@ -753,6 +741,7 @@ const rootRouteChildren: RootRouteChildren = {
   LearnSlugRoute: LearnSlugRoute,
   PathsSlugRoute: PathsSlugRoute,
   PracticeSlugRoute: PracticeSlugRoute,
+  ProgrammesSlugRoute: ProgrammesSlugRoute,
   RegionsSlugRoute: RegionsSlugRoute,
   ResearchSlugRoute: ResearchSlugRoute,
   SourcesSlugRoute: SourcesSlugRoute,
@@ -760,6 +749,7 @@ const rootRouteChildren: RootRouteChildren = {
   UnitsSlugRoute: UnitsSlugRoute,
   CoursesIndexRoute: CoursesIndexRoute,
   PathsIndexRoute: PathsIndexRoute,
+  ProgrammesIndexRoute: ProgrammesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

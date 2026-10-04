@@ -1,1 +1,217 @@
-import { createFileRoute,Link } from "@tanstack/react-router";import { AcademyShell } from "@/components/academy-shell";import { PageIntro } from "@/components/academy-ui";import { Award,BookOpen,Play } from "lucide-react";import { ProgressBar } from "@/components/academy-ui";import { Button } from "@/components/ui/button";export const Route=createFileRoute("/my-learning")({head:()=>({meta:[{title:"My Learning — Ozikoro Academy"},{name:"description",content:"Resume courses, review progress and access your certificates."},{property:"og:title",content:"My Learning — Ozikoro Academy"},{property:"og:description",content:"Your Ozikoro Academy study record."},{property:"og:type",content:"website"},{name:"twitter:card",content:"summary"}]}),component:P});function P(){return <AcademyShell><PageIntro eyebrow="My Learning" title="Continue where you left off." description="Your courses, assessments and academic records in one calm place."/><section className="section-pad"><div className="site-wrap grid gap-8 lg:grid-cols-[1fr_19rem]"><div><h2 className="text-2xl">In progress</h2><article className="learning-card"><div className="course-code">IGB 101</div><div><p className="eyebrow text-primary">Igbo Language Foundations</p><h3 className="mt-2 text-xl">Module 1 · Language, sound and tone</h3><p className="mt-2 text-sm text-muted-foreground">Next: Hearing tone as meaning</p><div className="mt-5"><ProgressBar value={18}/><p className="mt-2 text-xs text-muted-foreground">18% complete · 4 of 24 lessons</p></div></div><Button asChild><Link to="/learn/$slug" params={{slug:"igbo-language-foundations"}}><Play/> Resume</Link></Button></article><h2 className="mt-12 text-2xl">Next steps</h2><div className="saved-row"><BookOpen/><div><strong>Review this: Evaluating oral testimony</strong><p>Attempted · recommended after your last assessment</p></div><Button asChild variant="outline" size="sm"><Link to="/concepts/$slug" params={{slug:"oral-testimony"}}>Review</Link></Button></div><div className="saved-row"><BookOpen/><div><strong>Next recommended: Unit 1 · Early Igbo Civilisation</strong><p>Study Igbo History path</p></div><Button asChild variant="outline" size="sm"><Link to="/units/$slug" params={{slug:"early-igbo-civilisation"}}>Continue</Link></Button></div><h2 className="mt-12 text-2xl">Saved for later</h2><div className="saved-row"><BookOpen/><div><strong>Reading Igbo History Through Sources</strong><p>Intermediate · 6 weeks</p></div><Button asChild variant="outline" size="sm"><Link to="/courses/$slug" params={{slug:"igbo-history-sources"}}>View course</Link></Button></div></div><aside><div className="record-card"><Award/><h3>Academic record</h3><dl><div><dt>Courses completed</dt><dd>2</dd></div><div><dt>Assessments passed</dt><dd>11</dd></div><div><dt>Certificates</dt><dd>1</dd></div></dl><Button asChild variant="outline" className="w-full"><Link to="/certificates">View certificates</Link></Button><Button asChild variant="ghost" className="mt-2 w-full"><Link to="/mastery">Mastery dashboard</Link></Button><Button asChild variant="ghost" className="w-full"><Link to="/transcript">Transcript</Link></Button></div></aside></div></section></AcademyShell>}
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Award, BookOpen, Play } from "lucide-react";
+import { AcademyShell } from "@/components/academy-shell";
+import { PageIntro, ProgressBar } from "@/components/academy-ui";
+import { Button } from "@/components/ui/button";
+import { courses } from "@/data/academy";
+import { myLearning } from "@/backend/functions";
+
+export const Route = createFileRoute("/my-learning")({
+  head: () => ({
+    meta: [
+      { title: "My Learning — Ozikoro Academy" },
+      { name: "description", content: "Resume courses, review progress and access your certificates." },
+      { property: "og:title", content: "My Learning — Ozikoro Academy" },
+      { property: "og:description", content: "Your Ozikoro Academy study record." },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+    ],
+  }),
+  // The learner's own record, read on the server. A signed-out visitor gets the refusal code and
+  // the page renders the invitation to sign in — which is a real state, not an error.
+  loader: async () => myLearning(),
+  component: MyLearning,
+});
+
+function courseBySlug(slug: string) {
+  return courses.find((c) => c.slug === slug);
+}
+
+function MyLearning() {
+  const result = Route.useLoaderData();
+
+  if (!result.ok) {
+    return (
+      <AcademyShell>
+        <PageIntro
+          eyebrow="My Learning"
+          title="Continue where you left off."
+          description="Your courses, assessments and academic records in one calm place."
+        />
+        <section className="section-pad">
+          <div className="site-wrap">
+            <div className="account-card">
+              <h2>Sign in to see your learning</h2>
+              <p className="intro">
+                Your enrolments, progress and assessment record are kept against your Ozikoro account
+                — the same one you use across Ozikoro.
+              </p>
+              <Button asChild size="lg" className="w-full">
+                <Link to="/account">Sign in or create an account</Link>
+              </Button>
+              <Button asChild variant="ghost" className="mt-2 w-full">
+                <Link to="/courses">Browse courses</Link>
+              </Button>
+            </div>
+          </div>
+        </section>
+      </AcademyShell>
+    );
+  }
+
+  const { enrolments, progress, attempts } = result.data;
+
+  // Count completed lessons per course once, rather than rescanning the whole progress list for
+  // every card. The progress rows carry their own course slug, which is why they can be grouped
+  // here at all.
+  const completedByCourse = new Map<string, number>();
+  for (const row of progress) {
+    if (row.state !== "completed") continue;
+    completedByCourse.set(row.courseSlug, (completedByCourse.get(row.courseSlug) ?? 0) + 1);
+  }
+
+  const inProgress = enrolments.filter((e) => e.status !== "completed");
+  const finished = enrolments.filter((e) => e.status === "completed");
+
+  return (
+    <AcademyShell>
+      <PageIntro
+        eyebrow="My Learning"
+        title="Continue where you left off."
+        description="Your courses, assessments and academic records in one calm place."
+      />
+      <section className="section-pad">
+        <div className="site-wrap grid gap-8 lg:grid-cols-[1fr_19rem]">
+          <div>
+            <h2 className="text-2xl">In progress</h2>
+
+            {enrolments.length === 0 && (
+              <div className="saved-row">
+                <BookOpen />
+                <div>
+                  <strong>You have not enrolled in a course yet</strong>
+                  <p>Browse the catalogue and begin with any course that interests you.</p>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/courses">Browse courses</Link>
+                </Button>
+              </div>
+            )}
+
+            {inProgress.length === 0 && finished.length > 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nothing in progress. Your completed courses are below.
+              </p>
+            )}
+
+            {inProgress.map((enrolment) => {
+              const course = courseBySlug(enrolment.courseSlug);
+              const done = completedByCourse.get(enrolment.courseSlug) ?? 0;
+              const total = course?.lessons ?? 0;
+              const percent = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+
+              return (
+                <article className="learning-card" key={enrolment.courseSlug}>
+                  <div className="course-code">{course?.code ?? "—"}</div>
+                  <div>
+                    <p className="eyebrow text-primary">{course?.title ?? enrolment.courseSlug}</p>
+                    <h3 className="mt-2 text-xl">
+                      Enrolled {new Date(enrolment.enrolledAt).toLocaleDateString()}
+                    </h3>
+                    <div className="mt-5">
+                      <ProgressBar value={percent} />
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {done} lessons recorded{total > 0 ? ` · ${percent}% complete` : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <Button asChild>
+                    <Link to="/learn/$slug" params={{ slug: enrolment.courseSlug }}>
+                      <Play /> Resume
+                    </Link>
+                  </Button>
+                </article>
+              );
+            })}
+
+            {finished.length > 0 && (
+              <>
+                <h2 className="mt-12 text-2xl">Completed</h2>
+                {finished.map((enrolment) => {
+                  const course = courseBySlug(enrolment.courseSlug);
+                  return (
+                    <div className="saved-row" key={enrolment.courseSlug}>
+                      <Award />
+                      <div>
+                        <strong>{course?.title ?? enrolment.courseSlug}</strong>
+                        <p>
+                          Completed{" "}
+                          {enrolment.completedAt
+                            ? new Date(enrolment.completedAt).toLocaleDateString()
+                            : ""}
+                        </p>
+                      </div>
+                      <Button asChild variant="outline" size="sm">
+                        <Link to="/courses/$slug" params={{ slug: enrolment.courseSlug }}>
+                          View course
+                        </Link>
+                      </Button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+
+            {attempts.length > 0 && (
+              <>
+                <h2 className="mt-12 text-2xl">Recent assessments</h2>
+                {attempts.slice(0, 6).map((attempt) => (
+                  <div className="saved-row" key={attempt.id}>
+                    <BookOpen />
+                    <div>
+                      <strong>{attempt.activitySlug.replace(/-/g, " ")}</strong>
+                      <p>
+                        {attempt.kind} ·{" "}
+                        {attempt.score !== null && attempt.maxScore !== null
+                          ? `${attempt.score} of ${attempt.maxScore}`
+                          : "recorded"}{" "}
+                        · {new Date(attempt.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+
+          <aside>
+            <div className="record-card">
+              <Award />
+              <h3>Academic record</h3>
+              <dl>
+                <div>
+                  <dt>Courses enrolled</dt>
+                  <dd>{enrolments.length}</dd>
+                </div>
+                <div>
+                  <dt>Courses completed</dt>
+                  <dd>{finished.length}</dd>
+                </div>
+                <div>
+                  <dt>Assessments recorded</dt>
+                  <dd>{attempts.length}</dd>
+                </div>
+              </dl>
+              <Button asChild variant="outline" className="w-full">
+                <Link to="/courses">Browse courses</Link>
+              </Button>
+              <Button asChild variant="ghost" className="mt-2 w-full">
+                <Link to="/mastery">Mastery dashboard</Link>
+              </Button>
+            </div>
+          </aside>
+        </div>
+      </section>
+    </AcademyShell>
+  );
+}
