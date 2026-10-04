@@ -21223,3 +21223,606 @@ fixed**:
   against the live site — that would be 80 requests at a production WordPress install.
 - **The cluster was read from a copy**, so the counts should be re-read from the live cluster before the
   document is treated as final.
+
+---
+
+## ROUND 340 — THE CUTOVER IS PREPARED AND REVERSIBLE, AND THE THING THAT DECIDES IT IS EMPTY
+
+**The owner authorised the launch and named the sixth condition: prepared, and reversible.** This round
+wrote `docs/OZIKORO-CUTOVER.md` — the change as one record, the checklist that gates it, the delta sync
+with its window, and the rollback with the exact command — and it read, rather than assumed, the four
+things that decide whether any of it is safe. **It made no DNS write, called no cPanel function, wrote
+nothing to WordPress, and sent no request to `ozikoro.com` or any hostname beneath it.**
+
+### The four readings that changed the plan
+
+**1. The thing that decides it is empty, and that is now measured rather than feared.** Read through the
+running `ozituma-web-1` container's own storage driver with `ListObjectsV2` — `LIST` only, `PUT` never,
+`DELETE` never, and no value printed:
+
+```
+top-level prefixes:  audio/          root objects: 0
+ozikoro/           KeyCount = 0
+ozikoro/episodes/  KeyCount = 0
+audio/             KeyCount = 3      (the dictionary's corpus; proof the listing works)
+```
+
+**The bucket holds one top-level prefix, `audio/`, and nothing else. Not one of the archive's 3,437 media
+files, and not one of its episode recordings, has ever been uploaded.** The media route's fallback is
+refused in production behind an explicit `404`, and `.dockerignore` keeps `data/media` and `.data` out of
+the image entirely — so on the new host **every image, document and video would return 404 while every
+page around them answered 200.** That is the fourth time this project has met that shape of fault, and it
+is the one blocking dependency the brief named as the hardest. It is now a number.
+
+**2. The origin certificate does not name the domain being cut over, and the SSL mode is what makes that
+survivable.** Read from `/opt/ozituma/certs/origin.pem`:
+
+```
+subject  = … CN=CloudFlare Origin Certificate
+notAfter = Sep 21 16:01:00 2041 GMT
+X509v3 Subject Alternative Name:  DNS:*.ozituma.com, DNS:ozituma.com
+```
+
+The zone is on **`full`** (read this round, not taken from the note), and `full` does not validate the
+origin certificate — **which is the only reason the apex can move before a certificate that names
+`ozikoro.com` exists.** The plan says so positively, and says the mode must **not** be raised to
+`full (strict)` in the same window: under strict, a certificate naming only `*.ozituma.com` answers `526`
+on every request. The Caddyfile's own header says strict is the intent, so the raise gets its own step,
+after its own check.
+
+**3. The mail is not what the brief said, and the difference matters.** `ozikoro.com` is **Zoho Mail** —
+three `MX` at `*.zoho.com`, Zoho DKIM and verification, `include:zohomail.com` in the SPF — and **not**
+Namecheap forwarding; the Namecheap note in `AGENTS.md` describes `ozituma.com` and was carried across.
+The rule is unchanged and is stated in the plan as the one that matters: **the apex change does not touch
+a single mail record, and the SPF is added to, never replaced.**
+
+**4. The host's deployment tree is not this tree.** `/opt/ozituma/app` is at `7ae4808` with **234 dirty
+paths**, the mounted Caddyfile **has no `ozikoro` block**, and **that revision does not exist in this
+clone** (`git cat-file -t` → `fatal: could not get object info`; 384 commits, `main` only). So the cutover
+includes a reconciliation step this document cannot perform from here, and **the image must be built from
+a pinned, committed SHA** — 89 paths are dirty in this checkout right now, one of them
+`apps/ozikoro/next.config.ts`, whose uncommitted change is the CSP guard that admits the media origin.
+
+### What the plan says, in the five parts the owner asked for
+
+- **The change**: the apex `A` `3a735aa8c89c032f7f8a5957192e19ae`, `162.213.253.73` → `44.194.56.187`,
+  proxied, every field quoted from the zone as read — **36 records, not the 27 an earlier note holds**.
+  `www` is a `CNAME` to the **name** `ozikoro.com` and must not be touched: it follows the apex in both
+  directions, which is the single fact that keeps the rollback to one change.
+- **What must be true before**: the six conditions as checks with commands, plus the two that catch
+  people — the Caddyfile must **`caddy validate`** before any reload, because an interpolation that
+  resolves to the empty string takes `ozituma.com` down as well; and the CSP must admit
+  `MEDIA_PUBLIC_BASE_URL`, which on the host is **`https://media.ozituma.com`** — an absolute
+  cross-origin base, so the condition is live rather than hypothetical.
+- **The delta sync**: the window is **invisible to readers** (the apex still points at cPanel, so the old
+  site keeps serving and an abandoned window costs nothing). The cPanel re-export is **measured at 36m26s
+  — 112 parts, `2026-10-04T00:16:04` to `00:52:30`** — and the import is idempotent by **upsert on the
+  preserved WordPress ids**, confirmed by reading `upsertBatch`/`insertIgnoreBatch` rather than repeating
+  the claim. Two limits on that claim are named: **there are no deletes anywhere in the path**, and
+  `--refresh` re-fetches published records only, so a deletion or an unpublishing since the import is
+  invisible to a re-run and is the reconciliation's job.
+- **The rollback**: the same `PATCH` with one string changed, against the same record id — a substitution,
+  not a reconstruction; never `DELETE` and re-create, because a new record gets a new id. **A proxied
+  record's change propagates from the edge and the resolver answer never changes at all**, so the
+  rollback is a switch and the "wait for DNS" instinct does not apply. What it does **not** restore is
+  stated as state: the old WordPress database was never written to, the archive's rows stay where they
+  are, records created only on the new host (accounts, claims, donations) are **not** discarded, and the
+  **edge cache is not restored** — `/design/*` is the one cached prefix whose names are not
+  content-hashed. A second path that does not use DNS at all: the security group permits `tcp/443` from
+  `0.0.0.0/0`, so `curl --resolve ozikoro.com:443:44.194.56.187 -k` reaches the archive **before** the
+  record moves and keeps working while it is wrong.
+- **What could not be established**: twelve items, each with what would settle it — whether WordPress is
+  being written to today and whether cPanel's certificate validates for `ozikoro.com` (both need a request
+  to `ozikoro.com`, which this round was not permitted to make), whether `ozikoro-site:latest` builds on
+  the host, the full `--refresh --binaries` duration, which episode key each published row points at (a
+  database question — **the PGlite cluster was not opened, because four agents are working in this
+  checkout and a `SIGKILL` landing while PGlite opens is how seven clusters died**), and the Postgres
+  16-versus-18.4 gap, which remains named and uncovered.
+
+### What was verified, and the parity
+
+- **The design is untouched.** The parity command prints, verbatim:
+
+      identical 63 differing 0 missing 0
+
+- **No DNS write, no cPanel call, no WordPress write, no request to `ozikoro.com`.** The Cloudflare API
+  was read (`GET` only: zone, 36 records, `ssl`, `always_use_https`, `automatic_https_rewrites`,
+  `min_tls_version`). The token was read from `~/Projects/Aku/.env` and never printed. **The empty-body
+  `POST` probe that proves DNS:Edit was deliberately not run**, against the brief's own rule that no
+  mutating call is made; read access is proven by the reads.
+- **The host was read, not changed**: `ls`, `openssl … -noout`, `docker ps`, `docker inspect`, `grep`,
+  `du`, `ss`, and `ListObjectsV2`. Four containers running, no `ozikoro`; `/opt/ozituma/certs` 0600 root;
+  26 GB free; only 80/443/22 listening.
+- **`docs/IMPORT-RECONCILIATION.md` now exists** (32,394 bytes, round 339) and the cutover document
+  quotes its §7 as the blocking list rather than claiming an absence — including **§7.1, a draft
+  "Contact Us" page that is the only WordPress page or post of any status not imported, with no
+  `/contact` route, so it answers 404 while three published WordPress menu items pointed at it.** That
+  is squarely inside the owner's own launch condition, and the plan does not pass it.
+
+### What does not work
+
+- **The media upload cannot be run from this checkout as it stands.** The 838 MiB is here and the `S3_*`
+  credentials are on the host; the plan names three ways to bridge that and chooses none, because it is
+  the operator's call.
+- **The plan's own preconditions are not met**, and the document says so on its first line. It is a plan
+  and not a cutover, which is what was asked for.
+- **The `full` (not strict) hop was not exercised end to end**, because the origin does not serve
+  `ozikoro.com` yet. Documented behaviour is not the same as a measurement, and it is recorded as
+  unexercised.
+
+---
+
+## ROUND 341 — FOUR WORDS CAME OFF A MONOGRAM TILE, AND `learn.ozituma.com` WAS RETIRED IN THE REPOSITORY WITHOUT BEING TOUCHED IN PRODUCTION
+
+**The owner, verbatim, in the order he gave them:**
+
+> *"on the about us, the profiles of authors with no images supplied shouldnt show this written words 'No portrait
+> supplied' on it. remove only that written words."*
+
+> *"then, everything about learn.ozituma.com should be removed entire. we have a new academy coming up which is
+> academy.ozikoro.com, which will replace learn.ozituma.com"*
+
+### 1. THE FOUR WORDS
+
+`personCard` in `packages/ozikoro/src/design-fill.ts` drew a monogram tile for a contributor with no uploaded
+portrait and printed `<small …>No portrait supplied</small>` over it. The string appeared in **exactly one
+place in the repository** — that line — and nowhere else in code, tests, docs or any other page.
+
+**Removed, and nothing else about the card changed.** The monogram, the author's name, the record count, the
+biography and the byline link are untouched, and **no sentence replaced it**: the owner has read the tile and
+decided the monogram says it adequately, which is his call to make about his own page.
+
+**The one adjacent statement that was kept, deliberately.** The tile carries
+`role="img" aria-label="Monogram tile for <name>: no portrait has been supplied"`. That is not printed words —
+it is the accessible name of an element whose visible content is `aria-hidden`, so a screen-reader user has no
+other way to learn the state. Removing it would have taken the statement away from exactly the readers who
+cannot see the monogram, which is not what "remove that written words" means. It is asserted in the test so the
+decision is visible rather than accidental.
+
+**The test was updated honestly rather than deleted.** `design-fill.test.ts` asserted the monogram survived; it
+now asserts **both halves** — the four words absent from the rendered page *and* the monogram initials still
+rendered — because an absence-assertion alone passes just as happily on a card with no tile at all.
+The string now survives in the repository only inside comments quoting the owner's instruction and this record.
+
+**Measured on `/about/`, served from `apps/ozikoro/.next/standalone`:** 10 `.sx-person` cards, 7 with a real
+portrait (`<img … alt="Portrait of …">`) and 3 with a monogram tile — Chinemerem Okwuchukwu, Kenechukwu
+Umeghalu and Juan Beltran. The three tiles still render; the caption does not. See §5 for the browser probe.
+
+### 2. `learn.ozituma.com` — WHAT "REMOVE" WAS TAKEN TO MEAN, IN THREE BUCKETS
+
+The words "removed entire" cover three different things, and they need three different answers. What follows is
+the whole inventory by bucket, and then what was done to each.
+
+**BUCKET 1 — THE APPLICATIONS IN THIS CHECKOUT.** There are two, and they are not the same thing:
+
+| | What it is | Verdict |
+|---|---|---|
+| `apps/learn/` (`@ozituma/learn`) | The legacy Next.js courses app — 58 tracked files, its own routes (`/[course]/[lesson]`, `/practice`, `/review`, `/tutor`, `/ndebe`, `/plan`, `/join`, `/signin`, six `/api/learn/*` handlers), a workspace member via `apps/*` | **DELETED** |
+| `learn/` | The TanStack Start app — its own lockfile, its own `.github/workflows/learn.yml`, its own `.env`, `package.json` name `tanstack_start_ts`, **not** a workspace member | **DELETED — though not by this round; see the correction below** |
+
+`apps/learn` was already dead and its removal is clean: the `learn` CNAME was deleted when the Cloudflare
+Worker took the subdomain, `ozituma.com/learn/*` 301-redirected rather than serving it, and the compose service
+that ran it served nothing. **Nothing imports it as a library** — every reference was build plumbing
+(`docker/Dockerfile` lines 47, 83, 160–164), the compose service, the root `dev:learn` script,
+`scripts/check-compose-env.mjs`'s source map and the `package-lock.json` workspace entry. **CI does not
+reference it at all** (`grep -i learn .github/workflows/` is empty).
+
+**THE PLUMBING HAD TO GO WITH IT, AND THAT IS WHY THE COMPOSE FILE WAS EDITED.** Leaving `COPY
+apps/learn/package.json` in the `deps` stage would have made `docker build` fail on a directory that no longer
+exists — the brief's own rule, "a removed workspace entry that others still import breaks every build", in its
+mirror image: a build target whose source is gone breaks it too. **What was NOT touched is the live
+deployment**: no `docker` command was run, no container was stopped, no Worker, no DNS record and no Supabase
+change was made. The `learn` *service definition* is repository text; the running Worker behind
+`learn.ozituma.com` is untouched and still answering.
+
+**`learn/` WAS NOT DELETED BY THIS ROUND, AND THE JUDGEMENT THAT LEFT IT WAS THEN OVERRIDDEN.** The
+judgement is stated because the brief asked for it, and because it is the record of what this round actually
+decided:
+
+1. It is the source of a live production application, and the brief forbids touching the Worker, the DNS and
+   the Supabase project — so deleting the source could not retire the host, only remove this repository's
+   ability to maintain or migrate what was still running.
+2. `academy.ozikoro.com` does not exist, and the courses and the progress data lived in that Supabase project.
+3. It carried another round's uncommitted work — 18 modified files and **9 untracked ones** that git could not
+   have given back.
+4. Its own canonical URLs had to keep naming the host it was actually deployed to.
+
+**THAT JUDGEMENT WAS CORRECT ON THE INFORMATION THIS ROUND HAD, AND IT WAS SUPERSEDED IN THE SAME SESSION BY A
+LATER AND STRONGER INSTRUCTION FROM THE OWNER:** *"delete every single thing associated to learn.ozituma.com,
+including the database and every other thing, please delete entirely."* A parallel agent in the same checkout
+executed it. **This record is corrected rather than left standing, because a record describing a tree that no
+longer exists is the one thing this archive forbids.** What that pass removed, on the owner's explicit
+instruction and not on this round's judgement:
+
+- **`staging/learn/` itself**, with a source archive taken first to
+  `handover/learn-retired-2026-10-02.tar.gz` (1.9 MB) — precisely because nine of those files had never been
+  committed and git could not have given them back.
+- **The Cloudflare Worker and its custom domain**, which released the host; the zone now holds no record for
+  `learn.ozituma.com` and it does not resolve.
+- **The Supabase project `kouczrxrsdjykxoyxzgi`** and the courses, lexemes and progress rows in it.
+- **The bridge, its secret and the mirror** — `apps/web/app/api/learn-bridge/account/route.ts`,
+  `packages/db/src/supabase-mirror.ts` and its call in `registerAccount`, `packages/db/src/test-learn.ts`, the
+  `import:learn` scripts and the `LEARN_BRIDGE_SECRET` compose variable.
+
+**The bridge rule this round wrote was satisfied by that deletion**, and §4 below is corrected to say so.
+
+**BUCKET 2 — THE REFERENCES FROM THE SITES THAT STAY.** These are the ones a reader meets, and they were the
+bulk of the work. `learn.ozituma.com` was named 256 times across ~80 tracked files:
+
+- **17 of the 52 design screens, plus `public/design/NOTES.md`** — the platform bar on every screen, the
+  footer's "Platform" list and its `ozikoro.com · ozituma.com · learn.ozituma.com` domain line, the about
+  screen's platform family, and on `/academy/` itself eight mentions including its `<meta name="description">`,
+  its eyebrow, its course lead line and a comparison table row.
+- **`apps/ozikoro`** (the served archive): `app/layout.tsx` (platform bar, masthead, footer — 3),
+  `app/not-found.tsx` (the "three sites" doors), `app/about/page.tsx` (the platform list),
+  `lib/account-screen.ts` (the account screen's `href="#"` link table),
+  `app/design-screen/[screen]/route.ts` (the `/academy/` fill), `app/.env.example`, `app/api/auth/[action]/route.ts`.
+- **`apps/web`** (the dictionary): `app/learn/[[...rest]]/page.tsx` (a `permanentRedirect` to the subdomain),
+  `app/admin/learn/page.tsx` (an admin screen *about* the subdomain) and its nav item,
+  `app/about/page.tsx`'s practice-section link, `app/layout.tsx`, `app/globals.css`,
+  `app/api/learn-bridge/account/route.ts`, `components/entry-schema.tsx`.
+- **`packages/`**: `ozikoro/src/design-fill.ts` (the five academy course links and the `/academy/` copy),
+  `ozikoro/src/seo-head.ts` and `web/components/entry-schema.tsx` (`Organization.sameAs`),
+  `ozikoro/src/index.ts`, `db/src/analytics.ts` (`KNOWN_HOSTS`).
+- **`docker/`**: the `learn` build target, the `learn` service and the Caddy/healthwatch dependencies on it.
+- **Docs and env**: `AGENTS.md`, `README.md`, `.env.example`, `apps/ozikoro/.env.example`,
+  `docs/DEPLOYMENT.md`, `docs/ARCHITECTURE.md`, `docs/decisions.md`, `docs/learn/*`, `learn/*`.
+
+**BUCKET 3 — THE INFRASTRUCTURE. NOT TOUCHED BY THIS ROUND; RETIRED BY ANOTHER, ON A LATER INSTRUCTION.**
+When this round inventoried it, the Cloudflare Worker `tanstack-start-ts-learn`, the Worker custom domain for
+`learn.ozituma.com`, its DNS and the Supabase project `kouczrxrsdjykxoyxzgi` (`eu-west-2`) all existed and all
+served. **This round made no DNS call, no Cloudflare API call, no Worker change and no Supabase change —
+including no read of the `ozikoro.com` zone**, which is why its statement that `academy` was absent from the
+zone rested on this repository's own record rather than on a query made here.
+
+**All of it was then deleted in the same session by a parallel agent**, on the owner's later and explicit
+instruction to remove the host entire — including the Worker, the custom domain, the DNS record and the
+Supabase project. That instruction was the owner's to give and it was carried out. **It is not work this round
+did, and it is recorded here as somebody else's change so that the two are not confused.** `AGENTS.md` carries
+the outcome as the repository's current instruction; this section records only what this round found and what
+it deliberately did not do.
+
+### 3. THE DESIGN SCREENS CANNOT BE EDITED, SO THE REWRITE IS AT SERVE TIME
+
+`apps/ozikoro/public/design/` is inviolable — verified at the end of this round as
+`identical 63 differing 0 missing 0` — and it names the retiring host. So the rewrite went into
+`designScreenLinks` in `packages/ozikoro/src/design-paths.ts`, where the design's other addresses are already
+resolved, and it answers the three shapes with three different answers:
+
+1. **An address** — `href="https://learn.ozituma.com/…"` — becomes **`/academy/`**, which this archive serves
+   and which says the academy is being prepared. **Pointing it at `academy.ozikoro.com` would be a link to a
+   host with no record in its zone**, which is the specific failure the brief names.
+2. **The platform bar's label** — `learn.ozituma.com — Learn Igbo` — becomes **`Academy — Learn Igbo`**,
+   because a label that names a host the link does not go to is a second lie told in place of the first.
+   (The account screen is the one screen not served through `designScreenLinks`, so the same rename is
+   repeated in its own table, `ACCOUNT_LINK_LABELS`, added alongside this round's change.)
+3. **A bare host named in prose** — the footer's domain list, the academy screen's eyebrow, course lead,
+   comparison table and meta description — becomes **`academy.ozikoro.com`**, named but not linked.
+
+**`fillAcademy` is where the tense lives**, because a rewrite can change an address but not supply one. Its
+course card now reads *"The Academy is being prepared"* and says the curriculum is not published; the design's
+own line *"Delivered at learn.ozituma.com · enrolment opens there"* is rewritten to *"Delivered at
+academy.ozikoro.com · enrolment opens when the Academy launches"*; and the five example course titles, which
+were wired to the subdomain, now point at `/academy/`.
+
+**Two new tests, and the second is the one that matters:** the first asserts the three shapes on a fixture and
+that the rule is idempotent; the second **reads all 52 real design screens, applies the transform, and fails if
+any of them still names the retiring host** — 17 do before it and none after. That is the assertion that
+survives a future design handoff adding an eighteenth mention.
+
+### 4. THE BRIDGE, AND WHAT HAPPENED TO THE ACCOUNT GUARANTEE
+
+`POST /api/learn-bridge/account` in `apps/web` had **one caller**: `learn/src/routes/api/bridge/account.ts` —
+the TanStack app. Nothing in `apps/learn` ever called it, so removing that app orphaned nothing. It was gated
+by `LEARN_BRIDGE_SECRET` and **failed closed with 503 when the secret was unset**, so a public dictionary
+never offered anonymous account creation.
+
+**THE DECISION THIS ROUND TOOK, AND THEN DID NOT NEED TO TAKE.** On the brief this round was given — retire
+`learn.ozituma.com`, but leave the live Worker, its DNS and its database alone — the endpoint had to stay,
+because its caller was still live and deleting it would have broken signup on a working site. The rule this
+round wrote into the route's own doc comment was that **the endpoint and its caller must be deleted in the
+same change, never one without the other**: removing the endpoint alone leaves a broken signup, and removing
+the caller alone leaves a live route nothing uses.
+
+**THE OWNER THEN GAVE THE INSTRUCTION THAT SATISFIED THE RULE, AND A PARALLEL AGENT CARRIED IT OUT.** *"delete
+every single thing associated to learn.ozituma.com, including the database and every other thing, please
+delete entirely."* The endpoint, the caller, the secret and the Supabase mirror
+(`packages/db/src/supabase-mirror.ts`, called from `registerAccount`) were deleted together, which is the
+change this round's rule asked for. **This round did not perform that deletion; it is recorded here because
+the rule and the outcome are the same one.**
+
+**What the guarantee means now:** there is no bridge endpoint, so there is nothing to fail closed. **The 503
+behaviour is gone with the route rather than weakened** — the safest form of the guarantee is the absent
+endpoint, which cannot be misconfigured into accepting an unauthenticated caller. `KNOWN_HOSTS` in
+`packages/db/src/analytics.ts` was the one host-allowlist entry this round left in place, because the live
+Worker still reported from that host at the time; it is a separate question from the bridge.
+
+### 5. VERIFICATION, MEASURED
+
+- **`npm run typecheck`, from the repository root, read from its own exit code: 0.** All six workspaces ran
+  (`@ozituma/core`, `@ozituma/db`, `@ozikoro/platform`, `@ozikoro/media`, `@ozikoro/site`, `@ozituma/web`).
+- **`npm -w @ozikoro/platform run test`: 240 tests, 239 pass.** The one failure is `src/knowledge.test.ts`,
+  which needs the PGlite cluster and was refused by the cluster lock because the review server on 3110 holds
+  it — the documented contention, not a fault in this change; that file does not mention `learn` and this
+  round did not touch it.
+- **`bash scripts/serve-review.sh`: exit 0**, `build finished in 590s`, and the artefact asserted complete —
+  `server.js present, 52 design screens, 128 static files`. The script's own count is the check that matters:
+  **52 design screens in the source, 52 in the standalone**, so no screen was dropped by the copy.
+- **Design parity, verbatim:**
+  `identical 63 differing 0 missing 0`.
+- **`/about/`, fetched and parsed: HTTP 200, 25,958 bytes.** 10 `.sx-person` cards; 7 `alt="Portrait of …"`
+  images (Chuka Odike, Kosisochukwu Nzeribe, Idenze Ezeme, Chukwunwike Ossai, Maduagwu Nzubechi, Chizobem
+  Chinedu Opiah, Akachukwu Vitalis); 3 monogram tiles (Chinemerem Okwuchukwu `CO`, Kenechukwu Umeghalu `KU`,
+  Juan Beltran `JB`); **0 occurrences of `No portrait supplied`**. The three tiles render and the caption is
+  gone, which is the pair of facts the owner asked for. See §6 for why this is the served HTML and not a
+  rendering.
+- **The retired host, over the real deliverable:** a test reads all 52 design screens, applies
+  `designScreenLinks`, and asserts that none of them still names `learn.ozituma.com` — 17 name it in the
+  source and 0 after the transform. The same test asserts the three shapes one at a time (an address becomes
+  `/academy/`, the platform-bar label becomes `Academy — Learn Igbo`, a bare host in prose becomes
+  `academy.ozikoro.com`), that `https://ozituma.com/` is untouched, and that the rule is idempotent.
+
+### 6. WHAT DOES NOT WORK, AND WHAT WAS NOT DONE
+
+- **`learn.ozituma.com` was still answering when this round finished its own edits, and that is no longer
+  true.** It answered from a Cloudflare Worker this round deliberately did not touch; the owner then retired
+  the host entire and a parallel agent deleted the Worker, which released the custom domain. **The claim that
+  it does not resolve is `AGENTS.md`'s, not this round's measurement** — this round made no DNS query and no
+  Cloudflare call, so it has no reading of its own to report. It is written this way on purpose: a record that
+  claims a measurement it did not take is worse than one that says whose measurement it is quoting.
+- **`academy.ozikoro.com` does not resolve, and this round made no attempt to make it.** No DNS record was
+  created and nothing was deployed. `AGENTS.md` carries that prohibition where the next agent will read it.
+- **The courses, the lexemes and the learner progress that were in Supabase `kouczrxrsdjykxoyxzgi` are gone
+  with the project.** This round raised the migration as a data question rather than solving it; the owner's
+  later instruction answered it by deleting the project. **The authored curriculum survives** at
+  `data/learn/igbo.json` and the importer that loads it, which is the Academy's inheritance rather than the
+  retired host's plumbing.
+- **`packages/db/migrations/0028_learn.sql` and the course tables were left in place**, because migrations are
+  what a fresh database replays: deleting applied migrations from the middle of the sequence breaks `migrate`
+  long before it removes anything a reader can see.
+- **`docs/learn/*`, `docs/decisions.md`, `docs/ARCHITECTURE.md` and the design briefs still name the host in
+  places**, and are historical records of the arrangement rather than instructions. `docs/DEPLOYMENT.md`'s
+  section is now headed *RETIRED* and its two wrong instructions (`apps/web/lib/learn-host.ts`, the `learn`
+  CNAME) are marked as wrong rather than deleted, because a stale instruction that is not flagged is worse
+  than one that is.
+- **THE BROWSER PROBE OF `/about/` DID NOT RUN, AND THE REASON IS A LIMIT OF THIS SESSION RATHER THAN A FAULT
+  IN THE PAGE.** Four attempts, each with a different `--user-data-dir` and mode: `--headless` failed with
+  `Failed to create a unique user data directory for headless`; `--headless=new` reached the page but returned
+  nothing within 60 s while logging `open /Users/nzeora/Library/Application Support/Google/Chrome/Crashpad/
+  settings.dat: Operation not permitted (1)` and `Keychain lookup failed`; disabling crashpad, breakpad and
+  the keychain changed nothing, and `--headless=old` hung past 180 s. **This session runs under a file sandbox
+  that denies Chrome the paths outside the workspace it needs to start**, and it was right not to widen that
+  permission to take a screenshot.
+  **So the count in §1 is the server's own HTML, fetched with `curl` and parsed — not a rendering**, and it is
+  labelled as such rather than presented as browser evidence. What it establishes is the served markup:
+  10 `.sx-person` cards, 7 `alt="Portrait of …"` images, 3 `aria-label="Monogram tile for …"` tiles rendering
+  the initials `CO`, `KU` and `JB`, and zero occurrences of `No portrait supplied`. **What it does not
+  establish is that a browser paints them the same way** — and the tile is composed with
+  `position:absolute;inset:0` inside an `aspect-ratio:1` box, which is exactly the kind of layout a rendering
+  would be needed to confirm. That check is outstanding for whoever has an unsandboxed session.
+
+---
+
+## ROUND 342 — THE ARTICLE HEAD NOW CARRIES ITS OWN RECORD'S LINKS, `/privacy` AND `/terms` ANSWER, AND THE THREE PARITY ROUTES WERE FILLED RATHER THAN WAIVED
+
+**The briefs' §3.1 and §3.6, and the three routes `check-design-parity.mjs` failed.** The owner's instruction
+was to build everything in the documents and launch when every function, link and menu works; this round takes
+four of the gaps an earlier audit measured, and **reports the fifth (the institutional access tier) as a policy
+decision rather than building it.**
+
+### 1. §3.1 — THE ARTICLE HEAD PRESENTED NONE OF ITS OWN METADATA, AND IT WAS NOT A DATA PROBLEM
+
+**Measured before anything was written.** The article head drew the topic eyebrow, the title, the byline and
+the dates. It drew **no link to a clan, a town, a place or a people**, while `ozikoro_article_entity` held the
+links and `/entities/<slug>/` answered for all of them. The archive index has printed a `Place` chip since
+round 323; **the record the chip named offered no way to follow it.**
+
+| measurement | value |
+|---|---|
+| published records | 1,051 |
+| `ozikoro_article_entity` rows | 232 |
+| records with at least one entity link | **197** |
+| records with none | **854** |
+| records with a period (`period_label` or `period_start`) | **0** |
+| records with a source type or an attached source | **0** |
+| `ozikoro_article_source` rows / `ozikoro_source` rows / `ozikoro_evidence` rows | **0 / 0 / 0** |
+
+**The shape is the design's own, and it is drawn on another of its screens.** `archive-index.html` draws
+`.chips > .chip.chip-place` with a `<span class="k">Place</span>` label, and `main.css` styles `a.chip:hover`
+— so a linked chip is drawn by the delivered stylesheet, not by anything this round added. **The article
+screen itself draws no chip row and draws no shape at all for "this is recorded nowhere", and that is stated
+rather than papered over:** where the design drew a shape, it is filled; where it drew none, the page says the
+absence in the design's own `.small.muted` voice.
+
+**What the fill does** (`fillArticle`, and `RealArticle.entities` / `RealArticle.archiveTotals`):
+
+- **One chip per linked entity**, labelled with **the link's role, not the entity's kind**, because one record
+  can link to the same name twice — `igbodo-a-community-formed-by-convergence` links to `Igbodo` the clan and
+  `Igbodo` the town — and the kind alone cannot tell a reader which is which.
+- **Every chip points at `/entities/<slug>/`**, the address that answers for every kind. `/clans/<slug>/` is
+  the register's page and resolves only for a clan, so it is not used for a town or a kingdom.
+- **A record with no link says so** in one sentence, rather than opening no register page silently.
+- **A record whose archive has no period and no attached source says so**, with the figure read from the
+  database so the sentence retires itself the day an editor dates a record or attaches a source. `0` is
+  printed as the archive's own number, never as a plausible spread.
+
+**What it shows, fetched and read, not sampled by status:**
+
+| record | chips rendered |
+|---|---|
+| `ute-okpu-an-ika-igbo-clan-and-its-nri-roots` | **Clan → Ute Okpu** (`/entities/ute-okpu/`) |
+| `umunede-an-ika-igbo-kingdom-in-western-igboland` | **Place → Umunede** (`/entities/umunede/`) |
+| `igbodo-a-community-formed-by-convergence` | **Clan → Igbodo**, **Town → Igbodo** (`/entities/igbodo/`, `/entities/igbodo-northern-ika/`) |
+| `the-history-and-origins-of-arondizuogu` | **Clan → Ndizuogu**, **Ethnic group → Aro** |
+| `when-gunshots-speak-…` (no link) | no chip; *"The archive holds no clan, town or place recorded for this entry…"* |
+| `the-demography-of-biafran-slave-exports-1650-1850` (no link) | no chip; the same sentence, plus the period-and-source line |
+
+**The honest half, stated on the page rather than here alone:** *of 1,051 published entries, 0 carries a period
+and 0 carries a source of its own.* **Nothing was invented to fill either slot** — no period was guessed from a
+record's content, and no source was inferred from the prose that discusses one.
+
+### 2. §3.6 — `/privacy` AND `/terms`
+
+**Both answered 404 before this round. Neither document exists anywhere in the repository or the WordPress
+dump, and that was established before writing a line.**
+
+- `data/nzeora-wp/pages.json` holds twelve migrated pages. The only legal page in it is slugged
+  `privacy-policy` and **belongs to Nzeora.com**, a job blog: it states that it collects no personal
+  information, that it serves Google AdSense, and that its contact is `support@nzeora.com`. **None of that is
+  true of this platform**, which stores accounts and serves no advertising. Publishing it under Ozikoro's name
+  would have been a fabricated privacy policy.
+- The design draws **no `privacy.html` and no `terms.html`**. The one screen that mentions either says the
+  opposite of a policy: `about.html` — *"Binding terms must be supplied by Ozi Ikoro Limited."* and *"The
+  complete data-controller notice must be supplied."*
+
+**So the pages state what the platform can demonstrate about itself and name every question only Ozi Ikoro
+Limited can answer as unanswered.** Every figure is read from the database at request time; every claim is a
+property of a named file. **No retention period, no lawful basis, no controller address, no regulator and no
+governing law is written, because none has been supplied.**
+
+- **What is stored:** accounts (2 rows) with scrypt password hashes, sessions (23), donations (0), research
+  publications (0), byline claims (0), follows (0). The donation record holds the gateway's reference and
+  response and, only where the donor chose to give them, a payer name and a message — **no card number, no bank
+  detail and no CVV is stored, because none reaches this platform.**
+- **What is sent, and to whom:** Resend for a password reset (the address and a single-use link; the link is
+  never logged), ElevenLabs for narration (the article's own published text, with a voice cloned from the
+  owner's recordings with his consent), Cloudflare for DNS and delivery, Spotify where an episode is published.
+  The mail transport is read from `mailStatus()` rather than asserted.
+- **Cookies: two, both first-party** — `ozituma_session` (`HttpOnly`, `SameSite=Lax`, `Secure` on the live
+  origin) and `ozikoro_dashboard_mode` (which workspace the account last chose). **There is no consent banner
+  because there is nothing to consent to.**
+- **What it does not do, checked in the code and not asserted:** no analytics script, no tag manager, no
+  advertising network and no social pixel on any page. **The evidence is the content-security policy** —
+  `img-src 'self' data: https://i.ytimg.com`, `media-src 'self'`, `connect-src 'self'`, `frame-src 'self'
+  https://www.youtube-nocookie.com` — and a tracker would have to be added to it to work at all.
+- **The rights register is the centre of both pages, measured:** 3,488 media items, **954 carry any rights
+  statement, 61 carry a recorded licence, and 2,534 carry none at all.** Every recorded licence was read by a
+  machine from what the record states, **and 0 of the 61 have been checked by a person** (`checked_at` null on
+  all of them); **none rests on written permission, a contract or an institutional agreement.** 52 are public
+  domain as the record states it, 7 CC BY-SA, 2 CC0.
+
+**Where the pages live, and the design decision that took.** They are **React routes using the design's own
+classes** — `wrap`, `section`, `prose`, `sx-discovery-hero`, `lede`, `provenance`, `partial-note` — reached
+through the root layout like `/about`, `/clans` and `/researchers`. `public/design/` is untouched and no design
+screen was drawn. **The address is new and the design does not draw it; that is a design decision and it is
+brought to the owner rather than taken quietly.** The alternative was a permanent 404 behind a link every
+footer carries.
+
+### 3. THE FAVICON
+
+**The design ships one, and it had never been copied.** It sits at
+`design/calm-comfort-construct/public/favicon.ico` — the deliverable's **PUBLIC ROOT**, outside `design/`,
+which is why it was missed: every other design asset is under `public/design/`. The file now served at
+`apps/ozikoro/public/favicon.ico` is that file **byte for byte** (SHA-256 identical), and `/favicon.ico`
+answers 200 `image/x-icon` where it answered 404.
+
+`/apple-touch-icon.png` answers too, and **nothing was drawn for it**: the design's ICO holds a single
+256×256 PNG and nothing else, so that embedded image is served at the touch-icon path with no conversion.
+`layout.tsx` declares `rel="icon"`, `rel="shortcut icon"` and `rel="apple-touch-icon"` — **the declaration
+was absent, which is why no browser knew an icon existed.**
+
+### 4. THE THREE PARITY ROUTES — TWO WERE FILLS THAT HAD DELETED THE DESIGN
+
+`check-design-parity.mjs` failed exactly three routes, and **two of the three were the same fault**: a fill
+that consumed the element it was filling.
+
+- **`/cite` — "5 missing headings".** `fillCite` called `fillContainer` on `sx-cite-examples`, **the container
+  holding the design's five citation blocks** — so the served page kept the h1, the lede, the nav and the
+  worked example, and lost *"Ozikoro article"*, *"Archive record"*, *"Photograph"*, *"Oral recording"* and
+  *"Research publication"*, with the nav's five anchors pointing at five ids that no longer existed. **The
+  worked example is now inserted at the head of the container instead of over it**, and the design's five
+  formats — including the `<code>` line that says to replace the example — are left as delivered. **Nothing was
+  invented: the five blocks are the design's own instruction text, and the worked example is generated from a
+  real record by `formatCitation`/`citationFor`.**
+- **`/cultural-calendar` — "missing h2 'choose a highlighted date'".** The fill rewrote the panel's `<h2>` to
+  *"No event is recorded"*, which read honestly and **cost the page a heading the design draws**. The heading
+  is the panel's own control name; the standing of a selected date belongs in the badge and the description,
+  which is where an event's verification state lives. **The heading stays as delivered, and the honest state is
+  still stated in all three places built for it:** the badge reads *"No date has an event"*, the meta line and
+  the description say no event record is held.
+- **`/projects` — four missing classes.** The empty state replaced `<nav class="sx-filterbar">` with a
+  paragraph and put a bare `<p>` inside `.sx-proj-grid`, so the design's card shape had no card in it and
+  `.sx-proj-body`, `.sx-meter` and `.sx-proj-meta` were absent. **The grid now holds one card — the register's
+  empty state — with its body, a meter whose bar is at zero and whose `aria-label` says so in words, and a meta
+  footer that names the register's only state.** **Not one of the design's six example projects or its five
+  example percentages (60/75/45/10/5) is reproduced.** The filter bar keeps its one true state and the note
+  that explains why the other five are absent sits beside it rather than instead of it: **a filter that filters
+  nothing is not drawn as five filters.**
+
+### 5. VERIFICATION
+
+- **`npm run typecheck`, from the repository root, read from its own exit code: 0** (all seven workspaces).
+- **`node --test packages/ozikoro/src/design-fill.test.ts packages/ozikoro/src/external-audio.test.ts`:
+  87 tests, 87 pass, 0 fail.**
+- **`check-design-parity.mjs`, verbatim:** 18 routes compared, 1 unverified behind `/submit`'s auth gate, 1
+  declared omission, **0 failures** — *"Every compared route carries its design's structure and headings."*
+  `/cite` now reports **5 design sections, 6 headings**; `/cultural-calendar` **11 and 4**; `/projects` **14
+  and 5**.
+- **The design tree is byte-identical:** `identical 63 differing 0 missing 0`.
+- **Pages fetched and read, not counted by status:** `/privacy`, `/terms`, `/cite/`, `/projects/`,
+  `/cultural-calendar/` and five articles.
+
+### 6. WHAT DOES NOT WORK, AND WHAT WAS NOT DONE
+
+- **The institutional access tier (§3.2) is not built, deliberately.** It is a policy decision first: see §7.
+- **`/listen/`'s two non-featured rows still draw no transcript link**, and that is a design decision rather
+  than an omission left lying. **Proposed, not taken:** the design's row is a single `<a class="sx-track">`, so
+  a second anchor inside it is invalid HTML; drawing a transcript link means restructuring the row the design
+  drew. **The owner should decide.**
+- **Four of the design's six filter links on `/watch/` (`#short`, `#oral`, `#places`, `#conversations`) name
+  sections `watch.html` does not contain** — measured in the design file itself, dead before anything here
+  touched it. **The design is inviolable, so inventing those four sections is not available; reported.**
+- **The design's `watch` search form posts to `action="watch.html"`.** The address is the link sweep's; **the
+  section behind the search would be this work's if one is drawn, and no section is drawn because the design
+  draws none.**
+- **`/researchers/` and `/about/` carry real portraits for 7 of 10 authors and monograms for the other 3.**
+  Confirmed correct: those three uploaded none, and no portrait was invented.
+- **`/author/<slug>/` reads neither `avatar_url` nor `bio`** — the link sweep owns it.
+- **The article head adds no sidebar link to an entity.** The design's `.sx-reading-columns aside` lists
+  in-page fragments and "Reading tools"; adding a second list to it would be drawing something the design did
+  not. **The chips under the byline are the whole of the new navigation, and they are the design's own chip
+  shape.**
+- **A stale `apps/ozikoro/.next-verify` build directory** (1.0 GB, last written 3 October, no `types/` left in
+  it) caused `npm run typecheck` to fail with `Cannot find module '…/app/listen/page.js'` — **a phantom path
+  held in the cached `tsconfig.tsbuildinfo`, not a real missing file.** Removing that one gitignored cache file
+  made typecheck exit 0 without touching a source file. The directory is left where it is because it is not
+  this round's to delete.
+
+### 7. THE INSTITUTIONAL ACCESS TIER — A REPORT, NOT A BUILD
+
+**What the brief asks for** (`docs/OZIKORO-DESIGN-BRIEF.md` §3.2): *"an institutional access tier to the wider
+Ozikoro archive, since some material is culturally sensitive and not everything should be fully open"*, within
+a researchers network scoped for **publication upload, search by topic/author/institution, following and
+visibility controls.**
+
+**What exists today, measured:**
+
+| piece | state |
+|---|---|
+| `institutional_agreement` in `PermissionBasis` | **exists** — `packages/ozikoro/src/rights.ts:28`, labelled *"Institutional agreement"* |
+| the restriction state | **exists** — `ozikoro_media_rights.restricted`, `restriction_reason`, `takedown_requested_at`, and `rightsSummary()` renders *"This item is restricted… not available for reuse"* |
+| `subject_is_living` / `subject_consent` | **exist** as columns; **unset on all 61 rows** |
+| an entitlement mechanism | **does not exist** |
+| a gated public route | **does not exist** |
+| rows using any of it | **0** — every recorded basis is `published_licence` |
+
+**What would have to be built, and the decisions that are not engineering:**
+
+1. **An entitlement table** — who may open what, granted by whom, until when, and revocable. The archive's own
+   pattern for this is `ozikoro_role_capability` (role → capability) plus `member`/`member_role`; an
+   entitlement is the same idea bound to an *institution* and a *collection* rather than to a person and a
+   workspace, so it is roughly one migration and one capability (`read_restricted`).
+2. **A gated route**, and the decision of **what is gated**. `restricted` today means *not available for
+   reuse*; the tier the brief describes means *not readable at all without an agreement* — **those are two
+   different claims and the second one does not exist yet.** Gating a record that is currently public because
+   its rights are unknown would be a real withdrawal from readers, which is the owner's call.
+3. **Who grants it, and on what terms** — an institution, a named contact, a period, a revocation path, and
+   whether an anonymous reader may ever see a restricted record's metadata (the archive's instinct is yes:
+   state that it exists and that access requires an agreement).
+4. **What happens on withdrawal** — the takedown fields exist; an entitlement revocation does not.
+
+**Size, honestly:** the mechanism is **about a week** of work — one migration, one capability, one gated route
+with its refusal page, the admin grant screen, audit rows on grant and revoke, and tests. **The reason it is a
+week and not two days is not the code: it is that every one of (2), (3) and (4) is a policy decision the owner
+has not made, and building the mechanism first would mean designing the policy by accident.**
+
