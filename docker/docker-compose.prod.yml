@@ -99,6 +99,27 @@ services:
       OZITUMA_SMTP_PORT: ${OZITUMA_SMTP_PORT:-}
       OZITUMA_SMTP_USER: ${OZITUMA_SMTP_USER:-}
       OZITUMA_SMTP_PASSWORD: ${OZITUMA_SMTP_PASSWORD:-}
+      # RESEND IS THE TRANSPORT `mail.ts` TRIES FIRST, AND IT WAS NOT NAMED.
+      #
+      # The note above says mail is "the one message whose failure locks somebody out of their own
+      # account" — and then lists only SMTP and SES, in the order the code tries them LAST. Adding
+      # the preferred transport is what makes that note true rather than aspirational.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      OZIKORO_MAIL_FROM: ${OZIKORO_MAIL_FROM:-}
+      # The shared session cookie domain. `packages/db/src/accounts.ts` reads it; the `learn`
+      # service has always been given it and this one was not. Left empty by default, which is the
+      # host-only behaviour the dictionary has today — naming it is what lets the operator widen
+      # the cookie to `.ozituma.com` without a compose edit.
+      OZITUMA_AUTH_COOKIE_DOMAIN: ${OZITUMA_AUTH_COOKIE_DOMAIN:-}
+      # Accounts are mirrored to the courses' Supabase so one account works on both.
+      # `registerAccount` in `packages/db/src/accounts.ts` calls `mirrorAccount`, which reads these.
+      # NEITHER WAS NAMED IN ANY SERVICE, so in production the mirror was silently off: a
+      # registration succeeded, the dictionary's own row was written, and the courses never heard
+      # about the account — with nothing in the log to say so, because the call is fire-and-forget
+      # by design. Empty means the mirror stays off, which is now a decision rather than a surprise.
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      OZITUMA_EHLO_NAME: ${OZITUMA_EHLO_NAME:-}
       AWS_REGION: ${AWS_REGION:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
@@ -141,11 +162,81 @@ services:
     environment:
       DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
       OZIKORO_SITE_URL: ${OZIKORO_SITE_URL:-https://ozikoro.com}
+      # THE DICTIONARY'S ADDRESS, WHICH THE ARCHIVE'S OWN AUTH ROUTE READS.
+      #
+      # `apps/ozikoro/app/api/auth/[action]/route.ts` reads `process.env.OZITUMA_SITE_URL` to build
+      # the sign-in and password-recovery links it hands to a member. It was NOT passed here, so on
+      # the host that variable would be absent and the links built from it would be wrong or empty
+      # — while every page still rendered, which is why the omission is worth a paragraph rather
+      # than a line. The courses service has always been given it; the archive shares the account
+      # table with the dictionary and now has the address too.
+      #
+      # COMPOSE PASSES A SERVICE ONLY THE VARIABLES THE SERVICE NAMES. Adding this to
+      # /opt/ozituma/.env is not enough on its own — that is the fault `AGENTS.md` records for
+      # LEARN_BRIDGE_SECRET, and it costs an afternoon every time it is rediscovered.
+      OZITUMA_SITE_URL: ${OZITUMA_SITE_URL:-https://ozituma.com}
       NODE_ENV: production
       # Enables the detailed branch of /api/health, as scripts/build-standalone.sh documents. Left
       # empty by default: with no token the endpoint answers the plain check, which is all the
       # healthcheck and healthwatch need, and no token has to exist for the site to run.
       HEALTH_TOKEN: ${HEALTH_TOKEN:-}
+      # ---------------------------------------------------------------------------------------
+      # Narration — ElevenLabs
+      #
+      # THE THREE NAMES THAT WERE IN THE WRONG FILE.
+      #
+      # `apps/ozikoro/lib/elevenlabs.ts` reads `process.env.ELEVENLABS_API_KEY`,
+      # `process.env.ELEVENLABS_VOICE_ID_OWN` and `process.env.ELEVENLABS_VOICE_ID_GENERIC`. They
+      # exist only in the REPOSITORY ROOT `.env.local`, which Next.js never loads for an app rooted
+      # at `apps/ozikoro` — and which `.dockerignore` excludes from the image anyway (`.env.*`), so
+      # they are unreachable on the host by two independent routes.
+      #
+      # The symptom is not an error. `/admin/audio/` renders normally and says narration is not
+      # configured, while the key sits in a file nobody can see; the narration gate answers 503 and
+      # a page reads that as "not set up yet". Naming them here is what makes them gettable.
+      #
+      # All three are allowed to be empty, and must be: with no key the admin screen says narration
+      # is unavailable rather than failing when somebody clicks Render, which is the same reasoning
+      # the donation key is given above.
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_VOICE_ID_OWN: ${ELEVENLABS_VOICE_ID_OWN:-}
+      ELEVENLABS_VOICE_ID_GENERIC: ${ELEVENLABS_VOICE_ID_GENERIC:-}
+      # ---------------------------------------------------------------------------------------
+      # Spotify — the archive's own catalogues
+      #
+      # Read by `packages/ozikoro/src/connection.ts` through `readSpotifyConfig(process.env)`.
+      # These live in `apps/ozikoro/.env.local`, which `next dev` DOES load and the image does NOT
+      # carry, so the feature works in development and is absent in production unless listed here.
+      # `SPOTIFY_SCOPES` is deliberately not listed: the code applies its own default and an empty
+      # value would be read as a deliberate empty scope list.
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:-}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:-}
+      SPOTIFY_REDIRECT_URI: ${SPOTIFY_REDIRECT_URI:-}
+      SPOTIFY_TOKEN_KEY: ${SPOTIFY_TOKEN_KEY:-}
+      # ---------------------------------------------------------------------------------------
+      # Donations — NOWPayments
+      #
+      # THE WEBHOOK FAILED CLOSED ON A HOST WHERE THE SECRET WAS ALREADY SET.
+      #
+      # `apps/ozikoro/lib/nowpayments.ts` reads `process.env.NOWPAYMENTS_IPN_SECRET` and
+      # `process.env.NOWPAYMENTS_API_KEY`. Neither was named here, so the container never received
+      # them however carefully `/opt/ozituma/.env` was filled in — and the route's refusal to trust
+      # an unverifiable call is correct, so the observable result was a **503 on every IPN callback**
+      # and a donation that took the money and was never recorded.
+      #
+      # `NOWPAYMENTS_IPN_SECRET` must stay allowed to be empty for the same reason `LEARN_BRIDGE_SECRET`
+      # is: a webhook that cannot verify its caller must refuse rather than accept. Empty means
+      # donations are closed and say so.
+      NOWPAYMENTS_API_KEY: ${NOWPAYMENTS_API_KEY:-}
+      NOWPAYMENTS_IPN_SECRET: ${NOWPAYMENTS_IPN_SECRET:-}
+      # The shared session cookie domain, read by `packages/db/src/accounts.ts`. The archive shares
+      # the one account table with the dictionary, so it needs the same setting the dictionary has.
+      OZITUMA_AUTH_COOKIE_DOMAIN: ${OZITUMA_AUTH_COOKIE_DOMAIN:-}
+      # The archive's own sign-up route calls `registerAccount`, which mirrors the account to the
+      # courses' Supabase — so this service needs these exactly as the dictionary does. See the
+      # note on the dictionary's service above.
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       # Media. The archive self-hosts 3,437 files and hotlinks 51; the same S3-compatible store the
       # dictionary uses is where the bytes go, so the variables have the same names.
       S3_ENDPOINT: ${S3_ENDPOINT}
@@ -157,11 +248,35 @@ services:
       MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL}
       # Mail, read by @ozituma/core since round 178 moved the SMTP client there. Left empty by default:
       # with no SMTP configured the archive sends nothing rather than failing when it tries.
+      #
+      # `OZITUMA_SMTP_PASS` WAS ONE LETTER SHORT OF THE NAME THE CODE READS.
+      #
+      # `packages/core/src/mail.ts` reads `OZITUMA_SMTP_PASSWORD` — spelled out, like the dictionary
+      # service above has always spelled it. This block said `OZITUMA_SMTP_PASS`, so the container
+      # received a variable nothing reads and the transport got a null password. **A password the
+      # operator had configured, sitting in the container's environment under a name the client
+      # never asked for**, which presents as an authentication failure against the mailbox rather
+      # than as a missing setting. Corrected to the name the code reads; the old spelling is not
+      # kept as an alias, because two names for one secret is how the next one gets missed.
       OZITUMA_SMTP_HOST: ${OZITUMA_SMTP_HOST:-}
       OZITUMA_SMTP_PORT: ${OZITUMA_SMTP_PORT:-}
       OZITUMA_SMTP_USER: ${OZITUMA_SMTP_USER:-}
-      OZITUMA_SMTP_PASS: ${OZITUMA_SMTP_PASS:-}
+      OZITUMA_SMTP_PASSWORD: ${OZITUMA_SMTP_PASSWORD:-}
+      # The sender, in the order `mail.ts` resolves it: OZIKORO_MAIL_FROM, then OZITUMA_MAIL_FROM.
+      # Both were in `apps/ozikoro/.env.local` only, which `.dockerignore` excludes from the image,
+      # so the archive had no From address on the host. With neither, the recovery mail refuses with
+      # "No From address" and the operator sees a working form that sends nothing.
+      OZIKORO_MAIL_FROM: ${OZIKORO_MAIL_FROM:-}
+      OZITUMA_MAIL_FROM: ${OZITUMA_MAIL_FROM:-}
+      # Resend is the preferred transport — `mail.ts` tries it before SMTP. Also in the app-dir
+      # `.env.local` and therefore also unreachable on the host until it is named here.
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       OZITUMA_EHLO_NAME: ${OZITUMA_EHLO_NAME:-}
+    # Named for the same reason the dictionary and the courses name it: it is the port Caddy
+    # proxies to, and a reader should not have to derive it from the Dockerfile. `expose` is
+    # metadata and does not itself open or close anything on the compose network.
+    expose:
+      - '3000'
     healthcheck:
       # The archive has had a health endpoint since the vertical slice. Curl is in the node:24-alpine
       # base only if apk added it, so this asks with node instead of assuming a tool.
@@ -308,9 +423,24 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
+    # `ozikoro` IS IN THIS LIST, AND ITS ABSENCE WAS A FAULT IN TWO PARTS.
+    #
+    # The Caddyfile has carried an `{$OZIKORO_DOMAIN}` site block for some time, but this service
+    # was never given `OZIKORO_DOMAIN` and never depended on `ozikoro`. Compose passes a service
+    # only the variables it names — the fault `AGENTS.md` records for LEARN_BRIDGE_SECRET — so on
+    # the host Caddy resolved `{$OZIKORO_DOMAIN}` to the EMPTY STRING.
+    #
+    # THAT IS WORSE THAN A MISSING SITE. Caddy requires every site block to have an address; a
+    # block whose address interpolates to nothing is a configuration Caddy refuses to load. So the
+    # fault does not merely leave ozikoro.com unserved — **it stops Caddy starting, which takes
+    # ozituma.com down with it.** The default below is therefore not a convenience: it makes an
+    # unset variable impossible to reach the interpolation.
     depends_on:
       - web
       - learn
+      # Listed so the reverse proxy's target exists before Caddy starts. Without it the first
+      # request to ozikoro.com can be proxied to a name that has not been created yet.
+      - ozikoro
     ports:
       - '80:80'
       - '443:443'
@@ -318,11 +448,25 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Cloudflare Origin CA certificate. Valid ~15 years and trusted by
       # Cloudflare, so there is no renewal loop to run on the host.
+      #
+      # ONE FILE SERVES BOTH SITES, AND A CLOUDFLARE ORIGIN CA CERTIFICATE IS ISSUED FOR NAMED
+      # HOSTS. If this certificate's SANs do not include `ozikoro.com` and `www.ozikoro.com`, then
+      # the Cloudflare-to-origin hop verifies only while the zone's SSL mode is **Full** (which does
+      # not validate the origin certificate). Under **Full (strict)** it is refused and ozikoro.com
+      # answers 526. The zone is recorded as `full` today, and the Caddyfile's own header says
+      # `full (strict)` is the intent — so the certificate must be checked for ozikoro.com before
+      # the zone is ever raised, or the raise takes the site down. The operator's check:
+      #
+      #   openssl x509 -in /opt/ozituma/certs/origin.pem -noout -text | grep -A1 'Subject Alternative Name'
+      #
       - /opt/ozituma/certs:/etc/caddy/certs:ro
       - caddydata:/data
       - caddyconfig:/config
     environment:
       OZITUMA_DOMAIN: ${OZITUMA_DOMAIN:-ozituma.com}
+      # The second domain the Caddyfile interpolates. Without it Caddy will not load at all — see
+      # the note on `depends_on` above.
+      OZIKORO_DOMAIN: ${OZIKORO_DOMAIN:-ozikoro.com}
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
