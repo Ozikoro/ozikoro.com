@@ -23467,3 +23467,227 @@ towns**"*, and *"you built an entirely different clans page, but no, that is not
 pager links read `?ethnic=Igbo&page=2` even from an address that did not set it. It is honest — that is the
 finder's own state — but it is a wart, and `?clan=ika` is dropped rather than applied because the cascade resolves
 `clan` against the register's entries and `ika` is a division, not one of them.
+
+## ROUND 350 — THE RECORDS PAGE WAS 96 KB OF A HUNDRED LINKS UNDER A NOTE ABOUT THE BUILD; IT IS NOW EIGHTEEN TILES YOU CAN SEARCH, FILTER AND TURN
+
+*(349 is the register round and landed in the same checkout while this one was written.)*
+
+### 1. WHAT THE OWNER WAS LOOKING AT, MEASURED
+
+His words: *"on the records page http://127.0.0.1:3110/entities/, can you redesign it to look better, at
+least a nicer design? also, remove that 'where this stands' or rewrite what was written there. dont display
+everything there. there should be a page for you to search or select or click next to see more"*.
+
+`GET /entities/` answered 200 and was **96,512 bytes**, and every fault he named is in that number:
+
+| | before |
+|---|---|
+| bytes | **96,512** |
+| `<h1>` | one — "The record" |
+| `<h2>` | **zero** |
+| links to `/entities/<slug>/` | **100** |
+| "Where this stands" | 2 in the served HTML — the boxed note, and the same string again in the serialised RSC payload React writes after the markup |
+| classes | `entry · eyebrow · grid-3 · here · lede · owner · partial-note · small …` plus the layout's |
+
+The phrase was at `apps/ozikoro/app/entities/page.tsx:38`, `<p className="eyebrow">Where this stands</p>`,
+over a dashed `partial-note` box. **It was not deleted, because its first sentence was true.** It read
+"{entities} entities across {kinds} kinds, with {linked} of the {linked === 0 ? '1,051' : ''} migrated
+records linked to one so far" — real figures about the archive. The second sentence explained the software
+(a script that guessed a clan from prose "would be inventing history"), and the part of it that is a fact
+about the archive rather than about the build moved to the note under the grid; the rest is gone.
+
+### 2. WHAT WAS BUILT, AND WHICH DESIGN FILE EVERY SHAPE CAME FROM
+
+**The design draws no entity index.** `apps/ozikoro/public/design/screens/` holds 52 screens and not one of
+them is an index of entities, so there was no design to match and no parity to preserve. That is not a
+licence to invent: every element on the page is a shape the design already draws, taken from three places.
+
+| shape on the page | where it comes from | what it is |
+|---|---|---|
+| `sx-discovery-hero` with eyebrow, `h1`, `lede` | `towns.html` | the dark discovery band, same elements in the same order |
+| `form.search` with a `sr-only` label, a `type="search"` field and `btn btn-gold` "Find" | `towns.html`, and `archive-index.html` | the design's search box, a plain GET form |
+| `sx-town-grid` of `<a><span><small><strong><em></span></a>` | `towns.html` | the design's card. **The `<img>` slot is the one thing left empty — see §6** |
+| `sx-source-note sx-light-note` closing the grid | `towns.html` | the note under a grid of cards |
+| `.spread` count row above the results | `archive-index.html` | "24 entries · Igbo · Ụ̀mụ̀nrì · 1800–1900 · oral history" |
+| the pager: `nav.row`, "Showing 1–4 of 24", two `btn btn-quiet btn-sm` | `archive-index.html` | the design's own pagination |
+| `.sx-filterbar` of kind links | `showcase.css` | the design system's light-ground filter bar, already serving `/clan-towns/` and `/projects` |
+| `.empty`, `.sr-only`, `.row`, `.section`, `.small`, `.muted` | `main.css` | the design's states and spacing |
+
+That is all of it. **28 classes are on the served page: 9 are the shared layout's (masthead, nav,
+nav-account, platform-bar, site-foot, skip, wordmark, here, owner) and 19 are this page's, and every one of
+the 19 is defined in `main.css` or `showcase.css`.** The one class on the page the design does not define is
+`nav-account`, which `app/layout.tsx:218` has carried since long before this round.
+
+The register's own index is the nearest page in the app — an index of named records from a table the reader
+can narrow — and it was rebuilt to the same card while this round was written, so the two agree on the card,
+the page size, the pager markup and the honest end state. (It was `/towns/` when this began and is
+`/clan-towns/` now; the size and the parameter did not change with the move.)
+
+### 3. WHAT IT LOOKS LIKE, AND THE TWO SHAPES THE DESIGN DOES NOT DRAW
+
+The served page is **27,675 bytes**, holds one `<h2>`, and draws 18 cards. Its structure, top to bottom: the
+dark hero with the lede carrying the archive's real figures and the search box; a gold-on-light filter bar
+of the kinds that exist; the count line; the grid; the note; the pager. Rendered at 1440 px it is the
+design's own poster: gold letterspaced kind over a serif name over the linked-history count, on a
+`var(--night)` tile.
+
+Two things had to be decided, and both are decisions rather than copies:
+
+1. **The pager's unavailable direction.** `archive-index.html` draws the disabled control as
+   `<a href="#" aria-disabled="true">Previous</a>` — an anchor with a real `href` pointing at nothing. A
+   disabled control that is still a link is a dead end dressed as a destination, which is the fault the
+   round-344 sweep was about, so the unavailable direction is a `<span>` wearing the same classes, marked
+   `aria-disabled`, carrying **no `href`** and therefore not focusable. Both directions are always drawn, as
+   the design draws them, so the row does not reflow as the reader turns pages.
+2. **The card's photograph — see §6.**
+
+### 4. SEARCH, THE KIND SELECT AND THE PAGER, AND WHAT EACH ADDRESS IS
+
+| control | address | what it does |
+|---|---|---|
+| search | `/entities?q=onicha` | the hero's GET form; `ilike` over the record's **name, slug, summary and aliases** — the four things the graph actually holds, with `%` and `_` escaped so a reader typing a wildcard means it literally |
+| the kind select | `/entities?kind=clan` | built from a `group by kind` over `ozikoro_entity`, so every option has records behind it; **`?kind=bogus` is dropped rather than run**, which is what `/clan-towns/` and `/archive/` do with a value they do not file |
+| the pager | `/entities?page=2` | 18 to a page, built from the same state so `q` and `kind` ride through every address |
+| past the end | `/entities?page=12` | the honest end state, not an empty grid |
+
+`graphHref` builds every address from the whole state, so a page turn keeps the search **and** the kind, and
+choosing a kind keeps the search on every filter link while the search form carries the kind as a hidden
+field. Page 1 carries no `page` parameter, so `/entities` is one address rather than two.
+
+**Why `sx-filterbar` and not the design's filter rail.** `archive-index.html` draws a `.rail` in a
+`.sidebar-layout` with five fieldsets — ethnic group, clan, place, period, source type. The graph has **one**
+column to filter on. A five-fieldset rail over one filter means four empty fieldsets, which is an invented
+shape drawn from the design's parts; the design's own one-row filter bar, already used twice in this app for
+exactly this, is the honest fit.
+
+**Why the register's `sx-reg-finder` was not copied here.** It is a four-step cascade, it is in **none** of
+the 52 design files, and it is the control the owner objected to on `/towns/` — so it stayed there.
+
+### 5. THE COUNT LINE, AND THE TWO BROKEN FIGURES THAT WERE REPLACED
+
+The count line reads, live: **`188 records · page 1 of 11`**, with `Showing 1–18 of 188` in the pager and
+`All 188 records the graph holds` in the note. Every figure is read at request time:
+
+* `188` and `11` come from `countEntities(db, filter)` — which shares **one** WHERE-clause builder with
+  `listEntities`, so the page and its own count cannot drift — and `getEntityStats`.
+* the kinds in the bar come from `getEntityFacets`, a `group by kind` over the rows.
+
+The old page's figures were also broken in two ways that were not visible from the page:
+
+1. **The typed count.** `{linkedArticles === 0 ? '1,051' : ''}` printed "0 of the 1,051" when nothing was
+   linked and "197 of the migrated records" — **no denominator at all** — when anything was. The archive's
+   published total is now read from `ozikoro_article` on every request, so no figure is typed.
+2. **A numerator that could exceed its denominator.** The denominator counted `status = 'published' and
+   is_page = false`; the numerator counted `count(distinct article_id) from ozikoro_article_entity`, which
+   includes links to drafts, to pages and to anything else. Both sides now read the same articles. Measured
+   live: **197 of the archive's 1,051 published histories are linked to a record.**
+3. **An order that was not total.** `listEntities` sorted by `article_count desc, e.name`, and neither
+   column is unique — two records with no linked history and the same name are not impossible, and a sort
+   that does not decide between them lets Postgres return them in either order between two queries. A reader
+   pressing Next would then see one card twice and another never. `e.slug` is unique and is now the last
+   key. The 11-page sweep below drew 188 distinct cards and repeated none.
+
+### 6. THE PHOTOGRAPHS: NONE DRAWN, AND WHY THAT IS THE DECISION
+
+`ozikoro_entity` has **no image column**, and no migration adds one. The only photograph an entity card
+could be given is the featured image of a published article linked to it through `ozikoro_article_entity` —
+which is exactly how the register fills its own cards.
+
+**Can that image belong to more than one entity? Yes, and it is measured.** The register's round found
+**seven photographs drawn on sixteen cards across sixteen distinct entries**, because one record may be
+linked to several places; it checked all seven against the records that carry them and found each record
+names the entry on the card, which is what makes the join defensible **for a register of places**.
+
+**This is not a register of places.** The graph files 142 clans, 37 towns, 7 peoples and 2 kingdoms today,
+and its `kind` column allows 45 values — `period`, `language`, `person`, `deity`, `ritual` among them. The
+same join on this page would put a photograph of a place on a record that is not a place, with nothing on
+the card to say so, and there is no rule available here that draws only true ones. A photograph of one thing
+shown as another's is the one thing this project must not do, so **the `<img>` slot is drawn empty, as the
+register drew its own cards before it had pictures: no picture, no stand-in, and the words carrying the
+whole meaning.** The cost is real and is stated in §9: the design's tile is `min-height: 20rem` with a
+gradient written to sit over a picture, so 18 tiles are a dark grid. It is a one-line change — a join and
+an `<img>` — if the owner wants the register's rule applied here and accepts what it would draw.
+
+### 7. HOW IT WAS VERIFIED
+
+```
+node scripts/verify-round-350.mjs                                PROBLEMS: 0
+npm run typecheck    (from the repository root)                  exit 0
+bash scripts/serve-review.sh                                     build 157s, READY on 3110
+python3 -c "…the parity check…"                                  identical 63 differing 0 missing 0
+```
+
+The check fetches the addresses a reader clicks and never trusts a status code. In full, against the served
+build:
+
+```
+GET /entities/ — 200, 27675 bytes (was 96,512)
+h2: 1 — "Records in the graph"
+classes on the page: 28; this page's own: 19; undefined by the design: 0
+page 1 cards: 18; unique: 18
+count line: "188 records · page 1 of 11"
+filter bar: Everything · Clan · Town · People · Kingdom
+facet counts: Clan 142, Town 37, People 7, Kingdom 2 — sum 188
+last page 11: 8 cards, pager "Showing 181–188 of 188"
+paging: 11 pages walked, 188 distinct cards, none repeated
+past the end: "There is no page 12." — .empty drawn
+?page=abc, ?page=0 and ?page=-3 all render page 1
+search: /entities?q=a — 153 records, 8 page turn(s) followed, filter kept
+kind select (Clan): /entities?kind=clan — 142 records, 7 page turn(s) followed, filter kept
+search + kind together: /entities?q=a&kind=clan — kind kept on every filter link, search kept on the form
+?kind=bogus falls back to the unfiltered index
+a search matching nothing: .empty with an explanation, no grid
+card destinations: 188 followed, 188 whose h1 is the name the card showed
+design parity: identical 63 differing 0 missing 0
+```
+
+Three of those are worth their own line:
+
+* **The facets are checked against the whole.** Each kind's link is fetched and its own count read; the four
+  counts must sum to the index's own total (188), and each kind-filtered page must draw only cards of that
+  kind. A filter with nothing behind it, or a total that is not the sum of its parts, fails here.
+* **A filter is proved to survive a page turn by following the turn**, not by reading the `href`: the Next
+  link's address is required to carry every term, it is followed, and the landing page's own count line must
+  say the new page number. `?q=a` and `?kind=clan` were each walked to their last page.
+* **Every card was followed.** All 188 destinations answered 200 **and each one's `<h1>` is the name the card
+  showed** — the check that catches a card pointing at the wrong record, which a status code cannot.
+
+### 8. WHAT WAS STAGED
+
+`apps/ozikoro/app/entities/page.tsx`, `packages/ozikoro/src/entities.ts` and `scripts/verify-round-350.mjs`,
+plus this file. Nothing else — the shared index has carried a staged mass deletion nine times today, so the
+commit is made from a private `GIT_INDEX_FILE` seeded with `read-tree HEAD`, with only those paths added.
+
+**One file carried another round's work and that is stated rather than hidden.**
+`packages/ozikoro/src/entities.ts` already held uncommitted changes from an earlier round — the
+`EntityDictionaryLink.url`/`external` fields and the `getEntityBySlug` fix that stopped 188 entity pages
+linking to `/clans/<id>` when the lookup is by slug. They are in the same file as this round's work and
+cannot be separated without a partial-file stage against a shared index, so they are carried, and named
+here. `apps/ozikoro/app/entities/[slug]/page.tsx` also carries an earlier round's uncommitted comment
+changes; it is **not** staged and **not** touched, which is why its own copy of the kind table was left
+where it is instead of being pointed at the new `entityKindLabel`.
+
+### 9. WHAT DOES NOT WORK
+
+* **The tiles carry no photograph, and the design's tile is built for one.** `.sx-town-grid > a` is
+  `min-height: 20rem` on `var(--night)` with an `:after` gradient written to sit over a picture, so 18
+  picture-less tiles read as a dark grid. This is the decision in §6, taken deliberately, and it is the one
+  thing on this page the owner may want the other way.
+* **The filter bar carries no counts.** `sx-filterbar` is labels-only on `/clan-towns/` and `/projects`, and
+  it is labels-only here; a reader learns how many a kind holds only after choosing it, from the count line.
+  The counts are computed either way.
+* **The kind bar is built for 45 kinds and shows 4.** It scrolls sideways on a narrow screen, so a future
+  archive with twenty kinds is a long scroll rather than a broken layout — but it is untested at that width
+  because no such data exists.
+* **The empty-graph state is code-read, not measured.** `stats.entities === 0` cannot be reached while the
+  archive holds 188 records, so that branch ("Nothing is in the graph yet.", pointing at `/archive/`) has
+  never rendered. It is written for the fresh-database case and is the one path this verification does not
+  exercise.
+* **Search is not over the archive's prose.** `q` matches a record's name, slug, summary and aliases only.
+  Searching the *histories* is `/archive/?q=`, and the two are different questions on purpose; a reader who
+  types a word that appears only inside a linked history gets the "nothing matches" state, which says what
+  the graph holds and offers every record.
+* **`entities/[slug]/page.tsx` still holds its own copy of the kind labels.** Two tables with the same
+  vocabulary in one repository is a place for them to drift. It was not consolidated because that file
+  carries an uncommitted change belonging to another round, and editing it here would have put that work in
+  this commit or lost it.
