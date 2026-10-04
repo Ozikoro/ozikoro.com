@@ -13,6 +13,7 @@
     "./archive": "./src/archive.ts",
     "./content": "./src/content.ts",
     "./media": "./src/media.ts",
+    "./media-key": "./src/media-key.ts",
     "./members": "./src/members.ts",
     "./roles": "./src/roles.ts",
     "./users": "./src/users.ts",

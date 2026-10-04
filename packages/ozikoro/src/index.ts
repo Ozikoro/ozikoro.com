@@ -42,6 +42,7 @@ export * from './connection.ts';
 export * from './content.ts';
 export * from './archive.ts';
 export * from './media.ts';
+export * from './media-key.ts';
 export * from './members.ts';
 export * from './roles.ts';
 export * from './users.ts';

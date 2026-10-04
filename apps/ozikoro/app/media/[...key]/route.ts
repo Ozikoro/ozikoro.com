@@ -28,6 +28,7 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { NextResponse } from 'next/server';
 import { getStorage } from '@ozituma/db/storage';
+import { EPISODE_KEY_PATTERN, MEDIA_KEY_PATTERN } from '@ozikoro/platform/media-key';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,30 +39,26 @@ const ARCHIVE_MEDIA_DIR = join(process.cwd(), '..', '..', 'data', 'media', 'ozik
 /**
  * `ozikoro/<wpId>-<filename>`. Nothing else is addressable.
  *
- * A SPACE BELONGS IN THE FILENAME AND WAS NOT ALLOWED.
+ * ── THE PATTERNS LIVE IN `@ozikoro/platform/media-key` AND ARE NOT WRITTEN OUT HERE ─────────────────
  *
- * The class was `[A-Za-z0-9._-]`, which rejects the space — and the archive holds real files whose names have
- * them, because WordPress keeps the uploaded name. **`11237-Igbo Folk Idioms in Caribbean Phrase.pdf` was on
- * disk, in the table, correctly named, and served a 404**, and the page offering it looked like a broken
- * download rather than a rejected address.
+ * They did live here, and that is why they were wrong twice. The upload tool could not see them, so it put
+ * objects in the bucket for keys this route then refused: **`ozikoro/11237-Igbo Folk Idioms in Caribbean
+ * Phrase.pdf` was on disk, in the table, correctly named and served a 404** because the class omitted the
+ * space; and seven `…@2x.png` retina variants plus one 212-character name were refused in exactly the same
+ * way. Each was found by fetching a real key, because a regex nobody executes looks correct.
  *
- * **The traversal guard is what the pattern is for, and it still holds: no `/` is permitted after the
- * prefix, so no key can climb out of the media directory.** Spaces and the punctuation WordPress leaves in
- * filenames — parentheses, brackets, commas, apostrophes, `&` — are admitted; nothing that separates a path
- * is.
+ * One constant, read by the route that enforces it and by the uploader that has to satisfy it, is what stops
+ * the third occurrence. **The traversal guard is unchanged and is stated there: no `/` after the fixed
+ * prefix, ever.** See `packages/ozikoro/src/media-key.ts` for the measurement behind every character.
  */
-const KEY_PATTERN = /^ozikoro\/\d{1,8}-[A-Za-z0-9._\- ()[\],'&+]{1,180}$/;
+const KEY_PATTERN = MEDIA_KEY_PATTERN;
 
 /**
- * The spoken records live in their own subdirectory, and the pattern above forbids `/` **on purpose** — the
- * traversal guard is what it exists for, so `..`, an absolute path and anything else never matches.
- *
- * **Widening that pattern to permit a slash would have weakened the guard for every one of the 3,750 archive
- * images to serve eight episodes.** So the episode path is a SECOND, NARROWER pattern: one fixed directory
- * name, then a filename that cannot contain a slash, a backslash or a dot-dot. **The guard is not relaxed; a
- * second door is cut that only opens onto one room.**
+ * The spoken records live in their own subdirectory, and a slash is forbidden in the media pattern **on
+ * purpose** — the traversal guard is what it exists for. So the episode path is a SECOND, NARROWER pattern,
+ * in the same module, for the reason stated there.
  */
-const EPISODE_PATTERN = /^ozikoro\/episodes\/[A-Za-z0-9._\-]{1,180}$/;
+const EPISODE_PATTERN = EPISODE_KEY_PATTERN;
 
 const CONTENT_TYPES: Record<string, string> = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',

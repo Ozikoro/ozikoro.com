@@ -30,7 +30,7 @@
  * reject anything that does not match, rather than trusting the client.
  */
 import { randomUUID } from 'node:crypto';
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -110,10 +110,31 @@ export interface StoredObjectBody {
   contentType: string;
 }
 
+/**
+ * What is stored under a key, WITHOUT the bytes.
+ *
+ * WHY THIS EXISTS SEPARATELY FROM `get()`
+ *
+ * `get()` downloads the object. That is right for serving a file and wrong for asking a question about it,
+ * and the question this was added for is the one the archive's media move turns on: **is this key already
+ * there, and is it the right size?**
+ *
+ * Asking with `get()` answers it by transferring 838 MB twice over a set of 3,441 files, which on a
+ * domestic connection is the difference between a resume that takes a minute and one that takes an hour.
+ * More importantly it cannot answer the second half at all: an object that was truncated by an interrupted
+ * upload has the right key and the wrong length, and a bare existence check skips it and reports success.
+ */
+export interface StoredObjectInfo {
+  byteSize: number;
+  contentType: string;
+}
+
 export interface Storage {
   readonly driver: 's3' | 'local';
   put(key: string, body: Buffer, contentType: string): Promise<StoredObject>;
   get(key: string): Promise<StoredObjectBody | null>;
+  /** Metadata only, or null when the key holds nothing. */
+  head(key: string): Promise<StoredObjectInfo | null>;
   remove(key: string): Promise<void>;
   publicUrl(key: string): string;
 }
@@ -223,6 +244,20 @@ class LocalStorage implements Storage {
   }
 
   /**
+   * The local driver stores no content type of its own, so the extension is the only answer available —
+   * the same one `get()` gives, so a caller cannot see two different types for one file.
+   */
+  async head(key: string): Promise<StoredObjectInfo | null> {
+    try {
+      const info = await stat(this.pathFor(key));
+      if (!info.isFile()) return null;
+      return { byteSize: info.size, contentType: contentTypeForExtension(key) };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Local media is served by the application at /media/<key>, because a
    * filesystem path is not a URL a browser can fetch.
    */
@@ -317,6 +352,32 @@ class S3Storage implements Storage {
     const { DeleteObjectCommand } = await this.sdk();
     const client = await this.getClient();
     await client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  /**
+   * A HEAD, so asking whether a key is already stored costs no bytes.
+   *
+   * A missing key is `null` rather than a thrown error, which is what makes "already there?" a question a
+   * caller can ask in a loop — see `StoredObjectInfo`.
+   */
+  async head(key: string): Promise<StoredObjectInfo | null> {
+    const { HeadObjectCommand } = await this.sdk();
+    const client = await this.getClient();
+    try {
+      const result = await client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      if (result.ContentLength === undefined) return null;
+      return {
+        byteSize: result.ContentLength,
+        contentType: result.ContentType ?? contentTypeForExtension(key),
+      };
+    } catch (error) {
+      const name = error instanceof Error ? error.name : '';
+      // S3 answers a HEAD for a missing key with 404 and no body, which the SDK reports as NotFound.
+      if (/NoSuchKey|NotFound|404/.test(name)) return null;
+      const status = (error as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+      if (status === 404) return null;
+      throw error;
+    }
   }
 
   /**

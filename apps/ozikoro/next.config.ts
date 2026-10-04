@@ -207,13 +207,89 @@ const nextConfig: NextConfig = {
      */
     const isDev = process.env.NODE_ENV !== 'production';
 
+    /*
+     * ── THE MEDIA ORIGIN, DERIVED FROM THE STORAGE DRIVER ───────────────────────────────────────
+     *
+     * THE ARCHIVE SERVES ITS OWN MEDIA FROM THIS ORIGIN, AND THAT IS WHY THIS CHANGE IS A GUARD
+     * RATHER THAN A FIX. Every reader-facing address is `/media/<key>`, built relatively — see
+     * `mediaPath` in `packages/ozikoro/src/media.ts`. The bytes are read server-side through
+     * `getStorage().get()` and streamed by this app, so `'self'` already covers every image and
+     * every player. Verified rather than assumed: `publicUrl()` — the one method that honours
+     * `MEDIA_PUBLIC_BASE_URL` — has no caller anywhere under `apps/ozikoro` or
+     * `packages/ozikoro`; it is the dictionary's helper.
+     *
+     * SO WHY DERIVE ANYTHING? Because the compose passes `MEDIA_PUBLIC_BASE_URL` to this service,
+     * and the day it is set to a media subdomain, `publicUrl()` starts returning an absolute
+     * cross-origin address. If some path then puts that in an `<img src>` or an `<audio src>`, the
+     * browser refuses it **while `curl` returns 200** — the fault this archive has paid for twice,
+     * once blocking every cross-origin image and once blocking the PDF viewer. A policy that
+     * silently breaks on a configuration change is worse than one that is merely strict.
+     *
+     * The precedence below is copied from `S3Storage.publicUrl()` in `packages/db/src/storage.ts`
+     * **on purpose**: if the two ever disagree, the policy permits an origin the driver never
+     * produces, or blocks one it does, and neither failure announces itself. With no bucket
+     * configured, the local driver returns `/media/<key>` — a relative address, so `'self'` covers
+     * it and this returns null. **With today's empty configuration the policy string is byte-for-
+     * byte what it was before this change**, which is what makes the guard safe to add.
+     *
+     * ── WHEN THIS DERIVATION ACTUALLY TAKES EFFECT, MEASURED RATHER THAN ASSUMED ──────────────────
+     *
+     * `headers()` is resolved **when the config is loaded, which is when the image is built**, and the
+     * resolved values are frozen into `.next/routes-manifest.json`. `docker/docker-compose.prod.yml`
+     * passes `MEDIA_PUBLIC_BASE_URL` to the container at RUN time and declares **no `args:` on the
+     * `ozikoro` build**, so a build made by that file sees the variable unset and this derivation
+     * returns null however the container is later configured.
+     *
+     * That is recorded here because it is the opposite of what a reader would assume from the
+     * paragraph above, and because it is **exactly the disagreement this guard exists to prevent**:
+     * build-time-empty against run-time-set. It is harmless today for one measured reason, which is
+     * the guarantee the archive actually rests on:
+     *
+     * **`publicUrl()` has NO caller under `apps/ozikoro` or `packages/ozikoro`.** Re-verified this
+     * round by grep over both trees: the only occurrences of the name are these comments. Every
+     * reader-facing address is `/media/<key>`, built relatively by `mediaPath`, and the bytes are read
+     * server-side and streamed by this app. So no image and no player is ever given an absolute
+     * cross-origin address, and `'self'` is sufficient **by construction rather than by policy**.
+     *
+     * The day that changes, the build must be given the same variable the container is — otherwise
+     * this exception will not be in the manifest and the image will be blocked in a browser while
+     * `curl` returns 200. **That is a build-argument change in `docker/docker-compose.prod.yml`, not
+     * a change here, and it is named here so the next reader does not have to rediscover it.**
+     */
+    const mediaOrigin = ((): string | null => {
+      const absoluteOrigin = (raw: string | undefined): string | null => {
+        const value = raw?.trim();
+        if (!value) return null;
+        try {
+          const parsed = new URL(value);
+          return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.origin : null;
+        } catch {
+          // A relative base such as `/media` is this origin, so `'self'` already admits it.
+          return null;
+        }
+      };
+
+      const base = absoluteOrigin(process.env.MEDIA_PUBLIC_BASE_URL) ?? absoluteOrigin(process.env.S3_ENDPOINT);
+      if (base) return base;
+
+      const bucket = process.env.S3_BUCKET?.trim();
+      if (!bucket) return null;
+      const region = process.env.S3_REGION?.trim() || 'us-east-1';
+      return `https://${bucket}.s3.${region}.amazonaws.com`;
+    })();
+
+    /** Named hosts added to `img-src` and `media-src` only. `connect-src` is not widened: nothing
+     *  in this app `fetch`es a media URL from the browser — there is no `createObjectURL` and no
+     *  client-side media request — so an exception there would grant access nothing uses. */
+    const mediaSources = mediaOrigin === null ? '' : ` ${mediaOrigin}`;
+
     const csp = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data: https://i.ytimg.com",
-      "media-src 'self'",
+      `img-src 'self' data: https://i.ytimg.com${mediaSources}`,
+      `media-src 'self'${mediaSources}`,
       "connect-src 'self'",
       "frame-src 'self' https://www.youtube-nocookie.com",
       "frame-ancestors 'none'",

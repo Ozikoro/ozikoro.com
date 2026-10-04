@@ -22834,3 +22834,225 @@ checkout and has nothing to do with this round — PGlite is single-process and 
 * **`packages/ozikoro/src/places.ts` is not in HEAD.** The module the register's query layer lives in is
   untracked in this checkout — several agents are working in it at once. `/towns/` now reads `imageKey` from
   it, so that field is part of this round's change and the file is carried in the commit.
+
+## ROUND 348 — THE ARCHIVE'S 3,447 FILES LEFT THIS MACHINE FOR THE BUCKET, AND THE EIGHT KEYS THE ROUTE WOULD HAVE REFUSED WENT WITH THEM
+
+*(347 is another agent's round and was in flight in the same checkout while this one was written.)*
+
+### 1. THE PATH TAKEN, AND WHY THE BYTES DID NOT GO THROUGH THE HOST
+
+The brief authorised a copy-then-upload over SSM: the files are here, the credentials are there. **The
+credentials were read over SSM and the files were not**, and the measurement is the reason.
+
+What the host was asked, read-only, through `ssm send-command` on `i-0cf8b21633d2aaf22` (no container was
+restarted, no file on the host was written, and every command this round was a read):
+
+| | measured |
+|---|---|
+| `/opt/ozituma/.env` | 1,229 bytes, mode 600, root |
+| `S3_ENDPOINT` | 65 characters — `https://ea4b95012b9f4252ff61c9393a87287f.r2.cloudflarestorage.com` |
+| `S3_BUCKET` | 13 characters — `ozituma-media` |
+| `S3_REGION` / `S3_FORCE_PATH_STYLE` | `auto` / `true` |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | 32 / 64 characters |
+| `MEDIA_PUBLIC_BASE_URL` | 25 characters — `https://media.ozituma.com` |
+| the machine | `t4g.medium`, 40 G root with **24 G free**, `rsync`, `curl` and `python3` present, **`node` absent** |
+| SSH | `sshd` active, `/root/.ssh/authorized_keys` **empty (0 keys)** |
+
+So a whole-tree copy was *physically possible* — there is room on the disk — and it was not taken because SSM
+RunCommand has no file-transfer primitive, the instance has no SSH key to tunnel `scp` through, the tree is
+**888,068 KiB**, and the host has no `node`, so a copy would have had to be uploaded from inside a container
+with the tree bind-mounted onto it — a write to a host that serves live sites. **Against that, the only thing
+that had to cross the wire was 96 bytes of credential.**
+
+That is what was done. `/opt/ozituma/.env` was read over SSM, base64-decoded through a pipe into
+`.data/r348/host-storage.env` — mode 600, under the gitignored `.data/`, **never printed to a terminal and
+never written to a tracked file** — used to give the upload process `process.env.S3_*`, and shredded at the
+end of the round. Copy-then-upload would have meant moving 838 MiB to a machine that gains nothing from
+holding it; this moved none.
+
+**The one thing a copy would have proved that this does not is that a second copy is faithful. It is not
+needed, because the files were never moved: the local trees are byte-for-byte where they were.**
+
+### 2. THE UPLOADER, AND THE TWO HARD-CODED FACTS THAT ARE NOW ARGUMENTS
+
+`packages/ozikoro/src/import/media-upload.ts` was the existing tool and it has been generalised rather than
+replaced. It had the right shape — it read `storage_key` from the row and did not derive it — and two facts
+it never said out loud: its source directory, and the fact that its `readdir` was **flat and therefore blind
+to `episodes/`**. Run alone it uploaded 3,443 images and **zero of the four spoken records**, so every image
+on the site worked and every player 404'd. `scripts/upload-media.mjs` is the *other* mistake waiting to
+happen: it is the dictionary's corpus uploader, it invents its key as `sha256(path)[0:24]`, and against this
+archive it would write 49,010 objects under `audio/` that nothing references, leave every key this archive
+needs untouched, and print `failed=0`. Both are now named in the new header.
+
+It takes three required arguments and **refuses to run without any of them**:
+
+```
+node packages/ozikoro/src/import/media-upload.ts \
+    --source data/media/ozikoro-wp --prefix ozikoro/ --keys db:ozikoro_media \
+    --concurrency 16 --manifest .data/r348/manifest-media.json --apply
+
+node packages/ozikoro/src/import/media-upload.ts \
+    --source .data/media/ozikoro/episodes --prefix ozikoro/episodes/ --keys dir \
+    --concurrency 4 --manifest .data/r348/manifest-episodes.json --apply
+```
+
+`--source` is where the bytes are, `--prefix` is the namespace, and **`--keys` is the key function, stated
+rather than hidden**: `db:<table>` reads the `storage_key` column verbatim, `dir` makes `--prefix + <relative
+path>` for every file under `--source`, and `file:<path>` reads a list. The flat path is `db:ozikoro_media`
+and the key is the row's — never recomputed. The episode path is `dir`, and that is deliberate: the archive
+holds **four** episode files and the database holds **three** rows, because `ute-okpu-an-ika-igbo-clan-and-its-nri-roots`
+was re-recorded in the owner's own voice and the row now points at the owner's file. The superseded synthetic
+render is still on disk and still named by a live address in `ozikoro_episode_revision`, `ozikoro_audit` and
+`ozikoro_episode_transition`, so a row-driven run would have left it out and a stale link would have 404'd.
+
+Two guards were added because the move needed them:
+
+* **`storage.head()`** in `packages/db/src/storage.ts` — a HEAD, so "is it already there, and is it the right
+  size?" costs no bytes. A `get()` would have answered it by downloading all 838 MiB again, and could not
+  have answered the size half at all. The uploader reads every object back after the PUT and compares the
+  stored length with the file's own: **3,438 of 3,438 flat objects and 4 of 4 episodes re-read at exactly the
+  right length.** A `repaired` count also exists for an object that is present at the wrong size, which is
+  what an interrupted upload leaves behind and what a bare existence check skips.
+* **`packages/ozikoro/src/media-key.ts`** — the key patterns, moved out of the route so the uploader can read
+  the same constant the route enforces. The uploader refuses to send a byte for a key `/media/<key>` cannot
+  address, because that is a hole no upload can fill.
+
+### 3. WHAT THE BUCKET HOLDS NOW
+
+```
+                              before this round        after
+ozikoro/ (delimiter "/")      0 objects                3,443 objects, commonPrefix ozikoro/episodes/
+ozikoro/episodes/             0 objects                4 objects
+ozikoro/ (recursive)          0 objects                3,447 objects  (873,171,676 bytes)
+audio/ (recursive)            72,015 objects           72,015 objects (7,896,746,570 bytes) — untouched
+```
+
+The flat run: **3,443 keys requested, 3,443 files present, 3,438 uploaded, 5 already stored from the smoke
+test, 839,983,427 bytes, 3,438 verified, 0 missing, 0 failed.** The episode run: **4 requested, 4 uploaded,
+29,554,287 bytes, 4 verified, 0 failed.**
+
+**The brief carried 3,437 and this is 3,443, and the difference is accounted for exactly.** Round 343's
+`scripts/backfill-unresolved-images.ts` added six `ozikoro_media` rows (ids 6977–6982) for six images the
+archive held but could not resolve; 3,437 + 6 = 3,443. It is corroborated on disk: `.data/media/ozikoro`, the
+local driver's own output, held 3,437 files when the brief was written and holds 3,443 now. Of the 3,750
+files in `data/media/ozikoro-wp`, **3,443 have an object in the bucket at exactly the same length**; the
+other 307 are files with no row, which is the same count the brief's 3,750 − 3,443 gives.
+
+Nothing local was moved, overwritten or deleted. `data/media/ozikoro-wp` is 3,751 entries / 888,068 KiB and
+`.data/media/ozikoro` is 3,444 entries / 859,596 KiB, both exactly as they were, and all four episode files
+are still in `.data/media/ozikoro/episodes/` at 2,310,522 · 8,541,919 · 8,029,457 · 10,672,389 bytes.
+
+### 4. THE SAMPLE THROUGH THE ROUTE, AND THE THREE UNUSUAL ONES
+
+`scripts/verify-round-348-media.mjs` measures the two ends and the path between them. **38 fetches through
+`/media/<key>` on the review server, every one 200 with the file's exact byte length and the right
+`Content-Type`**, and six more through the bucket's own public host:
+
+* **24 images spread across the whole key range** — every 1/24th of the run, not the first twenty by id,
+  which are the records every earlier round has already fetched. Sizes 4,995 to 910,587 bytes.
+* **the eight keys the route itself used to refuse** — seven `…@2x` retina variants and one 212-character
+  name. All eight 200, at 47,361 · 47,361 · 54,490 · 118,428 · 151,620 · 179,533 · 211,330 · 393,075 bytes.
+* **a `.webp`** — 93,536 bytes, `image/webp`.
+* **a `.html` record** — 176,592 bytes served as `application/octet-stream`, **not** as a page from the
+  archive's own origin.
+* **the four spoken records**, `audio/mpeg`, at exactly 2,310,522 · 8,541,919 · 8,029,457 · 10,672,389 — the
+  owner's own recording named as its own case in the output.
+* **the 51 rows whose `storage_key` IS NULL.** Three sampled: `/attachment/<slug>/` redirects to
+  `/documents/<slug>/`, answers 200, carries the words "The archive does not hold this file", and contains
+  **no `/media/` address at all** — nothing was invented for a file the archive does not have.
+* **the bucket's own public host**, `media.ozituma.com`, for six keys including the owner's recording: 200
+  and byte-identical to disk. **This is the one check that a route fetch cannot make**, because the review
+  server runs with `process.env.S3_BUCKET` unset and therefore serves through the LOCAL driver. Its 200s prove
+  the route — the patterns, the types, the lengths — and they do **not** prove the bucket; the public host and
+  the `ListObjectsV2` sizes are what prove the bucket, and the two agree.
+
+All of it: `PASS — every check above measured, none failed`, exit 0.
+
+### 5. EIGHT KEYS THE ROUTE REFUSED, WHICH THE BUCKET COULD NOT HAVE FIXED
+
+This was not in the brief and it is the fault class the brief is about. Measured against the real 3,443 keys,
+`KEY_PATTERN` refused **eight real files**:
+
+* **seven** carry `@`, because WordPress writes a retina variant as `name@2x.png` and the class
+  `[A-Za-z0-9._\- ()[\],'&+]` did not admit it;
+* **one** is 212 characters long and the cap was 180.
+
+Each was on disk, in the table, correctly named and **a 404** — the same shape as the space that had already
+been fixed once. Uploading those eight would have put eight objects in the bucket and served eight empty
+boxes. The patterns now live in `packages/ozikoro/src/media-key.ts`, read by the route and by the uploader,
+with `@` admitted and the cap at 255 — the length a file name actually has — and with a lookahead the test
+demanded: **`ozikoro/episodes/..` matched the old episode pattern**, because a class that admits `.` admits a
+name that is only dots, and `episodes/..` resolves to the media root. It was refused only by the route's
+`stat`, which is right by accident rather than by guard. `packages/ozikoro/src/media-key.test.ts` asserts the
+traversal guard directly: no separator, no `..`, no absolute path, no backslash. Measured against the running
+server: `/media/ozikoro/episodes/..` and `/media/ozikoro/episodes/./../..` both 404.
+
+### 6. THE CSP GUARD, AND WHICH HOST THE MEDIA IS SERVED FROM
+
+**The host is `media.ozituma.com`, and the reason is that it is the origin the code already produces.**
+`S3Storage.publicUrl()` returns `process.env.MEDIA_PUBLIC_BASE_URL + "/" + key`, that variable is
+`https://media.ozituma.com` on the production host, it is the R2 custom domain for the same
+`ozituma-media` bucket that now holds these bytes, and `curl https://media.ozituma.com/ozikoro/9274-osm-intl8aa250x200@2x.png`
+answers **200 `image/png`, 47,361 bytes — the exact length of the file on disk** (independently confirmed with
+a `HeadObject` on the bucket). `media.ozikoro.com` is a Cloudflare Tunnel CNAME in a zone this task must not
+write to, and **`curl https://media.ozikoro.com/health` now answers 404** rather than the 200 it answered when
+it was created. It is left alone and not depended on.
+
+The guard in `apps/ozikoro/next.config.ts` — the uncommitted derivation that was found and is now committed —
+**is right**, and it was checked line by line against `S3Storage.publicUrl()`: it resolves
+`process.env.MEDIA_PUBLIC_BASE_URL` first, then `process.env.S3_ENDPOINT`, then
+`https://<bucket>.s3.<region>.amazonaws.com`, and returns an origin that `'self'`, `img-src` and `media-src`
+can use. With today's configuration on this machine it returns `null` and **the policy string is byte-for-byte
+what it was before**, which is what makes it safe.
+
+**What it does not do, measured rather than assumed.** `headers()` is resolved when the config is loaded,
+which is when the image is built, and `docker/docker-compose.prod.yml` declares **no `args:` on the `ozikoro`
+build** — it passes `MEDIA_PUBLIC_BASE_URL` to the container at run time only. So a build made by that file
+sees the variable unset and the derivation returns `null` however the container is later configured, which is
+the build-time-empty-against-run-time-set disagreement the guard exists to prevent. It is harmless today for
+the reason the archive actually rests on, re-verified by grep over both trees: **`publicUrl()` has no caller
+anywhere under `apps/ozikoro` or `packages/ozikoro`** — the only occurrences of the name are the comments
+saying so. Every reader-facing address is `/media/<key>`, built relatively, and the bytes are read
+server-side. `'self'` is therefore sufficient **by construction**, and the day that changes the fix is a build
+argument in the compose file rather than a directive here. Both facts are now written where the next reader
+will meet them.
+
+### 7. WHAT WAS VERIFIED, AND WITH WHAT
+
+| | |
+|---|---|
+| `npm run typecheck` from the repo root | **exit 0** |
+| `node --test packages/ozikoro/src/media-key.test.ts` | 6 tests, 0 failures |
+| the move, both paths | 3,447 objects, 0 missing, 0 failed, every one re-read at the right length |
+| through the route | 38 fetches, all 200, every byte length equal to the file on disk |
+| through the bucket's public host | 6 fetches, byte-identical to disk |
+| the traversal guard | `/media/ozikoro/episodes/..` 404, `/media/ozikoro/…/../../package.json` 404 |
+| the local trees | unchanged: 3,751 entries / 888,068 KiB and 3,444 entries / 859,596 KiB |
+| `audio/` | 72,015 objects before and after — the dictionary's media was not touched |
+| the design deliverable | `identical 63 differing 0 missing 0` — `apps/ozikoro/public/design/` is untouched |
+
+### 8. WHAT DOES NOT WORK, AND WHAT WAS NOT DONE
+
+* **The review server's storage driver is LOCAL, so its 200s are not a proof of the bucket.** `process.env.S3_BUCKET`
+  is unset in this checkout, so `/media/<key>` reads `.data/media/ozikoro/…`. Running it against R2 would have
+  meant putting production credentials into a shared review process that other agents are using, and it would
+  still not have been a proof in development — the route falls back to the local archive directory when a key
+  is missing. The bucket is proved instead by `ListObjectsV2` sizes and by the bucket's own public host, and
+  the route is proved by the fetches; **the two are separate measurements and are reported as such.**
+* **The build that serves 3110 was produced by another agent's `serve-review.sh --rebuild`, not by this
+  round.** It built from the working tree and therefore contains this round's route change — which was
+  confirmed by fetching a key the old pattern refused and getting 200 — but this round did not run the build,
+  because the lock was held for the whole of it and taking the site down twice would have been worse than
+  waiting. `serve-review.sh --check` reports the artefact complete and the site answering.
+* **`media.ozikoro.com` is not proven healthy.** `/health` 404s. It is not used for anything here.
+* **The 307 files in `data/media/ozikoro-wp` with no row are still not in the bucket**, by design: nothing
+  references them, and keying them would be inventing keys rather than reading `storage_key`.
+* **The media has not been deleted from this machine, and must not be** until the bucket is proven in
+  production rather than in a review build. Both trees are intact.
+* **The `.next` build cache and the PGlite snapshots taken for this round were left alone**; the snapshots
+  under `.data/scratch-r348/` are copies and the live cluster was never opened by a second process.
+
+### 9. THE THING THAT NEEDS A PERSON
+
+**`CPANEL_PASSWORD` in `.env.local` must be rotated.** It is in no commit and no transcript, it was not read,
+not printed and not used by this round, and nothing here can make it safe. It is the owner's to rotate.
