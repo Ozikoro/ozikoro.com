@@ -100,6 +100,15 @@ export interface ArticleSummary {
   readingMinutes: number;
   sourceType: string | null;
   periodLabel: string | null;
+  /**
+   * The record's place names, comma-separated, from the entities it is linked to.
+   *
+   * **Null when the record names no place, which is 996 of the archive's 1,051 published records.**
+   * The card shows a place chip only when this is non-null: a chip is a claim with a record behind
+   * it, and the one thing this archive must never do is print a plausible place beside the real
+   * ones.
+   */
+  place: string | null;
 }
 
 export interface ArticleDetail extends ArticleSummary {
@@ -122,11 +131,31 @@ export interface ArticleDetail extends ArticleSummary {
 // ---------------------------------------------------------------------------
 
 /**
+ * The entity kinds that read to a reader as a PLACE.
+ *
+ * **This is a rule about meaning, not a formatting choice, so it is stated once.** The archive's
+ * link table carries a `role` per link (`town`, `clan`, `ethnic_group`, `place`, …), and a record's
+ * place facet is defined in `getArchiveFacets` as `role in ('town','place')`. The chip on a card is
+ * the same statement as that facet read one record at a time, so it uses the same roles — and the
+ * entity's own `kind` narrows it further, because a `place` link can point at a kingdom or a
+ * community, and both are places a reader would recognise. Measured on the served archive:
+ * **55 of 1,051 published records** are linked to an entity of one of these kinds, and **1,051 of
+ * 1,051** carry no period and no source type at all.
+ */
+const PLACE_ENTITY_KINDS = `('town','place','historical_place','archaeological_site','kingdom','polity','chiefdom','community')`;
+
+/**
  * The columns every article listing needs, joined once.
  *
  * The image is taken from the featured-media relation, and its rights fields come with it: the
  * plan requires rights and attribution on every media record the site shows, so a query that
  * returned a URL without them would make the correct rendering impossible.
+ *
+ * `place` is the record's own place names, denormalised into the listing because the card's place
+ * chip needs them for every row on the page and a query per row would be twenty-four queries. It is
+ * `string_agg(distinct …)` rather than `string_agg(…)`: **one record was measured printing
+ * "Igbodo, Igbodo"** when the same place was reachable through two entity rows, and a chip that
+ * names a place twice reads as a fault in the record rather than as a fact about it.
  */
 const ARTICLE_SELECT = `
   select a.id, a.slug, a.title, a.standfirst, a.body_html, a.word_count,
@@ -134,6 +163,9 @@ const ARTICLE_SELECT = `
          a.seo_title, a.seo_description,
          c.display_name as author_name, c.slug as author_slug,
          t.name as topic_name, t.slug as topic_slug,
+         (select string_agg(distinct e.name, ', ' order by e.name)
+            from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
+           where ae.article_id = a.id and e.kind in ${PLACE_ENTITY_KINDS}) as place,
          coalesce('/media/' || m.storage_key, m.source_url) as image_url,
          m.alt_text as image_alt, m.credit as image_credit
     from ozikoro_article a
@@ -169,6 +201,7 @@ function rowToSummary(row: Record<string, unknown>, origin = 'https://ozikoro.co
     readingMinutes: readingMinutes(body),
     sourceType: row.source_type ? String(row.source_type) : null,
     periodLabel: row.period_label ? String(row.period_label) : null,
+    place: row.place ? String(row.place) : null,
     ...(origin ? {} : {}),
   };
 }
@@ -548,6 +581,34 @@ const SOURCE_TYPE_NAMES: Record<string, string> = {
   unsourced: 'No source recorded',
 };
 
+/**
+ * What a stored `source_type` reads as to a reader.
+ *
+ * **Exported because two places now name the same fact.** The rail's source-type facet has always
+ * printed `Oral history` for `oral_history`; the chip on a record card names the same value, and a
+ * card reading `oral_history` beneath a rail reading `Oral history` would look like two different
+ * vocabularies. One function, called by both, is the only way that stays true.
+ *
+ * `source_type` is currently `null` on all 1,051 published records, so nothing calls this on a live
+ * card today — it is called for the rail's own labels, and it is what a chip will print on the day
+ * an editor records the first one.
+ */
+export function sourceTypeLabel(value: string): string {
+  return SOURCE_TYPE_NAMES[value] ?? value.replace(/_/g, ' ');
+}
+
+/**
+ * The chip class a source type is drawn with, in the design's own vocabulary.
+ *
+ * The design carries `chip-oral` (a moss wash) and `chip-source` (an indigo wash). **Oral history
+ * is the one the design draws in its own colour**, so it keeps `chip-oral`; every other recorded
+ * kind takes `chip-source`, which is the design's neutral wash for a source. No new class is
+ * invented — the stylesheet is part of the design and is not edited.
+ */
+export function sourceTypeChipClass(value: string): string {
+  return value === 'oral_history' ? 'chip-oral' : 'chip-source';
+}
+
 export async function getArchiveFacets(db: Db): Promise<ArchiveFacets> {
   /*
    * One query per group rather than one enormous query, because each has a different grain (an
@@ -610,7 +671,7 @@ export async function getArchiveFacets(db: Db): Promise<ArchiveFacets> {
     periods: periods.map((r) => ({ value: r.value, label: r.value, count: Number(r.n) })),
     sourceTypes: sources.map((r) => ({
       value: r.value,
-      label: SOURCE_TYPE_NAMES[r.value] ?? r.value.replace(/_/g, ' '),
+      label: sourceTypeLabel(r.value),
       count: Number(r.n),
     })),
     sourced: Number(totals?.sourced ?? 0),

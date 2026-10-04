@@ -16076,3 +16076,163 @@ is executed against a stub DOM and the 31 labels are compared with the arithmeti
 
 `bash scripts/serve-review.sh` rebuilt and restarted the review server, left up under `nohup` on
 **http://127.0.0.1:3110**.
+
+## ROUND 315 — THE ARCHIVE'S CARD IS THE DESIGN'S CARD: NO THUMBNAIL, NO EYEBROW, AND CHIPS THAT REFUSE TO LIE
+
+### 1. THE BRIEF SAID THE FIX WAS ONE LAYER UP, AND THE BRIEF WAS WRONG ABOUT WHICH LAYER
+
+The owner's words were exact: *"the archive is not how it is meant to be … it has no thumbnail, remove it
+completely and be sure it is exactly like this demo"*. The brief that followed them named the fix as
+**serve-time fill, `fillArchiveIndex` in `packages/ozikoro/src/design-fill.ts`**, and warned that "a bare page
+component for a design screen is DEAD for that route".
+
+**Read the middleware before believing that.** `apps/ozikoro/middleware.ts` rewrites only the names in
+`DESIGN_SCREENS`, and **`archive-index` is in that set while `archive` is not**. So `/archive/` never reaches
+the design screen at all:
+
+| Address | What serves it |
+|---|---|
+| `/design-screen/archive-index` | `fillArchiveIndex` — the design screen, which was already correct |
+| `/archive/` — **the page the owner is complaining about** | `apps/ozikoro/app/archive/page.tsx` — a real Next.js route |
+
+The two render different cards, and the served card the brief quoted (`<a tabindex="-1" aria-hidden="true">`
+around an `<img>`, then a `<div>` with `p.eyebrow`) is **`ArticleEntry` in
+`apps/ozikoro/app/_components/article-entry.tsx`**, reached from `archive/page.tsx` line 482. Measured, not
+assumed: the served page carried 24 `<img>` and 10 `chip-place`-shaped nothing — it carried zero chips — and
+its article markup is the component's, class for class. The design screen's `renderEntry` already emitted the
+design's structure, which is why editing it would have changed a page nobody was looking at. **The warning in
+the brief was inverted for this route, and the note is recorded here because the next agent will be handed the
+same brief.**
+
+### 2. THE THREE DIFFERENCES, AND WHAT EACH ONE TOOK
+
+**The thumbnail: removed completely.** The `<Link>` wrapper and the `<img>` are gone from `ArticleEntry`. It
+was the component's own markup, not the design's, so the fix is deletion rather than suppression. **0 `<img>`
+on the served page**, down from 24.
+
+**The eyebrow: removed.** It printed the topic and the publication date where the design prints provenance.
+The design's card has no eyebrow and the owner asked for the design exactly, so it went. The topic and date
+are not lost to the site — the record page carries both, and `/topic/<slug>/` lists by topic.
+
+**The chips: restored, and this was the whole of the work.** The design's card ends with `Place`, `Period`,
+`Source` and `Sources attached`, and none of the four was on the page.
+
+**One database change was needed and only one.** `ArticleSummary` carried `periodLabel` and `sourceType`
+already, but **no place**, because a record's place is not a column — it is the entities it is linked to.
+`ARTICLE_SELECT` in `packages/ozikoro/src/archive.ts` now computes it:
+
+```sql
+(select string_agg(distinct e.name, ', ' order by e.name)
+   from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
+  where ae.article_id = a.id and e.kind in ('town','place','historical_place','archaeological_site',
+                                            'kingdom','polity','chiefdom','community')) as place
+```
+
+`distinct` is not tidiness: **one record was measured printing "Igbodo, Igbodo"** when the same place was
+reachable through two entity rows, and a chip that names a place twice reads as a fault in the record rather
+than as a fact about it. `e.kind` rather than `ae.role` alone, because a `place` role can point at a kingdom
+or a community and both are places a reader recognises; the query is one correlated subquery per listed row,
+not one per card.
+
+### 3. THE CHIP TREATMENT WHEN THE RECORD HAS NOTHING — `(a) OMIT`, AND THE DESIGN ALREADY SAID SO
+
+Measured against the served archive before anything was changed, over all **1,051** published records:
+
+| Facet | Records that carry it |
+|---|---|
+| Place (an entity link of a place-kind) | **55** |
+| Period (`period_label`) | **0** |
+| Source type (`source_type`) | **0** |
+| Sources attached (`ozikoro_article_source`) | **0** |
+
+So the design's four-chip card can be filled on roughly **one card in twenty**, and on the other nineteen
+there is nothing honest to put in any of the four.
+
+**The choice is omission, and it is the design's own rule rather than a liberty taken here.** The fourth
+example card in `archive-index.html` carries **three** chips, not four, because it has no attached sources to
+count — the design omits a chip it cannot fill. That single fact settles both halves of the brief's question
+at once: *"a chip with no value must not be invented, and must not print an empty label"* holds, and *"a
+record with neither should still look like a complete card"* holds, because a card of heading, paragraph and
+the chips it has **is** the design's card.
+
+**What was deliberately NOT done is the other option, and the reasoning is the interesting part.** A `Period`
+chip reading "Not recorded" could have been stamped on every card, and the house does say plainly what is not
+recorded — but it says it **where the fact lives**. The three empty facets are empty **archive-wide**; there
+is no record anywhere in the archive with a period or a source type. The rail already says so in the
+archive's own measured words, where it belongs:
+
+> "No record in the archive has a period recorded yet. Dating is editorial work, and this filter fills when
+> it is done rather than being approximated now."
+
+Repeating that sentence 1,051 times would turn one honest page-level statement into a thousand identical ones
+and bury the 55 cards that do have something to say. **Omission is per-record honesty; the page-level truth
+stays page-level.** When an editor records the first period, the chip appears on that record alone with no
+change to this code.
+
+The `Sources N attached` chip is the same decision with a second reason: there are **0** rows in
+`ozikoro_article_source` against published records, so there is no count to print, and the branch is not
+written rather than written and left unexercised. The rail states it: *"Fully sourced only 0"*.
+
+### 4. THE SERVED CARD, AND THE COUNTS ON THE PAGE
+
+Fetched from `http://127.0.0.1:3110/archive/` with HTML comments stripped. **HTTP 200 is not the evidence;
+this is:**
+
+- `<img>` on `/archive/`: **0** (was 24)
+- `<article class="entry">`: **24**, the listing's page size
+- cards carrying **at least one chip: 5**; cards with **nothing to say: 19**
+- `chip-place`: **5** · `chip-period`: **0** · `chip-source`/`chip-oral`: **0** · `Sources attached`: **0**
+- `eyebrow` on a card: **0** (the 7 remaining on the page are the page's own header and the rail's legends,
+  which the design also has)
+- the count line: **"1,051 records · page 1 of 44"**, unchanged and still the archive's own number
+
+One card in full, as served:
+
+```html
+<article class="entry"><h3><a href="/umunede-an-ika-igbo-kingdom-in-western-igboland/">Umunede: An Ika-Igbo Kingdom in Western Igboland</a></h3><p>Umunede is an ancient Igbo kingdom of the Ika, one of the Igbo subgroups of western Igboland, west of the Niger. …</p><div class="chips"><span class="chip chip-place"><span class="k">Place</span> Umunede</span></div></article>
+```
+
+Against the design's card, element for element: `article.entry` ✓ · `h3 > a` ✓ · `p` — the record's own
+opening, never the design's example text ✓ · `div.chips` with `chip chip-place` and `span.k` ✓. **The one
+difference is the number of chips, and it is the record's own state rather than a deviation from the design.**
+
+**The empty state still works and still explains itself.** `/archive/?q=zzzznotaword` returns 0 cards and:
+*"Nothing carries that yet — No record in the archive contains "zzzznotaword". Nothing is hidden — the search
+found nothing. Clear the filters and see every record."* **The paging and the limit are honest and were left
+alone:** the page has always had `PAGE_SIZE = 24` with real `Previous`/`Next` links and a `page N of 44`
+line, so it does not claim to show 1,051 while showing 24.
+
+### 5. VERIFIED IN A REAL BROWSER, BECAUSE A 200 IS NOT A WORKING PAGE
+
+Headless Chrome at 1280 px against the served page. The card now reads as heading, paragraph and, where the
+record has one, a single `PLACE Umunede`-style chip in the design's own `chip-place` wash. **The owner's
+complaint was a thumbnail; the screenshot confirms there is no reserved box where it was** — `.entry` in
+`main.css` is `padding-block` plus a hairline and never reserved image space, so nothing collapsed or left a
+gap.
+
+**The four cards across are the container the page already had and the design names** — `div.grid-4`, with the
+design's own counts (`grid-4` 1 on the page, 4 `<article>`s), so it is untouched. The design's demo stacks its
+four example cards one under another inside a plain div, so it cannot show what 1,051 records in a four-column
+grid look like; the served page does, and the hairlines between uneven rows are the design's `.entry` rule
+rather than a fault this pass introduced. Flagged here rather than silently restyled, because "exactly like
+the demo" is the owner's instruction and the demo does not answer it.
+
+### 6. WHAT WAS NOT TOUCHED, AND THE GATE
+
+- **Not one byte under `apps/ozikoro/public/design/`. `archive-index.html` is inviolable and unedited.**
+  Parity after the last build, verbatim: `identical 63 differing 0 missing 0`.
+- **`packages/ozikoro/src/design-fill.ts` was not edited by this round.** `fillArchiveIndex` and `renderEntry`
+  already emitted the design's card; the route that needed fixing was the real one. **The file did carry
+  uncommitted changes when this round began and did not when it ended** — `git diff --stat` over it returned
+  nothing at the close — so another process in this shared checkout reverted its own work while this round ran.
+  That was not this pass's change and was not touched in either state.
+- **`apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/` holds 52 files** after the rebuild.
+- `npm run typecheck` from the repository root, **read from its own exit code and not a pipe's: exit 0.**
+- `npm -w @ozikoro/platform run test:archive`: **exit 0**, all checks pass, including the new `place` column
+  through `rowToSummary` and the facet counts that read 0 period and 0 source type.
+- `bash scripts/serve-review.sh` rebuilt and restarted the review server, left up under `nohup` on
+  **http://127.0.0.1:3110**.
+
+**One thing this round did not do: it did not add the `Sources N attached` chip.** The design draws it, no
+record can fill it, and rather than write an unexercised branch the omission is stated here and in the
+component. **A chip is a claim with a record behind it; the day one exists is the day the line is written.**
