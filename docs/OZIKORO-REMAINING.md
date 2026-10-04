@@ -20671,3 +20671,226 @@ would silently change what every relative address on the page means.
   screen, and the standing rule is that `public/design/` is never edited.
 - **`/photographs/` and `/documents/` as React routes are still shadowed** by the middleware rewrite to the
   design screens. Unchanged this round; measured, and recorded above.
+
+## ROUND 338 — EVERY `/_next/static` FILE ANSWERED 404 `text/plain` WHILE EVERY PAGE ANSWERED 200, AND THE ASSERTION THAT SHOULD HAVE CAUGHT IT PASSED THE BROKEN ARTEFACT
+
+### 1. WHAT WAS WRONG — THE FILE, THE LINE, AND THE ORDERING FAULT
+
+`scripts/serve-review.sh` built the standalone with `OZIKORO_DIST_DIR=.next-next` (line 593, added by
+`d778056` at 14:02:05) and then copied the static tree into a **hard-coded `$TARGET/.next/static`**
+(line 626). **Those two facts are the whole fault, and they disagree.**
+
+`next build` bakes `distDir` into the standalone's own generated entry point. The built
+`standalone/apps/ozikoro/server.js` contained:
+
+    const nextConfig = { … ,"distDir":"./.next-next", … }
+    process.env.__NEXT_PRIVATE_STANDALONE_CONFIG = JSON.stringify(nextConfig)
+    startServer({ dir, isConfig: false, config: nextConfig, … })
+
+so the running process resolved **every** path — `server/` and `static/` alike — against
+`standalone/apps/ozikoro/.next-next/`. The swap at the end of the script renames the **outer** `.next-next`
+to `.next`; nothing renames, or can rename, the string inside a generated file. The result:
+
+| what the server read | where | present? |
+|---|---|---|
+| pages, manifests, hashes | `…/apps/ozikoro/.next-next/` | yes — hence correct HTML, correct asset names |
+| `/_next/static/*` | `…/apps/ozikoro/.next-next/static/` | **no** |
+| the 127 files actually copied | `…/apps/ozikoro/.next/static/` | yes, unused |
+
+Measured on the running site before anything was changed:
+
+    GET /author/nze/                             -> 200 text/html; charset=utf-8
+    GET /_next/static/css/857f377877293320.css   -> 404 text/plain; charset=utf-8
+    GET /_next/static/chunks/main-app-…js        -> 404 text/plain; charset=utf-8
+    (all 7 assets the page asks for)             -> 404 text/plain; charset=utf-8
+
+**WHAT THE EARLIER DIAGNOSIS HAD WRONG, AND THE EVIDENCE.** The `.next-next` inside the standalone was
+described as a "leftover" from a copy racing the swap, leaving a "partial `.next`". It is neither. It is
+**the real build, sitting exactly where a build with that `distDir` must put it**, and the partial `.next`
+— one entry, `static` — is precisely what four lines of this script create:
+
+    mkdir -p "$TARGET" "$TARGET/.next"                       # the .next that "should not be there"
+    cp -R "$BUILD_OUT/static" "$TARGET/.next/static"          # the only thing ever put in it
+
+Nothing raced. The artefact was complete and internally consistent for the `distDir` it was built with;
+the script simply copied the assets to a directory the server it then started would never look in.
+
+**AND THE GATE THAT COULD NOT FAIL.** The script waited for `GET /` to answer 200 before printing `READY`.
+`/` is a **design screen** served from `public/design/screens/`, and its HTML references **zero**
+`/_next/static` assets — counted, not assumed. `/about/` is the same shape. So the readiness check was
+structurally incapable of noticing that no React page had any JavaScript, and it reported `READY` for the
+whole afternoon. *A 200 is not a working page, and a probe that cannot fail is not a check.*
+
+**THE MIDDLEWARE IS RULED OUT, WITH EVIDENCE — AND THE OBVIOUS ARGUMENT FOR RULING IT OUT WAS WRONG.** The
+first draft of this paragraph argued that the `text/plain` body proved a static-file miss, because a
+middleware rewrite or a route 404 "would answer with a Next.js HTML error document". Measured, it is not so:
+a missing route answers `404 text/plain;charset=UTF-8` with the body `Not found`, and a missing static asset
+answers `404 text/plain; charset=utf-8` with the body `Not Found`. The content type does not discriminate.
+
+What does discriminate is the **compiled** matcher the running server actually loaded, in
+`…/.next/server/middleware-manifest.json` — not the source comment:
+
+    ^(?:\/(_next\/data\/[^/]{1,}))?(?:\/((?!_next\/static|_next\/image|favicon.ico|styles\/|
+      .*\.(?:svg|png|jpg|jpeg|webp|gif|ico|js|css|woff2?|xml|txt)$).*))…
+
+`_next/static` is excluded by negative lookahead and `.css`/`.js` are excluded by suffix, so a request for
+`/_next/static/css/857f377877293320.css` **cannot reach the middleware at all**, and `/_next` is in the
+route's own skip list besides. The conclusive measurement is the fix itself: **the middleware was not touched
+by this round, and the same URLs on the same running process now answer `200 text/css` and
+`200 application/javascript`.** The only thing that changed was the directory the generated server reads.
+The middleware was never in the path.
+
+### 2. WHAT WAS DONE TO RESTORE THE SITE, AND THE FETCHES THAT PROVE IT
+
+`bash scripts/serve-review.sh --rebuild` (97 s build, 6 s restart), run **after** the script was fixed, so
+the artefact it swapped in is the corrected one. The generated server now reads:
+
+    const nextConfig = { … ,"distDir":"./.next", … }
+    apps/ozikoro/.next/standalone/apps/ozikoro/.next   ← the build, renamed from .next-next
+    ==> artefact complete: server.js present, 52 design screens, 127 static files
+
+    GET /author/nze/                                       -> 200 text/html; charset=utf-8
+    GET /_next/static/css/857f377877293320.css             -> 200 text/css; charset=UTF-8
+    GET /_next/static/chunks/main-app-8091b39f2a0f733a.js  -> 200 application/javascript; charset=UTF-8
+    (all 7 assets the page asks for)                       -> 200, each with its own MIME type
+
+The same origin, the same build, the same hashes the owner measured. **No `kill -9`: the script SIGTERMs,
+waits, and refuses to force a process holding `.data/pg`; that line is untouched.** No file under
+`apps/ozikoro/public/design/` was written.
+
+### 3. THE BROWSER EVIDENCE — MEASURED AGAINST A CONTROL, NOT ASSERTED
+
+Headless Chrome, `/author/nze/` at 1440 px, read through the DevTools protocol. The control is the same
+server and the same build with `*/_next/static/{css,chunks}/*` blocked at the network layer — which is
+exactly the fault state:
+
+| | as served | with `_next/static` blocked |
+|---|---|---|
+| the app stylesheet in `document.styleSheets` | `857f….css`, **102 rules parsed** | refused, `cssRules` throws |
+| `window.webpackChunk_N_E` | `object` | `undefined` |
+| `window.next` | `object` | `undefined` |
+| React roots (`next-route-announcer`, scroll-focus boundary) | **1** | **0** |
+| `/_next/static/*` responses recorded by the page | 8 assets, **all 200**, `text/css` / `text/javascript` | blocked |
+
+**WHAT THE READER ACTUALLY LOST, WHICH IS NOT WHAT THE BRIEF ASSUMED.** The React pages also load
+`/design/styles/main.css` (173 rules), `/design/styles/showcase.css` (907 rules) and `/a11y.css` (8 rules)
+from `public/`, and those were **always served** — they are copied correctly, and they are why the design
+screens looked right. So the pages were not blank and not wholly unstyled. Comparing the computed style of
+every element, as served against blocked:
+
+| page | elements with a differing computed style | full-page screenshot |
+|---|---|---|
+| `/towns/` | **~230 elements, 700+ properties** — `ol.sx-reg-steps` went `display:grid; grid-template-columns:280px×4` → `display:block`; `form.sx-reg-finder` lost `margin-top:32px` | **differs** |
+| `/researchers/` | 1 (`p.lede` lost `max-width:544px`, width 544 → 1168 px) | **differs** |
+| `/author/nze/` | **none** | byte-identical |
+| `/the-igbo-origins-and-development-of-the-aboh-kingdom/` | **none** | byte-identical |
+
+**What was missing on every React page without exception was the JavaScript** (`window.webpackChunk_N_E`,
+`window.next`, React roots: all absent) and the app's own stylesheet. On `/towns/` that was plainly visible
+— the four-column finder collapsed to one column. On `/author/nze/` the design's stylesheets carried the
+pixels, which is why "the design screens look fine" extended further than it looked.
+
+### 4. THE ASSERTION ADDED, SO A BROKEN ARTEFACT CANNOT PASS AGAIN
+
+**The assertion that was here passed on the artefact that served no assets at all.** It checked `server.js`
+and 52 design screens. Both were true: `server.js` existed, and the design screens come from `public/` and
+*were* copied. **The static tree was never counted**, so the one thing that was missing was the one thing
+not measured.
+
+Three changes, in `scripts/serve-review.sh`:
+
+1. **The artefact is normalised to the shape the Dockerfile ships.** After the build, and before anything is
+   copied, the standalone's own embedded `distDir` is read out of its generated `server.js`, that directory
+   is renamed to `.next`, and the one `"distDir":…` string the generated server passes to `startServer` is
+   rewritten to match. It refuses to guess: the generated file must contain **exactly one** such string, and
+   that is verified *before* anything is moved. On the fast path the artefact being normalised is the one the
+   running server is serving from, so it is not touched — the pre-flight reports it as incomplete and
+   `--rebuild` replaces it.
+2. **The static tree is asserted, by count and by name.** The standalone's `…/.next/static` must hold the
+   same number of files as the build's own `static`, and every asset in the build's own
+   `app-build-manifest.json` for `/layout` — the CSS and entry chunks every React page requests — must exist
+   there. Counted, not hard-coded: the names carry content hashes, so a fixed list would be wrong at the next
+   build. A failure is refused **before** the running server is stopped.
+3. **`READY` means a page that works.** The gate now fetches a React route, requires its HTML to reference
+   built assets at all, and requires every one of them to answer 200 with a MIME type a browser will apply
+   (`text/css`) or run (`*javascript*`). A build whose assets are not being served now fails the run instead
+   of printing `READY`.
+
+**AND THE GUARD WAS DRIVEN WITH A TREE IT SHOULD REJECT, WHICH FOUND A FAULT IN THE GUARD ITSELF.** The first
+version of (2) took `…/static` and then asked for `…/static/app-build-manifest.json` — which does not exist,
+so the by-name half printed nothing and never ran. **The check I added to stop a vacuous pass was itself
+half vacuous.** Driving the real function text against a scratch tree caught it:
+
+    complete copy (3 files):                   <passes — no reason>
+    one file short (the stylesheet):           the static tree is incomplete: …/static holds 2 files where …/static holds 3
+    same count, stale hashes:                  the build's own pages ask for assets that are not in the standalone: css/857f.css chunks/main-app-abc.js
+
+### 5. WHICH EARLIER READINGS MAY HAVE BEEN TAKEN AGAINST AN UNSTYLED PAGE
+
+**What can be established.** The two disagreeing lines are in **one commit, `d778056`, 14:02:05** — the
+`.next-next` build and the hard-coded `$TARGET/.next/static` copy. Nothing else in the checkout writes a
+build: `build-standalone.sh` only copies, `build-and-serve-once.sh` only guards concurrency. So **every
+`serve-review.sh` build from 14:02 onward produced an artefact whose `/_next/static` tree could not be
+served, and the guard asserted it complete each time.** The artefact found running when this round began was
+built at 15:56:37 and was broken.
+
+**The readings this names.** The record itself states the build and its assertion for these rounds, each in
+the exact words that passed on the broken artefact — *"built into `.next-next` and swapped in, artefact
+asserted complete: `server.js present, 52 design screens`"*:
+
+| round | commit | time | the claim the record makes |
+|---|---|---|---|
+| 330 | `2afc04d` | 14:20 | builds into `.next-next`, "artefact asserted complete" |
+| 331 | `6ea070b` | 14:41 | `--rebuild`, 140 s, "artefact complete: server.js present, 52 design screens" |
+| 332 | `f4bce5d` | 15:08 | `--rebuild`, "artefact asserted complete (52 design screens)" |
+| 333 | `27aeba8` | 15:10 | `--rebuild`, built into `.next-next` |
+| 335 | `948e554` | 15:16 | `--rebuild`, 85 s, "asserted `server.js present, 52 design screens`" |
+| 336–337 | `9ce76e6` | 15:39 | the 138-page sweep at three widths |
+
+**Which of those claims are at risk, stated precisely.** Any measurement taken *through the browser on a
+React page* is at risk to the degree that page's geometry depends on the app stylesheet — measured today,
+that is large on `/towns/` and one property on `/researchers/`, and **zero** on `/author/nze/` and the long
+article slug, so a blanket "all of it is void" would overstate it as much as the original silence
+understated it. Specifically at risk: round 337's 414 page-width overflow sweep, whose three failing pages
+were diagnosed from the design's own grid rules. Readings that are **not** at risk: anything read from the
+served HTML (all of it, since the HTML was correct), the design parity checks, typecheck, and the unit
+suites. Round 335's `--rebuild` and round 337's `/about/` screenshot measurements are unaffected — `/about/`
+is a design screen whose stylesheets were served. **I could not read the sibling sessions' transcripts to
+settle it: the DSH store is `zstd` and there is no `zstd` or Python `zstandard` in this checkout.** The
+distinction above is what the artefacts and the record support.
+
+**CONTENTION, DECLARED.** Session `195350c8` ("Fix responsiveness and recover author profiles") owned the
+build and server that this round replaced: its build marker is `15:56:37` and the server it started was
+serving when this round began. `serve-review.sh` stopped that process with SIGTERM and waited, as it must;
+**none of that session's uncommitted work was touched, and nothing of it was reverted or staged.**
+
+### 6. WHAT WAS VERIFIED
+
+- **The design is untouched.** The parity command prints, verbatim:
+
+      identical 63 differing 0 missing 0
+
+  and `git status --porcelain` over `apps/ozikoro/public/design` and `design/` is empty.
+- **`npm run typecheck` from the repository root: exit 0**, read from its own exit code and not a pipe's.
+- **The asset fetches above**, on the running site, with the hashes its own HTML asks for.
+- **The headless-Chrome measurement above**, as served against the same build with those URLs blocked.
+- **Both script paths re-run after the fix**: `--rebuild` (97 s + 6 s) and the fast path (0 s + 7 s), each
+  printing `artefact complete: server.js present, 52 design screens, 127 static files` and
+  `assets: every /_next/static file a React page asks for answers 200 with a usable MIME type`.
+- **The new guard reject-tested** against a scratch tree, with all three broken shapes in §4.
+
+### 7. WHAT DOES NOT WORK
+
+- **The static tree is asserted by presence, not by content.** A stylesheet truncated to 0 bytes passes; the
+  scratch test above shows it. A checksum would cost a hash over 127 files on every run, which was not
+  measured against the value, so it is left as an argument rather than a claim.
+- **The normaliser rewrites one string in a generated file.** It refuses if the shape changes — exactly one
+  `"distDir":…` must be found, verified before the move — but a Next.js release that emits the config
+  differently would stop the run rather than serve a broken page. That is the intent, and it is untested
+  against any Next version but 15.5.26.
+- **`--check` now exits 1 on the artefact this round fixed**, because the artefact it was pointed at was
+  genuinely unservable. On a good artefact it exits 0 and prints the two numbers it never printed before:
+  `static 127 files in the standalone, 127 in apps/ozikoro/.next/static` and `reads from ./.next (must be .next)`.
+- **The 138-page sweep in round 337 was not re-run.** Its three failing pages were diagnosed from design CSS
+  that was being served, but the sweep as a whole was measured against React pages whose app stylesheet was
+  not, and re-running it is a separate round's work.

@@ -47,7 +47,7 @@
 #      while the build output scrolled past. Building into a second directory and swapping it in is
 #      what makes a failed build harmless.
 #
-# Five changes answer those five, and the rest of the header says why each is what it is.
+# Six changes answer those five and one more, and the rest of the header says why each is what it is.
 #
 # ── 1. A LOCK ON THE BUILD, BESIDE THE BUILD DIRECTORY ───────────────────────────────────────────────
 #
@@ -102,6 +102,40 @@
 # 404s. This runs on the fresh-build path *and* as a pre-flight check on the fast path, so a standalone
 # damaged by anything else is caught **before** the running server is touched — the site stays up and
 # the operator gets an exact reason.
+#
+# ── 6. THE STATIC TREE IS ASSERTED TOO, AND "READY" NOW MEANS A PAGE THAT WORKS ──────────────────────
+#
+# THE FAULT THIS ANSWERS, MEASURED 2026-10-04, AND THE WORST ONE OF THE SIX. **Every React page served
+# unstyled and with no JavaScript for an afternoon, and every assertion in this script passed.**
+#
+# `next build` bakes `distDir` into the standalone's OWN generated entry point. This script builds with
+# `OZIKORO_DIST_DIR=.next-next`, so `standalone/apps/ozikoro/server.js` was generated holding
+# `"distDir":"./.next-next"` and passes that object straight to `startServer`. The swap renames the OUTER
+# `.next-next`; nothing renames the path inside the generated server, and the copy below wrote the static
+# tree to a **hard-coded `$TARGET/.next/static`**. So the running process served its pages and manifests
+# from `standalone/apps/ozikoro/.next-next/` — which existed, hence correct HTML and correct asset hashes —
+# and looked for every `/_next/static/*` request in `…/.next-next/static`, which did not exist. Measured:
+#
+#     /_next/static/css/857f377877293320.css  ->  404  text/plain; charset=utf-8
+#
+# while 127 real files, including that exact stylesheet, sat unused in `…/.next/static`. The browser said
+# it best: *"Refused to apply style … because its MIME type ('text/plain') is not a supported stylesheet
+# MIME type"*, plus eight aborted chunks.
+#
+# **THE GATE THAT SHOULD HAVE CAUGHT IT COULD NOT FAIL.** Readiness waited on `GET /` for 200 — and `/` is
+# a design screen served from `public/design/screens/`, whose HTML references **zero** `/_next/static`
+# assets (measured). A broken build answers 200 there forever. *A 200 is not a working page*, so the gate
+# now fetches a React route, requires it to reference built assets, and requires every one of them to
+# answer 200 with a MIME type a browser will apply or run.
+#
+# The copy destination is no longer a guess either: the standalone's own embedded `distDir` is READ, and
+# the artefact is NORMALISED to `.next` — the shape the Dockerfile ships — by renaming that directory and
+# rewriting the one string the generated server passes to `startServer`. On the fast path the artefact
+# being normalised is the one the running server is serving from, so it is not touched: it is reported as
+# incomplete and `--rebuild` replaces it. And the static tree is now counted and checked against the
+# build's own manifest, because the assertion that was here — `server.js` present, 52 design screens —
+# **passed on this broken artefact**, and an assertion a broken artefact passes is how this reached the
+# owner.
 #
 # ── WHAT IS UNCHANGED, AND MUST STAY UNCHANGED ───────────────────────────────────────────────────────
 #
@@ -208,10 +242,211 @@ standalone_screens_expected() {
   find "$SCREENS_SRC" -type f 2>/dev/null | wc -l | tr -d ' '
 }
 
+# ── WHICH DIRECTORY THE STANDALONE'S OWN SERVER READS ────────────────────────────────────────────────
+#
+# The generated `$TARGET/server.js` embeds a whole `nextConfig` object and hands it to `startServer`, so
+# the `distDir` **string in that file** — not `next.config.ts`, not the name of the directory on disk — is
+# what decides where the running process looks for `server/` and `static/`. This reads it. It is a
+# separate function from the normaliser below because the pre-flight must be able to ask the question
+# without changing the answer: the pre-flight runs against the artefact the live server is serving from.
+#
+# Prints the value, or nothing when there is no generated entry point to read it from; the reason function
+# reports that case separately.
+standalone_embedded_dist_dir() {
+  python3 - "$1" <<'PY' 2>/dev/null || true
+import json, os, re, sys
+
+server = os.path.join(sys.argv[1], 'server.js')
+try:
+    text = open(server, encoding='utf-8').read()
+except OSError:
+    sys.exit(0)
+
+# The line is a single `const nextConfig = {…};` — JSON.stringify emits no newlines, so one line is the
+# whole object and `json.loads` can read it rather than a regular expression guessing at its contents.
+m = re.search(r'^const nextConfig = (\{.*\});?[ \t]*$', text, re.M)
+if not m:
+    sys.exit(0)
+try:
+    print(json.loads(m.group(1)).get('distDir') or '.next')
+except ValueError:
+    sys.exit(0)
+PY
+}
+
+# Normalise the standalone's embedded build directory to the name the Dockerfile ships, `.next`.
+#
+# WHY THIS IS NOT COSMETIC. The review artefact and the production artefact must be the same shape, or the
+# review server is verifying a layout the container will never have. This script builds into `.next-next`
+# so the running site survives the build; that is a property of the *outer* directory and has no business
+# inside the artefact. See the header, 6.
+#
+# IT RUNS ONLY ON THE BUILD PATH, on the directory under `$STAGING_DIR` that nothing is serving. The
+# fast path is refused by `standalone_incomplete_reason` instead, because normalising there would rename
+# directories out from under the running server.
+#
+# It fails loudly rather than guessing: the generated server must contain exactly one `"distDir":<old>`,
+# and that is checked BEFORE anything is moved, so a Next.js change that alters this shape stops the run
+# with the artefact still where it was.
+standalone_normalise_dist_dir() {
+  python3 - "$1" <<'PY'
+import json, os, re, shutil, sys
+
+target = sys.argv[1]
+server = os.path.join(target, 'server.js')
+required = os.path.join(target, 'required-server-files.json')
+
+
+def die(message):
+    print('  NORMALISE FAILED: %s' % message, file=sys.stderr)
+    print('  Nothing has been swapped in. The running server is untouched.', file=sys.stderr)
+    sys.exit(1)
+
+
+try:
+    text = open(server, encoding='utf-8').read()
+except OSError as exc:
+    die('cannot read %s: %s' % (server, exc))
+
+m = re.search(r'^const nextConfig = (\{.*\});?[ \t]*$', text, re.M)
+if not m:
+    die('%s has no `const nextConfig = {…}` line, so the directory it reads cannot be known' % server)
+try:
+    config = json.loads(m.group(1))
+except ValueError as exc:
+    die('the nextConfig embedded in %s is not JSON: %s' % (server, exc))
+
+dist = config.get('distDir') or '.next'
+if os.path.normpath(dist) == '.next':
+    print('  the standalone already reads its build from .next')
+    sys.exit(0)
+if os.path.isabs(dist) or '..' in dist.split('/'):
+    die('refusing to normalise an absolute or escaping distDir: %r' % dist)
+
+new_dist = './.next' if dist.startswith('./') else '.next'
+needle = '"distDir":' + json.dumps(dist)
+if text.count(needle) != 1:
+    die('expected exactly one %s in %s, found %d' % (needle, server, text.count(needle)))
+
+inner = os.path.join(target, dist)
+final = os.path.join(target, '.next')
+if not os.path.isdir(inner):
+    die('the generated server reads its pages from %s, which does not exist' % inner)
+
+# A `.next` holding no server bundle is the placeholder an earlier run left behind with
+# `mkdir -p "$TARGET/.next"` and its static copy — never a build. Removed so the move cannot nest.
+if os.path.isdir(final):
+    if os.path.isdir(os.path.join(final, 'server')):
+        die('%s already holds a server bundle, so the artefact is ambiguous' % final)
+    shutil.rmtree(final)
+
+shutil.move(inner, final)
+open(server, 'w', encoding='utf-8').write(text.replace(needle, '"distDir":' + json.dumps(new_dist)))
+
+# Kept consistent so the file describes the directory it sits in. The running process does not read it —
+# it uses the embedded config above — but every later reader, including the assertions here, does.
+if os.path.isfile(required):
+    try:
+        data = json.load(open(required, encoding='utf-8'))
+    except ValueError:
+        data = None
+    if isinstance(data, dict):
+        data.setdefault('config', {})['distDir'] = new_dist
+        prefix = dist.rstrip('/') + '/'
+        for key in ('files', 'ignore'):
+            entries = data.get(key)
+            if isinstance(entries, list):
+                data[key] = [
+                    new_dist + '/' + e[len(prefix):]
+                    if isinstance(e, str) and e.startswith(prefix) else e
+                    for e in entries
+                ]
+        with open(required, 'w', encoding='utf-8') as handle:
+            json.dump(data, handle)
+
+print('  the standalone read its pages from %s and its static tree from %s/static; both are .next now'
+      % (dist, dist))
+PY
+}
+
+# ── THE STATIC TREE, WHICH NOTHING WAS CHECKING ──────────────────────────────────────────────────────
+#
+# The count the source holds is the assertion, as it is for the design screens, so it cannot go stale the
+# day a chunk is added. `$TARGET/.next/static` is where the copy below puts it AND where the generated
+# server reads it once normalised — those were two different directories on 2026-10-04, which is the
+# whole fault.
+static_tree_expected() {
+  find "$1" -type f 2>/dev/null | wc -l | tr -d ' '
+}
+
+# THE FILES THE BUILD'S OWN PAGES ASK FOR, read from the build's own manifest rather than written down
+# here: every name carries a content hash, so a hard-coded list would be wrong at the next build — the
+# exact way the design-screen count avoided going stale. `/layout` is the App Router root layout, so its
+# list is the CSS and the entry chunks **every** React page requests; a standalone missing any of them
+# renders unstyled or without JavaScript while still answering 200.
+build_manifest_assets() {
+  python3 - "$1/app-build-manifest.json" <<'PY' 2>/dev/null || true
+import json, sys
+
+try:
+    data = json.load(open(sys.argv[1], encoding='utf-8'))
+except Exception:
+    sys.exit(0)
+
+for entry in data.get('pages', {}).get('/layout', []) or []:
+    if isinstance(entry, str) and (entry.endswith('.css') or entry.endswith('.js')):
+        print(entry)
+PY
+}
+
+# The reason the static tree is not servable, or the empty string. One reason, the first found, because
+# the first one is the one an operator has to act on.
+#
+# IT TAKES THE BUILD DIRECTORY, NOT THE STATIC ONE. The first version of this took `…/static` and then
+# asked for `…/static/app-build-manifest.json`, which does not exist — so `build_manifest_assets` printed
+# nothing, the loop below never ran, and **half of the assertion I added to stop a vacuous pass was itself
+# vacuous.** Measured by driving it with a scratch tree before trusting it: the count check fired and the
+# name check silently did not. That is the same shape as the fault this round exists to remove, which is
+# why the guard is exercised with a tree it should reject rather than only a tree it should accept.
+static_tree_incomplete_reason() {
+  local build="$1" src="$1/static" dst="$TARGET/.next/static" expected got missing="" asset
+  expected="$(static_tree_expected "$src")"
+  got="$(static_tree_expected "$dst")"
+  if [ "$expected" -gt 0 ] && [ "$got" -ne "$expected" ]; then
+    printf 'the static tree is incomplete: %s holds %s files where %s holds %s' \
+      "${dst#"$ROOT/"}" "$got" "${src#"$ROOT/"}" "$expected"
+    return 0
+  fi
+  # Present in the right COUNT is not present with the right NAMES: a tree built for a different page
+  # graph has the same size and none of the hashes the HTML asks for.
+  while IFS= read -r asset; do
+    [ -n "$asset" ] || continue
+    if [ ! -f "$dst/${asset#static/}" ]; then
+      missing="$missing ${asset#static/}"
+    fi
+  done <<EOF
+$(build_manifest_assets "$1")
+EOF
+  if [ -n "$missing" ]; then
+    printf "the build's own pages ask for assets that are not in the standalone:%s" "$missing"
+    return 0
+  fi
+  printf ''
+}
+
 standalone_incomplete_reason() {
-  local expected got
+  local expected got dist
   if [ ! -f "$TARGET/server.js" ]; then
     printf 'the standalone entry point %s does not exist' "$TARGET/server.js"
+    return 0
+  fi
+  # THE GENERATED SERVER MUST READ THE DIRECTORY THE STATIC TREE IS COPIED INTO. On 2026-10-04 it read
+  # `.next-next` while everything was copied to `.next`, and this function — the guard whose whole job is
+  # to refuse an artefact that would serve 404s — passed the artefact that served them. See the header, 6.
+  dist="$(standalone_embedded_dist_dir "$TARGET")"
+  if [ -n "$dist" ] && [ "$(basename "$dist")" != ".next" ]; then
+    printf "the standalone's own server reads its build from %s, not .next, so it cannot find the static tree this script copies; %s" \
+      "$dist" "a run that builds it normalises that, which --rebuild does"
     return 0
   fi
   if [ -n "$SCREENS_EXPECTED" ] && [ "$SCREENS_EXPECTED" -gt 0 ]; then
@@ -247,8 +482,13 @@ fail_incomplete() {
   [ -n "$NEXT_BUILD_STALE" ] && return 0
   printf '\n  REFUSING TO SERVE: THE STANDALONE ARTEFACT IS INCOMPLETE.\n\n'
   printf '    %s\n\n' "$reason"
-  printf '  A standalone missing its design screens serves 200 for every page and a 404 page for\n'
-  printf '  every screen, which reads like a routing fault and is a missing copy.\n\n'
+  # NOT "MISSING ITS DESIGN SCREENS" ANY MORE. That was the only shape this guard knew, and on 2026-10-04
+  # the artefact was short of its static tree instead — the stylesheet and every chunk — while all 52
+  # screens were present. **The message named the wrong fault, which is part of how the right fault stayed
+  # hidden for an afternoon.** It describes the class now rather than one instance of it.
+  printf '  An artefact short of what it serves answers 200 on every page it still has and 404 for the\n'
+  printf '  files those pages ask for. That reads like a routing fault, or a design that is simply\n'
+  printf '  broken, rather than a copy that did not finish.\n\n'
   printf '  Nothing has been stopped, deleted or rebuilt: the running server is untouched and the\n'
   printf '  directory is left where you can look at it.\n\n'
   printf '  Run this to build a complete artefact and swap it in:\n\n'
@@ -262,12 +502,21 @@ fail_incomplete_after_build() {
   local reason="$1"
   printf '\n  THE BUILD PRODUCED AN INCOMPLETE ARTEFACT, SO IT WILL NOT BE SWAPPED IN.\n\n'
   printf '    %s\n\n' "$reason"
-  printf '  The running server is untouched and still serving the previous build. The incomplete\n'
-  printf '  output is deleted so the next build cannot start from it:\n\n'
-  printf '    %s\n\n' "${SD#"$ROOT/"}"
-  printf '  Run this command again:\n\n'
+  printf '  The running server is untouched and still serving the previous build.\n\n'
+  # WHO MAY DELETE, ONCE MORE. On the BUILD path `$SD` is the staging directory and deleting it is the
+  # point: a half-written server bundle is what the next build would read. **On the fast path `$SD` is the
+  # directory the running server is serving from**, and deleting it there is the measured outage this
+  # script's own refusal message documents — `rm -rf` under a live server took `/`, `/about/` and
+  # `/igbo-calendar/` from 200 to 404 while the refusal printed. So the fast path reports and leaves it.
+  if [ -n "$NEXT_BUILD_STALE" ]; then
+    printf '  The incomplete output is deleted so the next build cannot start from it:\n\n'
+    printf '    %s\n\n' "${SD#"$ROOT/"}"
+    rm -rf "$SD"
+  else
+    printf '  This run is serving from %s, so nothing is deleted — look at it where it is.\n\n' "${SD#"$ROOT/"}"
+  fi
+  printf '  Run this command to replace it:\n\n'
   printf '    bash scripts/serve-review.sh --rebuild\n\n'
-  rm -rf "$SD"
   exit 1
 }
 
@@ -282,6 +531,11 @@ if [ "$MODE" = "check" ]; then
   echo "    screens       source $SCREENS_EXPECTED files"
   if [ -d "$TARGET" ]; then
     echo "    standalone    $(find "$SCREENS_DST" -type f 2>/dev/null | wc -l | tr -d ' ') files, $( [ -f "$TARGET/server.js" ] && echo 'server.js present' || echo 'server.js MISSING' )"
+    # THE TWO NUMBERS THAT WERE NOT PRINTED, AND THE ONE THAT DECIDES WHERE THEY ARE READ FROM. On
+    # 2026-10-04 this line would have shown 127 static files in the build, 127 in the standalone, and
+    # `reads from ./.next-next` — the mismatch in one line instead of an afternoon.
+    echo "    static        $(static_tree_expected "$TARGET/.next/static") files in the standalone, $(static_tree_expected "$NEXT_DIR/static") in ${NEXT_DIR#"$ROOT/"}/static"
+    echo "    reads from    $(standalone_embedded_dist_dir "$TARGET" || true) (the generated server's own distDir; must be .next)"
   else
     echo "    standalone    absent$( [ -n "$NEXT_BUILD_STALE" ] && echo ' — a run would build' || echo ' — NOTHING WOULD BUILD, and a run would refuse' )"
   fi
@@ -372,6 +626,24 @@ else
   SCREENS_DST="$TARGET/public/design/screens"
 fi
 
+# THE ONE DIRECTORY THIS RUN'S BUILD WROTE, and the source of the two trees copied below. Named once so
+# the copy, the assertions and the readiness probe cannot disagree about which build is being served.
+BUILD_OUT="$( [ -n "$NEXT_BUILD_STALE" ] && printf '%s' "$STAGING_DIR" || printf '%s' "$NEXT_DIR" )"
+
+# ── normalise the standalone's own build directory BEFORE anything is copied into it ─────────────────
+#
+# The generated `$TARGET/server.js` embeds the `distDir` the build ran with — `.next-next` here — and hands
+# it to `startServer`. The copy below writes the static tree to `.next/static`, so unless the two agree the
+# running process serves every `/_next/static/*` request out of a directory that does not exist and answers
+# **404 `text/plain`** for the whole asset tree while the pages keep returning 200 with the right hashes in
+# them. That is exactly what the review site did for an afternoon. See the header, 6.
+#
+# It runs on the BUILD path, against the staging copy nothing is serving. On the fast path this would be
+# renaming directories out from under the live server, so the pre-flight above refuses that instead.
+if [ -n "$NEXT_BUILD_STALE" ]; then
+  standalone_normalise_dist_dir "$TARGET" || exit 1
+fi
+
 echo "==> copying what standalone output omits, exactly as the Dockerfile does"
 # BOTH PARENTS MUST EXIST, and the first version of this script only created the second.
 #
@@ -386,7 +658,7 @@ mkdir -p "$TARGET" "$TARGET/.next"
 # rather than starting a server that renders unstyled.
 rm -rf "$TARGET/public" "$TARGET/.next/static"
 cp -R "$APP/public" "$TARGET/public"
-cp -R "$( [ -n "$NEXT_BUILD_STALE" ] && printf '%s' "$STAGING_DIR" || printf '%s' "$NEXT_DIR" )/static" "$TARGET/.next/static"
+cp -R "$BUILD_OUT/static" "$TARGET/.next/static"
 
 # Prove the copy happened rather than assuming it. The stylesheets are the thing whose absence is invisible
 # from the server's own logs and obvious to a reader.
@@ -402,7 +674,19 @@ done
 # the failure that produces a working-looking site with 404s for every screen.
 reason="$(standalone_incomplete_reason)"
 [ -z "$reason" ] || fail_incomplete_after_build "$reason"
-echo "==> artefact complete: server.js present, ${SCREENS_EXPECTED} design screens"
+
+# ── AND THE STATIC TREE, WHICH IS THE ASSERTION THAT WAS MISSING ─────────────────────────────────────
+#
+# **Every assertion in this script passed on the artefact that had no servable assets at all.** `server.js`
+# was present and 52 design screens were present, because the design screens come from `public/` and were
+# copied correctly — the stylesheet and the eight chunks every React page asks for were somewhere else. So
+# the tree the pages actually load is now measured against the build that produced it, by count and by the
+# build's own hashed names. See the header, 6.
+reason="$(static_tree_incomplete_reason "$BUILD_OUT")"
+[ -z "$reason" ] || fail_incomplete_after_build "$reason"
+STATIC_FILES="$(static_tree_expected "$TARGET/.next/static")"
+
+echo "==> artefact complete: server.js present, ${SCREENS_EXPECTED} design screens, ${STATIC_FILES} static files"
 
 # ── stop and restart ────────────────────────────────────────────────────────────────────────────────
 #
@@ -498,13 +782,66 @@ echo "==> serving on http://127.0.0.1:$PORT"
     node apps/ozikoro/server.js > /tmp/ozikoro-review-$PORT.log 2>&1 &
 )
 
+# ── READY MEANS A PAGE THAT WORKS, NOT A PAGE THAT ANSWERS ───────────────────────────────────────────
+#
+# WHY THE OLD GATE WAS WORTHLESS, MEASURED 2026-10-04. It waited for `GET /` to answer 200 — and `/` is a
+# **design screen** served from `public/design/screens/`, whose HTML references **zero** `/_next/static`
+# assets (counted: no match for `_next/static` in its body). So the gate reported READY all afternoon while
+# every React page loaded with no stylesheet and no JavaScript. `/about/` is the same shape. **A 200 is not
+# a working page, and a probe that cannot fail is not a check.**
+#
+# This fetches a React route, requires its HTML to reference built assets at all, and requires every one of
+# them to answer 200 with a MIME type a browser will actually apply or run. `text/plain` is what a Next.js
+# 404 for a missing static file looks like, and it is precisely what the browser refused.
+#
+# Prints the first reason the build is not being served, or nothing when it is.
+asset_probe_reason() {
+  local base="http://127.0.0.1:$PORT" page html refs ref line code ctype
+  for page in /towns/ /researchers/; do
+    html="$(curl -s --max-time 10 "$base$page" 2>/dev/null || true)"
+    refs="$(printf '%s' "$html" | grep -oE '/_next/static/[A-Za-z0-9._/-]+\.(css|js)' | sort -u)"
+    [ -n "$refs" ] && break
+  done
+  if [ -z "$refs" ]; then
+    printf 'no React route referenced a built asset, so nothing here can tell a styled page from an unstyled one'
+    return 0
+  fi
+  for ref in $refs; do
+    line="$(curl -s -o /dev/null -w '%{http_code} %{content_type}' --max-time 10 "$base$ref" 2>/dev/null || echo 000)"
+    code="${line%% *}"
+    ctype="${line#* }"
+    if [ "$code" != "200" ]; then
+      printf '%s answered %s while the build being served asks for it' "$ref" "$code"
+      return 0
+    fi
+    case "$ref" in
+      *.css) case "$ctype" in
+               text/css*) ;;
+               *) printf '%s answered 200 with MIME type %s, which a browser will refuse to apply as a stylesheet' "$ref" "$ctype"; return 0 ;;
+             esac ;;
+      *.js)  case "$ctype" in
+               *javascript*) ;;
+               *) printf '%s answered 200 with MIME type %s, which a browser will not run as a script' "$ref" "$ctype"; return 0 ;;
+             esac ;;
+    esac
+  done
+  printf ''
+}
+
 READY_START="$(date +%s)"
 for _ in $(seq 1 40); do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:$PORT/" 2>/dev/null || echo 000)"
   if [ "$code" = "200" ]; then
+    reason="$(asset_probe_reason)"
+    if [ -n "$reason" ]; then
+      echo "  THE SERVER IS UP AND ITS BUILD IS NOT BEING SERVED: $reason" >&2
+      echo "  this is the fault where every page answers 200 and none of them is styled; see /tmp/ozikoro-review-$PORT.log" >&2
+      exit 1
+    fi
     echo
     echo "  READY  ->  http://127.0.0.1:$PORT"
     echo "             build ${BUILD_SECONDS}s, restart $(( $(date +%s) - READY_START ))s, total $(( BUILD_SECONDS + $(date +%s) - READY_START ))s"
+    echo "             assets: every /_next/static file a React page asks for answers 200 with a usable MIME type"
     echo "             log: /tmp/ozikoro-review-$PORT.log"
     exit 0
   fi
