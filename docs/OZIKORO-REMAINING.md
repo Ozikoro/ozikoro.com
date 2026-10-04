@@ -16769,3 +16769,222 @@ every subscriber** — so the hostname is chosen once and is permanent.
   for a voice that does not exist) · `POST /preview/pronunciation` · `POST /speak` returning **audio bytes**.
 - `apps/media/src/placeholder.ts`, which existed only so `tsc` had an input, was **deleted** — its own
   header said a project with real sources does not need it.
+
+## ROUND 316 — THE IMAGES WERE NEVER BROKEN: `img-src 'self'` WAS, AND A FETCH IS NOT A RENDER
+
+### 1. THE FAULT, IN ONE SENTENCE
+
+**Not one image was missing: the page's own `Content-Security-Policy` refused to load them, because they are on
+`https://ozikoro.com` and the reader is on `http://127.0.0.1:3110`, which is a different origin.**
+
+Every one of the URLs the owner could not see returns `200 image/webp` to `curl` and to `urllib`. Neither tool
+enforces a content policy; the browser does. The block is silent in the response — the slot renders empty, the
+network panel shows a request that never happened, and the only witness is the console:
+
+```
+Loading the image 'https://ozikoro.com/wp-content/uploads/2026/09/obi-of-igbodo.jpg' violates the following
+Content Security Policy directive: "img-src 'self' data:". The action has been blocked.
+```
+
+This is the third fault of its shape in two days — after `object-src 'none'` forbidding the PDF viewer and a
+`Secure` cookie a browser discards while `curl` stores it. **The rule worth carrying forward is that a fetch is
+not a render: a status code says what a server sent, not what a reader got.**
+
+### 2. PART ONE — THE 57 HOTLINKS, REWRITTEN TO THE ARCHIVE'S OWN COPY
+
+The design screens carry **57 `https://ozikoro.com/wp-content/uploads/…` images across 15 files** — 14 distinct
+URLs. They are rewritten at serve time, in `apps/ozikoro/app/design-screen/[screen]/route.ts`, to the archive's
+own `/media/…` address. **The matching rule is the one the article route already used for 2,871 body images**,
+so no second rule was written.
+
+Measured against `ozikoro_media`, all 14 resolve:
+
+| verdict | n | how |
+|---|---|---|
+| exact `source_url` | 10 | the URL is the column verbatim |
+| a WordPress resize | 4 | `-680x541` etc., matched with the size suffix stripped |
+| no media row | 0 | — |
+
+**So none of the 57 needed the policy widened, and the archive no longer fetches its own photographs from the
+site it exists to replace.** A URL with no matching row is left exactly as it was, byte for byte — the remaining
+unmatched addresses were never on ozikoro.com at all, and substituting anything for them would put a different
+photograph on a history page, which is worse than an empty box.
+
+Two design files deserve naming because the counts in the design file and the counts on the page differ:
+a fill replaces whole regions, so `projects.html`'s 7 hotlinks never reach a reader — the served `/projects/` has
+0 images. **Counting the deliverable is not counting the page.**
+
+### 3. THE ONE MATCHER, EXTRACTED SO THE TWO ROUTES CANNOT DRIFT
+
+The `source_url → storage_key` map was inline in `apps/ozikoro/app/[slug]/route.ts`. It is now
+`mediaUrlResolver(db)` in `packages/ozikoro/src/media.ts`, and **both routes call it.** A second copy of the rule
+is how one route quietly stops finding a file the other still finds — the drift that took the share, copy-link,
+print and read-aloud controls off every article this morning because one route had a rewrite the other did not.
+The pure half, `mediaUrlMap(rows)`, is separate from the query so it can be tested without a database.
+
+### 4. PART TWO — THE POLICY: TWO HOSTS, EACH ONE NAMED AND EACH ONE NECESSARY
+
+The CMS images did **not** need the policy. Two hosts genuinely did, and both are in the base policy in
+`apps/ozikoro/next.config.ts`: `https://i.ytimg.com` in `img-src`, and `https://www.youtube-nocookie.com` in a
+newly explicit `frame-src`.
+
+**Before**
+
+```
+default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self'; connect-src 'self';
+frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+```
+
+**After**
+
+```
+default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://i.ytimg.com; media-src 'self';
+connect-src 'self'; frame-src 'self' https://www.youtube-nocookie.com; frame-ancestors 'none'; base-uri 'self';
+form-action 'self'; object-src 'none'
+```
+
+`img-src` was **not** widened to `https:` or `*`. The two hosts are added to the base policy rather than scoped to
+a path because each is needed on more than one path — the design's own **home screen carries a YouTube thumbnail
+too**, measured as 1 of its 10 images — and a `/watch`-scoped rule would have left the front page broken.
+
+`frame-src` is not a relaxation of `default-src`: it names `'self'` explicitly and adds exactly one host, which is
+a **narrowing** of the fallback that was silently in force.
+
+The PDF's exception still derives by substitution from the same string, so the two policies cannot drift. Verified
+on `/<slug>/pdf`: `frame-ancestors 'self'`, `object-src 'self'`, both new hosts carried, `X-Frame-Options:
+SAMEORIGIN` unchanged.
+
+### 5. THE PLAYER WAS THE BIGGER FAULT BEHIND THE MISSING THUMBNAILS
+
+`/watch/`'s own script sets the inline player's `src` to YouTube's privacy-enhanced embed, and the design's
+`watch-video.html` ships one in its markup. With no `frame-src`, the directive fell back to `default-src 'self'`
+and **the film could not be framed at all**. The console said so, naming the fallback:
+
+```
+Framing 'https://www.youtube-nocookie.com/' violates the following Content Security Policy directive:
+"default-src 'self'". The request has been blocked. Note that 'frame-src' was not explicitly set, so
+'default-src' is used as a fallback.
+```
+
+**The iframe's `src` is empty in the served markup and set by script on click, so a markup check can never see
+the embed URL — the player was exercised by clicking a card in the browser, not by reading the HTML.** After the
+policy, the browser fetches the embed and YouTube answers `200`.
+
+Checked while there, and left alone: **29 published bodies contain 38 `<iframe>` tags and not one carries a
+`src`.** They are WordPress `wp-embedded-content` frames carrying `data-trx-lazyload-src` pointing at the old
+site, and they are `visibility: hidden`. `frame-src` therefore needs no `youtube.com`, and `www.youtube.com` is
+not named.
+
+### 6. THE TWO OTHER FAULTS FOUND BESIDE THIS ONE
+
+Both are image faults on pages the owner named, and neither is a policy fault:
+
+* **`/collections/` — a relative address.** The fill passed a bare `storage_key` (`ozikoro/11234-ute-king.webp`)
+  where every other fill passes `mediaPath(…)`, so the browser resolved it against `/collections/` and asked for
+  `/collections/ozikoro/11234-ute-king.webp`, which 404s. Measured: `naturalWidth === 0`, `complete === true`,
+  **and no CSP violation** — a different fault on the same page, invisible to any policy check.
+* **`/folklore-reader/` — a fill that inserts markup after the first pass.** The story body arrives from
+  WordPress with `srcset` candidates on `ozikoro.com`, and it does not exist at the top of the request. The
+  rewrite now runs a **second time on the finished document**; measured before it, 2 images and 5 off-origin
+  `srcset` candidates and 4 violations, after it, 0.
+
+### 7. MEASURED IN A REAL BROWSER, BECAUSE A 200 IS NOT A RENDER
+
+Headless Chrome over the DevTools protocol, reading `document.images` — **an image the policy blocked has
+`naturalWidth === 0` with `complete === true`.** The page is scrolled to the bottom first, because a lazy image
+below the fold reads exactly the same as a blocked one and this probe exists to tell them apart.
+
+`naturalWidth` for every image on the two pages the owner named:
+
+| `/listen/` | before | after |
+|---|---|---|
+| `…Ikoro-Drum-…-1921.webp` (the only cross-origin one) | **0** | **901** |
+| the other 12 (`/media/ozikoro/…`) | 719, 720, 1024, 768, 684, 720, 710, 460, 540, 1280, 1920, 828 | unchanged |
+
+| `/watch/` | before | after |
+|---|---|---|
+| 26 of the 27 `i.ytimg.com/vi/<id>/hqdefault.jpg` | **0 each** | **480 each** |
+| the 27th, `7f81_erOkxM` | **0** | **120 — see §8** |
+
+Across every screen tested, in both spellings:
+
+| URL | images | broken before | broken after |
+|---|---|---|---|
+| `/` `/home/` `/home.html` | 10 | 10 | **0** |
+| `/about/` `/about.html` | 5 | 5 | **0** |
+| `/listen/` `/listen.html` | 13 | 1 | **0** |
+| `/watch/` `/watch.html` | 27 | 27 | **0** |
+| `/watch-video/` `/watch-video.html` | 0 | 0 | **0** (frame blocked before, loads after) |
+| `/folklore/` `/folklore.html` | 17 | 0 | **0** |
+| `/folklore-reader/` `/folklore-reader.html` | 3 | 2 | **0** |
+| `/collections/` `/collections.html` | 1 | 1 | **0** |
+| `/photographs/` `/photographs.html` | 24 | 0 | **0** |
+| `/material-culture/` `/projects/` `/project/` `/town/` | 0 | 0 | **0** |
+| `/cultural-event/` `/cultural-event.html` | 4 | 4 | **0** |
+| `/<article-slug>/` | 4 | 0 | **0** |
+| `/design/screens/towns.html` | 6 | 6 | **6 — see §8** |
+
+Console CSP violations, before → after: `/` 17 → **0**, `/watch/` 28 → **0**, `/about/` 8 → **0**,
+`/cultural-event/` 8 → **0**, `/listen/` 1 → **0**, `/watch-video/` 1 → **0**. Off-origin CSS
+`background-image`s: **0 on every page, before and after** — measured from `getComputedStyle` on every element
+rather than by grepping stylesheets, because the design sets styles inline. `srcset`, `<source>`, `poster` and
+`icon` were read as well; there is not one off-origin among them.
+
+### 8. WHAT DOES NOT WORK, AND WHY
+
+* **`/design/screens/towns.html` still holds 6 blocked images, and it is the one screen nothing can reach.**
+  `/towns` is deliberately absent from the middleware's screen list because `app/towns/page.tsx` is a real route
+  — the served `/towns/` carries **0** cross-origin images. Its design file is reachable only as a raw static
+  file under `public/`, and **a route-level rewrite cannot touch a file served directly from `public/`**. Its six
+  are all in the media register and would resolve if it were ever routed; it is not, and inventing a route for
+  it would shadow the finder the owner asked for.
+* **`/about/` currently shows 2 broken images, and they are not this round's.** The page serves
+  `/media/ozikoro/design-probe.jpg` and `/media/ozikoro/design-probe-2.jpg` — neither exists on disk, both 404.
+  They are rewritten-in at serve time with the *correct* alt text of the two images this round resolved
+  (`Igbo_Cultural_Masquerades_-_008` and `Ika_People_of_Nigeria`), which is the signature of another agent's
+  serve-time design-override being exercised live against the review server. The string `design-probe` occurs
+  nowhere in the source tree or in the design file, and the override is not this round's change; the other three
+  images on the page are this round's and render. **Measured clean before that override went live: `/about/`
+  5 images, 0 broken.** Reported rather than touched, because it is another agent's in-flight work.
+* **`/watch/` lists one film that no longer exists on YouTube.** Of the 26 distinct ids the page draws,
+  `7f81_erOkxM` is gone: `https://i.ytimg.com/vi/7f81_erOkxM/hqdefault.jpg` answers **`404`** and the body is
+  YouTube's grey 120×90 "unavailable" placeholder, and the oEmbed for the same id is also `404`. **So the card
+  renders — `naturalWidth` 120, not 0 — and it is still a dead film.** The other 25 answer `200` at 480×360. This
+  is a content fault rather than a policy one, and it is recorded rather than hidden because the policy fix makes
+  it *look* healthy: the thumbnail appears, and only the click would fail.
+* `scripts/check-design-parity.mjs` reports **5 routes do not match their design** (`/archive`,
+  `/cultural-calendar`, `/cite`, `/projects`, `/about`) — all missing **sections and headings**, and the script
+  **never reads an image attribute at all** (`grep -E "img|image|src"` over it returns nothing). `/archive`'s
+  missing `.grid-4` is the card restack committed deliberately in round 315. Unrelated to this round.
+
+### 9. THE INSTRUMENT, CORRECTED TWICE, BECAUSE IT WAS WRONG IN THE SAME WAY THE OLD CHECK WAS
+
+`scripts/verify-round-316.mjs` had two faults of its own, and both would have produced a confident green:
+
+1. **It counted a Chrome error page as a pass.** Another process restarted the review server mid-run; eleven
+   pages became `net::ERR_CONNECTION_REFUSED` and one block showed `imgs 2 broken 0` — two decorative SVGs on
+   Chrome's own error page, which reads exactly like success. The script now polls the server before every
+   navigation and prints `UNREACHABLE` rather than a count.
+2. **It counted a lazy image as a broken one.** `/about/`'s below-the-fold images read `naturalWidth === 0`;
+   the page is now scrolled to the bottom before probing.
+
+**A test that cannot tell a working page from an error page is the same instrument fault as a fetch that cannot
+tell a working image from a blocked one.** `scripts/probe-round-316.mjs` is the offline half: it reads the design
+screens, the media rows and the disk and reports which URLs resolve, and by which rule.
+
+### 10. WHAT WAS NOT TOUCHED, AND THE GATE
+
+* **Not one byte under `apps/ozikoro/public/design/`.** The brief's own check, verbatim:
+  `identical 63 differing 0 missing 0`. `git status --short apps/ozikoro/public/design/` is empty.
+* `apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/` holds **52** files after the rebuild.
+* `npm run typecheck` from the repository root, **read from its own exit code and not a pipe's: exit 0**, 0
+  `error TS` lines.
+* `bash scripts/serve-review.sh` rebuilt and restarted the review server, left up under `nohup` on
+  **http://127.0.0.1:3110**.
+* **Six agents shared one `.next` and one port.** Two `next build` processes ran concurrently into the same
+  directory and destroyed `pages-manifest.json` and `build-manifest.json` twice, leaving the server down for
+  several minutes; a third agent's duplicate `TokenClass` export blocked the build outright until they renamed
+  it. The entry above was measured between rebuilds, and every contaminated run is marked as such rather than
+  reported as a result.

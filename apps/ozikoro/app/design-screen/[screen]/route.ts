@@ -23,14 +23,23 @@ import { getDb } from '@ozituma/db/client';
 import {
   imageNode,
   mediaPath,
+  mediaUrlResolver,
   placeNode,
+  rewriteBodyImages,
   seoHead,
   withSeoHead,
   fillMasthead,
   fillAbout,
   fillDashboardLinks,
   designScriptPaths,
+  can,
+  decodeDesignPreview,
+  designInventory,
+  listDesignOverrides,
+  applyDesignOverrides,
+  DESIGN_THEME_HREF,
   LINKED_SCREENS,
+  type DesignOverride,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import {
@@ -50,6 +59,19 @@ import { nowpaymentsConfigured } from '@/lib/nowpayments';
 export const dynamic = 'force-dynamic';
 
 const SCREEN_DIR = join(process.cwd(), 'public', 'design', 'screens');
+
+/**
+ * Does this screen carry an image on another origin at all?
+ *
+ * A CHEAP GATE IN FRONT OF A DATABASE QUERY, NOT A SECOND MATCHER.
+ *
+ * 52 screens are served through this route and most carry no absolute image once their fills have run. The
+ * map that resolves them is a query over every media row, so it is built only for a screen that has a URL
+ * for it to match — the same reasoning as the shelf count that is skipped for the screens that do not print
+ * it. **A pattern that over-matches costs one query and changes no output; a pattern that under-matches would
+ * put this fault straight back**, so it is written to catch `src` and `srcset` on both `img` and `source`.
+ */
+const CARRIES_ABSOLUTE_IMAGE = /<(?:img|source)\b[^>]*\b(?:src|srcset)="https?:\/\//i;
 
 /** What each screen should be called, and described as, in a search result. */
 const SCREEN_SEO: Record<string, { title: string; description: string; kind?: 'article' | 'page' | 'place' | 'list' | 'profile' }> = {
@@ -219,12 +241,184 @@ function reportLeftoverLinks(html: string, screen: string): void {
   if (left > 0) console.error(`design-screen: ${screen} still carries ${left} href="#" after the link transform`);
 }
 
+/* ==============================================================================================
+ * THE OVERRIDE LAYER — THE OWNER'S EDITS, APPLIED ON TOP OF THE DELIVERABLE
+ * ============================================================================================
+ *
+ * `public/design/` is the approved artefact and is byte-compared against the handover copy, so it is read as a
+ * template and never written to. The owner's edits live in `ozikoro_design_override` and land here.
+ *
+ * TWO STEPS, AND THEY RUN AT DIFFERENT POINTS ON PURPOSE.
+ *
+ *   THEME   the colour and type tokens, delivered as the `/design-theme.css` STYLESHEET that `seoHead` links.
+ *           A declaration only beats the design's own by coming later in the cascade, so a stylesheet after
+ *           `showcase.css` is what makes a colour change actually visible; it is also the one delivery both
+ *           this route and the article route get, so an accent change is not confined to the screens.
+ *
+ *   ELEMENTS  text, images, links and visibility, applied HERE and AFTER THE FILLS.
+ *
+ * WHY AFTER THE FILLS IS THE WHOLE POINT
+ *
+ * Most of the words on these screens are written at serve time: `fillDonate` writes `/donate/`'s notice and
+ * deletes its submit button, and `fillResearcherProfile` rewrites the profile's `h1` with the person's name.
+ * **An override applied before them is an override the fill then overwrites** — the owner saves a heading,
+ * the row is in the database, the log says nothing, and the page is unchanged. That is the failure this
+ * ordering exists to prevent, and `design-override.test.ts` asserts it against the real fill.
+ */
+
+/** The theme stylesheet's own link, added where nothing else has put one. */
+function withThemeLink(html: string): string {
+  if (html.includes(DESIGN_THEME_HREF)) return html;
+  const link = `<link rel="stylesheet" href="${DESIGN_THEME_HREF}">`;
+  return html.includes('</head>') ? html.replace('</head>', `${link}\n</head>`) : `${link}\n${html}`;
+}
+
+/**
+ * The preview's overrides, if this request carries one AND the reader may edit the design.
+ *
+ * A pending value is a value the owner is considering, so it is never stored; it is carried in the URL and
+ * honoured only for an account holding `manage_design`. Anyone else gets the page as the stored overrides
+ * leave it, which is why this returns an empty list rather than a refusal — a shared link shows the site, not
+ * a warning.
+ */
+async function previewOverrides(url: URL, db: Awaited<ReturnType<typeof getDb>>): Promise<DesignOverride[]> {
+  const raw = url.searchParams.get('ozpreview');
+  if (!raw) return [];
+  const pending = decodeDesignPreview(raw);
+  if (pending.length === 0) return [];
+  const viewer = await getCurrentAccount().catch(() => null);
+  if (!viewer) return [];
+  return (await can(db, viewer.account.id, 'manage_design')) ? pending : [];
+}
+
+/**
+ * Apply the element overrides, stored first and the preview last so a pending value beats the one it is
+ * previewing.
+ *
+ * A FAILURE HERE DEGRADES TO THE DESIGN. An overridden colour that cannot be read is a page with the
+ * deliverable's palette; a thrown error would be a 404 for a whole screen, which is worse than a heading that
+ * did not change.
+ */
+async function withDesignOverrides(html: string, name: string, url: URL): Promise<string> {
+  try {
+    const db = await getDb();
+    /*
+     * THE OFF SWITCH, AND WHY THE OWNER'S OWN SAVE PATH NEEDS ONE.
+     *
+     * A saved edit has to be PROVED, not assumed: the row can be written and the page can still be unchanged,
+     * because the selector matched nothing once the fills had run. The only honest test is to render the page
+     * with this edit applied and compare it with the same page without — and the page is already carrying the
+     * stored edits by the time the save returns, so the comparison needs a way to ask for the page as the
+     * design and the fills leave it. `?oznooverride=1` is that way, and it is honoured **only for an account
+     * holding `manage_design`**: the public gets the site, not a viewer with the owner's edits removed.
+     */
+    if (url.searchParams.has('oznooverride')) {
+      const viewer = await getCurrentAccount().catch(() => null);
+      if (viewer && (await can(db, viewer.account.id, 'manage_design'))) return html;
+    }
+    const stored = (await listDesignOverrides(db, name)).filter((override) => override.kind !== 'token');
+    let out = stored.length > 0 ? applyDesignOverrides(html, stored) : html;
+    const preview = await previewOverrides(url, db);
+    if (preview.length > 0) {
+      out = applyDesignOverrides(out, preview, { inlineTokens: true });
+    }
+    return out;
+  } catch (error) {
+    console.error(`design-screen: could not apply the design overrides to ${name}`, error);
+    return html;
+  }
+}
+
+/**
+ * The inventory of what may be edited on this screen, for `/admin/design/`.
+ *
+ * IT IS BUILT FROM THE SERVED PAGE AND NOT FROM THE FILE, which is the one decision that makes the editor
+ * honest. `/donate/`'s notice does not exist in `donate.html` — `fillDonate` writes it — and the same fill
+ * deletes the submit button, so an inventory of the FILE would offer a button that is not on the page and
+ * would not offer the notice that is. **One list, of what is actually there.**
+ *
+ * It is gated on `manage_design` because it describes every place a page can be edited, which is a map of the
+ * surface rather than a secret; but the map is not the public's.
+ */
+async function inventoryResponse(html: string, url: URL): Promise<Response | null> {
+  if (url.searchParams.get('ozinventory') === null) return null;
+  try {
+    const db = await getDb();
+    const viewer = await getCurrentAccount().catch(() => null);
+    if (!viewer || !(await can(db, viewer.account.id, 'manage_design'))) {
+      return new Response('Forbidden', { status: 403, headers: { 'cache-control': 'no-store' } });
+    }
+    return Response.json(designInventory(html), { headers: { 'cache-control': 'no-store' } });
+  } catch (error) {
+    console.error('design-screen: could not build the design inventory', error);
+    return Response.json(
+      { error: { code: 'inventory_unavailable', message: 'The inventory could not be built.' } },
+      { status: 503, headers: { 'cache-control': 'no-store' } }
+    );
+  }
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ screen: string }> }
 ) {
   const { screen } = await params;
   const name = screen.replace(/\.html$/, '');
+
+  /*
+   * ============================================================================================
+   * THE IMAGES THE DESIGN AND ITS FILLS STILL POINT AT THE OLD WORDPRESS SITE.
+   * ============================================================================================
+   *
+   * THE FAULT THIS FIXES IS NOT A BROKEN URL, AND THAT IS WHY IT SURVIVED EVERY CHECK MADE OF IT.
+   *
+   * The design screens carry **57 images whose `src` is `https://ozikoro.com/wp-content/uploads/…`**, the
+   * live WordPress install. Every one of those URLs returns `200 image/webp` to `curl` and to `urllib`,
+   * because the old site still serves them and neither tool enforces a content policy. **The browser does.**
+   * The page's own `Content-Security-Policy` says `img-src 'self' data: https://i.ytimg.com`, the reader is on
+   * `http://127.0.0.1:3110`, the image is on `https://ozikoro.com` — a different origin — so the browser
+   * refuses to load it, the slot renders empty, and nothing about the response looks wrong. Measured in
+   * headless Chrome: `naturalWidth === 0` with `complete === true`, which is the silent failure exactly.
+   * **A fetch is not a render.**
+   *
+   * The archive already holds these files — that is what the migration was — and serves them from
+   * `/media/…`. `mediaUrlResolver` is the same mapping the article route uses for its own 2,871 body images,
+   * so **there is one matching rule in the codebase rather than a second one here.**
+   *
+   * IT RUNS TWICE, AND WHY THAT IS NOT REDUNDANT.
+   *
+   *   once on the design's own markup, before the `FILLED` branch — so a screen served untouched (the early
+   *   return below) is covered, and so is every screen that is filled, because the design's markup surrounds
+   *   the replaced regions;
+   *
+   *   once on the finished document — because **a fill can insert HTML that carries its own absolute URLs.**
+   *   `folklore-reader` fills a reader with a story body, and that body arrived from WordPress with `srcset`
+   *   candidates on `ozikoro.com`; measured before the second pass, two images on the page were still empty
+   *   with five off-origin `srcset` candidates and four CSP violations. A single pass at the top cannot see
+   *   markup that does not exist yet.
+   *
+   * The two passes cannot double-rewrite: a URL already turned into `/media/…` matches no `source_url`.
+   *
+   * A URL WITH NO MATCHING ROW IS LEFT EXACTLY AS IT WAS. **The addresses that do not match were never on
+   * ozikoro.com — a BBC or a Google image quoted in an article — and substituting anything for those would
+   * put a different photograph on a history page, which is worse than an empty box.** The archive's own
+   * resolver returns `null` for them and `rewriteBodyImages` leaves them byte-for-byte.
+   *
+   * IT DEGRADES TO THE DESIGN. This is deliberately its own `try`: the block below catches a failure by
+   * returning **404 for the whole screen**, and a database that is briefly unavailable must not turn every
+   * design screen into "Not found". An unresolved image is the fault this is fixing; a 404 is a worse one.
+   */
+  let oldSiteImageResolver: ((url: string) => string | null) | null = null;
+  const resolveOldSiteImages = async (document: string): Promise<string> => {
+    if (!CARRIES_ABSOLUTE_IMAGE.test(document)) return document;
+    try {
+      oldSiteImageResolver ??= await mediaUrlResolver(await getDb());
+      return rewriteBodyImages(document, oldSiteImageResolver);
+    } catch (error) {
+      console.error(`design-screen: could not resolve ${name}'s old-site image URLs`, error);
+      return document;
+    }
+  };
 
   let html: string;
   try {
@@ -290,11 +484,25 @@ export async function GET(
       html = fillDashboardLinks(html, name);
       reportLeftoverLinks(html, name);
     }
+
+    // THE FIRST PASS: the design's own markup, before any screen decides whether it is filled. See the note
+    // on `resolveOldSiteImages` — a screen served untouched returns from the branch just below.
+    html = await resolveOldSiteImages(html);
   } catch {
     return new Response('Not found', { status: 404 });
   }
 
   if (!FILLED.has(name)) {
+    /*
+     * A SCREEN WITH NO FILL STILL CARRIES THE OWNER'S EDITS. These screens never reach the generated head, so
+     * the theme stylesheet is linked here; the element overrides are applied by the same helper the filled
+     * screens use, which is what stops the two halves of the deliverable from behaving differently.
+     */
+    const url = new URL(request.url);
+    const inventory = await inventoryResponse(html, url);
+    if (inventory) return inventory;
+    html = withThemeLink(html);
+    html = await withDesignOverrides(html, name, url);
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   }
 
@@ -591,7 +799,19 @@ export async function GET(
         );
         const collections: RealCollection[] = [
           { label: 'Visual archive', name: 'Photographs', href: '/photographs',
-            cta: `${(counts?.images ?? 0).toLocaleString('en-GB')} image records`, image: hero?.img ?? null, glyph: null },
+            cta: `${(counts?.images ?? 0).toLocaleString('en-GB')} image records`,
+            /*
+             * `mediaPath`, NOT THE BARE `storage_key`.
+             *
+             * The key is `ozikoro/11234-ute-king.webp` — where the file sits on disk — and **as a `src` it is
+             * a RELATIVE address**, so the browser resolved it against `/collections/` and asked for
+             * `/collections/ozikoro/11234-ute-king.webp`, which 404s. Measured in Chrome before this line:
+             * one image on the collections page, `naturalWidth === 0`, `complete === true`, **and no CSP
+             * violation at all** — a different fault from the hotlinks, on the same page, and one that no
+             * policy check would ever have caught. Every other fill in this file already goes through
+             * `mediaPath`; this was the one that did not.
+             */
+            image: hero?.img ? mediaPath(hero.img) : null, glyph: null },
           { label: 'Written archive', name: 'Documents & maps', href: '/documents',
             cta: `${(counts?.docs ?? 0).toLocaleString('en-GB')} document records`, image: null, glyph: '≡' },
           { label: 'Recorded archive', name: 'Oral recordings', href: '/listen',
@@ -1287,6 +1507,19 @@ export async function GET(
           },
         ]),
   ];
+  /*
+   * THE INVENTORY IS TAKEN HERE — after the fills, before the generated head.
+   *
+   * After the fills, because the fills are what decide which elements exist. Before the head, because the head
+   * this route writes is metadata rather than design, and an inventory that described it would offer the owner
+   * the canonical link and the JSON-LD script as things to edit.
+   */
+  {
+    const url = new URL(request.url);
+    const inventory = await inventoryResponse(html, url);
+    if (inventory) return inventory;
+  }
+
   html = withSeoHead(
     html,
     seoHead(
@@ -1304,6 +1537,17 @@ export async function GET(
       ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
     )
   );
+
+  // THE SECOND PASS: whatever the fills inserted. `folklore-reader`'s story body is the measured case — it
+  // arrives from WordPress with `srcset` candidates on `ozikoro.com`, and it does not exist at the first pass.
+  html = await resolveOldSiteImages(html);
+
+  /*
+   * AND THE OWNER'S EDITS GO ON LAST, AFTER THE HEAD AND AFTER EVERY FILL. `withSeoHead` replaces the whole
+   * `<head>`, so an override injected before it would be discarded with the design's own head — and a fill
+   * that rewrote the same heading would discard the rest. Nothing runs after this.
+   */
+  html = await withDesignOverrides(html, name, new URL(request.url));
 
   return new Response(html, {
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },

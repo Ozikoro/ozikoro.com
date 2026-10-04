@@ -119,6 +119,36 @@ const nextConfig: NextConfig = {
      *   * `img-src 'self' data:` is a security gain as well as a policy: every image now serves from
      *     this origin, because item 1 removed the hotlinks to the old WordPress site. The policy
      *     ENFORCES that — a future hotlink fails closed instead of silently reinstating a dependency.
+     *
+     *     ── THE TWO HOSTS IT NAMES, AND WHY EACH ONE IS NECESSARY ────────────────────────────────────
+     *
+     *     **`img-src 'self' data:` is the policy; the hotlinks were NOT all removed, and this round is
+     *     the measurement of that.** 57 `https://ozikoro.com/wp-content/uploads/…` images survive in the
+     *     design deliverable, and `apps/ozikoro/app/design-screen/[screen]/route.ts` now rewrites every
+     *     one of them that the archive holds to its own `/media/…` address at serve time. **The policy is
+     *     what made the remaining ones visible:** they returned `200` to `curl` and rendered as an empty
+     *     box in a browser, because the policy refuses an image on another origin and `curl` enforces no
+     *     policy. So this directive stays `'self' data:` and the hosts below are the ONLY exceptions.
+     *
+     *       `https://i.ytimg.com` — YouTube's poster frames. `/watch/` is a screen whose whole content is
+     *       other people's films; the thumbnails are YouTube's own and **cannot be self-hosted without
+     *       copying a third party's images into the archive, which is a licensing decision and not this
+     *       file's to make.** Measured before this line: 27 of 27 images on `/watch/` blocked, and 1 of 10
+     *       on `/`, because the design's home screen carries one too. It is a named host and not `https:`
+     *       or `*`.
+     *
+     *       There is deliberately NO exception for a BBC or Google image quoted in an article body. Those
+     *       do not match an archive row, `rewriteBodyImages` leaves them exactly as they were, and they
+     *       stay blocked — **a broken image is better than a wrong one.**
+     *   * `frame-src 'self' https://www.youtube-nocookie.com` — **the player, which is the larger fault
+     *     behind the missing thumbnails.** `/watch/`'s script sets the inline player's `src` to YouTube's
+     *     privacy-enhanced embed and the design's own `watch-video.html` ships one in its markup, so with
+     *     no `frame-src` the directive fell back to `default-src 'self'` and the browser refused the frame.
+     *     Measured in the console, verbatim: *"Framing 'https://www.youtube-nocookie.com/' violates the
+     *     following Content Security Policy directive: "default-src 'self'". The request has been blocked.
+     *     Note that 'frame-src' was not explicitly set, so 'default-src' is used as a fallback."* Naming
+     *     `frame-src` is therefore not a relaxation of `default-src` but a strict narrowing of it that adds
+     *     exactly one host. The thumbnail was never the whole fault.
      *   * `frame-ancestors 'none'` alongside X-Frame-Options, since the former is what browsers still
      *     honour for the modern cases.
      *   * `object-src 'none'` and `base-uri 'self'` close the plugin and base-tag injection routes.
@@ -157,9 +187,10 @@ const nextConfig: NextConfig = {
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
-      "img-src 'self' data:",
+      "img-src 'self' data: https://i.ytimg.com",
       "media-src 'self'",
       "connect-src 'self'",
+      "frame-src 'self' https://www.youtube-nocookie.com",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

@@ -21,6 +21,12 @@
  */
 import type { Db } from '@ozituma/db/client';
 import { slugVariants } from './archive.ts';
+/*
+ * The one place a storage key becomes a URL. `mediaPath` lives in `design-fill.ts` and is imported rather
+ * than re-implemented, because **a second copy of the per-segment encoding is how a filename with a space in
+ * it starts 404ing on one screen and not another** — that fault is already recorded in this repository.
+ */
+import { mediaPath } from './design-fill.ts';
 
 export interface MediaRecord {
   id: number;
@@ -343,5 +349,68 @@ export async function listMediaRegister(
     restricted: Boolean(r.restricted),
     allowsPublication: Boolean(r.allows_publication),
   }));
+}
+
+/*
+ * ================================================================================================
+ * THE ARCHIVE'S OWN ADDRESS FOR AN IMAGE THE OLD SITE STILL OWNS THE URL OF.
+ * ================================================================================================
+ */
+
+/**
+ * WordPress writes a resized variant as `<name>-<width>x<height>.<ext>`.
+ *
+ * **Stripping it recovers the address of the original**, which is the one the migration catalogued: a
+ * `…-680x541.jpg` in a body was measured to have the full-size `….jpg` as its `source_url`, and only the
+ * original was imported.
+ */
+const WORDPRESS_RESIZE = /-\d+x\d+(?=\.[a-z]+$)/i;
+
+/** Maps an address the old WordPress site served to the address this archive serves the same file from. */
+export type MediaUrlResolver = (url: string) => string | null;
+
+/**
+ * BUILD THE URL MAP FROM THE ROWS THEMSELVES, so the two callers cannot disagree about how a URL matches.
+ *
+ * WHY A SHARED RESOLVER RATHER THAN EACH ROUTE'S OWN
+ *
+ * **`source_url` and `storage_key` ARE the mapping**: one is the address the file had on WordPress and the
+ * other is where this archive keeps it. Two routes need that mapping — the article route, for **2,871 images
+ * across 1,027 article bodies**, and the design-screen route, for the **57 images the design screens still
+ * hot-link** — and a second copy of the matching rule is how one of them silently stops finding files the
+ * other still finds. That is the drift this repository has already recorded four times.
+ *
+ * A URL WITH NO ROW IS RETURNED AS `null`, AND THE CALLER LEAVES IT ALONE. **This is deliberate and is the
+ * whole safety property of the function.** A third of the addresses that do not match were never on
+ * ozikoro.com at all — a BBC or a Google image quoted in an article — and substituting anything for those
+ * would be putting a different photograph on a history page, which is worse than an empty box.
+ */
+export function mediaUrlMap(
+  rows: ReadonlyArray<{ source_url: string | null; storage_key: string | null }>
+): MediaUrlResolver {
+  const exact = new Map<string, string>();
+  const base = new Map<string, string>();
+  for (const m of rows) {
+    if (!m.source_url || !m.storage_key) continue;
+    const own = mediaPath(m.storage_key);
+    exact.set(m.source_url, own);
+    base.set(m.source_url.replace(WORDPRESS_RESIZE, ''), own);
+  }
+  return (url) => exact.get(url) ?? base.get(url.replace(WORDPRESS_RESIZE, '')) ?? null;
+}
+
+/**
+ * The same map, read from the database.
+ *
+ * **Deliberately uncached**: a media row added by an import is visible to the next request rather than to the
+ * next restart, which is the failure this archive has recorded for its own `mediaIndexCache`. Both callers
+ * are `force-dynamic` routes that already pay several queries, and this is one of them.
+ */
+export async function mediaUrlResolver(db: Db): Promise<MediaUrlResolver> {
+  const rows = await db.rows<{ source_url: string | null; storage_key: string | null }>(
+    `select source_url, storage_key from ozikoro_media
+      where source_url is not null and storage_key is not null`
+  );
+  return mediaUrlMap(rows);
 }
 

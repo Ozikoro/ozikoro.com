@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, seoHead, withSeoHead, designScriptPaths, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,19 +90,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
    * `source_url` is the address the file had on WordPress and `storage_key` is where this archive keeps it,
    * so the two columns ARE the mapping. Resized variants (`-680x541`) are matched against the full-size
    * address with the suffix removed, because WordPress writes both and only the original was catalogued.
+   *
+   * **THE MATCHING RULE LIVES IN `mediaUrlResolver` AND NOT HERE ANY MORE.** The design-screen route needs
+   * the same mapping for the 57 images the design screens still hot-link, and a second copy of the rule is
+   * how one route quietly stops finding files the other still finds — this repository has recorded that
+   * drift four times, most recently as four dead controls on every article.
    */
-  const media = await db.rows<{ source_url: string; storage_key: string }>(
-    `select source_url, storage_key from ozikoro_media
-      where source_url is not null and storage_key is not null`
-  );
-  const exact = new Map<string, string>();
-  const base = new Map<string, string>();
-  for (const m of media) {
-    exact.set(m.source_url, mediaPath(m.storage_key));
-    base.set(m.source_url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, ''), mediaPath(m.storage_key));
-  }
-  const resolveImage = (url: string): string | null =>
-    exact.get(url) ?? base.get(url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, '')) ?? null;
+  const resolveImage = await mediaUrlResolver(db);
 
   const article: RealArticle = {
     title: row.title,
