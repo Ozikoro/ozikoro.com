@@ -1,29 +1,47 @@
 /**
  * THE OZIKORO PUBLICATION LAYOUT.
  *
- * Built to `data/pdf-template/reference.pdf`, read from the file rather than described: **A4, fifteen pages,
- * DejaVu Serif for the body and DejaVu Sans for the labels.** Where this differs it is because the reference's
- * own font files are not shipped — see `writer.ts`, which uses the base-14 fonts instead and says so.
+ * Built from the owner's approved reference, **read out of the file rather than described.** Every number
+ * below is a coordinate from that PDF's own content streams: the cover's charcoal ground is
+ * `.211765 .203922 .203922`, its green stripe is 14.17323 points wide, its title sits at y=586.7717 and its
+ * feature panel begins at y=136.063. Two earlier versions of this file were written from a *description* of
+ * the reference and both were wrong in the same way — **they looked like a different magazine that happened
+ * to be A4**, which is exactly what the owner said when he saw one.
+ *
+ * WHAT THE REFERENCE IS, AND THE ONE THING ABOUT IT THAT IS NOT COPIED
+ *
+ * It is a dark magazine cover, cream-banded interior pages, numbered sections, a drop cap, an editorial
+ * note, a wash box per reference, a green author panel and a dark back page. **It also stretches its own
+ * logo**: the 1000×529 icon is drawn into a 51×51 square on the cover and a 62×62 square on the back,
+ * which squashes the artwork by 1.89 vertically. That one thing is deliberately not reproduced — the box
+ * here is the room available and the scale is the smaller of the two ratios — because a distorted logo is
+ * not what the brand's own file contains, and "what the brand contains" is the thing being matched.
  *
  * THE RULES THAT SHAPED IT
  *
  * 1. **NOTHING IS INVENTED AND NOTHING IS REWRITTEN.** The system is a renderer. A heading is the article's
- *    heading, a caption is the article's caption, and where the archive holds no subtitle, no author biography
- *    or no featured image, **that part of the page is redesigned rather than filled with something else.**
+ *    heading, a caption is the article's caption, and where the archive holds no standfirst, no biography
+ *    or no featured image, **that part of the page is designed away rather than filled with something
+ *    else.** The only sentences this file writes are the ones the approved template itself carries —
+ *    the strapline, the editorial note, the feature-panel provenance line and the back page's slogan —
+ *    and each is quoted from the reference.
  *
- * 2. **AN IMAGE AND ITS CAPTION DO NOT SEPARATE.** Both are placed together or both move to the next page.
- *    A caption on a different page from its figure is the commonest fault in a generated publication.
+ * 2. **A SECTION NUMBER IS THE ARTICLE'S OWN ORDER, NOT AN INVENTED STRUCTURE.** The reference numbers its
+ *    sections `01`, `02`, `03`… and that article carries its headings as `<h3>`, not `<h2>`. **So the
+ *    headings that get numbers are the shallowest heading level the article actually uses** — where a
+ *    record has `<h2>`s those are the sections, and where it has only `<h3>`s those are. An article with no
+ *    headings gets no numbered sections, which is the correct outcome rather than a gap to fill.
  *
- * 3. **A HEADING IS NEVER STRANDED AT THE FOOT.** A heading with no room for the text under it moves to the
- *    next page, which is what `ensure()` exists for.
+ * 3. **AN IMAGE AND ITS CAPTION DO NOT SEPARATE.** Both are placed together or both move to the next page.
  *
- * 4. **THE FULL WORDMARK IS ON THE COVER ONLY.** Interior pages carry the small mark in the running head,
- *    which is what the brief asks for and what the reference does.
+ * 4. **A HEADING IS NEVER STRANDED AT THE FOOT.** A heading with no room for three lines of text under it
+ *    moves to the next page, which is what `ensure()` exists for.
  *
- * 5. **THE LOGO IS THE REFERENCE'S OWN ARTWORK, NOT TYPE.** See `Raster` below for where it comes from and
- *    why the fallback exists rather than a drawn substitute.
+ * 5. **NO TEXT SITS UNDER THE PAGE NUMBER.** The last baseline on any page is above the footer rule.
  */
-import { A4, FRAME, OZIKORO, PdfDoc, PdfPage, type Rgb } from './writer.ts';
+import {
+  A4, FRAME, MEASURE, OZIKORO, PdfDoc, PdfPage, type FontKey, type FontSet, type Rgb,
+} from './writer.ts';
 
 export type Block =
   | { kind: 'heading'; text: string; level: 2 | 3 }
@@ -37,36 +55,34 @@ export type Block =
    */
   | { kind: 'infobox'; rows: { label: string; value: string }[] };
 
-/** A raster the writer can embed. **JPEG only** — see the note in `writer.ts`. */
+/**
+ * A raster the writer can embed: **a JPEG as it is, or a PNG with its own transparency.**
+ *
+ * `width` and `height` are the pixel dimensions, and the layout needs them before it places anything —
+ * a figure whose height is unknown cannot be measured against the space left on the page, and the first
+ * fault that causes is an image and its caption on two different pages.
+ */
 export type Raster = { data: Buffer; width: number; height: number };
 
 /**
- * THE LOGO, AS THE APPROVED REFERENCE ITSELF CARRIES IT.
+ * THE OFFICIAL LOGO, AS THE ARTWORK RATHER THAN AS TYPE.
  *
- * The cover used to set `Ozi Ikòrò` in Times-Bold and the running head drew an `OI` monogram tile, **because
- * the artwork was not in this repository and a stretched or invented logo is worse than none.** Both were
- * placeholders and both were visible as placeholders.
+ * The cover used to set `Ozi Ikòrò` in Times-Bold and the running head drew an `OI` monogram tile, and
+ * before that it embedded two JPEGs cut out of an unrelated reference PDF — **the wrong artwork, composited
+ * onto a guessed background, which is why the owner said the publication did not look like his magazine at
+ * all.** The icon below is the brand's own file: `assets/official/ozikoro-icon-yellow.svg`, whose only fill
+ * is `#ddb02f`, rendered once to PNG so that its transparency survives into the PDF through an `/SMask`
+ * instead of being flattened onto a colour.
  *
- * The two files at `packages/ozikoro/assets/` are recovered from `data/pdf-template/reference.pdf`, whose
- * images are ASCII85-and-Flate raw RGB with a separate soft mask — not JPEG, so they cannot be cut out of
- * the file and had to be decoded, the mask applied, and the result re-encoded:
- *
- *     ozikoro-wordmark.jpg   object 34, 1000×787 → 700×551, composited on #f7f1e3, the cover's own ivory
- *     ozikoro-mark.jpg       object 28, 1000×529 →  480×254, composited on white, an interior page's ground
- *
- * **A PDF carries a raster through `DCTDecode` and a JPEG has no alpha channel**, so the transparency is
- * resolved once, against the exact colour the image is drawn over, rather than left to the reader — which
- * would paint an uncomposited logo's transparent pixels black. Neither file is ever scaled unevenly: the
- * boxes they are placed in carry the images' own aspect ratios.
- *
- * They reach the layout as data rather than as a path, so this module needs no filesystem and **the PDF
- * carries the picture rather than a link to one.**
- *
- * **Null is a real state and not an error**: if the assets are absent the cover falls back to the type-set
- * wordmark and the running head to the tile, exactly as before. A missing logo is a smaller fault than a
+ * **Null is a real state and not an error**: with no icon the cover sets the wordmark in type and the
+ * running head carries the words alone, exactly as it did before. A missing logo is a smaller fault than a
  * drawn one, which is the same rule the figures follow.
+ *
+ * The reference carries the icon *and* sets `Ozi Ikòrò` in DejaVu Serif Bold beside it — its own cover
+ * proves it, because the wordmark's glyphs come from `/F2+0` and not from the image. **That is what is done
+ * here too**, and it is why only the icon is needed as artwork.
  */
-export type ArticleLogo = { wordmark: Raster | null; mark: Raster | null };
+export type ArticleLogo = { icon: Raster | null };
 
 export type ArticlePdfInput = {
   slug: string;
@@ -83,279 +99,486 @@ export type ArticlePdfInput = {
   references: string[];
   tags: string[];
   logo?: ArticleLogo | null;
+  /** TrueType faces by role. **Without them the writer falls back to the base-14 fonts.** */
+  fonts?: FontSet | null;
 };
 
-const COL = A4.width - FRAME.marginLeft - FRAME.marginRight;
-const CONTENT_TOP = A4.height - FRAME.marginTop;
-const CONTENT_BOTTOM = FRAME.marginBottom;
+/** The left offset of the measure, and its width, as named constants rather than repeated arithmetic. */
+const LEFT = FRAME.marginLeft;
 
-const BODY = 11;
-const LEADING = BODY * 1.5;
-const H2 = 17;
-const H3 = 12.5;
+const BODY = 10.6;
+const LEADING = 16.2;
+/** The drop cap, at the reference's own ratio of initial to body — 31 points over 10.6. */
+const CAP_SIZE = BODY * 2.9;
+const HEADING = 17;
+const SUBHEADING = 12.5;
 const CAPTION = 8.5;
 
-/** Roman numerals, for the front matter. **A cover is not page 1 of the article.** */
-function roman(n: number): string {
-  const map: [number, string][] = [[10, 'x'], [9, 'ix'], [5, 'v'], [4, 'iv'], [1, 'i']];
-  let out = '';
-  for (const [v, s] of map) while (n >= v) { out += s; n -= v; }
-  return out;
-}
+/**
+ * THE TEMPLATE'S OWN WORDS, QUOTED FROM THE APPROVED REFERENCE AND FROM NOWHERE ELSE.
+ *
+ * Each of these is furniture rather than article content: they describe the publication and never the
+ * subject. **Anything not in this list is the article's own text or is not on the page.**
+ */
+/**
+ * The strapline exactly as the reference writes it — **including the two spaces around each separator,
+ * which is the reference's own letter-spacing** — and with no character spacing of its own. At 5.8 points
+ * this measures 195.0 against the reference's rendered 193.0; the 2-point difference is the antialiasing
+ * threshold at both ends of the line, not a different setting.
+ */
+const STRAPLINE = 'AFRICAN HISTORY  ·  CULTURE  ·  INDIGENOUS KNOWLEDGE';
+const TOPIC_FALLBACK = 'African history';
+const FEATURE_LABEL = 'FEATURE IMAGE';
+const FEATURE_PROVENANCE = 'Article image · caption retained from the published Ozikoro article';
+const FEATURE_EMPTY = 'No featured image in the record';
+const FEATURE_EMPTY_NOTE = 'The article carries no featured image, so this panel is left as an honest empty space rather than filled with one.';
+const COVER_FOOTNOTE = 'AUTOMATIC PUBLICATION TEMPLATE · ARTICLE IMAGES ARE INSERTED FROM THE CMS';
+const EDITORIAL_LABEL = 'EDITORIAL NOTE';
+const EDITORIAL_BODY = 'This publication preserves the article’s structure while adapting it for comfortable long-form reading. Images, captions, credits, metadata and references are intended to be imported automatically from the website.';
+const REFERENCES_LABEL = 'SOURCES';
+const REFERENCES_NOTE = 'The references below are reproduced from the published article. In the production system, this section should be generated directly from the article’s reference data.';
+const ABOUT_LABEL = 'ABOUT THE AUTHOR';
+const FOOTER_TEXT = 'Ozi Ikòrò  ·  African History, Culture & Indigenous Knowledge';
+const BACK_SLOGAN = 'History worth reading.';
+const BACK_STRAPLINE = 'African history · culture · indigenous knowledge';
+const BACK_SITE = 'OZIKORO.COM';
+
+/** Pages the furniture treats differently, decided when the page is created rather than when it is filled. */
+type PageKind = 'cover' | 'opening' | 'body' | 'references' | 'back';
 
 export class ArticlePdf {
-  private doc = new PdfDoc();
+  private doc: PdfDoc;
   private page: PdfPage;
-  private y = CONTENT_TOP;
-  /** Where the text column starts on this page — reset when a new page begins. */
+  private y = FRAME.bodyTop;
   private pageIndex = 0;
+  private readonly kinds: PageKind[] = [];
+  /** True once the article's opening prose has been drawn, so the drop cap is used exactly once. */
+  private opened = false;
 
   /** Declared and assigned rather than a parameter property — see the note in `writer.ts`. */
   private input: ArticlePdfInput;
   constructor(input: ArticlePdfInput) {
     this.input = input;
+    this.doc = new PdfDoc(input.fonts ?? null);
     this.page = this.doc.addPage();
+    this.kinds.push('cover');
   }
 
-  private get bodyWidth() { return COL; }
+  /** The pages, in order, after `render()`. **For checking the page furniture rather than trusting it.** */
+  get pages(): readonly PdfPage[] { return this.doc.pages; }
+
+  /** One embedded face, or null when the fallback is in force. For callers that check rather than hope. */
+  face(key: FontKey) { return this.doc.face(key); }
+
+  /** What was actually embedded, for a caller that wants to check rather than hope. */
+  diagnostics() {
+    const face = (key: FontKey) => this.doc.face(key);
+    return {
+      pages: this.doc.pages.length,
+      embeddedFonts: [...this.doc.faces.keys()].map((key) => ({
+        key, family: face(key)?.family ?? '', embedded: true,
+      })),
+      fontErrors: [...this.doc.fontErrors].map(([key, reason]) => ({ key, reason })),
+      /** Code points no supplied face could draw. **An empty list is the proof the Igbo letters render.** */
+      missingGlyphs: [...this.doc.missingGlyphs].map((cp) => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`),
+      /** How many bytes of the file are the typefaces, so "embedded" is a measurement and not a claim. */
+      fontBytes: [...this.doc.faces.keys()]
+        .filter((key) => this.doc.usedIn(key).size > 0)
+        .reduce((total, key) => total + (face(key)?.subset(this.doc.usedIn(key)).length ?? 0), 0),
+      usesEmbeddedFonts: this.doc.usesEmbeddedFonts,
+    };
+  }
+
+  private get bodyWidth() { return MEASURE; }
 
   /**
-   * A new page, with its running head and footer.
+   * A new page, with its running head.
    *
-   * **The head and foot are written when the page is created rather than when it is finished**, so a page can
-   * never be left without them — which is what happens when they are drawn by a separate pass that misses the
-   * last page.
+   * **The head is written when the page is created rather than when it is finished**, so a page can never
+   * be left without one — which is what happens when the head is drawn by a separate pass that misses the
+   * last page. The footers are the exception, because the page count is not known until the end.
    */
-  private newPage(): void {
+  private newPage(kind: PageKind = 'body'): void {
     this.page = this.doc.addPage();
     this.pageIndex += 1;
-    this.y = CONTENT_TOP;
-    this.runningHead(this.page, this.pageIndex);
+    this.kinds.push(kind);
+    this.y = FRAME.bodyTop;
+    this.runningHead(this.page, this.pageIndex, kind);
   }
 
   /**
-   * The running head: the small mark, the section, and the site.
+   * The running head, at the reference's own coordinates: the small gold icon, the topic, the site and the
+   * page number, on a cream band with a hairline under it.
    *
-   * The brief is explicit that the full wordmark does not belong here — **only the mark, small, in
-   * proportion** — so this places the reference's own gold mark and nothing else. It used to draw a square
-   * monogram tile with `OI` set in it, which was a stand-in for artwork this repository did not have.
-   *
-   * **The box is the mark's own aspect ratio**, so `image()` has nothing to scale unevenly: 480×254 in a
-   * 22×11.64pt box. A square box here would squash it by half again, which is the fault the brief names.
+   * The words are the reference's own rule, read from its pages rather than guessed: **the opening page
+   * carries the topic, every page after it carries the article's short title, and the references page says
+   * `REFERENCES`.** The brief calls this an alternating head; what alternates is the topic and the title.
    */
-  private runningHead(page: PdfPage, index: number): void {
-    if (index === 0) return;
-    const mark = this.input.logo?.mark ?? null;
-    let labelX = FRAME.marginLeft;
-    if (mark) {
-      const markW = 22;
-      const markH = (mark.height / mark.width) * markW;
-      this.doc.addJpeg('ozikoro-mark', mark.data, mark.width, mark.height);
-      page.image('ozikoro-mark', FRAME.marginLeft, FRAME.headerY - 2, markW, markH, mark);
-      labelX = FRAME.marginLeft + markW + 8;
-    } else {
-      const markSize = 11;
-      page.fill(OZIKORO.emeraldDeep).fillRect(FRAME.marginLeft, FRAME.headerY - 2, markSize, markSize);
-      page.text('OI', FRAME.marginLeft + 1.9, FRAME.headerY + 1.4, {
-        font: 'sansBold', size: 6.5, rgb: OZIKORO.goldBright,
-      });
-      labelX = FRAME.marginLeft + markSize + 7;
+  private runningHead(page: PdfPage, index: number, kind: PageKind): void {
+    if (index === 0 || kind === 'back') return;
+    page.fill(OZIKORO.chalk).fillRect(0, A4.height - FRAME.headerBandHeight, A4.width, FRAME.headerBandHeight);
+
+    const icon = this.input.logo?.icon ?? null;
+    if (icon) {
+      this.doc.addImage('ozikoro-icon-head', icon.data);
+      // The box is the reference's, and the icon inside it keeps its own aspect ratio: 24.085 × 12.745.
+      page.image('ozikoro-icon-head', FRAME.headerIconX, FRAME.headerIconY, FRAME.headerIconWidth,
+        FRAME.headerIconWidth * 0.529, icon);
     }
-    const label = (this.input.category ?? 'Ozikoro').toUpperCase();
-    page.text(label, labelX, FRAME.headerY + 1.4, {
-      font: 'sans', size: 7, rgb: OZIKORO.inkMuted,
+
+    const label = kind === 'references' ? 'REFERENCES' : index <= 1 ? (this.input.category ?? TOPIC_FALLBACK).toUpperCase() : this.shortTitle();
+    const available = FRAME.marginRight - FRAME.headerTextX - this.doc.widthOf('OZIKORO.COM  ·  00', 'sans', 5.2) - 24;
+    page.text(fit(this.doc, label, 'sansBold', 5.7, available), FRAME.headerTextX, FRAME.headerBaseline, {
+      font: 'sansBold', size: 5.7, rgb: OZIKORO.inkMuted,
     });
-    page.text(`OZIKORO.COM · ${String(index).padStart(2, '0')}`, A4.width - FRAME.marginRight, FRAME.headerY + 1.4, {
-      font: 'sans', size: 7, rgb: OZIKORO.inkMuted, align: 'right', maxWidth: 0,
-    });
-    page.rule(FRAME.marginLeft, FRAME.ruleY, A4.width - FRAME.marginRight, OZIKORO.rule, 0.6);
+    this.number(page, index, 5.2, FRAME.headerBaseline);
+    page.rule(LEFT, FRAME.headerRuleY, FRAME.marginRight, OZIKORO.rule, 0.55);
   }
 
-  private footer(page: PdfPage, index: number, total: number): void {
-    if (index === 0) return;
-    page.rule(FRAME.marginLeft, FRAME.footerY + 12, A4.width - FRAME.marginRight, OZIKORO.rule, 0.5);
-    page.text('Ozi Ikòrò · African History, Culture & Indigenous Knowledge', FRAME.marginLeft, FRAME.footerY, {
-      font: 'sans', size: 6.8, rgb: OZIKORO.inkMuted,
+  /**
+   * `OZIKORO.COM · NN`, right-aligned on the measure. Gold on the references page, as the reference has it.
+   *
+   * **The number is the page's own page number, and the cover is page one.** The reference's opening page
+   * is `02` because its cover is `01`, and an off-by-one here prints a publication whose front matter and
+   * whose footer disagree about which page a reader is on.
+   */
+  private number(page: PdfPage, index: number, size: number, baseline: number, gold = false): void {
+    page.text(`OZIKORO.COM  ·  ${String(index + 1).padStart(2, '0')}`, FRAME.marginRight, baseline, {
+      font: 'sans', size, rgb: gold ? OZIKORO.gold : OZIKORO.inkMuted, align: 'right', maxWidth: 0,
     });
-    page.text(String(index).padStart(2, '0'), A4.width - FRAME.marginRight, FRAME.footerY, {
-      font: 'sans', size: 7.5, rgb: OZIKORO.ink, align: 'right', maxWidth: 0,
+  }
+
+  private footer(page: PdfPage, index: number, kind: PageKind): void {
+    if (index === 0 || kind === 'back') return;
+    page.rule(LEFT, FRAME.footerRuleY, FRAME.marginRight, OZIKORO.rule, 0.5);
+    page.text(FOOTER_TEXT, LEFT, FRAME.footerBaseline, { font: 'sans', size: 5.3, rgb: OZIKORO.inkMuted });
+    page.text(String(index + 1).padStart(2, '0'), FRAME.marginRight, FRAME.footerBaseline, {
+      font: 'sans', size: 5.3, rgb: OZIKORO.inkMuted, align: 'right', maxWidth: 0,
     });
+  }
+
+  /**
+   * The article's short title: what the title says before its colon.
+   *
+   * The reference's head reads `UTE-OKPU` for a title of `Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots`,
+   * and its cover splits the same title at the same colon. **Longer titles are cut at a word boundary that
+   * fits rather than hyphenated or abbreviated**, and a title that cannot be shortened and still fit falls
+   * back to the topic, which is furniture and therefore never wrong.
+   */
+  private shortTitle(): string {
+    const beforeColon = this.input.title.split(':')[0] ?? this.input.title;
+    const upper = (beforeColon || this.input.title).toUpperCase().trim();
+    const room = FRAME.marginRight - FRAME.headerTextX - this.doc.widthOf('OZIKORO.COM  ·  00', 'sans', 5.2) - 24;
+    if (this.doc.widthOf(upper, 'sansBold', 5.7) <= room) return upper;
+    const words = upper.split(/\s+/);
+    while (words.length > 1) {
+      words.pop();
+      const candidate = words.join(' ');
+      if (this.doc.widthOf(candidate, 'sansBold', 5.7) <= room) return candidate;
+    }
+    return (this.input.category ?? TOPIC_FALLBACK).toUpperCase();
   }
 
   /** Move to a new page if `needed` points will not fit. **This is what keeps headings off page feet.** */
   private ensure(needed: number): void {
-    if (this.y - needed < CONTENT_BOTTOM) this.newPage();
+    if (this.y - needed < FRAME.bodyBottom) this.newPage('body');
   }
 
   // ── COVER ──────────────────────────────────────────────────────────────────
 
+  /**
+   * The cover, at the reference's own coordinates.
+   *
+   * The title is split at its colon the way the reference splits its own: the part before it in the heavy
+   * white display size, the part after it in the cream italic. **A title with no colon is one display
+   * block and no italic line** — nothing is cut off mid-phrase to make a second line exist.
+   */
   private cover(): void {
     const p = this.page;
-    // The ivory ground, edge to edge.
-    p.fill(OZIKORO.paper).fillRect(0, 0, A4.width, A4.height);
-    // A green band across the foot, which is where the imprint sits.
-    p.fill(OZIKORO.emeraldDeep).fillRect(0, 0, A4.width, 96);
+    const title = this.input.title;
+    const colon = title.indexOf(':');
+    const display = colon > 0 ? title.slice(0, colon + 1) : title;
+    const continuation = colon > 0 ? title.slice(colon + 1).trim() : '';
 
-    let y = A4.height - 74;
-    const cx = FRAME.marginLeft;
-    const cw = COL;
-
-    // The publication label, in gold, small and letterspaced by its own capitals.
-    p.text((this.input.category ?? 'African history').toUpperCase(), cx, y, {
-      font: 'sans', size: 8, rgb: OZIKORO.ochre,
-    });
-    y -= 14;
-    p.rule(cx, y, cx + 54, OZIKORO.gold, 1.2);
-    y -= 40;
+    // The ground, edge to edge, and the green stripe down the left, at the reference's 14.17323 points.
+    p.fill(OZIKORO.charcoal).fillRect(0, 0, A4.width, A4.height);
+    p.fill(OZIKORO.green).fillRect(0, 0, 14.17323, A4.height);
 
     /*
-     * THE WORDMARK, WHICH IS THE REFERENCE'S OWN ARTWORK.
+     * THE LOCKUP: THE OFFICIAL ICON AND THE NAME BESIDE IT.
      *
-     * **Drawn as type until the artwork could be taken out of the approved reference**, which is what
-     * `data/pdf-template/reference.pdf` object 34 holds: the icon and the name together, dark, on a
-     * transparent ground. The transparent pixels are already composited onto this page's own ivory — a PDF
-     * carries a JPEG through `DCTDecode` and **a JPEG has no alpha channel, so an uncomposited logo would
-     * print its transparent pixels as black.**
-     *
-     * The box is the image's own aspect ratio, so it is placed and never stretched. The type-set wordmark
-     * remains as the fallback for the case where the assets are missing.
+     * The reference draws a 1000×529 icon into a 51.02-point square, which stretches it; here the icon is
+     * 51.02362 points **wide** and its own height tall, with its top edge where the reference's top edge is,
+     * so the lockup's optical centre still lands on the wordmark's.
      */
-    const wordmark = this.input.logo?.wordmark ?? null;
-    if (wordmark) {
-      const w = 168;
-      const h = (wordmark.height / wordmark.width) * w;
-      this.doc.addJpeg('ozikoro-wordmark', wordmark.data, wordmark.width, wordmark.height);
-      p.image('ozikoro-wordmark', cx, y - h, w, h, wordmark);
-      y -= h + 12;
-    } else {
-      p.text('Ozi Ikòrò', cx, y, { font: 'serifBold', size: 30, rgb: OZIKORO.emeraldDeep });
-      y -= 15;
+    const iconW = 51.02362;
+    const iconTop = 753.41;
+    const wordmarkX = 116.2205;
+    const icon = this.input.logo?.icon ?? null;
+    if (icon) {
+      const h = (icon.height / icon.width) * iconW;
+      this.doc.addImage('ozikoro-icon-cover', icon.data);
+      p.image('ozikoro-icon-cover', LEFT, iconTop - h, iconW, h, icon);
     }
-    p.text('African History, Culture & Indigenous Knowledge', cx, y, {
-      font: 'sans', size: 8.5, rgb: OZIKORO.inkMuted,
+    p.text('Ozi Ikòrò', wordmarkX, 731.3386, { font: 'serifBold', size: 22, rgb: OZIKORO.gold });
+    p.text(STRAPLINE, wordmarkX, 714.3307, { font: 'sansBold', size: 5.8, rgb: OZIKORO.dim });
+
+    // The full-measure gold rule under the lockup, one point, as the reference draws it.
+    p.rule(LEFT, 688.8189, FRAME.marginRight, OZIKORO.gold, 1);
+
+    // The topic, small and tracked, and then the title.
+    p.text((this.input.category ?? TOPIC_FALLBACK).toUpperCase(), LEFT, 646.2992, {
+      font: 'sansBold', size: 6.2, rgb: OZIKORO.gold,
     });
-    y -= 46;
 
+    let y = 586.7717;
     /*
-     * THE TITLE, SIZED TO ITS OWN LENGTH.
-     *
-     * The brief asks for 24–32pt depending on title length, and this archive has titles of six words and
-     * twenty-six. **A fixed size means the long ones run off the page and the short ones look timid**, so the
-     * size falls until the title fits in four lines or the floor is reached.
+     * The title's size falls until it fits, exactly as the brief asks, but **it falls within the reference's
+     * own band** — the space between the topic line and the short gold rule — so a long title cannot push
+     * the byline into the feature panel. The reference's own title is 31 points.
      */
-    let titleSize = 31;
-    let titleLines: string[] = [];
-    while (titleSize >= 21) {
-      titleLines = this.doc.wrap(this.input.title, 'serifBold', titleSize, cw);
-      if (titleLines.length <= 4 && this.doc.widthOf(titleLines.reduce((a, b) => (a.length > b.length ? a : b), ''), 'serifBold', titleSize) <= cw) break;
-      titleSize -= 1.5;
+    const band = y - 520;
+    let size = 31;
+    let lines: string[] = [];
+    for (; size >= 15; size -= 1) {
+      lines = this.doc.wrap(display, 'serifBold', size, this.bodyWidth);
+      if (lines.length * size * 1.2 <= band) break;
     }
-    for (const line of titleLines) {
-      p.text(line, cx, y, { font: 'serifBold', size: titleSize, rgb: OZIKORO.ink });
-      y -= titleSize * 1.16;
+    /*
+     * **A long title grows upward rather than pushing the byline down.** The block is bottom-aligned to the
+     * band's floor and its top is capped just under the topic line, so a four-line title spends the empty
+     * charcoal above it and leaves the byline, the meta line and the short gold rule exactly where the
+     * reference puts them. Without this, the archive's longest titles walk the rule into the feature panel.
+     */
+    const blockHeight = lines.length * size * 1.2;
+    y = Math.min(630, 520 + blockHeight);
+    for (const line of lines) {
+      p.text(line, LEFT, y, { font: 'serifBold', size, rgb: OZIKORO.chalk });
+      y -= size * 1.2;
     }
-    y -= 8;
-
-    // The subtitle, if there is one. **Absent means this space is simply not used.**
-    if (this.input.subtitle) {
-      const subLines = this.doc.wrap(this.input.subtitle, 'serifItalic', 13, cw);
-      for (const line of subLines.slice(0, 3)) {
-        p.text(line, cx, y, { font: 'serifItalic', size: 13, rgb: OZIKORO.inkMuted });
-        y -= 18;
-      }
+    if (continuation) {
       y -= 6;
-    }
-
-    p.rule(cx, y, cx + cw, OZIKORO.rule, 0.8);
-    y -= 24;
-
-    // The byline and the facts, as label/value pairs. **Each is written only if it exists.**
-    const facts: [string, string][] = [];
-    if (this.input.author) facts.push(['Author', this.input.author]);
-    if (this.input.published) facts.push(['Published', this.input.published]);
-    if (this.input.updated) facts.push(['Updated', this.input.updated]);
-    if (this.input.readingMinutes) facts.push(['Reading time', `about ${this.input.readingMinutes} minutes`]);
-    if (this.input.category) facts.push(['Category', this.input.category]);
-    for (const [label, value] of facts) {
-      p.text(label.toUpperCase(), cx, y, { font: 'sans', size: 7, rgb: OZIKORO.ochre });
-      p.text(value, cx + 96, y, { font: 'serif', size: 10.5, rgb: OZIKORO.ink });
-      y -= 16;
-    }
-
-    /*
-     * THE FEATURED IMAGE, AND THE COVER WHEN THERE IS NONE.
-     *
-     * **A giant empty image box is the fault the brief names**, so when a record has no featured image the
-     * cover keeps its typography and ends cleanly — the facts above, the imprint below, and the space left as
-     * space rather than as a hole.
-     */
-    const bandTop = 96 + 26;
-    if (this.input.featured) {
-      const boxW = A4.width - FRAME.marginLeft * 2;
-      const boxH = Math.min(300, Math.max(160, y - bandTop - 34));
-      this.doc.addJpeg('featured', this.input.featured.data, this.input.featured.width, this.input.featured.height);
-      p.image('featured', FRAME.marginLeft, bandTop + (this.input.featured.caption ? 22 : 0), boxW, boxH, this.input.featured);
-      if (this.input.featured.caption) {
-        p.text(this.input.featured.caption.slice(0, 150), FRAME.marginLeft, bandTop + 10, {
-          font: 'sans', size: 7.5, rgb: OZIKORO.ochre,
-        });
+      const italics = this.doc.wrap(continuation, 'serifItalic', 22, this.bodyWidth);
+      for (const line of italics) {
+        p.text(line, LEFT, y, { font: 'serifItalic', size: 22, rgb: OZIKORO.standfirst });
+        y -= 26.4;
       }
     }
 
-    // The imprint band.
-    p.text('OZIKORO.COM', FRAME.marginLeft, 44, { font: 'sansBold', size: 9, rgb: OZIKORO.goldBright });
-    p.text('A publication of Ozi Ikòrò Limited', FRAME.marginLeft, 30, {
-      font: 'sans', size: 7, rgb: [0.72, 0.78, 0.74] as Rgb,
-    });
+    y -= 12;
+    if (this.input.author) {
+      p.text(`By ${this.input.author}`, LEFT, y, { font: 'serif', size: 9.5, rgb: OZIKORO.dim });
+      y -= 19.85;
+    }
+    const meta = [
+      'Ozikoro.com',
+      this.input.category,
+      this.input.readingMinutes ? `${this.input.readingMinutes} min read` : null,
+    ].filter(Boolean).join('  ·  ');
+    p.text(meta, LEFT, y, { font: 'sans', size: 6, rgb: OZIKORO.dim });
+    y -= 22.67;
+    p.fill(OZIKORO.gold).fillRect(LEFT, y, 85.03937, 2.834646);
+
+    this.featurePanel();
+    p.text(COVER_FOOTNOTE, LEFT, 42.51969, { font: 'sans', size: 5.5, rgb: OZIKORO.dim });
+  }
+
+  /**
+   * The feature panel: a green column carrying the label, and a cream panel carrying the caption.
+   *
+   * **It degrades honestly.** With a caption the panel carries the caption and the reference's own
+   * provenance line; with a figure the figure is drawn inside it as well; with neither, the panel says so in
+   * the same position and at the same size. **It never borrows a stock image and never writes a caption** —
+   * the reference's caption is a real one from a real article, and an article without one gets an empty
+   * panel with a label, which is a smaller fault than a fabricated sentence.
+   */
+  private featurePanel(): void {
+    const p = this.page;
+    const bottom = 136.063;
+    const greenWidth = 96.37795;
+    const captionX = LEFT + 116.2205;
+    /*
+     * THE CAPTION'S OWN COLUMN, AND WHY IT IS NARROWER THAN THE PICTURE'S.
+     *
+     * The reference wraps its caption `The picture of the Obi of Ute Okpu,` / `Obi Solomon Chukwuk`, which
+     * at 12-point DejaVu Serif Bold means a column between 238.32 and 265.90 points — the first line
+     * measures 238.32 and the same line with the next word on it measures 265.90. **250 is inside that
+     * window and is therefore the reference's own wrap, reproduced rather than approximated.** A picture,
+     * though, may use the whole cream panel, so the two widths are not the same number.
+     */
+    const captionWidth = 250;
+    const pictureWidth = FRAME.marginRight - captionX - 16;
+    const featured = this.input.featured;
+    const caption = featured?.caption ?? null;
+
+    const captionLines = caption ? this.doc.wrap(caption, 'serifBold', 12, captionWidth).slice(0, 3) : [];
+    const captionBlock = captionLines.length * 19.8425 + (caption ? 20 : 0);
+
+    // The figure at its natural aspect across the picture column, then reduced to whatever the panel allows.
+    let pictureHeight = featured ? (featured.height / featured.width) * pictureWidth : 0;
+    // The panel may climb, but not into the short gold rule above it: **36 points of charcoal stay clear**,
+    // which is what keeps the cover's own breathing space rather than filling every point with content.
+    const maxPanel = 462.0472 - 36 - bottom;
+    let panelHeight = 45.36 + captionBlock + pictureHeight + 16;
+    panelHeight = Math.min(Math.max(panelHeight, 204.0945), maxPanel);
+    if (featured) pictureHeight = Math.max(0, Math.min(pictureHeight, panelHeight - 45.36 - captionBlock - 16));
+
+    const top = bottom + panelHeight;
+    p.fill(OZIKORO.panel).fillRect(LEFT, bottom, MEASURE, panelHeight);
+    p.fill(OZIKORO.green).fillRect(LEFT, bottom, greenWidth, panelHeight);
+    let labelY = top - 33.9;
+    for (const word of FEATURE_LABEL.split(' ')) {
+      p.text(word, LEFT + 17.00787, labelY, { font: 'sansBold', size: 6, rgb: OZIKORO.chalk });
+      labelY -= 19.8425;
+    }
+
+    let captionY = top - 45.36;
+    for (const line of captionLines) {
+      p.text(line, captionX, captionY, { font: 'serifBold', size: 12, rgb: OZIKORO.ink });
+      captionY -= 19.8425;
+    }
+    if (caption) {
+      p.text(FEATURE_PROVENANCE, captionX, captionY - 9.5, { font: 'sans', size: 5.6, rgb: OZIKORO.inkMuted });
+    }
+
+    if (featured && pictureHeight > 40) {
+      const name = 'featured';
+      this.doc.addImage(name, featured.data);
+      p.image(name, captionX, bottom + 16, pictureWidth, pictureHeight, featured);
+    } else if (!featured) {
+      /*
+       * **The honest empty panel.** No figure in the record means no figure on the cover — the space says
+       * so in the article's own absence rather than borrowing a stock photograph or a grey rectangle that
+       * reads as a broken image. The reference's own cover is this exact case: it carries the caption and
+       * leaves the picture to the CMS.
+       */
+      p.text(FEATURE_EMPTY.toUpperCase(), captionX, top - 45.36, { font: 'sansBold', size: 6, rgb: OZIKORO.ink });
+      let emptyY = top - 65.2;
+      for (const line of this.doc.wrap(FEATURE_EMPTY_NOTE, 'sans', 8, captionWidth)) {
+        p.text(line, captionX, emptyY, { font: 'sans', size: 8, rgb: OZIKORO.inkMuted });
+        emptyY -= 11;
+      }
+    }
   }
 
   // ── BODY ───────────────────────────────────────────────────────────────────
 
+  /**
+   * A numbered section: the number in green, a short gold rule under it, and the heading.
+   *
+   * **The number is the article's own order and nothing else is added to it** — no invented heading, no
+   * "Introduction" over a paragraph the article never titled.
+   */
+  private drawSection(number: number, text: string): void {
+    // The reference's own spacing: the numeral on the first baseline, the gold rule 8.5 points below it,
+    // and the heading 39.685 points below the numeral. **Nothing here resets to the top of the page** —
+    // a section that starts halfway down one must not be dragged to the top of it.
+    this.ensure(39.685 + HEADING * 1.25 + LEADING * 3);
+    const top = this.y;
+    this.page.text(String(number).padStart(2, '0'), LEFT, top, { font: 'sansBold', size: 6, rgb: OZIKORO.green });
+    this.page.fill(OZIKORO.gold).fillRect(LEFT, top - 8.5039, 42.51969, 2.267717);
+    this.y = top - 39.685;
+    this.drawHeading(2, text);
+  }
+
   private drawHeading(level: 2 | 3, text: string): void {
-    const size = level === 2 ? H2 : H3;
-    const font = level === 2 ? 'serifBold' : 'sansBold';
+    const size = level === 2 ? HEADING : SUBHEADING;
+    const font: FontKey = level === 2 ? 'serifBold' : 'serifBold';
+    const rgb: Rgb = level === 2 ? OZIKORO.ink : OZIKORO.ink;
     const lines = this.doc.wrap(text, font, size, this.bodyWidth);
     // **A heading needs its own height plus three lines of text beneath it**, or it is stranded.
     this.ensure(lines.length * size * 1.2 + LEADING * 3);
     const y0 = this.y;
     for (const line of lines) {
-      this.page.text(line, FRAME.marginLeft, this.y, { font, size, rgb: level === 2 ? OZIKORO.emerald : OZIKORO.ink });
-      this.y -= size * 1.22;
+      this.page.text(line, LEFT, this.y, { font, size, rgb });
+      this.y -= size * 1.2;
     }
-    if (level === 2) {
-      this.page.rule(FRAME.marginLeft, y0 + 4, FRAME.marginLeft + 42, OZIKORO.gold, 1);
-      this.y -= 8;
-    } else {
-      this.y -= 4;
+    void y0;
+    this.y -= level === 2 ? 8 : 5;
+  }
+
+  /**
+   * The article's standfirst, set under the title on the opening page.
+   *
+   * The reference's own standfirst is not on its pages — but its `standfirst` field is prose the article
+   * carries, and **a record's own words are never dropped to match a template.** It is set here, once,
+   * in the article's own sentence order.
+   */
+  private drawStandfirst(text: string): void {
+    const lines = this.doc.wrap(text, 'serifItalic', 11.5, this.bodyWidth);
+    this.ensure(lines.length * 16 + 18);
+    this.y -= 4;
+    for (const line of lines) {
+      this.ensure(16);
+      this.page.text(line, LEFT, this.y, { font: 'serifItalic', size: 11.5, rgb: OZIKORO.inkMuted });
+      this.y -= 16;
     }
+    this.y -= 10;
   }
 
   private drawParagraph(text: string, opts: { lead?: boolean } = {}): void {
-    const lines = this.doc.wrap(text, 'serif', BODY, this.bodyWidth);
-    for (let i = 0; i < lines.length; i++) {
-      this.ensure(LEADING);
-      const line = lines[i] as string;
-      /*
-       * THE DROP CAP, USED SPARINGLY AS THE BRIEF ASKS.
-       *
-       * **Only on the first paragraph of the article, only when it is long enough to justify one, and only
-       * when the article does not open with an image or a quotation** — those cases are excluded by the
-       * caller, which knows what the first block is.
-       */
-      if (opts.lead && i === 0 && line.length > 2) {
-        const first = line.slice(0, 1);
-        const rest = line.slice(1);
-        // The initial sits on the same baseline as the rest of its line, **not raised**, or the two
-        // halves read as two separate lines with the first letter floating between them.
-        this.page.text(first, FRAME.marginLeft, this.y, { font: 'serifBold', size: BODY * 2.6, rgb: OZIKORO.emeraldDeep });
-        const indent = this.doc.widthOf(first, 'serifBold', BODY * 2.6) + 3;
-        this.page.text(rest, FRAME.marginLeft + indent, this.y, { font: 'serif', size: BODY, rgb: OZIKORO.ink });
-      } else {
-        this.page.text(line, FRAME.marginLeft, this.y, { font: 'serif', size: BODY, rgb: OZIKORO.ink });
-      }
-      this.y -= LEADING;
+    const size = BODY;
+    const leading = LEADING;
+    if (opts.lead) {
+      this.drawLeadParagraph(text, size, leading);
+      return;
     }
-    this.y -= BODY * 0.55; // paragraph spacing
+    const lines = this.doc.wrap(text, 'serif', size, this.bodyWidth);
+    for (const line of lines) {
+      this.ensure(leading);
+      this.page.text(line, LEFT, this.y, { font: 'serif', size, rgb: OZIKORO.ink });
+      this.y -= leading;
+    }
+    this.y -= size * 0.55; // paragraph spacing
+  }
+
+  /**
+   * THE DROP CAP, AND THE MEASURE IT HAS TO RESPECT.
+   *
+   * **The initial spans two lines, and exactly those two lines are shortened.** An earlier version put the
+   * cap on the first line's own baseline and left a hole beneath it — the two halves read as two separate
+   * lines with the first letter floating between them, which is what the reference avoids by dropping its
+   * cap's baseline half a line below the first one. That is what this does: the cap sits `leading / 2`
+   * under the first baseline, so its foot lands just above the second line and no hole is left.
+   *
+   * The reference goes further and indents the whole paragraph, which makes page 2 a different measure from
+   * every page after it. **That is a fault in the reference and it is not reproduced.**
+   */
+  private drawLeadParagraph(text: string, size: number, leading: number): void {
+    const cap = text.slice(0, 1);
+    const words = text.slice(1).split(/\s+/).filter(Boolean);
+    const capWidth = this.doc.widthOf(cap, 'serifBold', CAP_SIZE) + 3;
+    const beside = this.bodyWidth - capWidth;
+
+    // Two lines beside the cap, wrapped to the narrowed measure.
+    const head: string[] = [];
+    let i = 0;
+    for (let line = 0; line < 2 && i < words.length; line++) {
+      let current = '';
+      while (i < words.length) {
+        const candidate = current ? `${current} ${words[i]}` : (words[i] as string);
+        if (this.doc.widthOf(candidate, 'serif', size) > beside && current) break;
+        current = candidate;
+        i += 1;
+      }
+      head.push(current);
+    }
+    const tail = words.slice(i).join(' ');
+    const rest = tail ? this.doc.wrap(tail, 'serif', size, this.bodyWidth) : [];
+
+    this.ensure(CAP_SIZE + (head.length + rest.length) * leading);
+    const first = this.y;
+    this.page.text(cap, LEFT, first - leading / 2, { font: 'serifBold', size: CAP_SIZE, rgb: OZIKORO.green });
+    let y = first;
+    for (const line of head) {
+      this.page.text(line, LEFT + capWidth, y, { font: 'serif', size, rgb: OZIKORO.ink });
+      y -= leading;
+    }
+    for (const line of rest) {
+      this.page.text(line, LEFT, y, { font: 'serif', size, rgb: OZIKORO.ink });
+      y -= leading;
+    }
+    this.y = y - size * 0.55;
   }
 
   /**
@@ -363,33 +586,28 @@ export class ArticlePdf {
    *
    * The owner's brief allows a pull quote only where the article already carries a quotation. **So a quote
    * block is created only from a `<blockquote>` in the record's own body and its text goes in verbatim** —
-   * see `toBlocks` in `apps/ozikoro/lib/publication.ts`, which is the only thing that produces one. There is
-   * no path here that writes a quotation, shortens one to fit, or lifts a sentence out of a paragraph: an
-   * article with no blockquote gets no pull quote, and that is the intended outcome rather than a gap.
+   * see `toBlocks` in `apps/ozikoro/lib/publication.ts`, which is the only thing that produces one. There
+   * is no path here that writes a quotation, shortens one to fit, or lifts a sentence out of a paragraph.
    */
   private drawQuote(text: string): void {
     const width = this.bodyWidth - 30;
     const lines = this.doc.wrap(text, 'serifItalic', 12.5, width);
-    this.ensure(lines.length * 18 + 24);
-    this.page.fill(OZIKORO.gold).fillRect(FRAME.marginLeft, this.y - lines.length * 18 - 2, 2.4, lines.length * 18 + 12);
+    this.ensure(lines.length * 16 + 24);
+    this.page.fill(OZIKORO.gold).fillRect(LEFT, this.y - lines.length * 16 - 2, 2.4, lines.length * 16 + 12);
     let cy = this.y;
     for (const line of lines) {
-      this.page.text(line, FRAME.marginLeft + 14, cy, { font: 'serifItalic', size: 12.5, rgb: OZIKORO.emeraldDeep });
-      cy -= 18;
+      this.page.text(line, LEFT + 14, cy, { font: 'serifItalic', size: 12.5, rgb: OZIKORO.green });
+      cy -= 16;
     }
-    this.y = cy - 14;
+    this.y = cy - 12;
   }
 
   /**
    * The information box, drawn from a key/value list the article itself contains.
    *
    * **Nothing here is composed.** The labels and the values are the list items split at their own colon, and
-   * the box carries no title, because a title would be a heading this renderer had to invent — "Quick
-   * reference" over four facts the article never grouped under one.
-   *
-   * **It never splits across a page.** A key/value box broken in half reads as two unrelated fragments, so the
-   * whole box is measured before a stroke of it is drawn and moves entire — the same rule the figures and their
-   * captions follow.
+   * the box carries no title, because a title would be a heading this renderer had to invent. It is the
+   * reference's own box shape: a rounded wash panel with the labels in the green.
    */
   private drawInfobox(rows: { label: string; value: string }[]): void {
     const padX = 14;
@@ -406,23 +624,18 @@ export class ArticlePdf {
     this.ensure(boxH + 18);
 
     const top = this.y;
-    this.page.fill(OZIKORO.emeraldWash).fillRect(FRAME.marginLeft, top - boxH, this.bodyWidth, boxH);
-    // A heavy edge down the left and a tint behind it, which is how the design sets a passage apart — its
-    // `.provenance` and `.unsourced` blocks both do exactly this — and the tint is its own `--accent-wash`
-    // rather than a colour mixed here.
-    this.page.fill(OZIKORO.emerald).fillRect(FRAME.marginLeft, top - boxH, 3, boxH);
+    this.page.fill(OZIKORO.wash).roundedRect(LEFT, top - boxH, this.bodyWidth, boxH, 6).fillPath();
+    this.page.fill(OZIKORO.green).fillRect(LEFT, top - boxH, 3, boxH);
 
     let cy = top - padY;
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i] as { label: string; value: string };
       const lines = wrapped[i] as string[];
-      this.page.text(row.label.toUpperCase(), FRAME.marginLeft + padX, cy, {
-        font: 'sansBold', size: labelSize, rgb: OZIKORO.emerald,
+      this.page.text(row.label.toUpperCase(), LEFT + padX, cy, {
+        font: 'sansBold', size: labelSize, rgb: OZIKORO.green,
       });
       for (const line of lines) {
-        this.page.text(line, FRAME.marginLeft + padX + labelW, cy, {
-          font: 'serif', size: valueSize, rgb: OZIKORO.ink,
-        });
+        this.page.text(line, LEFT + padX + labelW, cy, { font: 'serif', size: valueSize, rgb: OZIKORO.ink });
         cy -= valueSize * 1.4;
       }
       cy -= rowGap;
@@ -430,6 +643,13 @@ export class ArticlePdf {
     this.y = top - boxH - 16;
   }
 
+  /**
+   * A figure, fitted to the measure and never wider than it.
+   *
+   * **The image and its caption move together or not at all.** Placing the image and then discovering the
+   * caption does not fit puts them on different pages, which is the fault the brief names first. So the
+   * whole block is measured before any of it is drawn.
+   */
   private drawImage(block: Extract<Block, { kind: 'image' }>): void {
     const maxH = 330;
     const scale = Math.min(this.bodyWidth / block.width, maxH / block.height);
@@ -438,27 +658,21 @@ export class ArticlePdf {
     const creditLine = block.credit ? 1 : 0;
     const needed = h + 10 + captionLines.length * (CAPTION * 1.35) + creditLine * (CAPTION * 1.35) + 14;
 
-    /*
-     * **THE IMAGE AND ITS CAPTION MOVE TOGETHER OR NOT AT ALL.**
-     *
-     * Placing the image and then discovering the caption does not fit puts them on different pages, which is
-     * the fault the brief names first. So the whole block is measured before any of it is drawn.
-     */
     this.ensure(needed);
 
     const name = `img${this.pageIndex}-${Math.round(this.y)}`;
-    this.doc.addJpeg(name, block.data, block.width, block.height);
-    this.page.image(name, FRAME.marginLeft, this.y - h, this.bodyWidth, h, block);
+    this.doc.addImage(name, block.data);
+    this.page.image(name, LEFT, this.y - h, this.bodyWidth, h, block);
     this.y -= h + 8;
 
     if (captionLines.length) {
       for (const line of captionLines) {
-        this.page.text(line, FRAME.marginLeft, this.y, { font: 'sans', size: CAPTION, rgb: OZIKORO.inkMuted });
+        this.page.text(line, LEFT, this.y, { font: 'sans', size: CAPTION, rgb: OZIKORO.inkMuted });
         this.y -= CAPTION * 1.35;
       }
     }
     if (block.credit) {
-      this.page.text(block.credit, FRAME.marginLeft, this.y, { font: 'sans', size: CAPTION - 0.5, rgb: OZIKORO.ochre });
+      this.page.text(block.credit, LEFT, this.y, { font: 'sans', size: CAPTION - 0.5, rgb: OZIKORO.green });
       this.y -= CAPTION * 1.35;
     }
     this.y -= 14;
@@ -470,140 +684,295 @@ export class ArticlePdf {
       for (let i = 0; i < lines.length; i++) {
         this.ensure(LEADING);
         const line = lines[i] as string;
-        if (i === 0) this.page.text('·', FRAME.marginLeft, this.y, { font: 'serif', size: BODY, rgb: OZIKORO.ochre });
-        this.page.text(line, FRAME.marginLeft + 14, this.y, { font: 'serif', size: BODY, rgb: OZIKORO.ink });
+        if (i === 0) this.page.text('·', LEFT, this.y, { font: 'serif', size: BODY, rgb: OZIKORO.green });
+        this.page.text(line, LEFT + 14, this.y, { font: 'serif', size: BODY, rgb: OZIKORO.ink });
         this.y -= LEADING;
       }
     }
     this.y -= BODY * 0.5;
   }
 
-  private references(): void {
-    if (this.input.references.length === 0) return; // **No references means no section, not a fake one.**
-    this.newPage();
-    this.drawHeading(2, 'References');
-    const numberWidth = 22;
-    for (let i = 0; i < this.input.references.length; i++) {
-      const text = this.input.references[i] as string;
-      const lines = this.doc.wrap(text, 'serif', 9.5, this.bodyWidth - numberWidth);
-      this.ensure(lines.length * 13 + 10);
-      for (let j = 0; j < lines.length; j++) {
-        const line = lines[j] as string;
-        if (j === 0) {
-          this.page.text(String(i + 1).padStart(2, '0'), FRAME.marginLeft, this.y, {
-            font: 'sansBold', size: 8, rgb: OZIKORO.gold,
-          });
-        }
-        this.page.text(line, FRAME.marginLeft + numberWidth, this.y, { font: 'serif', size: 9.5, rgb: OZIKORO.ink });
-        this.y -= 13;
-      }
-      this.y -= 8;
+  /**
+   * The editorial note, in the reference's own rounded wash panel, once and near the opening.
+   *
+   * The words are the template's, quoted from the approved reference. **It is placed after the article's
+   * first paragraph** rather than floated to a corner, because a note about the publication belongs where a
+   * reader starts rather than where one stops.
+   */
+  private drawEditorialNote(): void {
+    const padX = 17.00787;
+    const inner = this.bodyWidth - padX * 2;
+    const lines = this.doc.wrap(EDITORIAL_BODY, 'sans', 8, inner);
+    const boxH = 30 + lines.length * 11 + 16;
+    this.ensure(boxH + 20);
+    const top = this.y;
+    this.page.fill(OZIKORO.wash).roundedRect(LEFT, top - boxH, this.bodyWidth, boxH, 6).fillPath();
+    // The reference's note is set with a little air above the label and none below it, and the note itself
+    // hangs from the label rather than being centred in the box.
+    this.page.text(EDITORIAL_LABEL, LEFT + padX, top - 22.68, { font: 'sansBold', size: 6, rgb: OZIKORO.green });
+    let cy = top - 42;
+    for (const line of lines) {
+      this.page.text(line, LEFT + padX, cy, { font: 'sans', size: 8, rgb: OZIKORO.inkMuted });
+      cy -= 11;
     }
+    this.y = top - boxH - 18;
   }
 
-  /** The author, only if a biography exists. **A heading over nothing is not a section.** */
-  private aboutAuthor(): void {
-    if (!this.input.author || !this.input.authorBio) return;
-    this.ensure(120);
-    this.y -= 14;
-    this.page.rule(FRAME.marginLeft, this.y + 8, A4.width - FRAME.marginRight, OZIKORO.rule, 0.6);
-    this.y -= 6;
-    this.drawHeading(3, 'About the author');
-    this.page.text(this.input.author, FRAME.marginLeft, this.y, {
-      font: 'serifBold', size: 11, rgb: OZIKORO.emeraldDeep,
-    });
-    this.y -= 16;
-    const lines = this.doc.wrap(this.input.authorBio, 'serif', 10, this.bodyWidth);
-    for (const line of lines) {
-      this.ensure(14);
-      this.page.text(line, FRAME.marginLeft, this.y, { font: 'serif', size: 10, rgb: OZIKORO.inkMuted });
-      this.y -= 14;
+  /**
+   * The references, in the reference's own treatment: a wash panel each, the number in gold, the entry in
+   * the serif, and the page's own number in gold to mark the section.
+   *
+   * **No references means no page**, which is why this is called only when the record carries some.
+   */
+  private references(): void {
+    if (this.input.references.length === 0) return;
+    this.newPage('references');
+    const p = this.page;
+    p.text(REFERENCES_LABEL, LEFT, 754, { font: 'sansBold', size: 6, rgb: OZIKORO.ink });
+    p.text('References', LEFT, 709.2992, { font: 'serifBold', size: 22, rgb: OZIKORO.gold });
+    let y = 681.1811;
+    for (const line of this.doc.wrap(REFERENCES_NOTE, 'sans', 10, this.bodyWidth)) {
+      p.text(line, LEFT, y, { font: 'sans', size: 10, rgb: OZIKORO.ink });
+      y -= 15;
+    }
+    this.y = y - 16;
+
+    const padX = 14;
+    const numberW = 28;
+    for (let i = 0; i < this.input.references.length; i++) {
+      const text = this.input.references[i] as string;
+      const lines = this.doc.wrap(text, 'serif', 8.5, this.bodyWidth - padX * 2 - numberW);
+      const boxH = lines.length * 11.5 + 24;
+      this.ensure(boxH + 13);
+      const top = this.y + 12;
+      this.page.fill(OZIKORO.wash).roundedRect(LEFT, top - boxH, this.bodyWidth, boxH, 6).fillPath();
+      let cy = top - 19;
+      this.page.text(String(i + 1).padStart(2, '0'), LEFT + padX, cy - 1, {
+        font: 'sansBold', size: 7, rgb: OZIKORO.gold,
+      });
+      for (const line of lines) {
+        this.page.text(line, LEFT + padX + numberW, cy, { font: 'serif', size: 8.5, rgb: OZIKORO.ink });
+        cy -= 11.5;
+      }
+      this.y = top - boxH - 13;
     }
   }
 
   /**
-   * The closing page: the mark, the name, and the three things this archive is for.
+   * The author, in the reference's own dark green panel, and only when a biography exists.
    *
-   * **The wordmark is drawn once rather than twice.** It carries its own icon, so the old emerald tile with
-   * `OI` set in it and the separate `Ozi Ikòrò` line were both the same name in two forms — one of them a
-   * stand-in. Both are kept as the fallback for when the artwork is absent, and neither is drawn beside the
-   * real thing.
+   * **A heading over nothing is not a section**, so an author with no biography gets no panel; and the
+   * biography is the record's own words, wrapped, rather than a line this renderer made up about them.
    */
-  private backPage(): void {
-    this.newPage();
-    const p = this.page;
-    p.fill(OZIKORO.paper).fillRect(0, 0, A4.width, A4.height);
-    const mid = A4.height / 2;
-    const wordmark = this.input.logo?.wordmark ?? null;
-    if (wordmark) {
-      const w = 132;
-      const h = (wordmark.height / wordmark.width) * w;
-      this.doc.addJpeg('ozikoro-wordmark', wordmark.data, wordmark.width, wordmark.height);
-      p.image('ozikoro-wordmark', FRAME.marginLeft, mid + 34, w, h, wordmark);
+  private aboutAuthor(): void {
+    if (!this.input.author || !this.input.authorBio) return;
+    const padX = 20;
+    const lines = this.doc.wrap(this.input.authorBio, 'serif', 8, this.bodyWidth - padX * 2);
+    const boxH = 26 + lines.length * 11 + 22;
+    /*
+     * THE PANEL IS ANCHORED TO THE FOOT OF THE REFERENCES PAGE.
+     *
+     * The reference sets it near the bottom of the page its references are on, as an end-plate rather than
+     * as a section that follows the last entry — **and it is placed there only when it fits clear of the
+     * references above it.** Where it does not fit, or where the record has no references at all, it flows
+     * after the body instead, because a panel written over the last reference is a worse fault than a panel
+     * that is not pinned to the page's foot.
+     */
+    const anchorBottom = 104;
+    const anchored = this.kinds[this.pageIndex] === 'references' && anchorBottom + boxH < this.y - 24;
+    let top: number;
+    if (anchored) {
+      top = anchorBottom + boxH;
     } else {
-      p.fill(OZIKORO.emeraldDeep).fillRect(FRAME.marginLeft, mid + 54, 34, 34);
-      p.text('OI', FRAME.marginLeft + 6, mid + 66, { font: 'sansBold', size: 18, rgb: OZIKORO.goldBright });
-      p.text('Ozi Ikòrò', FRAME.marginLeft, mid + 18, { font: 'serifBold', size: 20, rgb: OZIKORO.emeraldDeep });
+      if (this.y - boxH - 20 < FRAME.bodyBottom) this.newPage('body');
+      else this.y -= 16;
+      top = this.y;
     }
-    let y = mid + 16;
-    for (const line of ['African History', 'Culture', 'Indigenous Knowledge']) {
-      p.text(line, FRAME.marginLeft, y, { font: 'sans', size: 9.5, rgb: OZIKORO.inkMuted });
-      y -= 14;
+    this.page.fill(OZIKORO.green).roundedRect(LEFT, top - boxH, this.bodyWidth, boxH, 6).fillPath();
+    this.page.text(ABOUT_LABEL, LEFT + padX, top - 20, { font: 'sansBold', size: 6, rgb: OZIKORO.gold });
+    this.page.text(this.input.author, LEFT + padX, top - 40, { font: 'serifBold', size: 12, rgb: OZIKORO.chalk });
+    let cy = top - 58;
+    for (const line of lines) {
+      this.page.text(line, LEFT + padX, cy, { font: 'serif', size: 8, rgb: OZIKORO.dim });
+      cy -= 11;
     }
-    p.rule(FRAME.marginLeft, y - 6, FRAME.marginLeft + 60, OZIKORO.gold, 1);
-    p.text('ozikoro.com', FRAME.marginLeft, y - 26, { font: 'sansBold', size: 9, rgb: OZIKORO.ochre });
+    this.y = top - boxH - 18;
+  }
+
+  /** The back page: the ground, the stripe, the icon, the name, the slogan and the site. */
+  private backPage(): void {
+    this.newPage('back');
+    const p = this.page;
+    p.fill(OZIKORO.charcoal).fillRect(0, 0, A4.width, A4.height);
+    p.fill(OZIKORO.green).fillRect(0, 0, 14.17323, A4.height);
+    const icon = this.input.logo?.icon ?? null;
+    /*
+     * The reference draws this icon into a 62.36-point square, which stretches it by 1.89 vertically.
+     * **Centred on that square's own centre and sized by width instead**, so the artwork is the shape the
+     * brand's file says it is and the mark still carries the top of the page.
+     */
+    const iconW = 96;
+    const iconCentre = 694.4882 + 62.3622 / 2;
+    if (icon) {
+      this.doc.addImage('ozikoro-icon-back', icon.data);
+      const h = (icon.height / icon.width) * iconW;
+      p.image('ozikoro-icon-back', LEFT, iconCentre - h / 2, iconW, h, icon);
+    }
+    p.text('Ozi Ikòrò', LEFT, 646.2992, { font: 'serifBold', size: 24, rgb: OZIKORO.gold });
+    p.text(BACK_SLOGAN, LEFT, 583.937, { font: 'serifItalic', size: 18, rgb: OZIKORO.chalk });
+    p.text(BACK_STRAPLINE, LEFT, 535.748, { font: 'sans', size: 6.5, rgb: OZIKORO.dim });
+    p.rule(LEFT, 507.4016, 153.0709, OZIKORO.gold, 1);
+    p.text(BACK_SITE, LEFT, 42.51969, { font: 'sans', size: 5.7, rgb: OZIKORO.dim });
   }
 
   render(): Buffer {
     this.cover();
-    this.newPage();
+    this.openingPage();
 
     /*
-     * THE BODY.
+     * THE ARTICLE, FLOWING.
      *
-     * **A drop cap is used only when the article opens with prose** — the brief excludes an opening image, an
-     * opening quotation and a very short opening paragraph, and each of those is checked here rather than
-     * assumed.
+     * **The sections are the shallowest heading level the record actually uses.** The reference numbers
+     * `01`, `02`, `03` over an article whose headings are `<h3>`, so numbering only `<h2>` would leave the
+     * owner's own article with no sections at all — and numbering *every* heading regardless of level would
+     * give an `<h2>`/`<h3>` article two competing series. Neither is a guess: the level is read from the
+     * record. **An article with no headings gets no sections**, which is the honest outcome.
      */
-    const firstContent = this.input.blocks.find((b) => b.kind !== 'heading');
-    const openWithProse =
-      firstContent?.kind === 'paragraph' && firstContent.text.trim().length > 220;
-
+    const sectionLevel: 2 | 3 = this.input.blocks.some((b) => b.kind === 'heading' && b.level === 2) ? 2 : 3;
+    let sections = 0;
     let seenProse = false;
-    for (const block of this.input.blocks) {
-      switch (block.kind) {
-        case 'heading':
-          this.drawHeading(block.level, block.text);
-          break;
-        case 'paragraph':
-          this.drawParagraph(block.text, { lead: openWithProse && !seenProse });
-          seenProse = true;
-          break;
-        case 'quote':
-          this.drawQuote(block.text);
-          break;
-        case 'image':
-          this.drawImage(block);
-          break;
-        case 'list':
-          this.drawList(block.items);
-          break;
-        case 'infobox':
-          this.drawInfobox(block.rows);
-          break;
-      }
-    }
+    let notePlaced = false;
+    const firstProse = this.input.blocks.find((b) => b.kind === 'paragraph');
+    const opensWithProse = firstProse?.kind === 'paragraph' && firstProse.text.trim().length > 220;
 
-    this.aboutAuthor();
+    for (const block of this.input.blocks) {
+      if (block.kind === 'heading') {
+        if (block.level === sectionLevel) {
+          sections += 1;
+          this.drawSection(sections, block.text);
+        } else {
+          this.drawHeading(block.level, block.text);
+        }
+        continue;
+      }
+      if (block.kind === 'paragraph') {
+        this.drawParagraph(block.text, { lead: opensWithProse && !seenProse });
+        seenProse = true;
+        // The editorial note follows the article's first paragraph, once, exactly as the reference has it.
+        if (!notePlaced) { this.drawEditorialNote(); notePlaced = true; }
+        continue;
+      }
+      /*
+       * THE FEATURED IMAGE IS NOT PRINTED TWICE.
+       *
+       * An article's body very often opens with a `<figure>` holding the same photograph that is its
+       * featured image, and the cover has already printed it. **The comparison is the bytes themselves**,
+       * so an article that legitimately carries a *different* picture inline keeps every one of them; only
+       * the cover's own picture is skipped, and only where the body repeats it. The rule lives here rather
+       * than in the caller because the layout is the thing that knows what the cover carries.
+       */
+      if (block.kind === 'image' && this.input.featured && block.data.equals(this.input.featured.data)) continue;
+      this.drawBodyBlock(block);
+    }
+    if (!notePlaced) this.drawEditorialNote();
+
     this.references();
+    this.aboutAuthor();
     this.backPage();
 
     // The footers are written last because the page count is not known until the document is finished.
-    const total = this.doc.pages.length;
     for (let i = 1; i < this.doc.pages.length; i++) {
       const page = this.doc.pages[i];
-      if (page) this.footer(page, i, total);
+      const kind = this.kinds[i] ?? 'body';
+      if (!page) continue;
+      // The references page carries its number in the gold, as the reference does, in both places.
+      if (kind === 'references') this.number(page, i, 5.2, FRAME.headerBaseline, true);
+      this.footer(page, i, kind);
     }
     return this.doc.build();
   }
+
+  /**
+   * The opening page: the reference's title block, then the article.
+   *
+   * **The standfirst is set only when it says something the body does not.** This archive's `standfirst` is
+   * usually the article's opening sentences with an ellipsis, so printing it above the body would print the
+   * same paragraph twice — which is why the reference's own standfirst is absent from its pages. Where a
+   * record's standfirst is a genuinely separate summary it is set here in the italic, and **nothing is ever
+   * truncated to make it fit the template.**
+   */
+  private openingPage(): void {
+    this.newPage('opening');
+    const p = this.page;
+    p.text(this.shortTitle(), LEFT, 759.685, { font: 'sansBold', size: 6, rgb: OZIKORO.green });
+    p.fill(OZIKORO.gold).fillRect(LEFT, 751.1811, 42.51969, 2.267717);
+
+    /*
+     * THE TITLE BLOCK, FLOWING DOWNWARD FROM THE REFERENCE'S OWN FIRST BASELINE.
+     *
+     * The reference's title block is written at an origin of 682.7279 with the first line raised 31.28
+     * points above it, so its two baselines are **714.0 and 686.86**, its byline is 15.47 below the last of
+     * them, its gold hairline 25.51 below that, and the article itself 36.85 below the hairline. **Those
+     * gaps are the reference's, and they are chained rather than fixed** — a three-line title pushes the
+     * byline down instead of being written over by it, which is what a fixed byline baseline does.
+     */
+    let y = 714;
+    let lastTitle = y;
+    for (const line of this.doc.wrap(this.input.title, 'serifBold', 23, this.bodyWidth)) {
+      p.text(line, LEFT, y, { font: 'serifBold', size: 23, rgb: OZIKORO.ink });
+      lastTitle = y;
+      y -= 27.14;
+    }
+    const byline = [
+      this.input.author ? `By ${this.input.author}` : null,
+      this.input.category,
+      'Ozikoro.com',
+    ].filter(Boolean).join('  ·  ');
+    const bylineY = lastTitle - 15.47;
+    p.text(byline, LEFT, bylineY, { font: 'serifItalic', size: 9.2, rgb: OZIKORO.inkMuted });
+    const ruleY = bylineY - 25.51;
+    p.rule(LEFT, ruleY, FRAME.marginRight, OZIKORO.gold, 1);
+
+    this.y = ruleY - 36.85;
+    const standfirst = this.input.subtitle?.trim();
+    if (standfirst && this.standfirstIsItsOwn(standfirst)) this.drawStandfirst(standfirst);
+  }
+
+  /**
+   * Is this standfirst separate prose, or the article's first paragraph with the end cut off?
+   *
+   * The comparison strips a trailing ellipsis and compares the first eighty characters of each, because the
+   * archive's standfirsts are teasers of the body rather than summaries of it. **This only ever suppresses
+   * a duplicate; it never edits one.**
+   */
+  private standfirstIsItsOwn(subtitle: string): boolean {
+    const first = this.input.blocks.find((b) => b.kind === 'paragraph');
+    if (!first || first.kind !== 'paragraph') return true;
+    const opening = first.text.trim().slice(0, 80);
+    const teaser = subtitle.replace(/[\u2026.]+$/, '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    return !(teaser.length > 40 && opening.startsWith(teaser));
+  }
+
+  /** One content block that is not a heading or a paragraph. */
+  private drawBodyBlock(block: Block): void {
+    switch (block.kind) {
+      case 'quote': this.drawQuote(block.text); break;
+      case 'image': this.drawImage(block); break;
+      case 'list': this.drawList(block.items); break;
+      case 'infobox': this.drawInfobox(block.rows); break;
+      default: break;
+    }
+  }
+}
+
+/** Cut a string to the longest word boundary that fits, for a head that must not run into the page number. */
+function fit(doc: PdfDoc, text: string, font: FontKey, size: number, maxWidth: number, tracking = 0): string {
+  if (doc.widthOf(text, font, size, tracking) <= maxWidth) return text;
+  const words = text.split(/\s+/);
+  while (words.length > 1) {
+    words.pop();
+    const candidate = words.join(' ');
+    if (doc.widthOf(candidate, font, size, tracking) <= maxWidth) return candidate;
+  }
+  return words[0] ?? '';
 }

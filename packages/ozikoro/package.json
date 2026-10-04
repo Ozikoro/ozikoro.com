@@ -27,7 +27,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/*.test.ts",
+    "test": "node --test src/*.test.ts src/pdf/*.test.ts",
     "test:archive": "node src/test-archive.ts",
     "test:connection": "node src/test-connection.ts",
     "import:wordpress": "node src/import/wordpress.ts",

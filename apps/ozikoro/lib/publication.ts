@@ -11,11 +11,14 @@
  * from the database and none is assumed to exist** — the schema is inspected rather than imagined, and a record
  * with no subtitle, no biography or no image simply has no subtitle, no biography or no image.
  */
-import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { ArticlePdf, type ArticleLogo, type Block, type Raster } from '@ozikoro/platform';
+import {
+  ArticlePdf, decodePng, isJpeg, isPng, jpegSize,
+  type ArticleLogo, type Block, type FontSet, type Raster,
+} from '@ozikoro/platform';
 
 /**
  * Where the media and the logo live, found by walking up rather than by assuming a working directory.
@@ -60,34 +63,57 @@ function findRoot(): string {
 const MEDIA_ROOT = findRoot();
 
 /**
- * A JPEG the PDF can embed directly.
+ * AN IMAGE THE PDF CAN EMBED, FOUND FROM THE RECORD'S OWN REFERENCE TO IT.
  *
- * **A PDF embeds JPEG natively and nothing else.** A PNG or a WebP has to be re-encoded, and this does not
- * pretend otherwise: it returns null and the caller leaves the image out. **A missing figure is a smaller
- * fault than a corrupt one**, and the alternative — writing a WebP's bytes into an image object that claims
- * DCTDecode — produces a page that renders grey or not at all.
- */
-/**
- * THE ARCHIVE IS 229 WEBP AND 438 PNG FILES, AND A PDF EMBEDS NEITHER.
+ * A PDF carries a JPEG natively and any raster as raw samples. **It carries neither a WebP nor a URL**, and
+ * two silent faults came out of that gap:
  *
- * A PDF carries a JPEG natively through `DCTDecode` and nothing else. **So a record whose only figure is a
- * WebP got a publication with no figure at all** — `ute-okpu-an-ika-igbo-clan-and-its-nri-roots` references
- * exactly one image, `11234-ute-king.webp`, and its seven pages had nothing in them. The same is true of PNG.
+ *   1. **A body figure whose `src` was a full WordPress URL was never found at all**, because the lookup
+ *      joined the whole URL onto the media directory. `https://ozikoro.com/wp-content/uploads/2026/09/
+ *      ute-king.webp` is not a filename, so `existsSync` said no and the figure was left out — a record
+ *      whose text describes a photograph printed without one, and nothing said so.
+ *   2. **The media directory stores the same picture under a WordPress attachment prefix** — the file is
+ *      `11234-ute-king.webp`, not `ute-king.webp` — so even the basename does not join to it directly.
  *
- * `sips` is part of macOS and converts both, **so nothing has to be installed** — and the conversion is done
- * once per file into a cache, because a publication is built on every download and reconverting on each is
- * work nobody asked for twice.
+ * So the reference is reduced to its last path segment, looked for exactly, and then looked for as the
+ * suffix of a stored name. **The same URL resolution applies to the featured image and to a figure in the
+ * body**, because they are the same problem and were not.
  *
- * **A conversion failure returns null and the figure is left out**, which is the same rule as before: a
- * missing figure is a smaller fault than a corrupt one.
+ * A conversion failure returns null and the figure is left out: a missing figure is a smaller fault than a
+ * corrupt one, which is the rule this file already followed.
  */
 const CONVERT_CACHE = join(process.cwd(), '.data', 'publication-images');
+
+/** Every stored media name, read once. **3438 entries, and one `readdir` rather than one per figure.** */
+let mediaIndexCache: string[] | null = null;
+function mediaIndex(): string[] {
+  if (mediaIndexCache) return mediaIndexCache;
+  try {
+    mediaIndexCache = readdirSync(MEDIA_ROOT);
+  } catch {
+    mediaIndexCache = [];
+  }
+  return mediaIndexCache;
+}
+
+/** The stored name a reference points at, whether it arrives as a key, a URL path or a bare filename. */
+function storedName(key: string): string | null {
+  const cleaned = key.replace(/^ozikoro\//, '').replace(/[?#].*$/, '');
+  const tail = cleaned.includes('/') ? (cleaned.split('/').pop() as string) : cleaned;
+  if (!tail) return null;
+  if (existsSync(join(MEDIA_ROOT, tail))) return tail;
+  const index = mediaIndex();
+  if (index.includes(tail)) return tail;
+  // The attachment prefix is an id and a hyphen: `11234-ute-king.webp` for `ute-king.webp`.
+  const suffixed = index.find((name) => name.endsWith(`-${tail}`));
+  return suffixed ?? null;
+}
 
 function toJpeg(path: string, name: string): Buffer | null {
   const cached = join(CONVERT_CACHE, `${name.replace(/[\/]/g, '_')}.jpg`);
   if (existsSync(cached)) {
     const cachedData: Buffer = readFileSync(cached);
-    return cachedData[0] === 0xff && cachedData[1] === 0xd8 ? cachedData : null;
+    return isJpeg(cachedData) ? cachedData : null;
   }
   try {
     mkdirSync(CONVERT_CACHE, { recursive: true });
@@ -95,28 +121,38 @@ function toJpeg(path: string, name: string): Buffer | null {
      * `-s format jpeg` and a quality of 88.
      *
      * **High enough that a printed page shows no artefacts and low enough that a five-image publication is
-     * not fifty megabytes.** The reference publication's own images are photographic plates, and this is the
-     * setting those are reproduced at.
+     * not fifty megabytes.** This path is only reached for formats the writer cannot embed itself — WebP —
+     * and it needs `sips`, which exists on macOS and **not on the Linux host the archive deploys to.**
+     * There, a WebP figure is still left out; PNG no longer depends on this at all.
      */
     const r = spawnSync('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '88', path, '--out', cached], {
       stdio: 'ignore',
     });
     if (r.status !== 0 || !existsSync(cached)) return null;
     const cachedData: Buffer = readFileSync(cached);
-    return cachedData[0] === 0xff && cachedData[1] === 0xd8 ? cachedData : null;
+    return isJpeg(cachedData) ? cachedData : null;
   } catch {
     return null;
   }
 }
 
-function jpegOf(storageKey: string | null | undefined): { data: Buffer; width: number; height: number } | null {
-  if (!storageKey) return null;
-  const name = storageKey.replace(/^ozikoro\//, '');
+/** One image, ready for the layout: **JPEG or PNG, with its real pixel dimensions.** */
+function imageOf(reference: string | null | undefined): Raster | null {
+  if (!reference) return null;
+  const name = storedName(reference);
+  if (!name) return null;
   const path = join(MEDIA_ROOT, name);
   if (!existsSync(path)) return null;
   let data: Buffer = readFileSync(path);
-  // Not a JPEG: convert it, and if that fails the caller leaves the figure out.
-  if (data[0] !== 0xff || data[1] !== 0xd8) {
+  if (isPng(data)) {
+    try {
+      const png = decodePng(data);
+      return { data, width: png.width, height: png.height };
+    } catch {
+      return null;
+    }
+  }
+  if (!isJpeg(data)) {
     const converted = toJpeg(path, name);
     if (!converted) return null;
     data = converted;
@@ -125,26 +161,20 @@ function jpegOf(storageKey: string | null | undefined): { data: Buffer; width: n
   return size ? { data, ...size } : null;
 }
 
-/** Pixel dimensions from the JPEG's own start-of-frame marker. */
-function jpegSize(b: Buffer): { width: number; height: number } | null {
-  let i = 2;
-  while (i < b.length - 9) {
-    if (b[i] !== 0xff) { i++; continue; }
-    const marker = b[i + 1] as number;
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      return { height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) };
-    }
-    i += 2 + b.readUInt16BE(i + 2);
-  }
-  return null;
-}
-
 /**
- * THE LOGO, READ FROM THE REPOSITORY RATHER THAN FETCHED.
+ * THE OFFICIAL ASSETS, READ FROM THE REPOSITORY RATHER THAN FETCHED.
  *
- * The two files are the approved reference's own artwork, taken out of `data/pdf-template/reference.pdf`
- * byte for byte and described at `ArticleLogo` in the layout. **They live in the repository, so a download
- * never depends on a CDN, and the image object is written into the PDF itself** rather than linked from it.
+ * Two things are read here and both are the writer's own type:
+ *
+ *   `assets/official/ozikoro-icon-yellow.png` — the brand's icon, rendered from its own SVG so that the
+ *   transparency survives into the PDF through an `/SMask`. **It replaced two JPEGs that had been cut out of
+ *   an unrelated reference PDF**, whose artwork was not this brand's and whose transparent pixels had been
+ *   composited onto a guessed ivory. Nothing about that composite was right on a charcoal cover.
+ *
+ *   `assets/fonts/DejaVuSerif*.ttf` and `DejaVuSans*.ttf` — the faces the reference itself embeds. **With
+ *   them the writer can draw `ọ ụ ị ṅ`; without them it falls back to the base-14 fonts, which cannot**, and
+ *   every one of those letters becomes a `?` in an Igbo article. They are the same family the approved
+ *   reference uses, under the DejaVu licence shipped beside them.
  *
  * WHY THE DIRECTORY IS SEARCHED RATHER THAN COMPUTED
  *
@@ -153,14 +183,14 @@ function jpegSize(b: Buffer): { width: number; height: number } | null {
  * repository root, `next dev` runs from `apps/ozikoro`, and the deployed image runs `node
  * apps/ozikoro/server.js` from `/app`. A wrong guess here does not throw — it silently drops the wordmark
  * and prints the type-set fallback instead, which is the kind of fault that is only noticed on the printed
- * page. So the directory is looked for upwards from the working directory, and the wordmark file is what
+ * page. So the directory is looked for upwards from the working directory, and the icon file is what
  * identifies it.
  */
-function assetsDir(): string | null {
+function assetsRoot(): string | null {
   let dir = process.cwd();
   for (let i = 0; i < 8; i++) {
     const candidate = join(dir, 'packages', 'ozikoro', 'assets');
-    if (existsSync(join(candidate, 'ozikoro-wordmark.jpg'))) return candidate;
+    if (existsSync(join(candidate, 'official', 'ozikoro-icon-yellow.png'))) return candidate;
     const up = dirname(dir);
     if (up === dir) break;
     dir = up;
@@ -171,23 +201,49 @@ function assetsDir(): string | null {
 let logoCache: ArticleLogo | null | undefined;
 function logo(): ArticleLogo | null {
   if (logoCache !== undefined) return logoCache;
-  const dir = assetsDir();
-  if (!dir) {
+  const root = assetsRoot();
+  if (!root) {
     logoCache = null;
     return null;
   }
-  const read = (name: string): Raster | null => {
+  let icon: Raster | null = null;
+  try {
+    const data: Buffer = readFileSync(join(root, 'official', 'ozikoro-icon-yellow.png'));
+    const png = decodePng(data);
+    icon = { data, width: png.width, height: png.height };
+  } catch {
+    icon = null;
+  }
+  logoCache = { icon };
+  return logoCache;
+}
+
+/** The five faces, by role. **Null when they are absent, which the layout treats as the fallback.** */
+let fontCache: FontSet | null | undefined;
+function fonts(): FontSet | null {
+  if (fontCache !== undefined) return fontCache;
+  const root = assetsRoot();
+  if (!root) {
+    fontCache = null;
+    return null;
+  }
+  const read = (name: string): Buffer | undefined => {
     try {
-      const data: Buffer = readFileSync(join(dir, name));
-      if (data[0] !== 0xff || data[1] !== 0xd8) return null;
-      const size = jpegSize(data);
-      return size ? { data, ...size } : null;
+      return readFileSync(join(root, 'fonts', name));
     } catch {
-      return null;
+      return undefined;
     }
   };
-  logoCache = { wordmark: read('ozikoro-wordmark.jpg'), mark: read('ozikoro-mark.jpg') };
-  return logoCache;
+  const set: FontSet = {
+    serif: read('DejaVuSerif.ttf'),
+    serifBold: read('DejaVuSerif-Bold.ttf'),
+    serifItalic: read('DejaVuSerif-Italic.ttf'),
+    sans: read('DejaVuSans.ttf'),
+    sansBold: read('DejaVuSans-Bold.ttf'),
+  };
+  const any = Object.values(set).some(Boolean);
+  fontCache = any ? set : null;
+  return fontCache;
 }
 
 /**
@@ -255,9 +311,9 @@ export function toBlocks(html: string): Block[] {
       const fig = m[3];
       const img = /<img[^>]*src="([^"]+)"[^>]*>/i.exec(fig);
       if (img) {
-        const jpeg = jpegOf((img[1] as string).replace(/^\/media\//, ''));
+        const picture = imageOf((img[1] as string).replace(/^\/media\//, ''));
         const caption = clean(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i.exec(fig)?.[1] ?? '') || null;
-        if (jpeg) blocks.push({ kind: 'image', ...jpeg, caption, credit: null });
+        if (picture) blocks.push({ kind: 'image', ...picture, caption, credit: null });
       }
     } else if (m[4] !== undefined) {
       const text = clean(m[4]);
@@ -344,7 +400,13 @@ export function referencesOf(html: string): string[] {
   return [...region.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)].map((x) => clean(x[1] ?? '')).filter((t) => t.length > 25);
 }
 
-export type PublicationResult = { pdf: Buffer; title: string; pages: number };
+export type PublicationResult = {
+  pdf: Buffer;
+  title: string;
+  pages: number;
+  /** What was embedded, and which characters had no glyph. **Empty `missingGlyphs` is the proof.** */
+  diagnostics: ReturnType<ArticlePdf['diagnostics']>;
+};
 
 /** Build the publication for one published record, or null if there is no such record. */
 export async function buildPublication(slug: string): Promise<PublicationResult | null> {
@@ -371,7 +433,7 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
   const words = a.word_count ?? body.split(/\s+/).length;
   const fmt = (d: Date | null) =>
     d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
-  const featuredJpeg = jpegOf(a.featured_key);
+  const featuredImage = imageOf(a.featured_key);
 
   const doc = new ArticlePdf({
     slug: a.slug,
@@ -383,12 +445,15 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
     published: fmt(a.published_at),
     updated: fmt(a.updated_at),
     readingMinutes: Math.max(1, Math.round(words / 220)),
-    featured: featuredJpeg ? { ...featuredJpeg, caption: a.featured_caption } : null,
+    featured: featuredImage ? { ...featuredImage, caption: a.featured_caption } : null,
     blocks: toBlocks(body),
     references: referencesOf(body),
     tags: [],
     logo: logo(),
-  }).render();
+    fonts: fonts(),
+  });
+  const pdf = doc.render();
+  const report = doc.diagnostics();
 
-  return { pdf: doc, title: a.title, pages: 0 };
+  return { pdf, title: a.title, pages: report.pages, diagnostics: report };
 }

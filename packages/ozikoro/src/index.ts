@@ -80,4 +80,6 @@ export * from './pronunciation.ts';
 export * from './missing-words.ts';
 export * from './credit-planner.ts';
 export * from './pdf/writer.ts';
+export * from './pdf/png.ts';
+export * from './pdf/sfnt.ts';
 export * from './pdf/publication.ts';

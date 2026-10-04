@@ -5,85 +5,168 @@
  * content streams and an xref table. **No package, nothing to audit, nothing to break on an upgrade** — and
  * the whole of it is readable in a sitting.
  *
- * WHAT IT USES FOR TYPE, AND AN HONEST NOTE ABOUT IT
+ * WHAT IT USES FOR TYPE, WHICH CHANGED, AND WHY IT HAD TO
  *
- * The reference publication embeds DejaVu Serif and DejaVu Sans. **Embedding a font means shipping its file and
- * its metrics, which this does not do.** Instead it uses the base-14 fonts every PDF reader already has:
+ * This used the base-14 fonts — Times and Helvetica through `/WinAnsiEncoding`. **That encoding stops at
+ * U+00FF, so `ọ ụ ị ṅ` and every tone-marked vowel had no code**, and the old `pdfString` below replaced
+ * each one with `?`. An Igbo publication that cannot spell `Ụmụ Ọkpụ` is not a publication, it is a
+ * corrupted copy of one, **and the fault was invisible to every structural check because a `?` is a valid
+ * glyph.**
  *
- *     Times-Roman / Times-Bold / Times-Italic    the body, which is a serif for long-form reading
- *     Helvetica / Helvetica-Bold                 labels, metadata, page numbers and captions
+ * So the writer embeds a real face: a **Type0 font, `/Identity-H`, a CIDFontType2 descendant, a per-document
+ * subset and a `/ToUnicode` CMap.** Text is written as two-byte glyph ids, which means the words on the page
+ * are the words in the article, marks and all, and they are still searchable, selectable and readable aloud.
+ * The subsets are built by `sfnt.ts`; a document that uses four faces of a few hundred glyphs each stays
+ * well under a megabyte rather than carrying five multi-megabyte fonts.
  *
- * **They are not embedded and they are not DejaVu — and they print identically everywhere, which is the
- * property that matters for something a student will download and print.** The brief asks for embedded fonts;
- * this is the one place the brief is not met, and it is met in effect rather than in form. Swapping in
- * DejaVu's files later means adding one dictionary, not rewriting the writer.
+ * **When no font files are supplied it falls back to the base-14 fonts and says so** — `usesEmbeddedFonts`
+ * reports which happened, because a silent fallback is how the `?` stayed in the file for as long as it did.
+ *
+ * IMAGES
+ *
+ * A JPEG goes in through `/DCTDecode` exactly as it is. **A PNG goes in as raw samples through
+ * `/FlateDecode`, with an `/SMask` when it has transparency** — which is what the reference publication does
+ * and the only way artwork that is gold on nothing can be placed on a dark ground without compositing it
+ * onto a guessed colour. See `png.ts`.
  *
  * AND THE ONE THING IT DELIBERATELY DOES NOT DO
  *
- * **It does not rasterise.** Every word is real text in the file, so a PDF from this is searchable, selectable
- * and readable by a screen reader, and it does not turn into a picture of itself at high zoom.
+ * **It does not rasterise.** Every word is real text in the file, so a PDF from this is searchable,
+ * selectable and readable by a screen reader, and it does not turn into a picture of itself at high zoom.
  */
+import zlib from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { decodePng, isJpeg, isPng } from './png.ts';
+import { FontError, readFont, type EmbeddableFont } from './sfnt.ts';
 
-/** Points. A4 at 72 dpi, which is what the reference publication is. */
+/** Points. A4 at 72 dpi, which is what the reference publication is, to the fourth decimal. */
 export const A4 = { width: 595.2756, height: 841.8898 };
 
-/** Where the page furniture sits, in points. Generous, as the brief asks. */
+/**
+ * WHERE THE PAGE FURNITURE SITS, IN POINTS, READ OFF THE REFERENCE RATHER THAN CHOSEN.
+ *
+ * Every number here is a coordinate from the approved publication's own content streams — the cover's
+ * margins, the cream header band, the rule under it, the footer rule and the page-number baseline. **They
+ * are the reference's geometry, not an approximation of it**, which is why they carry decimals: 53.85827 is
+ * 19 mm and 541.4173 is 191 mm, and rounding them to 54 and 541 is a change to the measure.
+ */
 export const FRAME = {
-  marginTop: 78,
-  marginBottom: 82,
-  marginLeft: 64,
-  marginRight: 64,
-  headerY: 806,
-  footerY: 52,
-  ruleY: 796,
+  /** 19 mm — the left edge of every column on every page. */
+  marginLeft: 53.85827,
+  /** 191 mm — the right edge of the measure. **A margin on the right, an edge here.** */
+  marginRight: 541.4173,
+  /** The cream band across the head of every interior page. */
+  headerBandHeight: 56.69291,
+  /** The hairline under the running head. */
+  headerRuleY: 793.7008,
+  /** The running head's baseline. */
+  headerBaseline: 813.5433,
+  /** The small gold icon in the head, at the reference's own box: 1.89:1, never squared off. */
+  headerIconX: 53.86308,
+  headerIconY: 805.6063,
+  headerIconWidth: 24.08486,
+  /** Where the running head's text starts, clear of the icon. */
+  headerTextX: 87.87402,
+  /** The footer's hairline, and the baseline of the words under it. */
+  footerRuleY: 36.85039,
+  footerBaseline: 25.51181,
+  /** The first baseline an interior page may carry, and the last one. */
+  bodyTop: 759.685,
+  bodyBottom: 60,
 };
 
+/** The width of the measure: `marginRight - marginLeft`, and not a percentage of anything. */
+export const MEASURE = FRAME.marginRight - FRAME.marginLeft;
+
+/**
+ * THE ARCHIVE'S OWN COLOURS, TAKEN FROM THE ARTWORK THAT CARRIES THEM.
+ *
+ * **Three grounds and an accent, and not one of them is mixed here.** Each value below names the file or the
+ * object it came from, and where the logo files and the reference's raster disagree the vector file wins —
+ * a raster is a conversion, and a conversion is where a brand colour drifts.
+ */
 export const OZIKORO = {
-  paper: [0.969, 0.945, 0.890] as const, // #f7f1e3 warm ivory
-  paperRaised: [1, 0.992, 0.973] as const, // #fffdf8
-  ink: [0.114, 0.102, 0.086] as const, // #1d1a16 dark brown-charcoal
-  inkMuted: [0.420, 0.388, 0.345] as const, // #6b6358
-  emerald: [0.051, 0.361, 0.271] as const, // #0d5c45 deep green
-  emeraldDeep: [0.024, 0.180, 0.133] as const, // #062e22
-  /*
-   * `--accent-wash` from the design's own `tokens.css`, **copied rather than mixed here.** An
-   * information box needs a tint of the accent to sit on, and a tint computed at runtime would be a
-   * colour the design system does not contain — which is how a PDF starts drifting away from the
-   * site it is a publication of.
+  /**
+   * **#363434**, the dark charcoal ground.
+   *
+   * From `assets/official/ozikoro-icon-yellow.svg`'s counterpart `Ozi Ikoro Icon - Brown.svg`, whose only
+   * fill is `#363434`, and confirmed independently by the reference cover's own full-bleed rectangle,
+   * written as `.211765 .203922 .203922` — 54, 52, 52, which is `#363434` exactly.
    */
-  emeraldWash: [0.886, 0.937, 0.910] as const, // #e2efe8
-  gold: [0.788, 0.659, 0.298] as const, // #c9a84c
-  goldBright: [0.910, 0.780, 0.400] as const, // #e8c766
-  ochre: [0.541, 0.353, 0.169] as const, // #8a5a2b muted tan
-  rule: [0.886, 0.835, 0.722] as const, // #e2d5b8
+  charcoal: [0.211765, 0.203922, 0.203922] as const,
+  /**
+   * **#174c3d**, the deep green: the cover's left stripe, the section numerals, the feature panel.
+   *
+   * **Not one of the 32 logo files carries a green**, so the reference's own content stream is the
+   * authority: `.090196 .298039 .239216` — 23, 76, 61.
+   */
+  green: [0.090196, 0.298039, 0.239216] as const,
+  /**
+   * **#ddb02f**, the gold, from `assets/official/ozikoro-icon-yellow.svg` — `.cls-1{fill:#ddb02f;}`, the
+   * only fill in that file, and the colour of every gold pixel in the icon the writer places.
+   *
+   * The reference's *raster* of the same icon reads `#e2b52e`. **The vector is the brand and the raster is a
+   * conversion of it**, so the vector's value is the one used here.
+   */
+  gold: [0.866667, 0.690196, 0.184314] as const,
+  /** **#fffdf9**, the cream head band and the white of the cover title. `1 .992157 .976471`. */
+  chalk: [1, 0.992157, 0.976471] as const,
+  /** **#d8ccb7**, the cream half of the feature panel. `.847059 .8 .717647`. */
+  panel: [0.847059, 0.8, 0.717647] as const,
+  /** **#d7ccb7**, the hairline rules. A tenth of a per cent away from the panel, and it reads as one. */
+  rule: [0.843137, 0.8, 0.717647] as const,
+  /** **#d9d1c0**, the strapline, the byline and the meta line on the dark cover. */
+  dim: [0.85098, 0.819608, 0.752941] as const,
+  /** **#f2e7cf**, the cover's italic standfirst. */
+  standfirst: [0.94902, 0.905882, 0.811765] as const,
+  /** **#262322**, the body ink. `.14902 .137255 .133333`. */
+  ink: [0.14902, 0.137255, 0.133333] as const,
+  /** **#6d655b**, the muted ink of the running head, the meta line and the captions. */
+  inkMuted: [0.427451, 0.396078, 0.356863] as const,
+  /** **#eee5d5**, the wash behind the editorial note and each reference. `.933333 .898039 .835294`. */
+  wash: [0.933333, 0.898039, 0.835294] as const,
 };
 
 export type Rgb = readonly [number, number, number];
 
-/** A page's content, as PDF operators. */
-export type Op = string;
+/** The five roles the layout asks a face for. */
+export type FontKey = 'serif' | 'serifBold' | 'serifItalic' | 'sans' | 'sansBold';
+
+/** TrueType files, by role. **Absent means the base-14 fallback, and the PDF says so.** */
+export type FontSet = Partial<Record<FontKey, Buffer>>;
 
 /**
  * Escape a string for a PDF literal.
  *
- * **The archive's titles carry `&`, parentheses and accents**, and an unescaped `(` in a PDF string ends it
- * early — the rest of the title then becomes operators, and the page either loses its heading or fails to
- * render at all.
+ * **Only the fallback path needs this.** An embedded face writes two-byte glyph ids in angle brackets, where
+ * `(`, `)` and `\` are not special at all; a base-14 font writes a literal string, where a stray `(` ends it
+ * early and the rest of the title becomes operators.
  */
 export function pdfString(text: string): string {
   const escaped = text
     .replace(/\\/g, '\\\\')
     .replace(/\(/g, '\\(')
     .replace(/\)/g, '\\)');
-  // WinAnsi covers the punctuation this archive actually contains; anything outside it is dropped rather
-  // than written as a byte the font cannot draw.
   let out = '';
   for (const ch of escaped) {
     const code = ch.codePointAt(0) ?? 63;
-    out += code <= 0xff ? ch : code === 0x2019 ? "'" : code === 0x201c || code === 0x201d ? '"' : code === 0x2013 || code === 0x2014 ? '-' : '?';
+    out += code <= 0xff ? ch : code === 0x2019 ? "'" : code === 0x201c || code === 0x201d ? '"' : code === 0x2013 || code === 0x2014 ? '-' : code === 0x2026 ? '...' : '?';
   }
   return out;
 }
+
+/** A page's content, as PDF operators. */
+export type Op = string;
+
+export type TextOpts = {
+  font?: FontKey;
+  size?: number;
+  rgb?: Rgb;
+  maxWidth?: number;
+  align?: 'left' | 'center' | 'right';
+  /** Extra space between letters, in points. The reference's small capitals are tracked, not spaced. */
+  tracking?: number;
+};
 
 export class PdfPage {
   readonly ops: Op[] = [];
@@ -105,40 +188,77 @@ export class PdfPage {
   lineWidth(w: number) { this.ops.push(`${n(w)} w`); return this; }
   moveTo(x: number, y: number) { this.ops.push(`${n(x)} ${n(y)} m`); return this; }
   lineTo(x: number, y: number) { this.ops.push(`${n(x)} ${n(y)} l`); return this; }
+  curveTo(x1: number, y1: number, x2: number, y2: number, x3: number, y3: number) {
+    this.ops.push(`${n(x1)} ${n(y1)} ${n(x2)} ${n(y2)} ${n(x3)} ${n(y3)} c`); return this;
+  }
   strokeLine() { this.ops.push('S'); return this; }
-  /** A hairline rule: the brief's gold belongs on rules and small labels, and this is where. */
+  closePath() { this.ops.push('h'); return this; }
+  fillPath() { this.ops.push('f'); return this; }
+
+  /**
+   * A rounded rectangle, as four corners and four edges.
+   *
+   * **The reference rounds its panels and boxes and not its rules**, and a square-cornered copy of a rounded
+   * panel is the sort of difference that reads as "not the same document" without anyone being able to say
+   * why. `kappa` is the circular-arc constant: a cubic Bézier with this control-point offset is a quarter
+   * circle to within a thousandth of a point.
+   */
+  roundedRect(x: number, y: number, w: number, h: number, r: number) {
+    const k = 0.5523 * r;
+    this.moveTo(x + r, y);
+    this.lineTo(x + w - r, y);
+    this.curveTo(x + w - r + k, y, x + w, y + r - k, x + w, y + r);
+    this.lineTo(x + w, y + h - r);
+    this.curveTo(x + w, y + h - r + k, x + w - r + k, y + h, x + w - r, y + h);
+    this.lineTo(x + r, y + h);
+    this.curveTo(x + r - k, y + h, x, y + h - r + k, x, y + h - r);
+    this.lineTo(x, y + r);
+    this.curveTo(x, y + r - k, x + r - k, y, x + r, y);
+    this.closePath();
+    return this;
+  }
+
+  /** A hairline rule. The reference's rules are between a half and one point. */
   rule(x1: number, y: number, x2: number, rgb: Rgb = OZIKORO.rule, width = 0.6) {
     return this.stroke(rgb).lineWidth(width).moveTo(x1, y).lineTo(x2, y).strokeLine();
   }
   save() { this.ops.push('q'); return this; }
   restore() { this.ops.push('Q'); return this; }
 
-  /**
-   * Draw text.
-   *
-   * **`width` is measured accurately rather than estimated**, because a title that overflows the margin is the
-   * commonest fault in a generated PDF and an estimate gets it wrong exactly on the long titles that matter.
-   */
-  text(
-    value: string,
-    x: number,
-    y: number,
-    opts: { font?: FontKey; size?: number; rgb?: Rgb; maxWidth?: number; align?: 'left' | 'center' | 'right' } = {}
-  ) {
+  /** Draw text. Returns the drawn width, so a caller can chain a label after it. */
+  text(value: string, x: number, y: number, opts: TextOpts = {}): number {
     const font = opts.font ?? 'serif';
     const size = opts.size ?? 11;
     const rgb = opts.rgb ?? OZIKORO.ink;
-    const str = pdfString(value);
+    const tracking = opts.tracking ?? 0;
+    const width = this.doc.widthOf(value, font, size, tracking);
     let tx = x;
     if (opts.align && opts.maxWidth) {
-      const w = this.doc.widthOf(str, font, size);
-      tx = opts.align === 'center' ? x + (opts.maxWidth - w) / 2 : opts.align === 'right' ? x + opts.maxWidth - w : x;
+      tx = opts.align === 'center' ? x + (opts.maxWidth - width) / 2 : opts.align === 'right' ? x + opts.maxWidth - width : x;
     }
+    const face = this.doc.face(font);
     this.ops.push('BT', `${rgb[0]} ${rgb[1]} ${rgb[2]} rg`);
+    // Character spacing is set before the font so that it applies to this run and is visible to any reader
+    // measuring the line. Reset when unset, or it leaks into the next string on the page.
+    if (tracking) this.ops.push(`${n(tracking)} Tc`);
+    else this.ops.push('0 Tc');
     this.ops.push(`/${font} ${n(size)} Tf`);
     this.ops.push(`${n(tx)} ${n(y)} Td`);
-    this.ops.push(`(${str}) Tj`, 'ET');
-    return this;
+    if (face) this.ops.push(`<${this.doc.encode(value, font)}> Tj`, 'ET');
+    else {
+      /*
+       * **The fallback records what it cannot draw.** A base-14 font through `/WinAnsiEncoding` stops at
+       * U+00FF, so `pdfString` turns `ọ ụ ị ṅ` into `?` — and the fault it produces is invisible in the
+       * file, because a `?` is a perfectly good glyph. Noting the code points here is what turns "the PDF
+       * has no glyph for this" into something a caller can report instead of something nobody notices.
+       */
+      for (const ch of value) {
+        const cp = ch.codePointAt(0) as number;
+        if (cp > 0xff) this.doc.missingGlyphs.add(cp);
+      }
+      this.ops.push(`(${pdfString(value)}) Tj`, 'ET');
+    }
+    return width;
   }
 
   /** Draw text across several lines, returning the `y` after the last one. */
@@ -146,7 +266,7 @@ export class PdfPage {
     lines: string[],
     x: number,
     y: number,
-    opts: { font?: FontKey; size?: number; rgb?: Rgb; leading?: number } = {}
+    opts: TextOpts & { leading?: number } = {}
   ): number {
     const size = opts.size ?? 11;
     const leading = opts.leading ?? size * 1.45;
@@ -158,12 +278,17 @@ export class PdfPage {
     return cy;
   }
 
-  /** Place a JPEG, scaled to fit a box without ever changing its aspect ratio. */
+  /**
+   * Place an image, scaled to fit a box and **never scaled unevenly**.
+   *
+   * This was the one place the aspect ratio could be lost, and the reference lost it: it draws its own
+   * 1000×529 icon into a 51×51 square, which stretches it by 1.89 vertically. **That is not copied here.**
+   * The box is the room available, the scale is the smaller of the two ratios, and the result is centred.
+   */
   image(name: string, x: number, y: number, boxW: number, boxH: number, size: { width: number; height: number }) {
     const scale = Math.min(boxW / size.width, boxH / size.height);
     const w = size.width * scale;
     const h = size.height * scale;
-    // Centred in the box, so a tall image does not sit hard against one side.
     const ix = x + (boxW - w) / 2;
     const iy = y + (boxH - h) / 2;
     this.ops.push('q', `${n(w)} 0 0 ${n(h)} ${n(ix)} ${n(iy)} cm`, `/${name} Do`, 'Q');
@@ -171,11 +296,7 @@ export class PdfPage {
   }
 }
 
-export type FontKey = 'serif' | 'serifBold' | 'serifItalic' | 'sans' | 'sansBold';
-
-const FONT_OBJECT: Record<FontKey, string> = {
-  serif: '/F1', serifBold: '/F2', serifItalic: '/F3', sans: '/F4', sansBold: '/F5',
-};
+const FONT_ORDER: FontKey[] = ['serif', 'serifBold', 'serifItalic', 'sans', 'sansBold'];
 const FONT_BASE: Record<FontKey, string> = {
   serif: 'Times-Roman', serifBold: 'Times-Bold', serifItalic: 'Times-Italic',
   sans: 'Helvetica', sansBold: 'Helvetica-Bold',
@@ -184,8 +305,9 @@ const FONT_BASE: Record<FontKey, string> = {
 /**
  * Advance widths for the base-14 fonts, for the characters this archive uses.
  *
- * **Copied from the fonts' own metrics, not guessed.** Helvetica is uniform (500/1000 for most letters) and
- * Times is not, which is why an average would mis-measure a title in the one place it matters.
+ * **Copied from the fonts' own metrics, not guessed.** This is only consulted when no face was supplied —
+ * with DejaVu embedded the widths come from the font's own `hmtx`, which is the only way to measure a line
+ * containing `ọ` correctly.
  */
 const HELVETICA_W: Record<string, number> = (() => {
   const w: Record<string, number> = {};
@@ -232,26 +354,107 @@ const TIMES_W: Record<string, number> = (() => {
 
 const n = (v: number) => (Math.round(v * 100) / 100).toString();
 
+/** An image the writer can place: a JPEG as it is, or decoded samples with optional coverage. */
+type PlacedImage =
+  | { kind: 'jpeg'; bytes: Buffer; width: number; height: number }
+  | { kind: 'raw'; rgb: Buffer; alpha: Buffer | null; width: number; height: number };
+
 export class PdfDoc {
   readonly pages: PdfPage[] = [];
-  /** JPEGs by name, and their pixel dimensions — needed to scale without distorting. */
-  readonly images = new Map<string, { bytes: Buffer; width: number; height: number }>();
+  readonly images = new Map<string, PlacedImage>();
+  /** The faces actually embedded, by role. Empty means the base-14 fallback is in force. */
+  readonly faces = new Map<FontKey, EmbeddableFont>();
+  /** Which code points each face was asked to draw. **Only these are copied into its subset.** */
+  private readonly used = new Map<FontKey, Set<number>>();
+  /** Code points that no supplied face could draw. Reported rather than hidden in the text. */
+  readonly missingGlyphs = new Set<number>();
+  /** Why a face was not embedded, by role. Empty when everything asked for was embedded. */
+  readonly fontErrors = new Map<FontKey, string>();
 
-  widthOf(text: string, font: FontKey, size: number): number {
+  constructor(fonts?: FontSet | null) {
+    if (!fonts) return;
+    for (const key of FONT_ORDER) {
+      const data = fonts[key];
+      if (!data) continue;
+      try {
+        this.faces.set(key, readFont(data, {
+          bold: key === 'serifBold' || key === 'sansBold',
+          italic: key === 'serifItalic',
+        }));
+      } catch (error) {
+        /*
+         * **A font that will not parse is left out rather than thrown.** The alternative is a download that
+         * returns 500 because one file in the repository is the wrong format, and the fallback is a real
+         * document with the wrong typeface rather than no document at all. The reason is kept so a caller can
+         * say why.
+         */
+        this.fontErrors.set(key, (error as FontError).message);
+      }
+    }
+  }
+
+  /** True when at least one real face is embedded, so the caller can say which type is in the file. */
+  get usesEmbeddedFonts(): boolean { return this.faces.size > 0; }
+
+  face(key: FontKey): EmbeddableFont | null { return this.faces.get(key) ?? null; }
+
+  /** The code points one face has been asked to draw, for subsetting and for the CMaps. */
+  usedIn(key: FontKey): Set<number> { return this.used.get(key) ?? new Set<number>(); }
+
+  private note(key: FontKey, cp: number) {
+    let set = this.used.get(key);
+    if (!set) { set = new Set<number>(); this.used.set(key, set); }
+    set.add(cp);
+  }
+
+  /**
+   * Two-byte glyph ids, big-endian, as `/Identity-H` expects them.
+   *
+   * **A character the face cannot draw becomes `?`, and is recorded.** That is a visible, searchable
+   * substitution rather than a silently dropped letter, and `missingGlyphs` lets the caller report it.
+   */
+  encode(text: string, key: FontKey): string {
+    const face = this.face(key);
+    if (!face) throw new FontError('encode() is only for an embedded face');
+    let out = '';
+    for (const ch of text) {
+      const cp = ch.codePointAt(0) as number;
+      let gid = face.glyph(cp);
+      if (!gid) {
+        this.missingGlyphs.add(cp);
+        gid = face.glyph(0x3f) || 0;
+        this.note(key, 0x3f);
+        out += hex4(gid);
+        continue;
+      }
+      this.note(key, cp);
+      out += hex4(gid);
+    }
+    return out;
+  }
+
+  /** The width of a string in points, from the font's own metrics when one is embedded. */
+  widthOf(text: string, font: FontKey, size: number, tracking = 0): number {
+    const face = this.face(font);
+    let units = 0;
+    if (face) {
+      for (const ch of text) {
+        const cp = ch.codePointAt(0) as number;
+        const gid = face.glyph(cp) || face.glyph(0x3f);
+        units += gid ? face.advance(gid) : 500;
+      }
+      const tracked = tracking ? (text.length - 1) * tracking : 0;
+      return (units / 1000) * size + tracked;
+    }
     const bold = font === 'serifBold' || font === 'sansBold';
     const serif = font === 'serif' || font === 'serifBold' || font === 'serifItalic';
     const table = serif ? TIMES_W : HELVETICA_W;
-    let total = 0;
-    for (const ch of text) {
-      total += table[ch] ?? (serif ? 500 : 556);
-    }
-    // Bold Times runs slightly wider than regular; the base-14 metrics differ per style and this is the
-    // closest a single table gets.
-    return (total / 1000) * size * (bold ? 1.03 : 1);
+    for (const ch of text) units += table[ch] ?? (serif ? 500 : 556);
+    return (units / 1000) * size * (bold ? 1.03 : 1) + (tracking ? (text.length - 1) * tracking : 0);
   }
 
   /** Break text to a width. **Words are never split**, because a hyphenated break is read as a hyphen. */
-  wrap(text: string, font: FontKey, size: number, maxWidth: number): string[] {
+  wrap(text: string, font: FontKey, size: number, maxWidth: number, tracking = 0): string[] {
     const lines: string[] = [];
     for (const para of text.split(/\n/)) {
       const words = para.split(/\s+/).filter(Boolean);
@@ -259,15 +462,15 @@ export class PdfDoc {
       let line = '';
       for (const word of words) {
         const candidate = line ? `${line} ${word}` : word;
-        if (this.widthOf(candidate, font, size) <= maxWidth) {
+        if (this.widthOf(candidate, font, size, tracking) <= maxWidth) {
           line = candidate;
         } else {
           if (line) lines.push(line);
           // A single word wider than the column is broken, since the alternative is running off the page.
-          if (this.widthOf(word, font, size) > maxWidth) {
+          if (this.widthOf(word, font, size, tracking) > maxWidth) {
             let chunk = '';
             for (const ch of word) {
-              if (this.widthOf(chunk + ch, font, size) > maxWidth) { lines.push(chunk); chunk = ch; }
+              if (this.widthOf(chunk + ch, font, size, tracking) > maxWidth) { lines.push(chunk); chunk = ch; }
               else chunk += ch;
             }
             line = chunk;
@@ -287,13 +490,35 @@ export class PdfDoc {
     return page;
   }
 
+  /** A JPEG, embedded exactly as it is through `/DCTDecode`. */
   addJpeg(name: string, bytes: Buffer, width: number, height: number) {
-    this.images.set(name, { bytes, width, height });
+    this.images.set(name, { kind: 'jpeg', bytes, width, height });
   }
 
-  /** Serialise to a PDF. Objects are numbered from 1 as they are written. */
+  /**
+   * Any image a PDF can carry: a JPEG untouched, a PNG decoded to samples with its own coverage.
+   *
+   * Returns false when the bytes are neither, so the caller leaves the figure out **rather than writing a
+   * WebP's bytes into an image object that claims to be something else** — which renders as a grey rectangle
+   * or not at all, and is the fault the old comment in `publication.ts` was written about.
+   */
+  addImage(name: string, bytes: Buffer): { width: number; height: number } | null {
+    if (isJpeg(bytes)) {
+      const size = jpegSize(bytes);
+      if (!size) return null;
+      this.addJpeg(name, bytes, size.width, size.height);
+      return size;
+    }
+    if (isPng(bytes)) {
+      const png = decodePng(bytes);
+      this.images.set(name, { kind: 'raw', rgb: png.rgb, alpha: png.alpha, width: png.width, height: png.height });
+      return { width: png.width, height: png.height };
+    }
+    return null;
+  }
+
+  /** Serialise to a PDF. Objects are written in id order, so every offset in the xref is exact. */
   build(): Buffer {
-    const objects: string[] = [];
     const chunks: Buffer[] = [];
     let offset = 0;
     const offsets: number[] = [];
@@ -302,60 +527,166 @@ export class PdfDoc {
       chunks.push(buf);
       offset += buf.length;
     };
-    const obj = (body: string | Buffer) => { offsets.push(offset); push(body); };
+    const bodies: (string | Buffer)[] = [];
 
     /*
-     * THE HEADER, WHICH THIS FORGOT AND WHICH MAKES THE FILE UNOPENABLE.
+     * THE HEADER, WHICH THIS ONCE FORGOT AND WHICH MAKES THE FILE UNOPENABLE.
      *
      * A PDF must begin `%PDF-1.x` followed by a comment of high bytes. **Without it the file is a sequence of
-     * valid PDF objects that no reader will open** — and because every other part of the structure was correct,
-     * the only symptom is a document that silently fails to load. The stray one here started straight at
-     * `1 0 obj`.
-     *
-     * The binary comment is conventional rather than required; a reader that treats the file as text would
-     * otherwise mangle it on transfer.
+     * valid PDF objects that no reader will open** — and because every other part of the structure was
+     * correct, the only symptom is a document that silently fails to load.
      */
     push('%PDF-1.4\n');
     push(Buffer.from([0x25, 0xe2, 0xe3, 0xcf, 0xd3, 0x0a]));
 
-    // 1 catalog, 2 pages, then 5 fonts, then images, then content streams.
-    const fontKeys: FontKey[] = ['serif', 'serifBold', 'serifItalic', 'sans', 'sansBold'];
-    const fontIds = new Map<FontKey, number>();
-    fontKeys.forEach((k, i) => fontIds.set(k, 3 + i));
-    const firstImageId = 3 + fontKeys.length;
-    const imageIds = new Map<string, number>();
-    let next = firstImageId;
-    for (const name of this.images.keys()) imageIds.set(name, next++);
+    /*
+     * IDS ARE ALLOCATED BEFORE ANYTHING IS WRITTEN, because a page object names the fonts and the images it
+     * uses and a font object names its own descriptor and subset. Computing offsets as objects are written
+     * only works if the order they are written in is the order their ids run, so it is.
+     */
+    let next = 1;
+    const catalogId = next++;
+    const pagesId = next++;
+    const fontIds = new Map<FontKey, { type0: number; descendant: number; descriptor: number; file: number; toUnicode: number }>();
+    const embedKeys = FONT_ORDER.filter((key) => this.faces.has(key) && this.usedIn(key).size > 0);
+    if (embedKeys.length > 0) {
+      for (const key of embedKeys) {
+        fontIds.set(key, {
+          type0: next++, descendant: next++, descriptor: next++, file: next++, toUnicode: next++,
+        });
+      }
+    } else {
+      for (const key of FONT_ORDER) fontIds.set(key, { type0: next++, descendant: 0, descriptor: 0, file: 0, toUnicode: 0 });
+    }
+    /*
+     * **ONE IMAGE OBJECT PER PICTURE, HOWEVER MANY NAMES IT IS PLACED UNDER.** The brand icon is drawn on
+     * the cover, in every running head and on the back page, so storing it per name put the same 18 KB
+     * raster into the file three times over — and an article that repeats a photograph inline did the same
+     * with something much larger. The key is a hash of the bytes, so two names share one object exactly
+     * when they are the same picture.
+     */
+    const imageIds = new Map<string, { main: number; mask: number | null }>();
+    const uniqueImages: { ids: { main: number; mask: number | null }; image: PlacedImage }[] = [];
+    const byContent = new Map<string, { main: number; mask: number | null }>();
+    for (const [name, image] of this.images) {
+      const key = imageKey(image);
+      let ids = byContent.get(key);
+      if (!ids) {
+        ids = { main: next++, mask: image.kind === 'raw' && image.alpha ? next++ : null };
+        byContent.set(key, ids);
+        uniqueImages.push({ ids, image });
+      }
+      imageIds.set(name, ids);
+    }
     const firstPageId = next;
+    next += this.pages.length * 2;
 
+    bodies[catalogId - 1] = `${catalogId} 0 obj\n<< /Type /Catalog /Pages ${pagesId} 0 R >>\nendobj\n`;
     const kids = this.pages.map((_, i) => `${firstPageId + i * 2} 0 R`).join(' ');
-    obj(`1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`);
-    obj(`2 0 obj\n<< /Type /Pages /Count ${this.pages.length} /Kids [${kids}] >>\nendobj\n`);
-    for (const k of fontKeys) {
-      obj(`${fontIds.get(k)} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /${FONT_BASE[k]} /Encoding /WinAnsiEncoding >>\nendobj\n`);
+    bodies[pagesId - 1] = `${pagesId} 0 obj\n<< /Type /Pages /Count ${this.pages.length} /Kids [${kids}] >>\nendobj\n`;
+
+    // ── fonts ────────────────────────────────────────────────────────────────
+    const subsets = new Map<FontKey, { bytes: Buffer; face: EmbeddableFont }>();
+    for (const key of embedKeys) {
+      const ids = fontIds.get(key) as { type0: number; descendant: number; descriptor: number; file: number; toUnicode: number };
+      const face = this.faces.get(key) as EmbeddableFont;
+      const bytes = face.subset(this.usedIn(key));
+      subsets.set(key, { bytes, face });
+      const name = fontName(face.family, key);
+      const flags = 32 | (face.italic ? 64 : 0) | (face.fixedPitch ? 1 : 0);
+      const stream = (body: Buffer) => Buffer.concat([
+        Buffer.from(`stream\n`, 'latin1'), body, Buffer.from(`\nendstream\nendobj\n`, 'latin1'),
+      ]);
+      bodies[ids.file - 1] = Buffer.concat([
+        Buffer.from(`${ids.file} 0 obj\n<< /Length ${bytes.length} /Length1 ${bytes.length} /Filter /FlateDecode >>\n`, 'latin1'),
+        stream(zlib.deflateSync(bytes)),
+      ]);
+      const toUnicode = toUnicodeCMap(this.usedIn(key), face);
+      const toUnicodeBytes = Buffer.from(toUnicode, 'latin1');
+      bodies[ids.toUnicode - 1] = Buffer.concat([
+        Buffer.from(`${ids.toUnicode} 0 obj\n<< /Length ${toUnicodeBytes.length} >>\n`, 'latin1'),
+        stream(toUnicodeBytes),
+      ]);
+      bodies[ids.descriptor - 1] = `${ids.descriptor} 0 obj\n<< /Type /FontDescriptor /FontName /${name} /Flags ${flags}`
+        + ` /FontBBox [${face.bbox.map(n).join(' ')}] /ItalicAngle ${n(face.italicAngle)}`
+        + ` /Ascent ${face.ascent} /Descent ${face.descent} /CapHeight ${face.capHeight}`
+        + ` /StemV ${face.bold ? 145 : 80} /FontFile2 ${ids.file} 0 R >>\nendobj\n`;
+      bodies[ids.descendant - 1] = `${ids.descendant} 0 obj\n<< /Type /Font /Subtype /CIDFontType2 /BaseFont /${name}`
+        + ` /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>`
+        + ` /FontDescriptor ${ids.descriptor} 0 R /DW 1000 /W [${widthArray(this.usedIn(key), face)}]`
+        + ` /CIDToGIDMap /Identity >>\nendobj\n`;
+      bodies[ids.type0 - 1] = `${ids.type0} 0 obj\n<< /Type /Font /Subtype /Type0 /BaseFont /${name}`
+        + ` /Encoding /Identity-H /DescendantFonts [${ids.descendant} 0 R] /ToUnicode ${ids.toUnicode} 0 R >>\nendobj\n`;
     }
-    for (const [name, img] of this.images) {
-      const id = imageIds.get(name) as number;
-      offsets[id - 1] = offset;
-      push(`${id} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>\nstream\n`);
-      push(img.bytes);
-      push(`\nendstream\nendobj\n`);
+    /*
+     * THE BASE-14 FALLBACK, UNDER THE SAME RESOURCE NAMES.
+     *
+     * It is reached only when no face was supplied or none of them parsed. **It cannot draw `ọ ụ ị ṅ`** —
+     * that is the whole reason the embedded path exists — so `usesEmbeddedFonts` is false here and the
+     * caller is expected to say so rather than let a reader wonder why an Igbo name has a `?` in it.
+     */
+    if (embedKeys.length === 0) {
+      for (const key of FONT_ORDER) {
+        const id = (fontIds.get(key) as { type0: number }).type0;
+        bodies[id - 1] = `${id} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /${FONT_BASE[key]} /Encoding /WinAnsiEncoding >>\nendobj\n`;
+      }
     }
+
+    // ── images ───────────────────────────────────────────────────────────────
+    for (const { ids, image } of uniqueImages) {
+      if (image.kind === 'jpeg') {
+        bodies[ids.main - 1] = Buffer.concat([
+          Buffer.from(`${ids.main} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height}`
+            + ` /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`, 'latin1'),
+          image.bytes,
+          Buffer.from(`\nendstream\nendobj\n`, 'latin1'),
+        ]);
+        continue;
+      }
+      const compressed = zlib.deflateSync(image.rgb);
+      const maskClause = ids.mask ? ` /SMask ${ids.mask} 0 R` : '';
+      bodies[ids.main - 1] = Buffer.concat([
+        Buffer.from(`${ids.main} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height}`
+          + ` /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode${maskClause} /Length ${compressed.length} >>\nstream\n`, 'latin1'),
+        compressed,
+        Buffer.from(`\nendstream\nendobj\n`, 'latin1'),
+      ]);
+      if (ids.mask && image.alpha) {
+        const alpha = zlib.deflateSync(image.alpha);
+        bodies[ids.mask - 1] = Buffer.concat([
+          Buffer.from(`${ids.mask} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height}`
+            + ` /ColorSpace /DeviceGray /BitsPerComponent 8 /Filter /FlateDecode /Length ${alpha.length} >>\nstream\n`, 'latin1'),
+          alpha,
+          Buffer.from(`\nendstream\nendobj\n`, 'latin1'),
+        ]);
+      }
+    }
+
+    // ── pages ────────────────────────────────────────────────────────────────
+    const fontResources = [...fontIds].map(([key, ids]) => `/${key} ${ids.type0} 0 R`).join(' ');
+    const xobjectResources = [...imageIds].map(([name, ids]) => `/${name} ${ids.main} 0 R`).join(' ');
     for (let i = 0; i < this.pages.length; i++) {
       const pageId = firstPageId + i * 2;
       const contentId = pageId + 1;
-      const page = this.pages[i];
-      if (!page) continue;
-      const content = page.ops.join('\n');
-      const xobjects = page.ops.some((o) => o.includes(' Do'))
-        ? ' /XObject << ' + [...imageIds].map(([nm, id]) => `/${nm} ${id} 0 R`).join(' ') + ' >>'
-        : '';
-      obj(`${pageId} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${n(A4.width)} ${n(A4.height)}] /Resources << /Font << /F1 ${fontIds.get('serif')} 0 R /F2 ${fontIds.get('serifBold')} 0 R /F3 ${fontIds.get('serifItalic')} 0 R /F4 ${fontIds.get('sans')} 0 R /F5 ${fontIds.get('sansBold')} 0 R >>${xobjects} >> /Contents ${contentId} 0 R >>\nendobj\n`);
-      const buf = Buffer.from(content, 'latin1');
-      offsets[contentId - 1] = offset;
-      push(`${contentId} 0 obj\n<< /Length ${buf.length} >>\nstream\n`);
-      push(buf);
-      push(`\nendstream\nendobj\n`);
+      const page = this.pages[i] as PdfPage;
+      bodies[pageId - 1] = `${pageId} 0 obj\n<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${n(A4.width)} ${n(A4.height)}]`
+        + ` /Resources << /Font << ${fontResources} >>`
+        + (xobjectResources ? ` /XObject << ${xobjectResources} >>` : '')
+        + ` >> /Contents ${contentId} 0 R >>\nendobj\n`;
+      const content = Buffer.from(page.ops.join('\n'), 'latin1');
+      bodies[contentId - 1] = Buffer.concat([
+        Buffer.from(`${contentId} 0 obj\n<< /Length ${content.length} >>\nstream\n`, 'latin1'),
+        content,
+        Buffer.from(`\nendstream\nendobj\n`, 'latin1'),
+      ]);
+    }
+
+    const count = bodies.length;
+    for (let id = 1; id <= count; id++) {
+      offsets[id - 1] = offset;
+      const body = bodies[id - 1];
+      if (body === undefined) throw new Error(`PDF object ${id} of ${count} was never written`);
+      push(body);
     }
 
     /*
@@ -365,14 +696,125 @@ export class PdfDoc {
      * by one byte produces a file that opens in one viewer and not another**, which is the worst kind of
      * failure to debug. So offsets are recorded as objects are written rather than computed afterwards.
      */
-    const count = next - 1 + this.pages.length * 2;
     const xrefAt = offset;
     let xref = `xref\n0 ${count + 1}\n0000000000 65535 f \n`;
     for (let i = 1; i <= count; i++) {
       xref += `${String(offsets[i - 1] ?? 0).padStart(10, '0')} 00000 n \n`;
     }
     push(xref);
-    push(`trailer\n<< /Size ${count + 1} /Root 1 0 R >>\nstartxref\n${xrefAt}\n%%EOF\n`);
+    push(`trailer\n<< /Size ${count + 1} /Root ${catalogId} 0 R >>\nstartxref\n${xrefAt}\n%%EOF\n`);
     return Buffer.concat(chunks);
   }
+}
+
+/**
+ * A subset's name, in the form every PDF producer uses: **six capitals, a plus, and the face.**
+ *
+ * The prefix is derived from the document's own glyph set rather than being random, so the same article
+ * generates the same bytes — a publication that changes every time it is downloaded cannot be checked into
+ * anything or diffed against last week's.
+ */
+function fontName(family: string, key: FontKey): string {
+  let hash = 0x811c9dc5;
+  for (const ch of `${family}:${key}`) {
+    hash ^= ch.charCodeAt(0);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  let tag = '';
+  for (let i = 0; i < 6; i++) tag += String.fromCharCode(65 + ((hash >>> (i * 5)) % 26));
+  const suffix = key === 'serifBold' || key === 'sansBold' ? '-Bold' : key === 'serifItalic' ? '-Italic' : '';
+  return `${tag}+${family}${suffix}`;
+}
+
+/**
+ * The widths of the glyphs a document actually uses, as the `/W` array.
+ *
+ * **Consecutive glyph ids are written as one run**, because the array is read by every viewer that lays the
+ * page out and a run per glyph would put several thousand numbers in a file for a few hundred drawings.
+ */
+function widthArray(codePoints: Set<number>, face: EmbeddableFont): string {
+  const gids = new Set<number>();
+  for (const cp of codePoints) {
+    const gid = face.glyph(cp);
+    if (gid) gids.add(gid);
+  }
+  const sorted = [...gids].sort((a, b) => a - b);
+  const parts: string[] = [];
+  let i = 0;
+  while (i < sorted.length) {
+    const start = sorted[i] as number;
+    const widths: number[] = [];
+    let j = i;
+    while (j < sorted.length && (j === i || (sorted[j] as number) === (sorted[j - 1] as number) + 1)) {
+      widths.push(face.advance(sorted[j] as number));
+      j++;
+    }
+    parts.push(`${start} [${widths.join(' ')}]`);
+    i = j;
+  }
+  return parts.join(' ');
+}
+
+/**
+ * The `/ToUnicode` CMap: **glyph id back to the character it was drawn for.**
+ *
+ * Without this the page looks right and copies as nonsense — every glyph id is an index into DejaVu, so
+ * selecting `Ụmụ` yields whatever characters happen to live at those ids. This is the difference between a
+ * PDF that is text and a PDF that is a picture of text that happens to be scalable.
+ */
+function toUnicodeCMap(codePoints: Set<number>, face: EmbeddableFont): string {
+  const byGid = new Map<number, number>();
+  for (const cp of codePoints) {
+    const gid = face.glyph(cp);
+    if (gid && !byGid.has(gid)) byGid.set(gid, cp);
+  }
+  const hex = (v: number, width: number) => v.toString(16).toUpperCase().padStart(width, '0');
+  const entries = [...byGid].sort((a, b) => a[0] - b[0]);
+  const utf16 = (cp: number) => (cp > 0xffff
+    ? hex(0xd800 + ((cp - 0x10000) >> 10), 4) + hex(0xdc00 + ((cp - 0x10000) & 0x3ff), 4)
+    : hex(cp, 4));
+  const lines: string[] = [
+    '/CIDInit /ProcSet findresource begin', '12 dict begin', 'begincmap',
+    '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def',
+    '/CMapName /Adobe-Identity-UCS def', '/CMapType 2 def',
+    '1 begincodespacerange', '<0000> <FFFF>', 'endcodespacerange',
+  ];
+  // `beginbfchar` takes at most 100 entries, and a larger block is refused by strict readers.
+  for (let i = 0; i < entries.length; i += 100) {
+    const block = entries.slice(i, i + 100);
+    lines.push(`${block.length} beginbfchar`);
+    for (const [gid, cp] of block) lines.push(`<${hex(gid, 4)}> <${utf16(cp)}>`);
+    lines.push('endbfchar');
+  }
+  lines.push('endcmap', 'CMapName currentdict /CMap defineresource pop', 'end', 'end');
+  return lines.join('\n');
+}
+
+/** A glyph id as `/Identity-H` wants it: four upper-case hexadecimal digits, big-endian. */
+const hex4 = (gid: number) => gid.toString(16).padStart(4, '0').toUpperCase();
+
+/** A content key for an image, so the same picture is one object whichever name it is placed under. */
+function imageKey(image: PlacedImage): string {
+  const hash = createHash('sha1');
+  if (image.kind === 'jpeg') {
+    hash.update('jpeg').update(image.bytes);
+  } else {
+    hash.update(`raw:${image.width}x${image.height}`).update(image.rgb);
+    if (image.alpha) hash.update('a').update(image.alpha);
+  }
+  return hash.digest('hex');
+}
+
+/** Pixel dimensions from a JPEG's own start-of-frame marker. */
+export function jpegSize(b: Buffer): { width: number; height: number } | null {
+  let i = 2;
+  while (i < b.length - 9) {
+    if (b[i] !== 0xff) { i++; continue; }
+    const marker = b[i + 1] as number;
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
+      return { height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) };
+    }
+    i += 2 + b.readUInt16BE(i + 2);
+  }
+  return null;
 }
