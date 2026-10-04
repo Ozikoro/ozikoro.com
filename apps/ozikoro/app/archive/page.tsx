@@ -473,7 +473,24 @@ export default async function ArchivePage({
               ) : null}
             </div>
           ) : (
-            <div className="grid-4 section">
+            /*
+              * THE CARDS STACK, ONE PER ROW, BECAUSE THE DESIGN'S OWN CSS SAYS SO.
+              *
+              * This was `grid-4`, which flowed them four across. **`grid-4` is the design's FOOTER
+              * class** — in `archive-index.html` it appears at the site footer and nowhere near the
+              * records. The design puts its four example cards in a plain div and lets `.entry`
+              * do the work, and `.entry` is written for a vertical stack:
+              *
+              *     .entry { padding-block: var(--s-5); border-bottom: 1px solid var(--rule); }
+              *     .entry:first-child { padding-top: 0; }
+              *     .entry p { max-width: var(--measure); }
+              *
+              * A `border-bottom` under every card and a `padding-top: 0` on the first is a list, not a
+              * grid. Four across also broke the reading: `--measure` is a line-length limit, so a card
+              * a quarter of the width truncated every paragraph mid-sentence, and the hairlines
+              * between rows did not line up. The owner asked for the demo exactly.
+              */
+            <div className="section">
               {/* The heading level the design implies but does not draw — see
                   docs/OZIKORO-REMAINING.md. The stylesheets style headings by element, so
                   re-levelling the entries would change the approved design. */}
