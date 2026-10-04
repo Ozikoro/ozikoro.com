@@ -103,10 +103,13 @@ export interface ArticleSummary {
   /**
    * The record's place names, comma-separated, from the entities it is linked to.
    *
-   * **Null when the record names no place, which is 996 of the archive's 1,051 published records.**
-   * The card shows a place chip only when this is non-null: a chip is a claim with a record behind
-   * it, and the one thing this archive must never do is print a plausible place beside the real
-   * ones.
+   * **Null when the record is linked to no entity of a place kind — 881 of the archive's 1,051
+   * published records**, measured after the round-323 backfill. The card shows a place chip only
+   * when this is non-null: a chip is a claim with a record behind it, and the one thing this archive
+   * must never do is print a plausible place beside the real ones.
+   *
+   * Which entity kinds count as a place, and why a clan does, is stated once at
+   * `PLACE_ENTITY_KINDS`.
    */
   place: string | null;
 }
@@ -131,18 +134,59 @@ export interface ArticleDetail extends ArticleSummary {
 // ---------------------------------------------------------------------------
 
 /**
- * The entity kinds that read to a reader as a PLACE.
+ * The entity kinds that read to a reader as a PLACE — stated ONCE, because three readers use it.
  *
- * **This is a rule about meaning, not a formatting choice, so it is stated once.** The archive's
- * link table carries a `role` per link (`town`, `clan`, `ethnic_group`, `place`, …), and a record's
- * place facet is defined in `getArchiveFacets` as `role in ('town','place')`. The chip on a card is
- * the same statement as that facet read one record at a time, so it uses the same roles — and the
- * entity's own `kind` narrows it further, because a `place` link can point at a kingdom or a
- * community, and both are places a reader would recognise. Measured on the served archive:
- * **55 of 1,051 published records** are linked to an entity of one of these kinds, and **1,051 of
- * 1,051** carry no period and no source type at all.
+ * **A chip is a claim with a record behind it, and a chip that says `Place` beside a filter that
+ * cannot find the record is a worse fault than no chip at all.** So this is the single source: the
+ * card's chip (`ARTICLE_SELECT`), the design screen's entry (`PLACE_NAMES_SQL`), the archive's
+ * place facet and the rail's free-text place filter (`getArchiveFacets`, `listWhere`) all read this
+ * one list. A previous round found the same matcher written twice in two routes and already
+ * drifted; a list duplicated is a list that will disagree.
+ *
+ * **`clan` is in the list and was not, and that is a correction rather than an addition.** The
+ * archive's own vocabulary already calls a clan a place: `/towns` is the clan register with the
+ * towns filed inside it, `/town/<slug>/` serves a clan and a town through one route and one design,
+ * and the design's chip is labelled `Place` — never "Town". An Igbo clan is a territorial unit, and
+ * a reader looking at *Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots* reads "Ute-Okpu" as where the
+ * record is. Excluding clans was a decision nobody recorded, and it is why nine of the twelve cards
+ * on the archive's first page showed nothing.
+ *
+ * `people` is deliberately NOT here: a people is not a place, and a record about the Igbo, the Aro
+ * or the Ikwerre belongs under the ethnic-group facet that already exists for it.
+ *
+ * Measured on the served archive when the list was extended (4 October 2026): **170 of 1,051
+ * published records** carry a link to an entity of one of these kinds, up from 55 — and **112 of
+ * the 115 new ones are records reachable only through a clan link** (170 = 58 linked to a town or a
+ * kingdom + 130 linked to a clan − 18 that are both). **1,051 of 1,051** still carry no period and
+ * no source type.
  */
-const PLACE_ENTITY_KINDS = `('town','place','historical_place','archaeological_site','kingdom','polity','chiefdom','community')`;
+export const PLACE_ENTITY_KINDS = [
+  'town', 'place', 'historical_place', 'archaeological_site', 'kingdom', 'polity', 'chiefdom',
+  'community', 'clan',
+] as const;
+
+/**
+ * The same list spelled for SQL.
+ *
+ * Exported so a query in another module — the design screen's entry query is one — cannot spell the
+ * list differently and drift from the card.
+ */
+export const PLACE_ENTITY_KINDS_SQL = `(${PLACE_ENTITY_KINDS.map((k) => `'${k}'`).join(',')})`;
+
+/**
+ * A record's place names, from the entities it is linked to.
+ *
+ * **The one definition of the chip, shared by the card (`ARTICLE_SELECT`) and the design screen's
+ * entry** (`realEntries` in `app/design-screen/[screen]/route.ts`, which had its own copy and had
+ * already drifted — it aggregated *every* linked entity with no `kind` and no `distinct`).
+ *
+ * `string_agg(distinct …)` rather than `string_agg(…)`: **one record was measured printing
+ * "Igbodo, Igbodo"** when the same place was reachable through two entity rows, and a chip that
+ * names a place twice reads as a fault in the record rather than as a fact about it.
+ */
+export const PLACE_NAMES_SQL = `(select string_agg(distinct e.name, ', ' order by e.name)
+            from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
+           where ae.article_id = a.id and e.kind in ${PLACE_ENTITY_KINDS_SQL})`;
 
 /**
  * The columns every article listing needs, joined once.
@@ -152,10 +196,8 @@ const PLACE_ENTITY_KINDS = `('town','place','historical_place','archaeological_s
  * returned a URL without them would make the correct rendering impossible.
  *
  * `place` is the record's own place names, denormalised into the listing because the card's place
- * chip needs them for every row on the page and a query per row would be twenty-four queries. It is
- * `string_agg(distinct …)` rather than `string_agg(…)`: **one record was measured printing
- * "Igbodo, Igbodo"** when the same place was reachable through two entity rows, and a chip that
- * names a place twice reads as a fault in the record rather than as a fact about it.
+ * chip needs them for every row on the page and a query per row would be twenty-four queries. The
+ * names come from `PLACE_NAMES_SQL`, the one definition the design screen also reads.
  */
 const ARTICLE_SELECT = `
   select a.id, a.slug, a.title, a.standfirst, a.body_html, a.word_count,
@@ -163,9 +205,7 @@ const ARTICLE_SELECT = `
          a.seo_title, a.seo_description,
          c.display_name as author_name, c.slug as author_slug,
          t.name as topic_name, t.slug as topic_slug,
-         (select string_agg(distinct e.name, ', ' order by e.name)
-            from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
-           where ae.article_id = a.id and e.kind in ${PLACE_ENTITY_KINDS}) as place,
+         ${PLACE_NAMES_SQL} as place,
          coalesce('/media/' || m.storage_key, m.source_url) as image_url,
          m.alt_text as image_alt, m.credit as image_credit
     from ozikoro_article a
@@ -454,6 +494,16 @@ function listWhere(options: ListOptions): { clause: string; params: unknown[] } 
   }
 
   if (options.place) {
+    /*
+     * THE FREE-TEXT PLACE FILTER READS THE SAME LIST AS THE CHIP.
+     *
+     * It used to require `ae.role in ('town','place')` — the role, not the kind — so a record the
+     * card chipped `Place` could be missed by a search for that very name whenever the two disagreed.
+     * The predicate is now `PLACE_ENTITY_KINDS_SQL`, the one list, so "the chip says Place" and "the
+     * place filter finds it" cannot come apart. The second branch is unchanged and deliberately has
+     * no predicate of its own: a place is also searched where it is recorded — the clan's own name
+     * and the towns filed inside it.
+     */
     params.push(`%${options.place}%`);
     const p = `$${params.length}`;
     conditions.push(
@@ -462,7 +512,7 @@ function listWhere(options: ListOptions): { clause: string; params: unknown[] } 
           select 1 from ozikoro_article_entity ae
             join ozikoro_entity en on en.id = ae.entity_id
            where ae.article_id = a.id
-             and ae.role in ('town', 'place')
+             and en.kind in ${PLACE_ENTITY_KINDS_SQL}
              and (en.name ilike ${p}
                   or exists (select 1 from unnest(en.aliases) al where al ilike ${p}))
         )
@@ -635,12 +685,27 @@ export async function getArchiveFacets(db: Db): Promise<ArchiveFacets> {
         where a.status = 'published' and a.is_page = false
         group by 1, 2 order by n desc, 2`
     ),
+    /*
+     * THE PLACE GROUP IS THE CHIP, COUNTED.
+     *
+     * It used to be `ae.role in ('town','place')`, which is the same set only while every place-kind
+     * entity happens to carry a place role — and it stopped being the same set the moment `clan`
+     * joined the chip, because a clan link carries `role = 'clan'` and a chip would then name a
+     * place the rail's group did not offer. The predicate is now `PLACE_ENTITY_KINDS_SQL`, the one
+     * list: **the group and the chip are the same statement**, one read a page at a time.
+     *
+     * A clan therefore appears in BOTH this group and the clan group above. That is deliberate and
+     * not the fault round 305 fixed: there, 142 clans had been written *as towns* so the clan group
+     * was empty and offered a filter matching nothing. Here the clan group is complete and the place
+     * group is a second, wider reading of the same records — which is exactly what a reader who sees
+     * `Place: Ute-Okpu` on a card and then looks for it expects to find.
+     */
     db.rows<{ value: string; label: string; n: number }>(
       `select en.slug as value, en.name as label, count(distinct a.id)::int n
          from ozikoro_article a
-         join ozikoro_article_entity ae on ae.article_id = a.id and ae.role in ('town','place')
+         join ozikoro_article_entity ae on ae.article_id = a.id
          join ozikoro_entity en on en.id = ae.entity_id
-        where a.status = 'published' and a.is_page = false
+        where a.status = 'published' and a.is_page = false and en.kind in ${PLACE_ENTITY_KINDS_SQL}
         group by 1, 2 order by n desc, 2`
     ),
     db.rows<{ value: string; n: number }>(

@@ -57,10 +57,21 @@ await db.query(`update account set role = 'editor' where id = $1`, [editor.id]);
  * must put it back exactly as it found it. The first version of this file nulled the record's
  * columns in cleanup instead of restoring them, which quietly destroyed the series WordPress had
  * given it — a test that damages the archive it is testing is worse than no test.
+ *
+ * **AND IT MUST CHOOSE A RECORD THAT HOLDS NO ENTITY LINK OR SOURCE, because `cleanup` deletes both
+ * for the record it touched and cannot restore what it never captured.** Until round 323 the first
+ * record by id happened to have neither, so the hole was invisible; the round-323 backfill gave
+ * article 1 its true `Ute Okpu` link, and this test's cleanup would then have deleted it — a test
+ * silently undoing editorial work. The record is now selected FOR the state the test assumes: a
+ * series recorded (so the facet it restores is real), no entity link, no source.
  */
 const target = await db.one<Record<string, unknown>>(
-  `select id, slug, title, topic_id, source_type, period_label, period_start, period_end, status
-     from ozikoro_article where is_page = false order by id limit 1`
+  `select a.id, a.slug, a.title, a.topic_id, a.source_type, a.period_label, a.period_start, a.period_end, a.status
+     from ozikoro_article a
+    where a.is_page = false and a.status <> 'archived' and a.topic_id is not null
+      and not exists (select 1 from ozikoro_article_entity ae where ae.article_id = a.id)
+      and not exists (select 1 from ozikoro_article_source s where s.article_id = a.id)
+    order by a.id limit 1`
 );
 
 async function cleanup() {
@@ -126,7 +137,21 @@ const withTopic = await db.one<{ n: number }>(`select count(*)::int as n from oz
 assert('the series facet came across from WordPress, so no record starts empty', Number(withTopic?.n ?? 0) > 1000, `${withTopic?.n} have a series`);
 assert('worst first: a record missing four of the five leads', queue[0]?.completeness === 1, `completeness ${queue[0]?.completeness}`);
 assert('and each item names what it is missing', (queue[0]?.missing.length ?? 0) === 4, queue[0]?.missing.join(', '));
-assert('the series is not among the missing', !(queue[0]?.missing ?? []).includes('series'));
+/*
+ * THE SERIES IS THE ONE FACET THE MIGRATION GAVE EVERY RECORD, AND THAT IS ASSERTED WHERE IT IS TRUE.
+ *
+ * This used to read `!queue[0].missing.includes('series')`, which held only while the emptiest queue
+ * item happened to be a published record: the queue covers every non-archived record, drafts
+ * included, and a draft can carry no series. Round 322's backfill lifted article 1 out of the
+ * emptiest tier, the top of the queue became a draft, and the assertion failed — not because a
+ * series had gone missing, but because it had always been asserting the top row rather than the
+ * guarantee. The guarantee is about the MIGRATION, so it is now asked of the migrated archive.
+ */
+const noSeries = await db.one<{ n: number }>(
+  `select count(*)::int as n from ozikoro_article
+    where is_page = false and status = 'published' and topic_id is null`
+);
+assert('every published record carries the series the migration gave it', Number(noSeries?.n ?? -1) === 0, `${noSeries?.n} without a series`);
 assert('a record can be found by title', (await listEditorialQueue(db, { search: 'Ute-Okpu' })).length > 0);
 
 const gapQueue = await listEditorialQueue(db, { gap: 'sources', limit: 5 });

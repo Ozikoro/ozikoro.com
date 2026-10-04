@@ -73,6 +73,10 @@ if (report.skipped.length > 0) {
 }
 console.log(`  ${report.linksCreated} article-to-place links across ${report.articlesLinked} records`);
 console.log('  matched on TITLE only — a body search would link far more and claim far less');
+if (report.ambiguousNames.length > 0) {
+  console.log(`  ${report.ambiguousNames.length} name(s) refused because the word alone is not evidence:`);
+  for (const a of report.ambiguousNames) console.log(`      ${a.token} — seen in ${a.titles} title(s)`);
+}
 console.log('  coordinates written: 0 — the clan records carry none and the brief forbids inventing them');
 if (report.sampleEntities.length > 0) {
   console.log(`  examples: ${report.sampleEntities.slice(0, 5).join(', ')}`);

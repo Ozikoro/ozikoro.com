@@ -39,6 +39,7 @@ import {
   applyDesignOverrides,
   DESIGN_THEME_HREF,
   LINKED_SCREENS,
+  PLACE_NAMES_SQL,
   type DesignOverride,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
@@ -196,14 +197,21 @@ const FILLED = new Set([
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
+  /*
+   * THE PLACE IS THE CARD'S PLACE, FROM THE CARD'S OWN SQL.
+   *
+   * This query used to have its own copy: `string_agg(e.name, ', ' order by e.name)` over every
+   * linked entity, with no `kind` and no `distinct`. It had already drifted from the card in two
+   * ways — it chipped a record linked to a person or a people as a place, and it printed a name
+   * twice when two entity rows reached the same place. `PLACE_NAMES_SQL` is the card's own
+   * expression, so the design screen and `/archive/` cannot disagree about what a record's place is.
+   */
   const rows = await db.rows<{
     slug: string; title: string; standfirst: string | null;
     place: string | null; period: string | null; source: string | null; attached: number;
   }>(
     `select a.slug, a.title, a.standfirst,
-            (select string_agg(e.name, ', ' order by e.name)
-               from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
-              where ae.article_id = a.id) as place,
+            ${PLACE_NAMES_SQL} as place,
             a.period_label as period,
             a.source_type  as source,
             (select count(*)::int from ozikoro_article_source s where s.article_id = a.id) as attached

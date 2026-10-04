@@ -27,11 +27,16 @@
  *
  * ARTICLE LINKS ARE TITLE-BASED, WHICH IS A REAL LIMIT
  *
- * An article is linked to a town whose name appears in its TITLE — not its body. A title match is
- * evidence the record is about the place; a body match is evidence the place was mentioned, which
- * is a far weaker claim and would attach nearly every record to nearly every town. **So this links
- * fewer records than a body search would and every link it makes is defensible.** The rest are
- * editorial work, which is why the queue exists.
+ * An article is linked to an entity whose own name or alias appears in its TITLE — not its body. A
+ * title match is evidence the record is about the place; a body match is evidence the place was
+ * mentioned, which is a far weaker claim and would attach nearly every record to nearly every town.
+ * **So this links fewer records than a body search would and every link it makes is defensible.**
+ * The rest are editorial work, which is why the queue exists.
+ *
+ * The token must be the entity's OWN name or one of its OWN aliases, at a word boundary, with a dash
+ * joining a word and a multi-word name joining on a dash or a space — see `titleNames`. Where the
+ * word alone is not evidence — `Oba` is a king before it is a clan — it is refused by name and
+ * counted, in `NAME_IS_NOT_EVIDENCE`.
  */
 import type { Db } from '@ozituma/db/client';
 import { MemberError } from './members.ts';
@@ -54,6 +59,14 @@ export interface EntityGraphReport {
   skipped: { name: string; kind: string }[];
   linksCreated: number;
   articlesLinked: number;
+  /**
+   * Matches REFUSED because the word alone is not evidence, with how many titles used it.
+   *
+   * Named rather than silently dropped, for the same reason `skipped` names the dictionary rows that
+   * are not made entities: a refusal a reader cannot see is a refusal they cannot correct. The list
+   * of refused words, and why each is refused, is `NAME_IS_NOT_EVIDENCE` below.
+   */
+  ambiguousNames: { token: string; titles: number }[];
   /** A few examples, so the screen can show what happened rather than only how much. */
   sampleEntities: string[];
   sampleLinks: { article: string; entity: string }[];
@@ -79,14 +92,83 @@ const KIND_MAP: Record<string, string | null> = {
   other: null,
 };
 
-/** Word-boundary match, so "Owa" does not match "Owan". */
-function namesTown(title: string, town: string): boolean {
-  const escaped = town.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(^|[^A-Za-z])${escaped}([^A-Za-z]|$)`, 'i').test(title);
+/**
+ * Does `title` name `token` as a whole word sequence?
+ *
+ * THREE FAULTS IN THE FIRST VERSION, ALL FOUND BY READING THE SERVED ARCHIVE (4 October 2026).
+ *
+ *   1. **A dash inside a name is a space.** The entity's own name is `Ute Okpu` while the record's
+ *      title spells `Ute-Okpu`, so an exact comparison missed a record that names its place in its
+ *      first two words. A run of spaces or dashes *inside* a multi-word name is one separator.
+ *   2. **A dash at a boundary joins a word.** The first version treated any non-letter as a
+ *      boundary, so `Owa` matched inside `Owa-Alero`. A dash is a word character here: `Owa` does not
+ *      match `Owa-Alero` or `Owa-Oyibu`, and `Emu` does not match `Emu-Uno`.
+ *   3. **ASCII is not the alphabet.** `[^A-Za-z]` is a boundary test that is wrong about the letter
+ *      `ọ` in `Ọka` and the `ǹ` in `Ǹrì`, so a name ending in an Igbo letter could match inside a
+ *      longer word or fail to match at all. The boundary is `\p{L}`/`\p{N}`, which is what the
+ *      alphabet actually is.
+ */
+const WORD_CHAR = String.raw`[\p{L}\p{N}\u2010-\u2015_\-]`;
+const INNER_SEPARATOR = String.raw`[\s\u2010-\u2015_\-]+`;
+
+export function titleNames(title: string, token: string): boolean {
+  const parts = token.trim().split(/[\s\u2010-\u2015_\-]+/).filter(Boolean);
+  if (parts.length === 0) return false;
+  const body = parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(INNER_SEPARATOR);
+  return new RegExp(`(?<!${WORD_CHAR})${body}(?!${WORD_CHAR})`, 'iu').test(title);
 }
 
-/** Shortest name that is still evidence. Three letters matches too much to mean anything. */
-const MIN_NAME = 4;
+/**
+ * Shortest name that is still evidence.
+ *
+ * **Three, not four, and the protection is the word boundary rather than the length.** `Owa` is a
+ * kingdom with a page and a record whose title begins with it, and a floor of four silently dropped
+ * it; `Owan` and `Owa-Alero` are excluded by the boundary above, which is the rule that actually
+ * does the work. The floor stays at three because a two-letter token is a syllable, not a name.
+ */
+const MIN_NAME = 3;
+
+/**
+ * Names and aliases that are NOT evidence on their own, with the reason each was measured.
+ *
+ * **The matcher cannot tell a place from a word, so the words where it was measured to get it wrong
+ * are named here rather than left to produce a wrong `Place` chip.** A chip is a claim with a record
+ * behind it, and on a history page a wrong one is worse than a missing one. Each entry below is a
+ * token the dictionary lists as a name or an alias whose bare appearance in a title was, on reading
+ * the titles, about something else:
+ *
+ *   * `Oba` is the Benin royal title in four titles — *"at the Oba's Request"*, *"Oba Olua"*,
+ *     *"Oba Ewuare the Great"*, *"the Oba of Benin"* — and none of them is about the clan named Oba.
+ *   * `Osu` is the caste institution in three — *"The Osu Institution"*, *"the Osu/Diala Divide"*.
+ *   * `Opi` is the ọpị instrument as often as the town (*"OPI/OKIKE"* under *Igbo Musical
+ *     Instruments*), and nothing in the token says which.
+ *   * `Isu` is carried by TWO entities (`isu-arochukwu`, `isu-afikpo`) and the one title that uses
+ *     it names the people and the region, not either town.
+ *   * `Ada` is `ụmụ ada` (daughters) and a common forename — *"Ada Priscilla Nzimiro"*.
+ *   * `Izuogu` and `Ogbalu` are surnames — *"Ezekiel Izuogu"*, *"Mazi F. C. Ogbalu"*.
+ *   * `Ekwe` is the slit drum, and a settlement inside a different clan.
+ *   * `Okpala` is a surname (*"Chika Okpala"*) and the firstborn's title (*"the Okpala System"*,
+ *     *"Okpala Nshi"*) in all three titles that use it — three false links that the round-305 run
+ *     did make and that round 323 leaves in place rather than delete, because an existing link is
+ *     not this module's to remove.
+ *   * `Aro` is the people, the confederacy, Arochukwu's own alias, and the festival *Igu Aro* — one
+ *     word with four meanings, so a bare `Aro` does not say which. A title that spells the meaning
+ *     out (`Aro Confederacy`) still matches.
+ *
+ * A refused match is COUNTED and NAMED in `report.ambiguousNames`, never dropped in silence.
+ */
+const NAME_IS_NOT_EVIDENCE: Record<string, string> = {
+  oba: 'the Benin royal title',
+  osu: 'the caste institution',
+  opi: 'the ọpị musical instrument',
+  isu: 'shared by two entities and used here for the people',
+  ada: 'ụmụ ada and a forename',
+  izuogu: 'a surname',
+  ogbalu: 'a surname',
+  okpala: 'a surname and the firstborn\'s title',
+  ekwe: 'the slit drum and a different settlement',
+  aro: 'the people, the confederacy, Arochukwu\'s alias, and the Igu Aro festival',
+};
 
 interface ClanRow {
   id: number;
@@ -141,6 +223,7 @@ export async function buildEntityGraph(
     articlesLinked: 0,
     sampleEntities: [],
     sampleLinks: [],
+    ambiguousNames: [],
     coordinatesWritten: 0,
   };
 
@@ -235,18 +318,44 @@ export async function buildEntityGraph(
     kingdom: 'place',
   };
 
-  const entities = await db.rows<{ id: number; name: string; kind: string }>(
-    `select id, name, kind from ozikoro_entity
+  /*
+   * THE ENTITY'S OWN NAMES, AND THE ALIASES THE DICTIONARY ALREADY SLEPT ON.
+   *
+   * The first version matched `ozikoro_entity.name` alone, so it could not link *Arondizuogu: An Aro
+   * Settlement* to `Ndizuogu` — even though `Arondizuogu` is Ndizuogu's own first alias, recorded in
+   * the dictionary and published on `/entities/ndizuogu`. **An alias that resolves is a link found,**
+   * and reading it costs nothing because the matcher, the boundary and `NAME_IS_NOT_EVIDENCE` are
+   * unchanged.
+   *
+   * An alias that ANOTHER entity already owns as its name is not read. `Aro` is the name of the Aro
+   * people and an alias of Arochukwu, and matching both made the Aro people's own records claim the
+   * town. (The token is in `NAME_IS_NOT_EVIDENCE` as well, for its own reason.)
+   */
+  const entities = await db.rows<{ id: number; name: string; kind: string; aliases: string[] }>(
+    `select id, name, kind, aliases from ozikoro_entity
       where clan_id is not null and length(name) >= ${MIN_NAME}`
   );
+  const ownedNames = new Set(entities.map((e) => e.name.trim().toLowerCase()));
   const articles = await db.rows<{ id: number; title: string }>(
     `select id, title from ozikoro_article where is_page = false and status = 'published'`
   );
 
+  /** Every match this article has on this entity, names first, with the token that carried it. */
+  const matchesFor = (title: string, entity: { name: string; aliases: string[] }): string[] => {
+    const tokens = [entity.name, ...entity.aliases]
+      .map((t) => t.trim())
+      .filter((t) => t.length >= MIN_NAME)
+      .filter((t) => !NAME_IS_NOT_EVIDENCE[t.toLowerCase()])
+      .filter((t) => t.toLowerCase() === entity.name.trim().toLowerCase() || !ownedNames.has(t.toLowerCase()));
+    return tokens.filter((t) => titleNames(title, t));
+  };
+
+  const ambiguous = new Map<string, Set<number>>();
   const linked = new Set<number>();
   for (const article of articles) {
     for (const entity of entities) {
-      if (!namesTown(article.title, entity.name)) continue;
+      const matched = matchesFor(article.title, entity);
+      if (matched.length === 0) continue;
 
       const role = ROLE_FOR_ENTITY_KIND[entity.kind] ?? 'place';
       const already = await db.one<{ n: number }>(
@@ -276,6 +385,30 @@ export async function buildEntityGraph(
   report.articlesLinked = linked.size;
 
   /*
+   * THE REFUSALS, COUNTED AND NAMED.
+   *
+   * Every token in `NAME_IS_NOT_EVIDENCE` that a title uses is counted here, so a run reports "Oba
+   * was seen in 4 titles and refused" rather than silently linking four kings to a clan. The count is
+   * per token, not per record, because the reader's question is "why is this word not matched?", and
+   * the answer is a property of the word.
+   */
+  const ambiguousCounts = new Map<string, number>();
+  for (const token of Object.keys(NAME_IS_NOT_EVIDENCE)) {
+    let titles = 0;
+    for (const article of articles) if (titleNames(article.title, token)) titles += 1;
+    if (titles > 0) ambiguousCounts.set(token, titles);
+  }
+  report.ambiguousNames = [...ambiguousCounts.entries()]
+    .map(([token, titles]) => ({ token, titles }))
+    .sort((a, b) => b.titles - a.titles || a.token.localeCompare(b.token));
+  if (ambiguousCounts.size > 0) {
+    console.log(
+      `  refused ${ambiguousCounts.size} name(s) that are not evidence on their own: ` +
+        report.ambiguousNames.map((a) => `${a.token} (${a.titles} titles)`).join(', ')
+    );
+  }
+
+  /*
    * One summary row, so the trail answers "when was the graph built, and by whom" without a reader
    * having to count several hundred rows. The per-entity rows above stay: they are what makes a
    * single wrong entity traceable back to the run that made it.
@@ -292,6 +425,7 @@ export async function buildEntityGraph(
         linksCreated: report.linksCreated,
         articlesLinked: report.articlesLinked,
         skipped: report.skipped.length,
+        ambiguousNames: report.ambiguousNames,
       },
       actorId: options.actorId,
     });

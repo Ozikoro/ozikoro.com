@@ -28,8 +28,8 @@
 import { getDb, closeDb } from '@ozituma/db/client';
 import { registerAccount } from '@ozituma/db/accounts';
 import { resetStorage } from '@ozituma/db/storage';
-import { getArchiveFacets } from './archive.ts';
-import { buildEntityGraph, getEntityGraphState } from './entity-graph.ts';
+import { getArchiveFacets, PLACE_ENTITY_KINDS_SQL } from './archive.ts';
+import { buildEntityGraph, getEntityGraphState, titleNames } from './entity-graph.ts';
 import {
   countFollowers,
   followedIds,
@@ -89,6 +89,25 @@ async function cleanup() {
 }
 
 // ---------------------------------------------------------------------------
+console.log('\n--- the title matcher, which is where the round-323 faults were ---');
+
+/*
+ * THE THREE FAULTS, ASSERTED. Each of these was WRONG before round 323 and each one cost a real
+ * record a place on the archive's first page. These run without the database, so they hold even
+ * where the archive is empty.
+ */
+assert('a name spelled with a dash matches its space spelling', titleNames('Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots', 'Ute Okpu'));
+assert('and the reverse holds too', titleNames('Ute Okpu: An Ika-Igbo Clan', 'Ute-Okpu'));
+assert('a three-letter name is evidence at a word boundary', titleNames('Owa: An Ika-Igbo Kingdom Built from Many Lineages', 'Owa'));
+assert('but a dash at the boundary joins a word, so it does not match inside one', !titleNames('Owa-Alero and Owa-Oyibu are towns', 'Owa'));
+assert('a longer word is not a match either', !titleNames('Owan: A Community of Many Origins', 'Owa'));
+assert('a hyphenated prefix is not a match of the bare name', !titleNames('Emu-Uno: Unveiling the Rich Cultural Heritage', 'Emu'));
+assert('an Igbo letter is a letter for the boundary, so Ọka matches', titleNames('Mgbokwo of Ọka, 1910', 'Ọka'));
+assert('and a name ending in one does not match inside a longer word', !titleNames('Ọkara is a different place', 'Ọka'));
+
+/* ---------------------------------------------------------------------------
+ * The dictionary the graph is built from
+ */
 console.log('\n--- the dictionary the graph is built from ---');
 
 const dictionary = await db.one<{ published: number; not_places: number }>(
@@ -130,8 +149,19 @@ assert('a dry run reports what it would do', dry.entitiesCreated + dry.entitiesA
 assert('a dry run writes no audit row', auditsAfterDry === auditsBefore, `${auditsBefore} → ${auditsAfterDry}`);
 assert('a dry run writes no coordinate either', dry.coordinatesWritten === 0);
 
+const auditMarkBeforeBuild = Number((await db.one<{ n: number }>(`select coalesce(max(id), 0)::int as n from ozikoro_audit`))!.n);
 const built = await buildEntityGraph(db, { actorId: owner.id });
 assert('the build creates or finds every published place', built.entitiesCreated + built.entitiesAlreadyPresent + built.skipped.length === built.considered, `${built.entitiesCreated} created, ${built.entitiesAlreadyPresent} present, ${built.skipped.length} skipped`);
+/*
+ * THE REFUSALS ARE REPORTED, NOT SILENT. `Oba` is a king in four titles and a clan's name; a run
+ * that matched it would put a wrong `Place: Oba` on four history pages, and a run that dropped it
+ * without saying so would leave the next reader unable to tell a refusal from a miss.
+ */
+assert(
+  'a name that is not evidence on its own is refused and counted, not linked',
+  built.ambiguousNames.every((a) => a.titles > 0) && built.ambiguousNames.some((a) => a.token === 'oba'),
+  built.ambiguousNames.map((a) => `${a.token} (${a.titles})`).join(', ') || 'none seen'
+);
 assert(
   'a colonial section or administrative grouping is never made an entity',
   built.skipped.every((s) => s.kind === 'section' || s.kind === 'other'),
@@ -154,12 +184,42 @@ assert('a second run links nothing new', second.linksCreated === 0, `${second.li
 assert('a second run finds everything already present', second.entitiesAlreadyPresent === second.considered - second.skipped.length, `${second.entitiesAlreadyPresent} present`);
 
 /* Every mutation named its actor. */
-const createAudits = (await db.one<{ n: number; actors: number }>(
-  `select count(*)::int as n, count(distinct actor_id)::int as actors
+const createAudits = (await db.one<{ n: number; actors: number; unattributed: number }>(
+  `select count(*)::int as n,
+          count(distinct actor_id)::int as actors,
+          count(*) filter (where actor_id is null)::int as unattributed
      from ozikoro_audit where action in ('create_from_dictionary','link_entity_from_title','build_from_dictionary')`
 ))!;
 assert('every graph write is audited', Number(createAudits.n) > 0, `${createAudits.n} audit rows`);
-assert('and every one names an account', Number(createAudits.actors) === 1, `${createAudits.actors} distinct actor(s)`);
+/*
+ * THE PROPERTY IS "NO UNATTRIBUTED WRITE", NOT "EXACTLY ONE ACCOUNT EVER WROTE".
+ *
+ * Until round 323 the graph was built once, by one account, and never grew afterwards — so
+ * `count(distinct actor_id) === 1` happened to hold. It stopped holding the moment the builder could
+ * find a link on a database that already carried the owner's own links: the test's run is attributed
+ * to the test account and the archive's earlier rows to the owner, and BOTH are correct. **The
+ * requirement is that a change names who made it** — which is asserted twice: nothing is
+ * unattributed, and the writes THIS run made name this run's actor (below).
+ */
+assert('and every one names an account', Number(createAudits.unattributed) === 0, `${createAudits.n} rows, ${createAudits.actors} actor(s), ${createAudits.unattributed} unattributed`);
+
+/*
+ * AND THE RUN'S OWN WRITES NAME THE RUN'S ACTOR.
+ *
+ * `built` is the only build in this file that may write a link, so every audit row written after it
+ * began must name `owner` — not an account inherited from the archive's earlier builds.
+ */
+const buildAuditActors = await db.rows<{ actor_id: string | null; n: number }>(
+  `select actor_id, count(*)::int as n from ozikoro_audit
+    where action in ('link_entity_from_title','build_from_dictionary') and id > $1
+    group by 1`,
+  [auditMarkBeforeBuild]
+);
+assert(
+  "and the write this run made names this run's actor",
+  buildAuditActors.length > 0 && buildAuditActors.every((r) => Number(r.actor_id) === Number(owner.id)),
+  `${built.linksCreated} links created; ` + (buildAuditActors.map((r) => `actor ${r.actor_id} ×${r.n}`).join(', ') || 'nothing written')
+);
 
 /* ---------------------------------------------------------------------------
  * The graph is what the archive's own filters read, so the two must agree.
@@ -178,13 +238,44 @@ if (after.entities > 0 && built.articlesLinked > 0) {
   );
   assert('clans and towns are offered separately, not merged', facets.clans.length > 0 || facets.towns.length > 0);
   /*
-   * THE FAULT THIS ASSERTS AGAINST. The first version of the builder wrote `role = 'town'` for every
-   * link, so 142 clans landed in the town group and the clan group was EMPTY while 146 records were
-   * linked to clans — a rail offering a filter that matched nothing, beside a total that disagreed with
-   * the data. Keeping the two groups disjoint is what makes that impossible.
+   * THE INVARIANT THAT REPLACED "KEEP THE TWO GROUPS DISJOINT".
+   *
+   * Round 305 asserted that no entity is offered as both a clan and a town, because the builder had
+   * once written `role = 'town'` for every link and left the clan group empty while 146 records were
+   * linked to clans. **Round 322 deliberately breaks that disjointness**: `clan` joined the entity
+   * kinds that read as a place, so a record about a clan is now chipped `Place` AND offered under the
+   * clan group. What must hold instead — and it is the stronger property — is that **the chip and the
+   * facet are the same statement**: every entity the rail offers as a place is one the card would
+   * chip, and every entity a card chips is one the rail offers. A chip beside a filter that cannot
+   * find the record is the fault this guards against.
    */
+  const chipSlugs = new Set(
+    (
+      await db.rows<{ slug: string }>(
+        `select distinct en.slug from ozikoro_article_entity ae
+           join ozikoro_entity en on en.id = ae.entity_id
+           join ozikoro_article a on a.id = ae.article_id
+          where a.status = 'published' and a.is_page = false and en.kind in ${PLACE_ENTITY_KINDS_SQL}`
+      )
+    ).map((r) => r.slug)
+  );
+  const facetSlugs = new Set(facets.towns.map((t) => t.value));
+  assert(
+    'every place a card chips is offered by the rail',
+    [...chipSlugs].every((s) => facetSlugs.has(s)),
+    `${chipSlugs.size} chipped, ${facetSlugs.size} offered`
+  );
+  assert(
+    'and the rail offers no place no card chips',
+    [...facetSlugs].every((s) => chipSlugs.has(s)),
+    `${facetSlugs.size} offered, ${chipSlugs.size} chipped`
+  );
   const clanSlugs = new Set(facets.clans.map((c) => c.value));
-  assert('no entity is offered as both a clan and a town', facets.towns.every((t) => !clanSlugs.has(t.value)), `${facets.clans.length} clans, ${facets.towns.length} towns`);
+  assert(
+    'a clan is a place as well as a clan, which is the round-323 decision',
+    facets.clans.length === 0 || facets.towns.some((t) => clanSlugs.has(t.value)),
+    `${facets.clans.length} clans, ${facets.towns.length} places`
+  );
 }
 
 /* ---------------------------------------------------------------------------

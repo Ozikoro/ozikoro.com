@@ -17726,3 +17726,276 @@ and break the build for everyone, so it stays in the tree and is named here inst
 **And the fault in this round worth carrying: the accessibility corrections were "verified" for many rounds by
 measuring a file that no browser ever received.** A 500 on a stylesheet leaf is invisible to every check that
 asks the PAGE whether it is well.
+
+## ROUND 323 — A CLAN IS A PLACE: THE CHIP AND THE FACET NOW READ ONE LIST, AND THE BUILDER MATCHES THE NAME THE RECORD ACTUALLY PRINTED
+
+**The owner's words:** *"on the archive, you showed that umunede and others are marked 'Place', but not Ute
+Okpu, which is equally a place, so fix"*.
+
+**What was actually wrong is two things, and the second one was invisible from the card.** Ute-Okpu had no
+link to its own entity, **and** the chip's rule excluded the kind of entity that entity is. Fixing only the
+first would have left the owner's card exactly as he found it, and the measurement that proves it is in §2.
+
+### 1. THE SHAPE, MEASURED BEFORE ANY WRITE
+
+`ozikoro_entity`: **188 rows** — 142 `clan`, 37 `town`, 7 `people`, 2 `kingdom`. Every one points at a
+published dictionary row (`clan_id`, partial-unique since migration 0048). `ozikoro_entity.clan_town_id` is
+used by nothing yet: **0 entities** stand for a settlement inside a clan.
+
+`ozikoro_article_entity`: **170 links across 146 of the archive's 1,051 published records.** By role:
+**clan 109 (105 records), town 55 (54 records), ethnic_group 5 (5 records), place 1 (1 record)**. The role is
+read from the entity's kind by the builder's `ROLE_FOR_ENTITY_KIND`, so those counts are the builder's own
+vocabulary and not an editorial spread.
+
+**The chip is drawn from `ozikoro_article_entity ⋈ ozikoro_entity` on the entity's `kind` alone.** The
+predicate was `kind in ('town','place','historical_place','archaeological_site','kingdom','polity','chiefdom',
+'community')` — **and it did not contain `clan`.** So:
+
+    55 of 1,051 published records carried a Place chip
+    while 105 records were already linked to a clan entity and chipped nothing
+
+**The task's framing — "the reason 996 records show nothing is that they have no link" — was not quite the
+data.** 905 records have no link at all; **91 are linked to an entity of a kind the chip refuses**. Those are
+two different faults and only one of them is a missing row.
+
+### 2. WHY UTE-OKPU HAD NO CHIP, AND WHY IT WAS TWO FAULTS
+
+**Fault one — the builder could not see the link, and it was not matching on the title.** `buildEntityGraph`
+matched `ozikoro_entity.name` against the title with `new RegExp('(^|[^A-Za-z])' + name + '([^A-Za-z]|$)')`.
+Three things were wrong with that, and each one cost real records:
+
+| The record | The entity's own name | What the builder did |
+|---|---|---|
+| `Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots` | `Ute Okpu` | a space is not a hyphen, so **no match** |
+| `Owa: An Ika-Igbo Kingdom Built from Many Lineages` | `Owa` | three letters, below `MIN_NAME = 4`, so **not even considered** |
+| `Arondizuogu: An Aro Settlement Built on Trade and Conquest` | `Ndizuogu` (alias `Arondizuogu`) | aliases were never read, so **no match** |
+| `Oko and Okwe: Two Neighbouring Communities…` | `Oko Okwe` | the register's own name for the two communities, split by the title's `and` |
+
+`Arondizuogu` is not an inference: it is the first entry in `ozikoro_entity.aliases` for `ndizuogu`, recorded
+in the dictionary and published on `/entities/ndizuogu/`. **An alias that resolves is a link found.**
+
+**Fault two — the chip refused the kind.** `Ute-Okpu`'s entity is `ozikoro_entity` 141, `ute-okpu`, whose
+kind is **`clan`** because the register's own row (`clan` 117) is `kind = 'clan'` and the article's own title
+says *"An Ika-Igbo **Clan**"*. It answers at `/town/ute-okpu/` only because `/town/<slug>` serves the whole
+clan register — **the URL is not the kind, and reading a kind from an address is what produced this round's
+brief.** So a data-only fix could not have put a chip on that card at all.
+
+**Measured, before deciding:** of **91** title⇄entity candidate links the builder had not made, only **4**
+would have added a Place chip (Owa, Oko Okwe, Opi, Ukawe). A data-only round would have moved the archive's
+chip count from **55 to 59**. The dominant cause was the rule.
+
+### 3. THE DECISION: A CLAN IS A PLACE IN THIS ARCHIVE, AND THE CHIP AND THE FACET MOVE TOGETHER
+
+**An Igbo clan is a territorial unit.** The article is about a clan *and its land*; the register serves clans
+and towns through one route and one design; `/towns` is "the clan register and the towns filed with it"; and
+the design labels the chip **Place**, never "Town". Excluding clans was a decision nobody recorded, and the
+owner found it by reading the archive's first page.
+
+**And a chip beside a filter that cannot find the record is worse than no chip**, so the facet was not left
+behind. `PLACE_ENTITY_KINDS` is now **one exported list**, and every reader reads it:
+
+| Reader | Before | Now |
+|---|---|---|
+| the card's chip (`ARTICLE_SELECT`) | its own `kind in (…)` literal | `PLACE_NAMES_SQL` |
+| the design screen's entry (`app/design-screen/[screen]/route.ts`) | **its own copy — every linked entity, no `kind`, no `distinct`** | `PLACE_NAMES_SQL` |
+| the rail's place facet (`getArchiveFacets`) | `ae.role in ('town','place')` | `en.kind in PLACE_ENTITY_KINDS_SQL` |
+| the free-text place filter (`listWhere`) | `ae.role in ('town','place')` | `en.kind in PLACE_ENTITY_KINDS_SQL` |
+
+**The design screen's copy was already wrong and nobody had seen it:** it aggregated *every* linked entity, so
+it chipped a record linked to a person or a people as a place, and it printed a name twice when two rows
+reached one place — the `"Igbodo, Igbodo"` fault the card had already fixed. **A second copy of a rule had
+drifted, which is what second copies do**, and it is now the same string.
+
+`people` is deliberately not a place: a people is not one, and the ethnic-group facet is where the Aro, the
+Ikwerre and the Igbo belong.
+
+### 4. THE BACKFILL: 62 LINKS, AND 33 REFUSALS
+
+Applied with the CLI against the live cluster after `npm run backup` (verified with the tool's own checker,
+`.data/backups/pg-2026-10-04T12-06-31`), and recorded as one audited row — **actor 199 `idenzeme@gmail.com`,
+role owner, action `backfill_links_from_title`, with all 62 links and their evidence in the row's `after`.**
+No existing link was updated or removed; every insert was `on conflict do nothing`.
+
+**The rule:** a link is made when the record's TITLE names the entity — by the entity's own `name` or one of
+its own `aliases` — as a whole word sequence, where a dash *joins* a word (`Owa` does not match `Owa-Alero`,
+`Emu` does not match `Emu-Uno`) while a multi-word name may join on a dash or a space (`Ute Okpu` matches
+`Ute-Okpu`). The role written is the builder's own `ROLE_FOR_ENTITY_KIND`, read from the entity.
+
+    232 links now (170 → 232) · 197 records hold a link (146 → 197)
+    the 62 links written: 4 to a place-kind entity (Owa, Oko Okwe, Opi, Ukawe) and 58 to a clan or a people
+    3 of the 4 moved a chip, because the Opi record already chipped through an existing Lejja link
+    the fixed builder's own rule reaches 187 of the 197 records; the 10 it cannot are the ones whose
+    only evidence is a token it refuses on its own (the Aro people among them)
+
+**Accepted, with the evidence in the audit row** (61 records; the full list with one reason each is in the
+row itself): `Ute Okpu` (separator), `Owa` (3 letters), `Oko Okwe` (the one register row for the two
+communities the title joins with "and"), `Opi`, `Ukawe` via its alias `Ukawu`, `Ndizuogu` ×4 via
+`Arondizuogu`, `Enugu-Ezike` (separator), `Umu-Eri` ×2 via `Eri`, `Oru`, `Agbaja` ×2 via `Nnewi`,
+`Mbanasato` ×12 via `Awka`, `Ikwerri` ×8 via `Ikwerre`, `Aro` ×11, and `Umunri` ×16 via `Nri`.
+
+**Refused, 33 candidates, each for a measured reason rather than a preference:**
+
+* **`Oba` is a king before it is a clan** — *"at the Oba's Request"*, *"Oba Olua"*, *"Oba Ewuare the Great"*,
+  *"the Oba of Benin"*. Four links refused.
+* **`Osu` is the caste institution** in three titles (*"The Osu Institution"*, *"the Osu/Diala Divide"*).
+* **`Opi` is the ọpị instrument** as often as the town (*"OPI/OKIKE"* under *Igbo Musical Instruments*), so the
+  instrument title is refused; the town title (*"Lejja and Opi"*) is linked.
+* **`Isu` is carried by two entities** (`isu-arochukwu`, `isu-afikpo`) and the one title that uses it names
+  the people and the region — naming either town would be a guess.
+* **`Ada` is ụmụ ada and a forename** (*"Ada Priscilla Nzimiro"*); **`Izuogu`** and **`Ogbalu`** are
+  surnames; **`Ekwe`** is the slit drum and a settlement in a different clan.
+* **`Aro` is four words at once** — the people, the confederacy, Arochukwu's own alias, and the festival
+  *Igu Aro*. A bare `Aro` does not say which; the ten titles that mean *the town Arochukwu* were refused (the
+  entity's alias), and a title that spells the meaning out still matches.
+* **A hypothesis is not a subject claim:** *"Igbo Ukwu Altar Stand: A Possible Eri Link"* and *"Igbo-Ukwu and
+  a possible Eri link"* were refused to `Umu-Eri`. **A chip reading `Place: Eri` on a record that says
+  "possible" asserts more than the record does.**
+* **A passing mention in a title is the weaker class:** *"Ute-Okpu … Its Nri Roots"* was refused to `Umunri`.
+  The record is about Ute-Okpu, and Nri is its origin — see §5 for why that one matters to the owner's card.
+
+### 5. THE BUILDER IS FIXED, AND THE FOUR LINKS IT WOULD STILL ADD WERE NOT APPLIED
+
+`titleNames` replaces the ASCII regex, and the link step now reads aliases and refuses by name:
+
+* a run of dashes or spaces **inside** a multi-word name is one separator, so `Ute Okpu` matches `Ute-Okpu`;
+* a dash **at a boundary joins a word**, so `Owa` no longer matches inside `Owa-Alero` and `Emu` no longer
+  matches inside `Emu-Uno` — the old `[^A-Za-z]` boundary was loose in exactly the place it looked strict;
+* the boundary is `\p{L}`/`\p{N}`, not ASCII, so `Ọka` and `Ǹrì` are letters;
+* `MIN_NAME` is **3**, because the boundary is the protection and `Owa` is a kingdom with a page;
+* the entity's **aliases** are matched (an alias another entity already owns as a name is not: `Aro` is the Aro
+  people's name and Arochukwu's alias, and matching both made the people's records claim the town);
+* **ten tokens measured to be non-evidence are refused BY NAME and COUNTED** in
+  `report.ambiguousNames` — `aro` (11 titles), `oba` (4), `ada` (3), `okpala` (3), `osu` (3), `opi` (2),
+  `ekwe` (1), `isu` (1), `izuogu` (1), `ogbalu` (1). A refusal nobody can see is a refusal nobody can correct.
+
+**Run against today's data, the fixed builder would create exactly four links beyond the backfill**, and they
+were deliberately not applied: `Ute-Okpu … Its Nri Roots` → `Umunri` (Nri as an origin), *"Chukwu is Aro, Not
+Nri"* → `Umunri` (a cosmology argument that names it), and the two *"possible Eri link"* titles → `Umu-Eri`.
+**They are mentions and hypotheses rather than subject claims, and a mention is what the builder's own header
+says it cannot separate from a subject.** The editorial queue is where those belong. The consequence is stated
+rather than hidden: **pressing `/admin/entities` would add those four**, each with an audit row naming the
+actor. It also means `npm run test:graph` against the live cluster would add them — see §8.
+
+### 6. THE COUNTS, BEFORE AND AFTER
+
+    records carrying a Place chip        55  →  170     (of 1,051 published)
+    links in the graph                  170  →  232
+    records holding any link            146  →  197
+    the rail's place facet, records      58  →  170
+    the rail's place facet, entities     25  →   70
+    the rail's clan facet, entities      45  →   45     (unchanged: no clan link was moved or removed)
+
+**The place facet moved for a stated reason and its biggest rows are new because clans joined it.** The top of
+the group before was `Onicha` (town) 11, `Asaba` 10, `Oguta` 5, `Ndoni` 4, `Owerri` 4. It now opens
+`Umunri 16`, `Nsukka 11`, `Onicha` (town) 11, `Onicha` (clan) 11, `Aboh 10`, `Asaba 10`, `Abiriba 8`,
+`Ohafia 8`. **`Nsukka 11` was not smaller before — it was absent**, because a clan could not be a place.
+
+**And the 115 new chips decompose exactly**, which is the number that shows the rule rather than the rows did
+the work: **170 = 58 records linked to a town or a kingdom + 130 linked to a clan − 18 that are both**, so
+**112 of the 115 new chips are records reachable only through a clan link.** Only 3 came from the backfill.
+
+**One visible consequence, reported rather than smoothed:** the place group now contains **two options
+labelled `Onicha`** — `onicha` (clan) and `onicha-afikpo-division` (town), 11 records each. They are distinct
+options with distinct slugs, and the group is not rendered on `/archive/` today (the rail draws a free-text
+"Town or place" field, not a counted list), so no reader meets the duplicate yet. It is recorded because the
+day that group is drawn, two identical labels will be a fault.
+
+### 7. THE RENDERED ARCHIVE, AND THE CHIP THAT IS NOT A LINK
+
+Fetched from `http://127.0.0.1:3110/archive/` after the rebuild. The first twelve cards:
+
+| # | Record | Chip |
+|---|---|---|
+| 1 | Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots | **PLACE Ute Okpu** |
+| 2 | Umunede: An Ika-Igbo Kingdom in Western Igboland | PLACE Umunede |
+| 3 | Owa: An Ika-Igbo Kingdom Built from Many Lineages | PLACE Owa |
+| 4 | Ogume: A Ukwuani-Igbo Community of the Western Niger | PLACE Ogume |
+| 5 | Igbodo: A Community Formed by Convergence | PLACE Igbodo |
+| 6 | Amai: A Ukwuani Community in the Ndokwa Hinterland | PLACE Amai |
+| 7 | Akumazi: A Community of Many Origins in Ika-Igbo Country | PLACE Akumazi |
+| 8 | Abbi: A Settlement Built on Migration and Belonging | PLACE Abbi |
+| 9 | Oko and Okwe: Two Neighbouring Communities on the Western Niger | PLACE Oko Okwe |
+| 10 | Arondizuogu: An Aro Settlement Built on Trade and Conquest | PLACE Ndizuogu |
+| 11 | Anam: Origins of a Riverine Igbo Community | PLACE Anam |
+| 12 | The Idumuje Clan: Origins and Early Settlement | PLACE Idumuje |
+
+**Before: 5 of 24 cards on page one carried a chip, and 3 of the first twelve. After: 15 of 24 on page one,
+and 12 of the first twelve.** The twenty-four cards are unchanged in number and order; the page is not padded.
+
+**The count had to be taken through Chrome, not `curl`.** `/archive/` streams its Suspense boundaries, so ten of
+the twenty-four cards arrive in hidden `<div id="S:n">` fragments and a plain HTML parse reads them as having
+no chip — the first measurement of this page said 14 and was wrong. The numbers above are the **rendered DOM**
+(`node chrome-fetch.mjs http://127.0.0.1:3110/archive/`), which is what a reader gets.
+
+**The design screen now agrees with the card, which it did not before.** `/design-screen/archive-index` renders
+the same 24 entries and the same **15** `chip-place` spans, with `Ute Okpu` on the first — because both now
+build the string from `PLACE_NAMES_SQL`. Before this round that screen had its own expression over *every*
+linked entity, so it chipped records the card chipped nothing for, and it would have printed `Igbodo, Igbodo`.
+
+**The chip is a `<span class="chip chip-place">`, not a link, and no link was added.** First card as served:
+
+```html
+<span class="chip chip-place"><span class="k">Place</span> <!-- -->Ute Okpu</span>
+```
+
+No `<a>` inside any chip on the page, and that is the design's own markup (`ArticleEntry`, and `renderEntry`
+for the design screen, both emit a span). **The destination is reached from the record, not the card** —
+`/town/ute-okpu/` answers **200** and `/entities/ute-okpu/` answers **200**. The rail's free-text place filter
+agrees with the chips it now draws: `?place=Ute` → 7 cards, `?place=Nsukka` → 11 (the facet's own count),
+`?place=Amai` → 1.
+
+### 8. WHAT DOES NOT WORK, AND WHAT WAS FOUND ON THE WAY
+
+**1. `test:editorial` would have deleted the link this round created.** It took its target as `order by id
+limit 1` — article 1, the Ute-Okpu record — and its `cleanup` runs `delete from ozikoro_article_entity where
+article_id = $1` without ever capturing what was there. Until this round article 1 had no entity link, so the
+hole was invisible; **the moment the backfill gave it the true `Ute Okpu` link, the test's own cleanup would
+have deleted it** — a test silently undoing the editorial work it was pointed at. The target is now chosen
+*for* the state the test assumes (a series recorded, no entity link, no source).
+
+**2. `test:editorial` also asserted the wrong thing about the series.** `!queue[0].missing.includes('series')`
+held only while the emptiest queue item happened to be a published record; the queue covers every non-archived
+record, drafts included. Lifting article 1 out of the emptiest tier moved a draft to the top and the assertion
+failed — not because a series had gone missing, but because it was asserting the top row rather than the
+migration's guarantee. It now asks the published archive, where the guarantee is true: **0 of 1,051 published
+records lacks a series.**
+
+**3. `test:graph`'s "every graph write names an account" was `count(distinct actor_id) === 1`.** That held
+while the graph was built once and never grew. The fixed builder can find a link on a database that already
+carries the owner's links, so a run is attributed to the run's actor beside the archive's — two correct
+actors. The property asserted is now the real one, twice: **nothing is unattributed**, and **the rows this run
+wrote name this run's actor**.
+
+**4. Three pre-existing links now draw a wrong Place chip, and were not removed.** The task's rule is not to
+remove an existing link, so they stand and are named here: `Okpala` — *"Chika Okpala: How Zebrudaya
+Transformed the Sitcom Industry"* (a surname), *"A Study of the Okpala System"* and *"Okpala Nshi"* (the
+firstborn's title), all three created by the round-305 run and all three now chipped `Place: Okpala`. And
+`Ezechima` — *"Ezechima: Was He Really a Benin Man?"*, a question about a founding ancestor rather than a
+place. **`okpala` is in `NAME_IS_NOT_EVIDENCE` now, so the builder will not make a fourth.** The three that
+exist need an editorial decision, not a script.
+
+**5. The records that read as a descent group and are a place anyway — and the four that are not.** Of the 130
+clan-linked records, the ones that read as lineage rather than land — *"The Umu Eze Chima Lineage and the
+Historical Evolution of Onicha Settlements"*, *"Ohafia's Matrilineal Heritage"*, *"The Kinship and Cultural
+Ties of Ogbaru"*, *"Ngwa-Ngwa: The Origin of the Ngwa People"* — are each asking a question about a place
+through its descent, and each is linked to the community it names, so they stay. **The four that are not are
+named in 4 above** — `Ezechima` and the three `Okpala` records (one surname, two of the firstborn's title) —
+and no others were found among the 130.
+
+**6. A shared checkout, again.** `npm run typecheck` failed mid-round with `app/api/admin/rights/route.ts(127):
+'first' is possibly 'undefined'` while another pass was editing that file (mtime 5 seconds before the check).
+It passed again on the next run without this round touching it. `scripts/build-and-serve-once.sh` then waited
+for another pass's `next build` before starting its own, which is the only reason two builds did not race in
+one `.next`.
+
+### 9. THE GATE
+
+    npm run typecheck                                exit 0 (root, seven workspaces, read from its own exit code)
+    npm -w @ozikoro/platform run test                152 tests, 152 pass
+    npm run test:ozikoro-data                        all suites pass (on a COPY of the cluster:
+                                                     .data/scratch-r322/pg, because test:graph runs the builder)
+    design parity                                    identical 63 differing 0 missing 0
+    apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/   52 files after the rebuild
+
+**`apps/ozikoro/public/design/` was not touched, and `git status --porcelain` over `design/` returns
+nothing.**
