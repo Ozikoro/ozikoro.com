@@ -106,6 +106,26 @@ export async function GET(
             object.contentType && object.contentType !== 'application/octet-stream'
               ? object.contentType
               : contentType,
+          /*
+           * THE LENGTH IS STATED, BECAUSE WITHOUT IT ONE OF THESE FILES HAS NO DURATION.
+           *
+           * This response was left to chunked transfer encoding, and the file still played — which is why the
+           * fault went unnoticed. **Measured in Chrome, side by side, on the two Ute-Okpu files:** the
+           * synthetic render reported `duration` 501.783 s and the owner's own recording reported `NaN`,
+           * because the render carries a `Xing`/`Info` header frame declaring its own frame count and the
+           * recording does not. **With no declared length and no header frame there is nothing for the browser
+           * to compute a length from**, so `audio.duration` stays NaN.
+           *
+           * The consequences are all in the player, which is why they are worth a header: the design's
+           * `<progress>` is driven by `currentTime / duration`, so the bar never moves; the status line reads
+           * "Playing · " with the duration missing; and the recording cannot be seeked. **A 200 with the right
+           * bytes and no length is the same class of fault as the four responses that returned 200 and were
+           * unusable.**
+           *
+           * The body is already in memory here, so its length is known exactly. The local-file branch below
+           * has always stated it; this branch simply did not.
+           */
+          'Content-Length': String(object.body.length),
           ...cacheHeaders,
         },
       });

@@ -16988,3 +16988,331 @@ screens, the media rows and the disk and reports which URLs resolve, and by whic
   several minutes; a third agent's duplicate `TokenClass` export blocked the build outright until they renamed
   it. The entry above was measured between rebuilds, and every contaminated run is marked as such rather than
   reported as a result.
+
+## ROUND 320 — THE ARTICLE NOW PLAYS THE OWNER'S RECORDING, AND THE ROW NOW SAYS THE VOICE IS A PERSON
+
+### 1. WHAT WAS ASKED, AND WHAT THE ARTICLE WAS DOING INSTEAD
+
+> *"i gave you an audio record on ute okpu, which was the last audio, so why is it on the ute okpu article you
+> imported? it is very fast, and does not reflect the one i gave you"*
+
+**He is right, and the archive had already agreed with him twice without changing anything.** Round 312
+measured his recording against the synthetic render and found the render **a third too fast** (501.812 s
+against his 665.966 s). Round 313 measured the room under the render and found his floor **47.25 dB below
+it**. Both rounds used his file as the standard and neither put it on the article — so the record went on
+playing the take he had reported as wrong, and the one file that is right sat in an attachment directory.
+**The measuring was done and the correction it implied was not**, which is the fault this round closes.
+
+| | bytes | duration | words per minute |
+|---|---|---|---|
+| what the article played | 8,029,457 | 501.812 s | 183.9 |
+| what he gave the archive | **10,672,389** | **665.966 s** | **138.6** |
+
+The words per minute are the stored transcript's 1,538 words divided by each file's measured length. **The
+stored transcript is not a record of what was said** (§6), so those two figures are arithmetic on a text, not
+a measurement of speech; the durations are measurements of the files.
+
+### 2. HOW THE FILE WAS STORED, AND WHY IT IS A NEW KEY RATHER THAN THE OLD ONE
+
+The bytes went into storage through the archive's own interface, from
+**`scripts/adopt-episode-recording.ts`**:
+
+```
+getStorage().put('ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.owner-recording.mp3',
+                 <10,672,389 bytes>, 'audio/mpeg')
+```
+
+`getStorage()` is `packages/db/src/storage.ts`; with no `S3_BUCKET` set it is the local driver, whose root is
+`.data/media`. **Not by copying a file into a directory** — that is the trap this project has fallen into
+before, where the file is on disk, correctly named, and every request for it answers 404 because the route
+reads object storage. The route is `apps/ozikoro/app/media/[...key]/route.ts`, which joins the URL segments
+into the key and reads the same interface, so the key in the row is the key in storage is the path in the URL.
+
+**The obvious key — `ozikoro/episodes/<slug>.mp3`, the one the renderer writes — was deliberately not used**,
+for two reasons both already written down in this repository:
+
+1. **That key is not free.** `ozikoro_episode_revision` revision 1 names the synthetic render by that exact
+   key, with its byte size and duration. Writing different bytes there would leave the revision history
+   describing the human recording as the machine's render.
+2. **The route serves every key `Cache-Control: public, max-age=31536000, immutable`, and its own comment says
+   a key names one file and the file never changes.** Replacing the bytes at the canonical key makes that
+   header false at exactly the address most likely to be cached.
+
+So the recording gets a key that says what it is and the generated file is left alone. **Nothing was
+overwritten, and nothing had to be preserved afterwards because nothing was destroyed.**
+
+**The key is checked against the route rather than against a copy of its pattern.** The script reads
+`EPISODE_PATTERN` out of `app/media/[...key]/route.ts` and tests the key with the route's own expression, and
+refuses to write if it does not match — because **a key the route will not serve looks exactly like success
+from the writing end**, and that is the failure this project keeps rediscovering.
+
+### 3. THE ROW, FIELD BY FIELD
+
+`ozikoro_episode` id 1, `ute-okpu-an-ika-igbo-clan-and-its-nri-roots`.
+
+| column | before | after | why |
+|---|---|---|---|
+| `storage_key` | `ozikoro/episodes/ute-okpu-…-roots.mp3` | `ozikoro/episodes/ute-okpu-…-roots.owner-recording.mp3` | the article serves whatever this names |
+| `byte_size` | 8,029,457 | **10,672,389** | the new file's real length |
+| `duration_seconds` | **636** | **666** | 636 was a prediction; 665.966 s is measured from the file |
+| `generator` | `elevenlabs` | **`human_recording`** | nothing generated this file. The word is the one `ozikoro_pronunciation.kind` already uses for a person's voice |
+| `generator_model` | `eleven_multilingual_v2` | **NULL** | no model made it |
+| `narrator_kind` | `synthetic_own_voice` | **`human`** | a value migration 0045 allows and `feed.xml` already handles |
+| `narrator_name` | `Idenze Ezeme (synthetic)` | **`Idenze Ezeme`** | the person, not a label for a machine |
+| `ai_disclosure` | *"This episode was generated using AI text-to-speech from a voice cloned…"* | **"Read by the author, Idenze Ezeme. This episode is his own recording, supplied by him for this article. It was not generated by AI: no text-to-speech was used and no voice was cloned."** | see below |
+| `char_count` | 9,844 | **0** | see §5 |
+| `estimated_credits` | NULL | **0** | see §5 |
+| `voice_choice` | `own` | **NULL** | `own` names a *synthetic* voice selection — the owner's clone against a stock narrator. A human recording made no such selection, and the column allows NULL |
+| `voice_settings` | `{style, stability, similarity_boost, use_speaker_boost}` | **`{"duration_source":"measured","kind":"human_recording"}`** | it held `NARRATION_SETTINGS`, which did not make this file; what it holds now is which kind of number `duration_seconds` is |
+| `script`, `transcript` | 9,844 characters each | **unchanged** | §6 |
+| `status`, `approved_by`, `approved_at`, `published_at` | published / 199 / 2026-10-03T22:12:57Z | **unchanged** | the owner asked for it on the article; nothing is re-reviewed to serve his own file |
+
+**The disclosure had to go, and the reason is the archive's, not a preference.** The old sentence told the
+reader the audio was generated from a clone. For this file that is false, and **a false disclosure is worse
+than no disclosure**, because the archive's whole claim on a reader is that its disclosures are true. The
+replacement asserts only what is known: who is speaking, that the file is his, and that it is not synthetic.
+**It deliberately does not say "the words are the article's own"**, which the old text did — the stored script
+was re-derived from the article body (§6) and nothing in this repository transcribes audio, so whether the
+recording says those words has not been checked and is left unsaid.
+
+### 4. THE DURATION IS MEASURED, AND THE COLUMN SAYS WHICH KIND OF NUMBER IT IS
+
+`mp3DurationSeconds` — `packages/ozikoro/src/mp3.ts`, built in round 312 — walks the new file's own frames:
+
+```
+the owner's file   10,672,389 bytes   mp3.ts 665.966 s   afinfo 665.965688 s   Chrome 665.965688 s
+the render          8,029,457 bytes   mp3.ts 501.812 s   afinfo 501.812245 s   Chrome 501.783 s
+```
+
+**Three independent readers agree on his file to the millisecond**, so `duration_seconds` holds 666
+(`Math.round`, the convention `render-episode.ts` already uses) and `voice_settings.duration_source` is
+`"measured"`. The column's own history is the argument for the label: it held **636**, which is neither the
+render's 501.812 nor his 665.966, but `estimateNarrationSeconds()` at 145 words per minute — **a prediction
+written into a column that reads as a measurement and shown to a reader under the player.**
+
+**One second of difference is left in place and stated rather than smoothed:** the panel's static line reads
+*"Ready to listen · 11m 06s"* from the row's 666, and the player's own `duration()` reads the browser's
+665.965688 and would say *"11m 05s"*. Both describe the measured file; 666 is the rounded integer the column
+can hold. **Rounding to 665 to make the two agree would make the row disagree with the file**, which is the
+fault this correction is about.
+
+### 5. THE 9,844 CHARACTERS THAT WERE REALLY SPENT, AND WHERE THEY LIVE NOW
+
+`char_count` and `estimated_credits` were 9,844 and NULL, and they are now **0 and 0**. That is a change to
+the archive's record of a real charge, so it needs the reason written down.
+
+- **The charge was real and is not deleted.** The synthetic render cost 9,844 ElevenLabs characters. That
+  fact lives in `ozikoro_episode_revision` **revision 1** (script 9,844 characters, `eleven_multilingual_v2`,
+  8,029,457 bytes) and in this change's **audit row `before`**. Re-rendering the three episodes would still
+  cost 9,844 + 3,250 + 11,418 characters, and the allowance is still 21,552.
+- **Zero is the true number for the file that is now on the article.** Nothing was sent to any API to make it;
+  the owner recorded it. A NULL would say "unknown", which is not true; a leftover 9,844 would say this audio
+  cost 9,844 characters, which is not true either. **The row describes the episode's current audio, and the
+  history of the previous take belongs to the revision that made it.**
+- **`reconcileCharges` is not damaged by it.** It reports episodes whose `estimated > 0` against what was
+  measured, so an episode that was charged nothing drops out of that set — which is correct, and is not the
+  same as losing the charge.
+
+**No `ozikoro_episode_revision` row was written.** That table holds **renders** — its own invariant check
+reads *"every published episode has a revision holding the exact script that was rendered"* — and this file
+was not rendered from a script. A revision 2 carrying the re-derived script beside his recording would repeat
+the precise claim this round is careful not to make: **that the text on the row is what he said.** The change
+is recorded in `ozikoro_audit`, which is the table for "who changed what, and from what to what".
+
+### 6. `script` AND `transcript` WERE LEFT ALONE, AND NOT BECAUSE THEY ARE RIGHT
+
+**They are not evidence of what was spoken.** Round 313 established that `scripts/restore-episodes.ts`
+re-derived both from the article body at restore time, so the 9,844 characters are the article's own words
+prepared for speaking, not a transcript of any recording. They were not touched, for two reasons:
+
+1. **the transcript is what a listener who cannot hear the audio reads**, the columns are `NOT NULL` for that
+   reason, and removing it would take away the only readable form of the episode; and
+2. **changing it would be inventing a different text**, and there is nothing to replace it with that would be
+   any more true.
+
+What changed is that **nothing now asserts the recording matches it.** The audit row's note says so
+explicitly, and the transcript endpoint no longer says so either (§10). The 1,538 words are recorded here as
+1,538 words of *article*, which is what they are.
+
+### 7. THE AUDIT ROW
+
+```
+id 722 · entity_type ozikoro_episode · entity_id 1 · action replace_audio · actor_id 199
+created_at 2026-10-04T02:34:34.256Z
+```
+
+`before` and `after`, read back from the database:
+
+```json
+"before": {
+  "storage_key": "ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.mp3",
+  "byte_size": 8029457, "duration_seconds": 636,
+  "measured_duration_seconds": 501.81224489802923,
+  "sha256": "28cbb333b5b9ce4fa74a55ebf3355fa221e7e2614a156d0dab2b92b12ae2aac2",
+  "generator": "elevenlabs", "generator_model": "eleven_multilingual_v2",
+  "narrator_kind": "synthetic_own_voice", "narrator_name": "Idenze Ezeme (synthetic)",
+  "ai_disclosure": "This episode was generated using AI text-to-speech from a voice cloned from the author’s own recording, with his permission. The words are the article’s own.",
+  "char_count": 9844, "estimated_credits": null, "voice_choice": "own",
+  "voice_settings": {"style":0.1,"stability":0.7,"similarity_boost":0.8,"use_speaker_boost":true}
+},
+"after": {
+  "storage_key": "ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.owner-recording.mp3",
+  "byte_size": 10672389, "duration_seconds": 666,
+  "measured_duration_seconds": 665.9657142855406,
+  "sha256": "78cefb7fe022b2d36d35c1fa8e3663ef7f84550d876228d1f1eff8208da08f9a",
+  "generator": "human_recording", "generator_model": null,
+  "narrator_kind": "human", "narrator_name": "Idenze Ezeme",
+  "ai_disclosure": "Read by the author, Idenze Ezeme. This episode is his own recording, supplied by him for this article. It was not generated by AI: no text-to-speech was used and no voice was cloned.",
+  "char_count": 0, "estimated_credits": 0, "voice_choice": null,
+  "voice_settings": {"duration_source":"measured","kind":"human_recording"}
+}
+```
+
+**The old file's duration in `before` is the one measured from the file just now, not the 636 the column
+held**, and that is deliberate: the point of the row is that the column's number was wrong, so putting the
+column's number down as though it were the file's would hide the fault the row exists to record. The note
+carries the sentence — *"The article played a synthetic narration; it now plays the owner's own recording"* —
+with both files, both durations and both digests, and it names the actor: **account 199,
+`idenzeme@gmail.com`, role `owner`.**
+
+**No `ozikoro_episode_transition` row was written.** That table is *"every state change"*, and the status did
+not change — it was `published` and remains `published`. Recording a non-event as an event is the opposite of
+what this round is for.
+
+### 8. THE OLD FILE SURVIVED, UNTOUCHED, AND IS STILL SERVED
+
+```
+.data/media/ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.mp3
+  8,029,457 bytes · sha256 28cbb333b5b9ce4fa74a55ebf3355fa221e7e2614a156d0dab2b92b12ae2aac2 · mtime 03 Oct 23:33:49
+```
+
+**Nothing was lost, because nothing was overwritten** — the two files have distinct keys and both are in the
+store. `/media/ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.mp3` still answers **200,
+8,029,457 bytes, `audio/mpeg`**, with the same digest as before this round, which is what makes revision 1's
+`storage_key` still true.
+
+### 9. A REAL FAULT FOUND BY MEASURING IN A BROWSER: NO `Content-Length`, SO NO DURATION
+
+**The article played, and that is not the same as the player working.** In Chrome, side by side, on the two
+Ute-Okpu files, before any change to the route:
+
+| file | `audio.duration` in Chrome | `currentTime` after 4 s |
+|---|---|---|
+| the synthetic render | 501.783 s | 3.93 s |
+| **the owner's recording** | **`NaN`** | 3.43 s |
+
+It played, and the browser did not know how long it was. **The two files differ in a way that decides it:** the
+render carries a `Xing`/`Info` header frame declaring its own frame count, and his recording — a plain
+128 kbps CBR file — carries no such frame. **With no header frame and no declared length, a browser has
+nothing to compute a length from**, and the response was being sent with `Transfer-Encoding: chunked` and no
+`Content-Length` at all.
+
+**Every consequence is in the player, which is why a header is worth writing down:** the design's
+`<progress>` is driven by `currentTime / duration` and `audio-listen.js` returns early when the duration is
+not finite, so **the bar never moves**; the status line says *"Playing · "* with the length missing; and the
+recording cannot be seeked. **A 200 carrying the right bytes and no length is the same class as the four
+responses that returned 200 and were unusable.**
+
+So the storage branch of `app/media/[...key]/route.ts` now states `Content-Length: String(object.body.length)`
+— the body is already in memory, so its length is known exactly, and the local-file branch below it has always
+stated it. Nothing else about the response changed. Measured after:
+
+```
+before   HTTP/1.1 200 OK · content-type: audio/mpeg · Transfer-Encoding: chunked   (no content-length)
+after    HTTP/1.1 200 OK · content-length: 10672389 · content-type: audio/mpeg
+Chrome   audio.duration 665.965688   (was NaN)   ·   play() advances the clock   ·   10,672,389 bytes served
+```
+
+**And it reaches the other two episodes.** With the length declared, Chrome reports the folklore file at
+**533.841 s** rather than the 407.771 s `afinfo` reports, because `afinfo` stops at the second `ID3v2` tag
+that round 313 found inside it. **Chrome was not measured on that file before this change, so this is not a
+claim that the change lengthened it** — it is a claim that the frame walk, the file's own size and the
+browser's reading now agree with each other, which is what a listener needs.
+
+### 10. THE TRANSCRIPT HEADER SAID SOMETHING THAT IS NOT TRUE OF A HUMAN RECORDING
+
+`/podcast/<slug>/transcript.txt` opened with *"Transcript of the spoken record. The words are the article's
+own."* **For a synthetic episode both halves are true** — the words spoken were the article's, prepared by
+`toSpokenScript`, and the render was made from exactly this text. **For his recording the first half is a
+claim nothing here can support**, for the reason in §6. It now branches on `narrator_kind`: a human episode
+reads *"The article's own words, prepared for reading. The audio beside this text is the author's own
+recording; this text is the article's spoken form and has not been checked word for word against it."* and a
+synthetic one is unchanged. **Same fault as §3, in the other place a reader is told what they are holding.**
+
+### 11. THE OTHER TWO EPISODES: MEASURED, AND DELIBERATELY NOT TOUCHED
+
+The owner gave a recording for **Ute-Okpu only**, so nothing here was changed on the other two — not the
+audio, not the row, not the settings. Both were measured while the round ran, and they are the same fault
+twice over:
+
+| | bytes | row says | the file plays | words | **wpm** |
+|---|---|---|---|---|---|
+| `how-tortoise-got-his-bumpy-shell` | 2,310,522 | 254 s | **144.379 s** (afinfo 144.379 · Chrome 144.335) | 615 | **255.6** |
+| `igbo-folklore-twelve-timeless-tales-…-moral-heritage` | 8,541,919 | 848 s | **533.812 s** (frame walk · Chrome 533.841 · afinfo 407.771) | 2,050 | **230.4** |
+
+Both rows hold `generator = elevenlabs`, `narrator_kind = synthetic_own_voice` and the AI disclosure, and
+both durations are predictions rather than measurements — **the same two faults as Ute-Okpu, and the same
+decision the owner has to make about them.** The brief's 262.6 and 233.2 wpm come from a slightly different
+word count than the transcripts now on the rows; the figures above are mine, measured, and they agree with
+round 313's 255.6 and 230.4.
+
+**Neither is right and neither was touched.** `how-tortoise` at 256 wpm is not narration at any pace; the
+folklore file holds 533.812 s where its row says 848. Re-rendering all three would cost **24,512 characters
+against 21,552 remaining**, so the folklore record alone is 53 % of the allowance — **that is the owner's
+decision, and the question is asked here rather than answered by a change.** No credit was spent and
+`NARRATION_SETTINGS` was not touched.
+
+### 12. VERIFIED, WITH THE NUMBERS
+
+- **the media URL the article emits** — `/media/ozikoro/episodes/ute-okpu-…-roots.owner-recording.mp3` →
+  **200**, `content-type: audio/mpeg`, `content-length: 10672389`, and the served bytes hash to
+  **`78cefb7f…08f9a`**, which is his file's digest **bit for bit**;
+- **the duration, three ways** — `mp3.ts` **665.966 s**, `afinfo` **665.965688 s**, Chrome
+  `audio.duration` **665.965688 s**; the row holds **666** and `duration_source` is `measured`;
+- **the first seconds are his voice, by measurement rather than by ear** — the round-313 method applied to
+  the first 20 seconds of each file: his **−85.24 dBFS** noise floor against the render's **−34.01 dBFS**,
+  a **51 dB** separation, which is the room the clone carries and his file does not. **No audio was listened
+  to, and nothing here claims it was: there is no transcriber in this repository**, so "these are his words"
+  is not something this round can assert and does not;
+- **the page** — `/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/` → 200, one `<audio data-listen-audio>` at the
+  new key, panel status *"Ready to listen · 11m 06s"*, disclosure the sentence in §3, **no `generated using
+  AI` anywhere on the page and no `synthetic`**;
+- **a real browser** — headless Chrome at 1440 px: the panel is present, `currentSrc` is the new key,
+  `play()` **advanced the clock 1.91 s**, and `audio.duration` is 665.965688. The first browser pass reported
+  the panel *absent*, because `--headless=old` starts on `about:blank` and the check trusted a fixed sleep
+  instead of asking the document where it was — **the instrument was wrong and the page was right**, which is
+  the same lesson as §9 from the other direction;
+- **the feed** — `<enclosure url="…/ute-okpu-….owner-recording.mp3" length="10672389" type="audio/mpeg" />`,
+  `<itunes:duration>11:06</itunes:duration>`, and
+  `<podcast:person role="narrator">Idenze Ezeme</podcast:person>` with the new disclosure first in the
+  description;
+- **the old file** — the canonical URL still answers 200, 8,029,457 bytes, digest unchanged;
+- **`apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/` holds 52 files**;
+- **parity: `identical 63 differing 0 missing 0`**;
+- `npm run typecheck` from the repository root, **read from its own exit code and not a pipe's: exit 0**;
+- `npm -w @ozikoro/platform run test`: **150 pass, 0 fail**.
+
+### 13. WHAT WAS NOT DONE, AND THE GATE
+
+- **No ElevenLabs credit was spent and no render was attempted.** `scripts/adopt-episode-recording.ts`
+  imports no API client, calls no HTTP endpoint and reads no credential; the only bytes it writes are the
+  owner's, read from disk. The allowance stands at **21,552**.
+- **His audio is not in this repository.** `.gitignore` covers it twice over — `.data/` covers the working
+  copy at `.data/owner-media/ute-okpu-owner-recording.mp3`, and `*.mp3` covers the extension — and
+  `git status` is clean of it. **It is his media; it is in the archive's media store because he asked for it
+  to be on the article, and nowhere else.** The script identifies it by SHA-256 and refuses to adopt a
+  different file, so the bytes cannot be substituted silently.
+- **`apps/ozikoro/public/design/` was not opened, read for edit, or written**, and the parity output above is
+  the evidence rather than the intention.
+- **The other two episodes were read and left exactly as they were**, files and rows both.
+- **One shared-tree failure, recorded:** the first `bash scripts/serve-review.sh` of this round raced another
+  pass's `next build` in the same `.next` — the documented
+  `ENOENT: no such file or directory, open '…/.next/next-server.js.nft.json'` at "Collecting build traces",
+  with a warning for every traced route. It is not a code fault and nothing was reverted for it; the build was
+  retried in a quiet window and succeeded, and the server was left up on **http://127.0.0.1:3110** with
+  `nohup`. The cluster guard refused one read during the round and **the lock was not removed**; the holder
+  finished and the read was retried.
+- **`docs/podcast/RULES.md` now records three kinds of narrator rather than two**, because it said *"only two
+  narrators are possible"* and that is no longer true of the archive: a human recording is the third, and the
+  rule that follows — **a disclosure says what is true, so a recording with no AI in it carries no AI
+  disclosure** — is written beside it.
