@@ -139,6 +139,15 @@ apps/ozikoro/public/media
 # It is output, not source, and two builds sharing .next is how the review server was killed mid-write.
 .next-verify/
 
+# The build a `serve-review.sh` run stages while the live one keeps serving.
+#
+# WHY IT EXISTS: `next build` empties its output directory before it writes, so building into `.next` takes
+# the running server's files away at the first second of the build — measured, and the site answered 404 for
+# eight minutes after one build that FAILED. `OZIKORO_DIST_DIR=.next-next` moves the build here, and the
+# script swaps it into `.next` only once it is complete and its artefact has been asserted. Output, not
+# source, and never committed.
+.next-next/
+
 # The Igbo lexicon for the media service. DERIVED from the dictionary by
 # `npm -w @ozikoro/media run lexicon`, and deliberately not committed: the owner's rule is that the
 # dictionary lookup must query ozituma rather than read a list, because "a list would be stale within a

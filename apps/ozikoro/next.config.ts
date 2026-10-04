@@ -23,6 +23,31 @@ import type { NextConfig } from 'next';
  */
 const nextConfig: NextConfig = {
   /**
+   * WHERE THE BUILD IS WRITTEN, OVERRIDABLE SO A BUILD CANNOT DESTROY THE SERVER THAT IS SERVING.
+   *
+   * `next build` empties its output directory before it writes. Measured on 2026-10-04: with the
+   * review server running out of `.next/standalone`, a second build — and even a build that then
+   * FAILED on an unrelated type error — left `.next` with no `BUILD_ID` and no `.next/standalone` at
+   * all. The process survived; every request that needed a server chunk or a manifest answered
+   * **404**, because Next reads those from disk as it serves. So a build in place does not merely
+   * risk shipping a bad build: it takes the site down at the first second of the build, whether or
+   * not the build succeeds. That is the mechanism behind the owner's "the site keeps going down".
+   *
+   * `scripts/serve-review.sh` therefore builds into `.next-next` and swaps the directory in once the
+   * build has finished and its artefact has been asserted complete. The running server keeps its own
+   * files for the whole build, a failed build leaves the site untouched, and the outage becomes the
+   * seconds of the swap rather than the 60–120 seconds of the build.
+   *
+   * **The default is unchanged and the override is inert unless the variable is set**, which is what
+   * makes this safe in a shared tree: every other caller — `npm run build`, `verify-all`,
+   * `build-standalone.sh`, the Docker image — still writes `.next` exactly as before.
+   *
+   * It is read from `process.env.OZIKORO_DIST_DIR` rather than passed on a command line because
+   * `next build` has no flag for its output directory.
+   */
+  distDir: process.env.OZIKORO_DIST_DIR || '.next',
+
+  /**
    * THE DESIGN DELIVERABLE'S OWN STYLESHEETS, AT THE PATH ITS RELATIVE LINKS ASK FOR.
    *
    * Every screen in `public/design/screens/` links its stylesheets as `../styles/main.css`. At the deliverable's

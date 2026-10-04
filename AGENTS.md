@@ -238,7 +238,55 @@ returning 500 while others keep working.
 Fix: stop the dev server, `rm -rf apps/web/.next`, and start it again. To avoid it, run the build
 only with the dev server stopped, or build into a separate directory.
 
+## The review server on 3110 has a build lock, and you do not need to rebuild
 
+**Run `bash scripts/serve-review.sh` and nothing else. Do not `rm -rf apps/ozikoro/.next`, and do not
+run `next build` by hand in this checkout.**
+
+Several agents share one checkout, one `apps/ozikoro/.next` and one port 3110. On 2026-10-04 that took
+the review site down repeatedly, and the cause was not a bug in the site:
+
+- two `next build` processes in the same `.next` destroyed each other's output — `Cannot find module
+  '…/.next/server/pages-manifest.json'`, `ENOENT … next-font-manifest.json` — leaving the directory
+  half-written;
+- **`next build` empties its output directory before it writes**, so building in place takes the
+  running server's files away at the first second of the build, whether or not the build succeeds.
+  One build that failed on an unrelated type error left the site answering 404 for eight minutes;
+- the old script rebuilt unconditionally and restarted unconditionally, so **every run took the site
+  down for 60–120 seconds even when the build was already current.** It was run several times an hour.
+
+**The lock is `apps/ozikoro/.next.lock`** — a directory beside `.next`, not inside it, because a lock
+inside the build directory is deleted by the very `rm -rf` that needs it most. `serve-review.sh` takes
+it before it builds anything, and a second run is refused with the holder's pid and command:
+
+```
+REFUSING TO BUILD: ANOTHER PROCESS IS BUILDING INTO THE SAME .next.
+...
+  This is contention, not corruption. Nothing is wrong with .next, the database or the site.
+```
+
+That refusal is not a fault. **Wait for the other build and run the command again.** The refusal
+prints the one command that clears a lock whose owner you have *confirmed* is dead
+(`rm -rf apps/ozikoro/.next.lock`); a lock whose owner has died is reclaimed automatically, so you
+should almost never need it. The guard was written for exactly this, in the shape of
+`packages/db/src/cluster-lock.ts` — see `scripts/lib/next-build-lock.sh` for the reasoning.
+
+What you get from the script, and what to rely on instead of a hand-rolled build:
+
+- **It does not rebuild when the build is current.** The check is `.next/BUILD_ID` against every source
+  file, and it costs about 0.15 s. `--rebuild` forces one; `--check` reports what would happen and
+  changes nothing.
+- **The build goes to `.next-next` and is swapped in only when it is complete and asserted.** A failed
+  build therefore leaves the site up and untouched.
+- **The artefact is asserted after the copy**: `server.js` must exist and the standalone's design
+  screens must hold exactly as many files as `apps/ozikoro/public/design/screens/` (52 today). A short
+  copy is deleted and the script exits non-zero **before** the running server is stopped, because a
+  standalone with 51 of 52 screens serves 200 everywhere and 404 for every screen.
+
+**Never `kill -9` a process on 3110.** It holds the PGlite cluster in the same process, and a SIGKILL
+landing while PGlite opens its cluster has destroyed seven clusters in one day. `serve-review.sh` sends
+SIGTERM, waits, and refuses to force a process holding `.data/pg` — that refusal is the single most
+important line in it and must survive any change to the script.
 
 ## Working agreements
 
