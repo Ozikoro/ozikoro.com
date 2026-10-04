@@ -1971,7 +1971,11 @@ test('a recording that is a FILE gives the feature card the design’s own butto
   const out = fillListen(LISTEN, [track()]);
   assert.match(out, /<audio data-listen-audio preload="none" src="\/media\/ozikoro\/episodes\/ute-okpu\.mp3">/);
   assert.match(out, /<button class="btn btn-gold" type="button" data-listen-toggle aria-pressed="false">/);
-  assert.match(out, /href="\/podcast\/ute-okpu-an-ika-igbo-clan-and-its-nri-roots\/transcript\.txt"/);
+  // The control is a `btn`, so it leads to the transcript's PAGE. Measured before this change: this link was
+  // the `.txt`, which answered 200 with `text/plain` and no chrome, nav or way back.
+  assert.match(out, /href="\/podcast\/ute-okpu-an-ika-igbo-clan-and-its-nri-roots\/transcript\/"/);
+  assert.doesNotMatch(out, /transcript\.txt/, 'no reader-facing control may lead to the raw file');
+  assert.match(out, /<a class="btn btn-ghost" href="\/podcast\/ute-okpu-an-ika-igbo-clan-and-its-nri-roots\/transcript\/">/);
   assert.ok(out.includes('2m 24s'), 'the length is the measured duration');
   assert.ok(!out.includes('The Ikoro: the drum that spoke for a town'), 'the example episode’s title goes');
   assert.ok(!out.includes('recording awaiting approval'), 'and so does its claim');
@@ -2341,8 +2345,17 @@ test('a film’s page offers the archive’s own neighbours, never the design’
   assert.match(out, /youtube\.com\/watch\?v=SHPEwGDOI7c/, 'the film from the same topic is not offered');
   assert.doesNotMatch(out, /jOMjbchyNXg/, 'a film from another topic was offered as related');
 
-  /* The design's own page — no `?v=` — keeps the design's own block, because it is true of that page. */
-  assert.match(fillWatchVideo(screen), /Continue with Unspoken Stories/);
+  /*
+   * The design's own page — no `?v=` — also loses the design's own block, and that is round 353's change to
+   * round 352's Option B. The three example films are all 404 at `/watch-video/?v=`, so they are demonstration
+   * material; the block is filled by the archive's own rule, which needs a topic, and this page has none. It
+   * says so instead of borrowing them.
+   */
+  const own = fillWatchVideo(screen);
+  assert.doesNotMatch(own, /Continue with Unspoken Stories/);
+  assert.doesNotMatch(own, /NBj1CvaDgbM|3NnklFf2rXA|g1z_-5jqPG0/);
+  assert.match(own, /No related film can be named/);
+  assert.match(own, /<a href="\/watch\/">Watch<\/a>/);
 
   /* And a topic holding no other film says so rather than borrowing three. */
   const alone = fillWatchVideo(screen, films[0]!, [films[0]!]);
@@ -2363,14 +2376,15 @@ test('a film’s page does not carry the design’s own "for this design" into a
   assert.doesNotMatch(fillWatchVideo(screen, film), /for this design/);
   assert.doesNotMatch(fillWatchVideo(screen), /for this design/);
   /*
-   * AND THE SENTENCE IS ON EXACTLY ONE OF THE TWO PAGES. It attaches to a reading view, and a film the archive
-   * holds no longer serves one — the owner had the whole section removed, and the description slot that
-   * replaced its purpose carries the record's own words instead. The design's own page (`/watch-video/` with no
-   * `?v=`) keeps the section, so it keeps the sentence.
+   * AND THE SENTENCE IS ON NEITHER PAGE. Round 352 removed the reading section from a film the archive holds
+   * and left it on the design's own page, so the truthful transcript sentence still had something to attach to
+   * there. **Round 353 removes the section from the bare page too**, because that is the page the owner opened
+   * and the one section he named — so there is no reading view on either page and no sentence about a missing
+   * transcript for either to carry. The design's own screen still holds it, untouched and inviolable.
    */
-  assert.match(fillWatchVideo(screen), /The approved transcript has not been supplied for this film\./);
+  assert.doesNotMatch(fillWatchVideo(screen), /transcript has not been supplied/i);
   /*
-   * AND A FILM THE ARCHIVE HOLDS SAYS NOTHING ABOUT A TRANSCRIPT AT ALL. The assertion is on the served
+   * AND A FILM THE ARCHIVE HOLDS SAYS NOTHING ABOUT A TRANSCRIPT EITHER. The assertion is on the served
    * STATEMENTS rather than on the word, because the design's own container class for the band that carries the
    * related block is `.sx-transcript` — a class name a reader never meets, and the band the design drew the
    * block inside. What must not survive is a claim: the status line, the eyebrow, the heading, the id.
@@ -2664,37 +2678,86 @@ test('the reading section is replaced by the design’s own Related viewing bloc
   assert.match(out, /<b>Rights and reuse<\/b><br>Not recorded\. Follow the publisher’s terms on YouTube\. Ozikoro does not present an external film as its own production\./);
 });
 
-test('the design’s own page keeps its reading section, because its film has no record to point at', () => {
+test('the design’s own page is given a film page’s shape, and says the archive holds no record', () => {
   /*
-   * OPTION B, AND IT IS THE ONLY PAGE IT APPLIES TO. `/watch-video/` with no `?v=` is the design's own film —
-   * the home screen links it — and **the archive holds no record for it**: `?v=E3UBv8pmLxE` answers 404. So
-   * "Low-bandwidth reading" has nothing to point at, and removing the section would leave that control and the
-   * design's own header nav anchor both pointing at an id that is gone. That is the fault the instruction
-   * forbids, so the section stays here — and this is therefore also the one page where the truthful sentence
-   * about a missing transcript has something to attach to.
+   * ROUND 352 LEFT THIS PAGE AS "OPTION B" AND THE OWNER FOUND IT. `/watch-video/` with no `?v=` is the design's
+   * own film — the home screen links it — and **the archive holds no record for it**: `?v=E3UBv8pmLxE` answers
+   * 404. Round 352 reasoned from that to keeping the reading section, so that the "Low-bandwidth reading"
+   * control and the design's own header nav anchor would not point at a removed id.
+   *
+   * **The reasoning was sound about the consequences and wrong about the page.** The owner opened the bare
+   * address and met the one section he had asked to have removed, the description slot still carrying the
+   * design's fixed interface sentence, two controls where his instruction had produced three, and a button
+   * pointing at `#transcript`. Every one of his instructions was carried out on all eighteen `?v=` pages and on
+   * none of the page he was looking at.
+   *
+   * So the shape is the `?v=` shape and the one differing fact is stated: **the archive holds no record for the
+   * film this page shows.** The section goes, the block the design draws inside it stays, the description slot
+   * carries that fact instead of the design's boilerplate, and nothing points at what is gone.
    */
   const screen = readFileSync(join(SCREENS, 'watch-video.html'), 'utf8');
   const own = fillWatchVideo(screen);
 
-  assert.match(own, /id="transcript"/, 'the design’s own reading section was removed from the design’s own page');
-  assert.match(own, /The approved transcript has not been supplied for this film\./);
-  assert.match(own, /<a class="btn btn-ghost" href="#transcript">Low-bandwidth reading<\/a>/, 'the design’s control lost its destination');
-  assert.match(own, /Continue with Unspoken Stories/, 'the design’s own related block left the design’s own page');
-  assert.doesNotMatch(own, /This film’s page/, 'a control to a record appeared on a page with no record');
-  assert.doesNotMatch(own, /for this design/, 'the demonstration’s own words survived on the served page');
+  /* The section, its nav, its label, its statement and both its ids go whole — as on a `?v=` page. */
+  assert.doesNotMatch(own, /id="transcript"/, 'the design’s own reading section survived');
+  assert.doesNotMatch(own, /id="transcript-copy"/, 'the reading panel’s id survived');
+  assert.doesNotMatch(own, /On this page/, 'the "On this page" nav survived the section it described');
+  assert.doesNotMatch(own, /Transcript-first view/, 'the transcript eyebrow survived');
+  assert.doesNotMatch(own, /Read when video is difficult to load/, 'the reading heading survived');
   /*
-   * AND NO NAME IS SHARED BETWEEN A CONTROL AND A LABEL THAT IS NOT ONE.
-   *
-   * The owner's report was that a thing called "Reading view" was not clickable. **Measured on the served page
-   * before this change, `Reading view` appeared three times: twice as a link and once as
-   * `<p class="eyebrow">Reading view</p>`, which is text.** The design never did that — its nav reads
-   * `Transcript` and its eyebrow `Transcript-first view` — so the collision was round 351's rename, and the fix
-   * is to stop renaming. Every label this page serves is now the design's own.
+   * THE STATUS LINE, MATCHED BY ITS OWN LABEL AND NOT BY THE WORDS "transcript status": the design's `<head>`
+   * carries `<meta name="description" content="… transcript status …">`, and this fill does not own the head —
+   * the route replaces it wholesale after the fills run. Asserting on the phrase would fail on markup no reader
+   * is ever served.
    */
-  assert.match(own, /<p class="eyebrow">Transcript-first view<\/p>/, 'the design’s own eyebrow was renamed');
-  assert.match(own, /<a href="#transcript">Transcript<\/a>/, 'the design’s own nav label was renamed');
-  assert.doesNotMatch(own, /Reading view/, 'a control and a non-clickable label still share one name');
+  assert.doesNotMatch(own, /Transcript status:/, 'the transcript status line survived');
+  assert.doesNotMatch(own, /class="prose"/, 'an article body is on the page');
+
+  /* The description slot says the one true thing, and not the design's sentence about the platform. */
+  assert.match(own, /<p class="sx-video-copy">The archive holds no record for this film, so there is no description of it to show here\. None is written in its place\.<\/p>/);
+  assert.doesNotMatch(own, /A sourced viewing page keeps the film/, 'the design’s boilerplate is still in the description slot');
+
+  /* The facts line states the holding, in the slot a `?v=` page states its record in. */
+  assert.match(own, /<span>Held in no Ozikoro archive record<\/span>/);
+
+  /*
+   * AND "LOW-BANDWIDTH READING" IS INERT RATHER THAN POINTING AT WHAT IS GONE. `aria-disabled`, no `href`, its
+   * reason in the `title`, and the reason visible in the design's own `small muted` span. **Not a link to
+   * `/watch/`**: the label promises this film's writing and the films index is a grid of other films, which is
+   * a wrong destination at 200. **Not removed**: the archive's own precedent for a control whose label promises
+   * something the page cannot do is to keep it and say why.
+   */
+  assert.match(
+    own,
+    /<a class="btn btn-ghost" aria-disabled="true" title="Not built yet — waiting on a record that holds this film; the archive holds no record for the film this page shows">Low-bandwidth reading <span class="small muted">— no archive record for this film<\/span><\/a>/
+  );
+  assert.doesNotMatch(own, /Low-bandwidth reading<\/a>/, 'the reading control is still a link');
+  assert.doesNotMatch(own, /This film’s page/, 'a control to a record appeared on a page with no record');
+
+  /* The design's own band and its own block stand where the section stood, saying why they are not filled. */
+  assert.match(
+    own,
+    /<section class="sx-transcript"><div class="wrap"><div class="sx-transcript-copy" id="related-video"[^>]*><p class="eyebrow">Related viewing<\/p>/
+  );
+  assert.match(own, /No related film can be named/, 'the block does not say why it holds no film');
+  assert.doesNotMatch(own, /NBj1CvaDgbM|3NnklFf2rXA|g1z_-5jqPG0/, 'a design example film is offered as related');
+  assert.doesNotMatch(own, /Continue with Unspoken Stories/, 'the design’s own series is presented as this page’s');
+
+  /* The header nav is repointed, as round 352 repointed it on a `?v=` page. */
+  assert.match(own, /<a href="#related-video">Related viewing<\/a>/, 'the header nav names a section the page does not carry');
+
+  /* And the design's own provenance is left exactly where it was, because it is true of the film it shows. */
+  assert.match(own, /<h1>Faces \| Voices<\/h1>/, 'the design’s own film was replaced by nothing');
+  assert.match(own, /<span>Publisher: \[Re:\]Entanglements Project<\/span>/);
+  assert.match(own, /youtube-nocookie\.com\/embed\/E3UBv8pmLxE/);
+
+  /*
+   * AND NO FRAGMENT POINTS AT AN ID THE PAGE DOES NOT CARRY — followed here as the served page is followed.
+   * `#transcript` and `#transcript-copy` are referenced by nothing and carried by nothing.
+   */
+  assert.doesNotMatch(own, /#transcript/, 'an anchor still names the removed section');
   const fragments = [...own.matchAll(/href="[^"]*#([^"]+)"/g)].map((m) => m[1] ?? '');
+  assert.ok(fragments.length >= 2, 'the page carries no in-page anchors at all, so this check proves nothing');
   for (const fragment of fragments) {
     assert.match(
       own,
@@ -2702,5 +2765,7 @@ test('the design’s own page keeps its reading section, because its film has no
       `an anchor points at #${fragment}, which the served page does not carry`
     );
   }
+  /* The three controls the reader can press are the film, the film again, and the films index. */
+  assert.match(own, /<a href="\/watch\/">Watch<\/a>/, 'the block does not point at the films the archive holds');
 });
 

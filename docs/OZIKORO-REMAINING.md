@@ -24392,3 +24392,774 @@ boundary is the real control, and changing it is item 1 above.
 * **`amazon/aws-cli` is a 278 MB image**, against `postgres:16-alpine`'s 90 MB or so, added purely to run
   `aws`. An rclone or a minimal-aws-cli image would be smaller; the AWS CLI was chosen because it is
   first-party, pinned, and uses the same variable names as the applications.
+
+---
+
+## ROUND 354 — A DESIGNED BUTTON LABELLED `READ THE TRANSCRIPT` LED TO A RAW `.txt` FILE; IT NOW LEADS TO THE TRANSCRIPT'S OWN PAGE, AND A CHECK FOLLOWS EVERY CONTROL ON THE FAMILY'S PAGES
+
+### 1. THE FAULT, AND WHY EVERY EXISTING CHECK PASSED IT
+
+The owner's words, verbatim, and he had said them before:
+
+> *"and when you clcik on transcript on the listen page, it leads to complete code, so it does not work and i
+> complained before http://127.0.0.1:3110/podcast/igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage/transcript.txt"*
+
+Measured before this round, on the review server:
+
+| | |
+|---|---|
+| `/listen/`'s control | `<a class="btn btn-ghost" href="/podcast/igbo-folklore-…/transcript.txt">Read the transcript</a>` |
+| that address | **200 OK, `content-type: text/plain; charset=utf-8`, `X-Content-Type-Options: nosniff`, 11,836 bytes** |
+| its first lines | `Igbo Folklore: Twelve Timeless Tales…` / `Transcript of the spoken record. The words are the article's own.` / `Among the Igbo people, stories are not merely told…` |
+
+**The content was correct and the destination was the fault.** No `<html`, no `<div`, no `<script` anywhere in
+the 11,836 bytes — it is plain prose. But it is served as a RAW FILE: no masthead, no nav, no footer, no
+typography and no way back, so a reader who pressed a *designed button* landed on a wall of monospace text that
+belongs to nothing they recognise. **"Complete code" is a fair description of what a non-technical reader sees
+there**, and it is why he was right and the previous round was wrong.
+
+**And no page existed at any sensible alternative address:** `/podcast/<slug>/transcript/` → 404,
+`/podcast/<slug>/` → 404 (the design's "This address does not resolve to an entry"), `/transcript/<slug>/` →
+404.
+
+### 2. WHY THE PREVIOUS ROUND MISSED IT — THE LESSON, WRITTEN DOWN
+
+Round 351 measured `/listen/` and concluded:
+
+> *"`/listen/` MEASURED, NOT CHANGED: 3 rows, each `a.sx-track` href = its own article; all 3 destinations
+> followed, h1 read, 200, each carrying the transcript link. … Its row destination is the article, so the
+> writing is one click away — not the same fault, so nothing built there."*
+
+**It followed the ROW's destination and stopped. It never followed the transcript link itself.** A page's
+controls are not measured by measuring the page, and a 200 is not a working page — **neither is a 200 with the
+wrong content type.** Both lessons are now encoded as code rather than as a note; see §6.
+
+### 3. THE PAGE, AND WHICH DESIGN FILE EVERY ELEMENT CAME FROM
+
+**No design screen draws a transcript page, and that is stated rather than glossed.** All 52 screens under
+`public/design/screens/` were read for one: there is no `transcript.html`; `listen.html` mentions transcripts
+in its lede and its source note but draws no panel for one; `oral-recordings.html` is a recording listing;
+`watch-video.html`'s transcript area is the *film* screen's block, and round 352 removed it from every film
+page precisely because no film has a transcript.
+
+**The design does answer the question, though.** `listen.html` line 16 draws the deliverable's one control
+that says exactly these words:
+
+```html
+<div class="sx-listen-feature-actions"><button class="btn btn-gold" type="button">▶ Play episode</button><a class="btn btn-ghost" href="article.html">Read the transcript</a></div>
+```
+
+— pointing at `article.html`, which is the screen the design uses for long prose. So the archive's rule for a
+shape the design does not draw (reuse the shapes it does draw for long prose) and the design's own answer agree,
+and the page is built on `public/design/screens/article.html`:
+
+| element on `/podcast/<slug>/transcript/` | where it came from |
+|---|---|
+| masthead `header.sx-reader-header` + wordmark, reader nav `nav[aria-label="Reader navigation"]` | `article.html`, made absolute by `designScreenLinks` |
+| `main#article[data-reader] > article.sx-book-reader`, `header.sx-article-opening` | `article.html` |
+| `<h1>` — the episode's own title | `article.html`'s title slot, filled |
+| the line under the title — `episodeTranscriptHeader`'s sentence | `article.html`'s `p.sx-article-byline` slot |
+| `div.prose` with `p#opening.dropcap` | `article.html`'s own long-prose container and opening treatment; the `dropcap` class and `#opening` id are written after `sanitiseArchiveHtml` because the sanitiser drops `id`/`class` by design |
+| `aside > details > summary > nav` | `article.html`'s own aside shape, holding this page's three real destinations (`#transcript`, the record, `/listen/`) instead of the design's two invented panels |
+| `nav.sx-page-turn` with `← The record` / `End of transcript` / `All recordings →` | `article.html`'s own end-of-reading control — **this is where the two links the brief requires are drawn**, in the design's markup |
+
+**Removed, each for a reason about this page:** `figure.sx-article-image` (the record's photograph, credit and
+share/print row — the same removal `fillArticle` already makes for a record with no image); the
+`section.sx-listen-panel#listen` player (**no second player is built here** — a copy of `fillArticle`'s gate
+would be the second copy this repository has paid for four times); `section.provenance#sources`,
+`section#citation` and `section.sx-related#related` (the record's, at the record's address — repeating them
+would give the archive two addresses for the same material, the fault `/listen.html` versus `/listen/` already
+recorded).
+
+The address is **`/podcast/<slug>/transcript/`** because it sits directly under the address the file already
+occupies: nothing is invented, and every link that meant "this episode's transcript" moves with one segment
+changed.
+
+### 4. THE `.txt` DECISION — KEPT, NOT REDIRECTED, AND WHY
+
+**Both addresses stay, with two jobs, and neither is deleted or redirected.** `/podcast/<slug>/transcript.txt`
+still answers 200 with `text/plain; charset=utf-8`, because the feed's own claim is about a *file*:
+
+```
+<podcast:transcript url="https://ozikoro.com/podcast/<slug>/transcript.txt" type="text/plain" language="ig" rel="captions" />
+```
+
+Spotify reads that field, and a 301 to an HTML page would break the one consumer it exists for. So **the page
+is for readers and the `.txt` is for anything that wants the raw text** — and the sentence that says which kind
+of text a reader is holding is now one function, `episodeTranscriptHeader` in `packages/ozikoro/src/narration.ts`,
+called by both addresses, so the file and the page cannot end up describing the same words two different ways.
+The three branches (external recording / the owner's own recording / synthetic) are round 352's honest
+sentences, moved rather than rewritten.
+
+**Who linked the `.txt`, followed rather than grepped:** `/listen/`'s featured-card button (the owner's report)
+and the article page's `<p class="small muted">` line. Both now point at the page. The only remaining
+`.txt` references are the feed's `<podcast:transcript>` (machine-facing, must stay) and the design-fill code
+comments that explain the change.
+
+### 5. ALL THREE TRANSCRIPTS, NOT ONE
+
+| episode slug | `.txt` (kept) | `/transcript/` (new) |
+|---|---|---|
+| `igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage` | 200 `text/plain` 11,836 B | 200 `text/html` |
+| `how-tortoise-got-his-bumpy-shell` | 200 `text/plain` 3,398 B | 200 `text/html` |
+| `ute-okpu-an-ika-igbo-clan-and-its-nri-roots` | 200 `text/plain` 10,139 B | 200 `text/html` |
+
+**And the 18 films do NOT get one.** All 13 holding records answer 404 at `/podcast/<record>/transcript.txt`, so
+the new route's gate (`playableEpisodeSql('e')` **and** the record published and not a page) refuses them for
+the same reason the file does, and no film page gained a transcript link it cannot honour.
+
+### 6. THE CHECK, SO THIS IS NOT MISSED A THIRD TIME
+
+`scripts/check-link-destinations.mjs`. It follows **every `<a>`** on `/listen/`, on `/watch/` and every page the
+library's own `Next` control reaches, on every `/watch-video/?v=<id>` the served cards name (read from their
+`data-video-page` attribute — the addresses are not in an `<a href>`, because the design opens the film in an
+inline player), and on bare `/watch-video/`. **Status AND `content-type` are read for every one**, because
+status alone cannot see this fault, and an in-page `#fragment` is checked against the ids the page actually
+carries.
+
+The rule it encodes: **a link drawn with a `btn` class that returns `text/plain` or `application/octet-stream`
+is a suspicious destination** — reported with its reason rather than failed, because a download button is a
+legitimate `btn`. It fails on a 4xx/5xx, on a fragment with no element, and on **a `btn` whose own words say
+`Read`/`View`/`Open` and whose destination is a raw file** — which is this fault exactly.
+
+Measured before and after, on 21 pages:
+
+```
+before:  Failures: 1
+  ✖ /listen/ → /podcast/igbo-folklore-…/transcript.txt : a btn labelled "Read the transcript" answers text/plain — the label promises reading, the destination is a file
+after:   Failures: 0
+```
+
+Its inventory: 6 `btn` controls across the family, five of them leading to `text/html` and one (before this
+round) to `text/plain`.
+
+### 7. WHAT DOES NOT WORK
+
+* **Nothing on the four surfaces this round touches is unverified** — the page, the three transcripts, the
+  `.txt` and the two links were each fetched and their status AND content-type read (§5, §6).
+* **The design's `article.html` head is replaced, not extended**, so the transcript page announces itself
+  through `withSeoHead` and not as "Nwagu Aneke — Ozikoro article reader". The owner's design overrides
+  (`withStoredDesignOverrides`) are deliberately **not** applied to this page: an override saved against the
+  `article` screen is an edit to the *record's* reading page, and letting it rewrite an episode's transcript is
+  the one thing this page must not do.
+* **The page carries no audio player.** The recording, its disclosure and its controls stay on the record's own
+  page, and both the aside and the page-turn lead there. A listener who wants to hear while reading needs one
+  more click than they would with a second player — named here as a trade rather than hidden.
+* **`scripts/check-link-destinations.mjs` walks the library's first six pages** (`--max-pages`), which covers
+  all eighteen films today and would stop short of a library that grew past that without the flag being raised.
+
+---
+
+## ROUND 354 — AN EDITOR MAY WRITE, APPROVE, UNPUBLISH AND DELETE ANY CONTENT, AND THE ONE THING WITHHELD IS THE DESTRUCTION THAT CANNOT BE UNDONE
+
+The owner stated the rule three times in an hour, each time wider, and the third statement is the one this round
+implements:
+
+> *"an editor can approve every content, write any content, unpublish any content, and delete any content. the
+> only thing an editor can not do is to delete trash, but can recover or do anything, except deleting trash.
+> every content deleted will have to go to trash, unless permanently deleted from trash."*
+
+**That is a permission system stated the unusual way round: the default is yes and exactly one act is
+withheld.** So it is not written as a list of allowances anywhere in this round, because a list of allowances
+is wrong the moment a migration adds a capability to the vocabulary — the new one is absent from `editor` by
+default and the editor silently loses something the owner said was theirs.
+
+### 1. THE ROLE RULE — ONE PROHIBITION, A CAPABILITY NAMED FOR IT, AND NOTHING ELSE
+
+The capability is **`purge_trash`** (migration 0055). It is held by `admin` and `owner` and by nobody else.
+`editor` is granted **every capability the table holds, minus `purge_trash`**, read out of the table rather
+than restated:
+
+    insert into ozikoro_role_capability (role, capability)
+    select 'editor', v.capability
+      from (select distinct capability from ozikoro_role_capability) v
+     where v.capability <> 'purge_trash'
+    on conflict do nothing;
+
+**A route that destroys something asks for `purge_trash`; it does not ask what role the caller has.** That is
+the whole safety property of the shape, and it is the answer to the brief's question about which shape to
+choose:
+
+* a route that asks *"may this caller purge?"* and forgets to ask **fails closed** — it refuses everybody, for
+  the one act in the archive with no undo;
+* a route that asks *"is this caller an editor?"* **fails open** the day the roles change, and the next route
+  somebody adds has to remember to ask at all.
+
+The check is made in the **write** as well as at the door: `purgeArticle` and `purgeMedia` in
+`packages/ozikoro/src/trash.ts` both call their own `requirePurge`, so a script, a job or a route added
+tomorrow is refused by the same rule. The rule itself lives in `ozikoro_role_capability` and is answered by
+`ozikoro_capabilities(account_id)` (migration 0043), which is where 0043 put the authority.
+
+Measured after the migration, on this cluster:
+
+    editor   24 capabilities   purge_trash?  no
+    admin    20 capabilities   purge_trash?  yes
+    owner    25 capabilities   purge_trash?  yes
+
+**What the editor gained, named so the blast radius is not a discovery.** Everything it did not already hold:
+`manage_media_rights`, `manage_users`, `manage_roles`, `moderate`, `review_reports`, `view_audit`,
+`export_data`, `manage_ai_corpus` and `manage_design`. Two of those deserve their own sentence:
+
+* **`manage_roles` does not let an editor mint an administrator.** `ozikoro_role_may_grant` (migration 0044)
+  permits only a role strictly below the actor's own rank, and that comparison is made by the database rather
+  than by a screen — so the grant does not weaken the ladder, and an editor's rank is below an admin's.
+* **`manage_design` is where two rounds disagreed.** A parallel round was asked, under an earlier and narrower
+  instruction, *"is the Appearance editor admin-only?"* and answered yes. The instruction this round implements
+  says an editor writes any content and everything is theirs except the purge, so **under the current rule the
+  Appearance editor is the editor's too**. The two rounds cannot both be right; this is the one that must be
+  told to the other.
+
+### 2. THE COMMENT WAS CHANGED WITH THE CODE, AND THAT WAS THE POINT OF THE BRIEF QUOTING IT
+
+`apps/ozikoro/lib/access.ts` said, in its own words:
+
+> *"there is exactly one rule and it is written once here: an administrator or the owner. An editor is a
+> contributor who can review, and this is not theirs."*
+
+**Both halves of that are now wrong**, and the file has been rewritten to say what an editor is — everything,
+except purging the trash — and to name `purge_trash` as the capability that gates the exception.
+`requireAdministrator`'s own note now says explicitly what it IS for (the Spotify connection) and what it is
+NOT for, because a future agent who reads "an administrator or the owner" there and concludes that `/admin/*`
+is admin-only would be reviving exactly the mistake the comment exists to prevent.
+
+### 3. WHAT WAS READ-ONLY AND WHAT NOW WRITES, ROUTE BY ROUTE
+
+Measured by reading every one of the back-office surfaces, not by listing them:
+
+| route | before | now |
+|---|---|---|
+| `/admin`, `/admin/archive`, `/admin/archive/[id]`, its two revision screens, `/admin/entities`, `/admin/reviews` | facets, entities, sources — **no words** | **+ title, summary and body**; **+ the review decision**; **+ delete to trash** |
+| `/admin/media` | read-only register, `manage_media_rights` | **+ `/admin/media/[id]`: name, caption, alt text, description, creator, credit, delete to trash** |
+| `/admin/rights` | writes rights | unchanged |
+| `/admin/trash` | **did not exist** | **new: list, restore, purge** |
+| `/admin/claims`, `/admin/users`, `/admin/audit`, `/admin/design`, `/admin/audio`, `/admin/pronunciation` | write or read, each behind its own capability | unchanged in code; an editor now holds every one of those capabilities |
+| `/admin/spotify` | `requireAdministrator` (platform role) | unchanged — it is the organisation's Spotify account, and the rule is still admin or owner |
+
+### 4. THE BODY EDIT — WHERE SANITISING HAPPENS, AND WHAT A PASTED `<script>` DOES
+
+**Both on write and on read, for two different jobs, and the read path was missing it entirely.**
+
+`ozikoro_article.body_html` has always been documented as *"kept verbatim … sanitised when rendered, not when
+stored"* (0035, repeated by 0053). **The served article route did not sanitise it.** `apps/ozikoro/app/[slug]/route.ts`
+hands `row.body_html` to `fillArticle`, which ran `rewriteBodyImages` (URL rewriting) and `tidyBody` (style and
+img sizing) and **neither removes a tag**. `sanitiseArchiveHtml` was imported into `design-fill.ts` and used
+only on a different path. So the read path's only guard was absent on the one route a reader opens, and absent
+for the 1,051 imported bodies that have no other guard at all.
+
+The sanitiser now runs in `fillArticle`, **between `rewriteBodyImages` and `tidyBody`**, and the order is
+load-bearing: `sanitiseArchiveHtml` rewrites an internal host to a relative path, and `rewriteBodyImages`
+resolves a body image by looking its `source_url` up in `ozikoro_media` — sanitising first would turn every
+archived image address into a relative one the resolver cannot match, and 1,049 of the 1,053 published records
+carry an image in their text.
+
+On write, `updateArticleContent` sanitises **before storage**, and the reason it is not a contradiction of the
+verbatim rule is written in the function: **that rule was written for the import**, where the bytes are
+evidence of what WordPress published. A person typing a body today is writing the record now, and the
+*revision* takes the previous body untouched, so no published text is lost by this.
+
+**What a pasted `<script>` does:** `sanitiseArchiveHtml` drops `script`, `style`, `iframe`, `object`, `embed`,
+`form` and their entire contents, drops every `on*` attribute, drops inline `style`/`class`/`id`, and refuses
+`javascript:` and `data:` URLs. So it never reaches the row, it is dropped again on the way out if it somehow
+did, and the editor is told rather than left to discover it:
+
+> *"Saved. Some markup a reader must not be shown was removed: script tags, embedded frames and inline event
+> handlers are not stored. Kept revision 12 of what it said before. 1,204 words."*
+
+### 5. THE REVISION, THE APPROVAL, AND THE AUDIT ROW
+
+**A revision before the change, not after — and the two are one statement, so there is no "half".**
+
+`updateArticleContent` writes the revision and the update in a single SQL statement with data-modifying CTEs,
+so the `before` snapshot and the update cannot be separated by a failure. The brief asked for "a revision
+before the change"; **one statement has no before and after.** If it fails, the old record stands and no
+revision exists — which is the truthful outcome, because nothing happened. A revision written for a change that
+was never applied would be the archive lying about its own history.
+
+`ozikoro_article_revision` is the right table and it was missing the actor. Its own header says it follows the
+pattern of `clan_revision`, `episode_revision` and the rest — *"a revision row belongs to a parent record, holds
+the text as it was, and says who and when"* — but its only person column is `author_id`, which is a reference to
+`ozikoro_contributor`: **the byline.** On an editor's correction of somebody else's record that names the
+article's author rather than the person who made the change, in the one table whose purpose is attribution.
+Migration 0054 adds `actor_id` (a reference to `account`, as the other four revision tables do), `standfirst`
+(because the summary is editable and a revision that held only the body could not restore what it replaced) and
+`note`.
+
+**The approval answers the four questions the brief asked:**
+
+1. **An editor may approve their own edit, and this is labelled rather than forbidden.** There is no "submitted
+   by" on `ozikoro_article`, so a second-actor rule would have to be reconstructed from the newest human
+   revision — and a record with no human revision would be unrestrained anyway. Worse, the archive holds one
+   real account, and migration 0046 already settled what a rule like that does: *"admin must never be locked
+   out of a decision."* **A two-person rule over a one-person archive is not a safeguard; it is the feature not
+   working.** So `selfApproved` is computed and written into the audit row and into the visible note — the same
+   answer `mayApprovePronunciation` reached: *"the owner checked his own work" is a fact the audit trail can
+   carry.*
+2. **Approve, send back, unpublish and retire are all decisions, and the transition table refuses the rest.**
+   `unpublish` exists because the owner said an editor unpublishes; **`/[slug]/` answers 404 the moment a
+   record is not `published`, so this is the act that breaks a shared link** — permitted, and recorded.
+3. **An approval sets `published_at`,** which no write path had ever done. A record published from this archive
+   would otherwise have been live with a null publication date, sort last in every list, and print nothing
+   where the design prints "Published". `coalesce` means a second approval does not move the date.
+4. **The status is no longer a facet.** `updateArticleFacets`'s `status` parameter is **gone, not merely
+   unused**, so the compiler named every caller; the audit action is `approve_article` rather than
+   `update_facets`, so `/admin/audit/` reads as a list of decisions rather than a list of forms.
+
+### 6. THE TRASH — WHAT EXISTED, WHAT WAS DECIDED TABLE BY TABLE, AND WHAT A DELETE DOES
+
+Measured before anything was designed: **`deleted_at`, `trashed` and `purge` appeared nowhere in the 55
+migrations before this one.** There was no mechanism; it is being built, not re-flagged.
+
+| table | what it had | decision |
+|---|---|---|
+| `ozikoro_article` | `status` = draft/review/published/archived | **the status gains `trashed`**, plus `deleted_at`, `deleted_by`, `deleted_from_status` |
+| `ozikoro_media` | **no status at all** | `deleted_at`, `deleted_by` — a flag, because there is nothing to overload |
+| `ozikoro_publication` | a status including `archived` | **not covered**; its delete path is not built and this is stated rather than implied |
+| `ozikoro_entity`, `_source`, `_label`, `_topic`, `_contributor`, `_claim`, `_episode` | no status, and **no code anywhere deletes a row from any of them** | no trash. A bin for a thing that cannot be deleted would hold nothing |
+
+**`archived` was NOT reused as the bin.** It already means "retired", `/admin/archive` writes it through the
+review decision, and nothing recorded who archived a record or when — overloading it would make a retired
+record and a deleted one indistinguishable and would leave recovery unable to tell which state to restore.
+
+**Why articles use the status and media use a flag**, which is the same question the brief asked and the same
+reason both ways: **every reader of an article already filters on the status, and a flag they do not know about
+is a record in the bin that a reader can still reach.** `/[slug]/` requires `status = 'published'`, the sitemap
+and the archive index and every listing query select on it — so setting the status to a value no reader accepts
+puts a trashed record out of reach everywhere at once, with **no read path edited, and a read path that is not
+edited is a read path that cannot be forgotten.** Media has no status, so its flag is the smaller change, and
+its read paths are five conditions in one file.
+
+**What a delete does, in the four places the brief named:**
+
+* **The address.** A trashed article's own address stops answering, because `/[slug]/` selects on the status.
+  **The decision is a 404 with the design's own not-found screen**, and the reasons are stated: the design draws
+  no "withdrawn" screen, and inventing one is forbidden; a `410` would promise the record is gone for good when
+  the bin exists precisely so that it is not; and a redirect needs an honest destination and the only honest one
+  would be the withdrawal page that does not exist. **A dedicated withdrawn-record screen is a design decision
+  for the owner**, and this is the item most worth having.
+* **Its media.** **Left live.** A photograph is a record in its own right with its own reference, its own rights
+  record and 1,057 possible articles that use it, and trashing an article must not hide or destroy a picture
+  other records depend on. Purging the article removes its `ozikoro_article_media` links by cascade and leaves
+  the media rows untouched and unlinked — measured, not assumed.
+* **Its relations.** `ozikoro_article_entity`, `_source`, `_label` and `_media` **keep their rows** while a
+  record is trashed, so recovery puts it back with everything that made it a record. They are unreachable while
+  it is trashed because the readers that render them select on `status = 'published'` — `getMediaArticles` was
+  read to confirm it, and it filters. **That is why a trashed record leaves no card pointing at something a
+  reader cannot open.**
+* **Recovery.** `deleted_from_status` is what the record held when it was taken out, and **a published record
+  comes back published**, at the same address, with the same `published_at` — which the trash does not touch.
+  Restoring anything else would make recovery a lossy operation, an edit nobody made.
+
+### 7. THE AUDIT ROW THAT SURVIVES THE PURGE, AND THE CONFIRMATION THAT NAMES THE ITEM
+
+**Checked rather than assumed, and it is a schema property rather than a code one:** `ozikoro_audit.entity_id`
+is `bigint not null` with **no foreign key to anything**. Its only reference is
+`actor_id references account(id) on delete set null`. So a purged record's audit rows are **not** cascaded away
+with it, and the test asserts it by purging a record and reading the trail back:
+
+    ✓ the audit trail survives the record  — update_content, trash_article, purge_article
+    ✓ it records who deleted it first
+    ✓ the destroyer is named
+    ✓ and the row says the act was irreversible
+    ✓ and says what it took with it
+
+**The purge writes its audit row BEFORE it deletes**, and it is the one place in this codebase where a failed
+audit insert is not swallowed: every other module logs and carries on, on the reasoning that refusing a
+legitimate edit because the trail had a bad moment makes the trail the obstacle. That reasoning does not hold
+for an irreversible act with no record of its author, so `audit_failed` refuses the whole purge.
+
+**What a purge takes with it** is counted before the delete and written into both the trail and the notice:
+revisions (cascade), entity/source/label links (cascade) and media placements (cascade). **That includes the
+4,266 WordPress revisions** — text that exists nowhere else and the reason those tables were built.
+
+**The confirmation names the item.** The operator types the record's own reference (`OZ-H-0041`, `OZ-P-1234`),
+and it is compared **inside the write, against a reference derived from the row it is about to delete** — not in
+the route against a string from the same form, which two fields of one forged request can both satisfy.
+`purgeArticle` also refuses a record that is not already in the bin, so the decision to remove and the decision
+to destroy stay two decisions.
+
+**⚠️ AND A MEDIA PURGE DOES NOT DESTROY THE FILE, WHICH THE NOTICE SAYS.** This archive has no object-delete
+path, so a purged photograph's object stays in the bucket and is still served at `/media/<key>`. That is worse
+than it sounds given this round's other measurement — **the host behind `media.ozituma.com` serves objects
+anonymously to a caller with no credential** — so the audit row carries `fileDestroyed: false` and the screen
+says plainly that a purge here removes the catalogue entry, not the picture.
+
+### 8. THE DESIGN'S OWN FORMS, AND THE TWO PLACES IT DRAWS NOTHING
+
+**Measured: the design draws no editorial edit form and no trash screen.** `dashboard-admin.html` and
+`dashboard-editor.html` contain **no `<form>`, no `<input>`, no `<textarea>` and no `<select>` at all** — they
+are navigation, metrics, task rows and module tiles. There is no `dashboard-contributor.html`. A search of all
+52 screens finds `trash` in none.
+
+So the controls come from the two shapes the design does draw:
+
+* the **deposit form** in `upload.html` — a labelled field, a select, a textarea, a primary button beside a
+  quiet one, and a `<table class="record">` for "what the record will say". The served realisation of that
+  screen is `app/submit/page.tsx`, and it uses `.wpfield` / `.wphelp` / `.wpgrid`;
+* the **correction doorway** on the same screen, which is the design's own statement of the rule this round
+  implements: *"Your note joins the review trail; it does not silently overwrite the published record."*
+
+**The new forms use `.wpfield`/`.wphelp`/`.wpgrid`, which is what the form already on `/admin/archive/[id]`
+uses** — so the new card is not a new control shape on a page that has one. Those classes had **no stylesheet in
+`apps/ozikoro`**: their rules live in `apps/web/app/admin/admin.css`, the dictionary's application, which is not
+loaded here. Every `/admin/` form on this site was rendering as an unstyled stack. This round added the
+equivalent rules to `apps/ozikoro/app/globals.css` in Ozikoro's own palette — a translation, not an invention.
+
+**The trash screen reuses that vocabulary**: a `<table class="record">` with `<th scope="col">` heads, a
+`.btn--primary` for the safe action and a `.btn--danger` for destruction, and an `.help` sentence where the list
+would be empty. **A dedicated trash screen is a design decision for the owner.**
+
+### 9. WHAT WAS TESTED, AND HOW
+
+* **The role rule, in the database**: `editor` holds 24 capabilities and not `purge_trash`; `admin` and `owner`
+  do. `test-members.ts` was rewritten, because it asserted the WITHDRAWN rules twice over — that an editor may
+  not manage users, may not change media rights, may not moderate — and **a test that keeps asserting a
+  withdrawn rule is how the rule comes back.**
+* **The write, not the status.** `test:trash` (new, `packages/ozikoro/src/test-trash.ts`) trashes a published
+  record, asserts the reading page's own query finds nothing, restores it and asserts the title, the summary and
+  all 11,498 characters of the body came back; refuses a purge without `purge_trash`, refuses one whose
+  confirmation does not name the record, purges a fixture with an administrator and reads the audit rows back;
+  and does the same for media.
+* **The pre-existing refusal for `/admin/spotify`** is unchanged and is the platform-role check.
+
+**⚠️ AND THIS ROUND DESTROYED A REAL RECORD WHILE TESTING, WHICH IS WORTH RECORDING.** The first version of
+`test-trash.ts` ran its *"a purge of a record that is not in the bin is refused"* check against **article id 1 —
+a real published history** — and it destroyed it, because the record happened to be in the bin from the previous
+check. The refusal it was asserting was true and the test proved the opposite of what it intended, because it
+aimed an irreversible act at the archive instead of at its own fixture. **It was restored in full from the
+backup taken before the first write** — the same record, its 11,498-byte body, its revision, its entity link,
+its 41 label links and its media placement — and the test now creates a fixture and every destructive check is
+aimed at it. **This is the argument for taking the backup, and it is the reason the brief's rule is not
+ceremony.**
+
+### 10. WHAT DOES NOT WORK
+
+* **`scripts/verify-postgres.ts` has not been run, and cannot be from this machine.** It needs a real
+  PostgreSQL server on 16.14 and 18.4; there is no `docker`, no `psql`, no local Postgres and no
+  `DATABASE_URL` here, so the three migrations were verified against **PGlite only**. They are `add column if
+  not exists`, one `drop constraint`/`add constraint` pair and `insert`/`delete` on a grants table — no data is
+  rewritten — but "it applied on PGlite" is not the same as "it applies from empty on 18.4", and that check is
+  outstanding.
+* **A dedicated "this record was withdrawn" page does not exist.** A trashed record's address is a 404. The
+  design draws no such screen and inventing one is forbidden; a reader with a shared link therefore meets the
+  archive's not-found door rather than a sentence explaining what happened.
+* **No file is uploaded, replaced or deleted anywhere**, and a media purge leaves its object in the bucket
+  served anonymously. 3,494 media rows against 3,443 objects remain the measured state, and the 307 row-less
+  files under `data/media/ozikoro-wp` are still unkeyed.
+* **`ozikoro_publication` has no trash.** Its status includes `archived` but there is no delete path and no bin
+  row; the trash covers articles and media only.
+* **Entities, sources, labels, topics, contributors and claims have no trash**, because nothing in this tree
+  deletes a row from any of them. An editor cannot delete one, so there is nothing to hold.
+* **The stale editorial assertion was stale before this round.** `test-editorial.ts` asserted the archive holds
+  zero sources; the record `the-rivers-that-made-us` was seeded with three, so the suite was failing because
+  somebody did the work. It now reports progress instead. **That failure was pre-existing and not caused by
+  this round's changes** — no source row is created anywhere in the diff.
+
+
+## ROUND 355 — THE OWNER OPENED `/watch-video/` WITH NO `?v=` AND MET THE ONE SECTION HE HAD ASKED TO HAVE REMOVED, BECAUSE EVERY INSTRUCTION HAD BEEN CARRIED OUT ON THE EIGHTEEN `?v=` PAGES AND ON NONE OF THE PAGE HE WAS LOOKING AT
+
+### 1. The fault, and the number that is the whole of it
+
+The owner, verbatim, and the address he gave:
+
+> *"your lists is showing that you are done with the film page, but fuck, you did nothing! check it again
+> http://127.0.0.1:3110/watch-video/#transcript"*
+
+**Bare `/watch-video/`, not `/watch-video/?v=<id>`.** Round 352 restructured the parameterised form and
+deliberately left the bare address alone as "Option B", recording its reasoning in ROUND 352 §8: the design's
+own film is `E3UBv8pmLxE`, the archive holds no record for it (`?v=E3UBv8pmLxE` answers 404), so
+"Low-bandwidth reading" had nothing to point at, and removing the reading section would leave that control and
+the design's own header-nav anchor pointing at an id that is gone.
+
+**That reasoning was sound about the consequences and wrong about the page, because the owner reads pages and
+not diffs.** Measured on the served page before this round:
+
+| | bare `/watch-video/` | `/watch-video/?v=LL8YX0pXzdI` |
+|---|---|---|
+| bytes | 6,111 | 6,070 |
+| `class="prose"` (the article) | absent | absent |
+| `<section class="sx-transcript" id="transcript">` | **present** | absent |
+| `id="transcript-copy"` | **present** | absent |
+| `On this page` nav | **present** | absent |
+| `Transcript-first view` | **present** | absent |
+| `Read when video is difficult to load` | **present** | absent |
+| transcript status line | **present** | absent |
+| `sx-video-copy` | **the design's boilerplate** | the record's own words |
+| controls in `.sx-video-actions` | **two** | three |
+| `Low-bandwidth reading` points at | **`/watch-video/#transcript`** | the holding record |
+
+Every one of the owner's four instructions — the article off, a third control for the main article, the
+record's own short description in `sx-video-copy`, and *"remove from 'On this page' and the entire others
+below, and replace it with 'related videos'"* — was carried out on all eighteen `?v=` pages and on none of the
+one page he opened.
+
+### 2. The bare page before and after, verbatim
+
+**Before**, from `sx-video-detail` to the end of the document:
+
+```html
+<div class="sx-video-detail"><div><p class="sx-video-kicker">Archive film</p><h1>Faces | Voices</h1><p class="sx-video-facts"><span>Publisher: [Re:]Entanglements Project</span><span>Platform: YouTube</span><span>Captions: check player</span></p><div class="sx-video-actions"><a class="btn btn-gold" href="https://www.youtube.com/watch?v=E3UBv8pmLxE">Watch on YouTube ↗</a><a class="btn btn-ghost" href="/watch-video/#transcript">Low-bandwidth reading</a></div><p class="sx-video-copy">A sourced viewing page keeps the film, its publisher, related records and text access together. Ozikoro does not present an external film as its own production.</p></div><aside class="sx-video-side"><h2>Source record</h2><p><b>Published by</b><br>[Re:]Entanglements Project</p><p><b>Rights and reuse</b><br>Follow the publisher’s terms on YouTube.</p><p><a href="https://re-entanglements.net/faces-voices/">Read the publisher’s project page ↗</a></p></aside></div></div></section><section class="sx-transcript" id="transcript"><div class="wrap sx-transcript-grid"><aside><p class="eyebrow">On this page</p><nav><a href="/watch-video/#transcript-copy">Transcript</a><a href="/watch-video/#related-video">Related viewing</a><a href="/collections/">Archive collections</a></nav></aside><div class="sx-transcript-copy" id="transcript-copy"><p class="eyebrow">Transcript-first view</p><h2>Read when video is difficult to load</h2><p style="margin-top:var(--s-4);line-height:1.7">The approved transcript has not been supplied for this film. This area carries the complete timed transcript, speaker names and language information when the publisher supplies one, and none is invented in its place.</p><div class="partial-note" style="margin-top:var(--s-5)">Transcript status: no publisher-approved transcript has been supplied.</div><div id="related-video" style="margin-top:var(--s-7)"><p class="eyebrow">Related viewing</p><h2 style="margin-top:.4rem">Continue with Unspoken Stories</h2><p style="margin-top:var(--s-3)"><a href="https://www.youtube.com/watch?v=NBj1CvaDgbM">Onyeso ↗</a> · <a href="https://www.youtube.com/watch?v=3NnklFf2rXA">Unnamed Children ↗</a> · <a href="https://www.youtube.com/watch?v=g1z_-5jqPG0">Yainkain ↗</a></p></div></div></div></section></main><script src="/design/mobile-nav.js" defer></script></body></html>
+```
+
+**After** (5,572 bytes), the same span, verbatim:
+
+```html
+<div class="sx-video-detail"><div><p class="sx-video-kicker">Archive film</p><h1>Faces | Voices</h1><p class="sx-video-facts"><span>Publisher: [Re:]Entanglements Project</span><span>Platform: YouTube</span><span>Held in no Ozikoro archive record</span><span>Captions: check player</span></p><div class="sx-video-actions"><a class="btn btn-gold" href="https://www.youtube.com/watch?v=E3UBv8pmLxE">Watch on YouTube ↗</a><a class="btn btn-ghost" aria-disabled="true" title="Not built yet — waiting on a record that holds this film; the archive holds no record for the film this page shows">Low-bandwidth reading <span class="small muted">— no archive record for this film</span></a></div><p class="sx-video-copy">The archive holds no record for this film, so there is no description of it to show here. None is written in its place.</p></div><aside class="sx-video-side"><h2>Source record</h2><p><b>Published by</b><br>[Re:]Entanglements Project</p><p><b>Rights and reuse</b><br>Follow the publisher’s terms on YouTube.</p><p><a href="https://re-entanglements.net/faces-voices/">Read the publisher’s project page ↗</a></p></aside></div></div></section><section class="sx-transcript"><div class="wrap"><div class="sx-transcript-copy" id="related-video" style="scroll-margin-top:6rem"><p class="eyebrow">Related viewing</p><h2 style="margin-top:.4rem">No related film can be named</h2><p style="margin-top:var(--s-3)">The archive holds no record for this film, so the film is filed under no topic and no other film can be named beside it. This list is not filled from elsewhere. The films the archive does hold are listed at <a href="/watch/">Watch</a>.</p></div></div></section></main><script src="/design/mobile-nav.js" defer></script></body></html>
+```
+
+The band class `sx-transcript` and the block inside it are the design's own, kept character for character, in
+the design's own copy panel — the same markup the `?v=` pages carry. **What is gone is the section's content:
+the "On this page" nav, the `Transcript-first view` eyebrow, the `Read when video is difficult to load`
+heading, the transcript statement, the status line, and both ids.** `id="related-video"` now sits on the
+design's block, where the `?v=` page puts it, and the design's own header nav is pointed at it —
+`<a href="#related-video">Related viewing</a>`, exactly as round 352 repointed the `?v=` version.
+
+### 3. The one real problem, solved honestly rather than avoided
+
+The real problem is unchanged and it is not a reason to keep the section: **the archive holds no record for
+`E3UBv8pmLxE`.** That decides what the page SAYS, not whether the shape changes.
+
+* **The article stays off.** Asserted: `class="prose"` is absent on the bare page and on all eighteen `?v=`
+  pages, before and after.
+* **The reading section goes**, with its nav, its label, its statement and both ids.
+* **"Related viewing" replaces it, and the block says why it is empty.** The archive's own rule for related
+  films is *other films under the same topic* — the rule `fillArticle` already uses. **This page has no topic,
+  because it has no record**, so the rule yields nothing. The block therefore carries the design's own eyebrow
+  (`Related viewing`) and the honest reason, and names no film: **the design's three example films are not
+  borrowed** (`?v=NBj1CvaDgbM`, `?v=3NnklFf2rXA` and `?v=3NnklFf2rXA`'s siblings all answer 404) and **three
+  archive films are not borrowed either**, because a list headed "related" may not invent a relationship. It
+  points at `/watch/` — the films index — under the design's own word for that address on this very screen
+  (the design's breadcrumb reads `<a href="watch.html">Watch</a> / Archive films`).
+* **`sx-video-copy` carries the honest statement**, not the design's boilerplate — see §4.
+* **The button problem is solved in the archive's own inert-control shape** — see §5.
+* **The design's own header-nav anchor is repointed**, not left dead.
+
+### 4. What the description slot says, and where the words came from
+
+```
+The archive holds no record for this film, so there is no description of it to show here. None is written in its place.
+```
+
+**The words are written as the equal of round 352's own absence sentence**, which is the shape this case was
+already anticipated in — it reads *"The archive supplied no readable record for this film, so there is no
+description of it to show here. None is written in its place."* The change is the one word that matters here:
+a `?v=` page whose record has no usable description has **supplied no readable record**; this page's film is
+held in **no record at all**, and the stronger, true statement is the one on the page.
+
+The design's sentence — *"A sourced viewing page keeps the film, its publisher, related records and text access
+together. Ozikoro does not present an external film as its own production."* — is gone from the served page.
+**It remains in `apps/ozikoro/public/design/screens/watch-video.html`, unedited and inviolable**; only the
+served document changed. And the one clause of it that was a policy rather than a description
+(*"Ozikoro does not present an external film as its own production"*) stays on the `?v=` pages' "Rights and
+reuse" line, where round 352 put it.
+
+**One sentence was added in the facts line, in the slot the `?v=` page states its holding in**: the second
+span now reads `Held in no Ozikoro archive record` where a `?v=` page reads `Held in one Ozikoro archive
+record`. A reader who scans only the facts line must not take the publisher line above it for something an
+archive record said.
+
+**And the design's own publisher, project-page link and `<h1>` are deliberately left standing.** They are the
+design's statements about the film **its own page** shows, they are true of the film it embeds, and this is the
+only page that shows it — removing them would delete the deliverable's own provenance and the publisher's own
+project page from the one place they belong, and would put the archive's rule about a field this page never
+claimed to read from a record into a slot that is not about a record. The archive's absence is stated twice
+instead, in the two slots the instruction governs.
+
+### 5. The decision on "Low-bandwidth reading": kept, inert, with its reason
+
+Served, verbatim:
+
+```html
+<a class="btn btn-ghost" aria-disabled="true" title="Not built yet — waiting on a record that holds this film; the archive holds no record for the film this page shows">Low-bandwidth reading <span class="small muted">— no archive record for this film</span></a>
+```
+
+**This is the archive's own shape for a control whose label promises something the page cannot do** — the same
+`aria-disabled` + `title` + visible `small muted` construction `unbuiltAnchor` and the calendar's submit row
+already use. It carries **no `href` at all**, so it is not a link; it is not focusable, and pressing it does
+nothing. Verified in Chrome: `href=null`, `aria-disabled="true"`, and a click leaves the address unchanged.
+
+The two rejected options, and why:
+
+* **Point it at `/watch/` — rejected: that is a wrong destination at 200.** The label promises *this film's*
+  writing; `/watch/` is a grid of **other** films whose cards are buttons that play in place. A reader who
+  pressed a control called "Low-bandwidth reading" and landed on a grid of unrelated films would have met the
+  exact fault class this round exists to close, wearing a different hat. (It is also not a reading destination
+  for anyone: the `?v=` pages carry no article either, by the owner's own instruction.)
+* **Remove it and keep two controls — rejected as needless loss.** The archive's precedent for this situation
+  is to keep the control and say why, not to make it disappear: the design drew it, and a reader who wonders
+  where the reading is gets an answer rather than a gap. Removing it would also leave the action row with one
+  inward control fewer than the design's own page had.
+
+**And no anchor points at `#transcript` or `#transcript-copy` anywhere on the page.** Every fragment on the
+served bare page was followed: `/watch-video/#video` and `/watch-video/#related-video`, both present. The
+owner's own bookmark `/watch-video/#transcript` therefore now lands at the top of the page — recorded in §12
+as a real, visible consequence rather than hidden.
+
+### 6. Whether bare `/watch-video/` should exist: yes, as an honest no-record page
+
+**Who links it, found by following and not by grepping** (`scripts/check-page-variants.mjs` §5, which fetches
+all 52 design screens and follows their links):
+
+| page | link | kind |
+|---|---|---|
+| `/` | `<a class="sx-video-thumb" href="/watch-video/">` and `<a href="/watch-video/"><small>Archive film</small><strong>Faces | Voices</strong></a>` | the design's own home watch strip — the film's poster and its title |
+| `/watch/` and `/watch/?page=2` | `<a class="btn btn-ghost" id="inline-player-page" href="/watch-video/" hidden>` | the inline player's control, `hidden` in the served markup and filled at click time — see §7 |
+| `/design/index.html` | `screens/watch-video.html` | the walkthrough index, which the middleware 301s to `/` |
+
+**Chosen: served as an honest "no record" page in the new shape.** The alternatives and what the reader loses:
+
+* **A 404** would break a link the owner can see on his own front page, in the design's own card for the film
+  that page is about — and the design's `home.html` is inviolable, so the card cannot be repointed without a
+  fill. A 404 on a card that names a film and shows its poster is worse than a page that says the archive
+  holds no record for it.
+* **A 301 to `/watch/`** would send a reader who asked for *Faces | Voices* to a grid of other films: the
+  wrong-destination fault at 200, in the one place the archive has already been caught committing it (the six
+  front-page town tiles, round 349).
+* **Serving it** costs nothing the reader was promised: the film still plays in the design's own embed, its
+  title and publisher are the design's own and true of it, and the page now states the one thing it could not
+  say before — that no Ozikoro record holds it — while offering the archive's own films one link away.
+
+### 7. The link that sends readers there, clicked rather than read
+
+The parent report's premise was that `/watch/`'s `#inline-player-page` carries **no film** and sends the reader
+to the bare address. **Measured, it does not, and the difference is only visible to a browser**: the served
+markup carries `href="/watch-video/"` on an anchor that is `hidden`, and `open(card)` in the extended
+`watch.js` — served from `/design-screen-assets/watch.js`, spliced at request time because
+`public/design/watch.js` is inviolable — sets it from the clicked card's own `data-video-page` before the
+control can be reached.
+
+Driven over CDP in headless Chrome (`scripts/verify-round-353-chrome.mjs`):
+
+```
+/watch/  → clicked card LL8YX0pXzdI (data-video-page="/watch-video/?v=LL8YX0pXzdI")
+    #inline-player-page  href="/watch-video/?v=LL8YX0pXzdI"  hidden=false
+    #inline-player-frame https://www.youtube-nocookie.com/embed/LL8YX0pXzdI?autoplay=1&rel=0
+    followed -> http://127.0.0.1:3110/watch-video/?v=LL8YX0pXzdI
+    h1: The War Dance Festival (ILA OSO) In Uzuakoli
+/watch/  → clicked the design’s card E3UBv8pmLxE (no data-video-page)
+    #inline-player-page  href="/watch-video/"  hidden=true
+/watch/?page=2 → 9 card(s), scripts ["/design-screen-assets/watch.js","/design/mobile-nav.js"]
+    clicked page 2’s ekO2hKFsbEk -> #inline-player-page href="/watch-video/?v=ekO2hKFsbEk" hidden=false
+```
+
+**So the control carries the film, on page 1 and on page 2, and the decision for a card the archive cannot
+serve is to HIDE it** — which is what the extension already does, and what round 349 recorded. The design's
+**six** cards — `E3UBv8pmLxE`, `NBj1CvaDgbM`, `0_MvyVVGcxE`, `3NnklFf2rXA`, `g1z_-5jqPG0`, `TwFgd11nvEg` — carry
+no `data-video-page`, and the control is `hidden` for every one of them. `?v=E3UBv8pmLxE` answers 404, so a
+link to it would be a dead end and a fall-back to the bare address would be a lie about which film was chosen.
+**Nothing was changed here**: the fault was not reproducible, the extension predates this round, and the
+mechanism is now measured on both pages of the list rather than assumed. What this round adds is the rule in
+§8 that would catch the day it breaks — **plus the fact that at click time the anchor's address is correct,
+which is invisible in the served HTML and is therefore exactly the kind of evidence a status check cannot
+produce.**
+
+The only static link to the bare address that a reader can press is the front page's own film card, and it
+**names the film that page is about** ("Archive film / Faces | Voices") — so it is not a control that discards
+an identity, it is a control for a film the archive does not hold, and the page it reaches now says so.
+
+### 8. The general fault: the inventory, and the check that keeps it
+
+The class is *a page with a parameterised form and a bare form that disagree*, and until now nothing looked at
+the bare one. `scripts/check-page-variants.mjs` is that control. It fetches both forms of every declared family,
+compares their **shape** (not their content), follows every fragment and every control, and asserts the
+identity rule below.
+
+| address | parameter | bare vs parameterised |
+|---|---|---|
+| `/watch-video/` | `v=<film id>` | **disagreed before this round** (reading section, on-this-page nav, transcript statement, boilerplate in the copy slot, 2 controls vs 3); **agrees now** except the two declared, reasoned differences |
+| `/watch/` | `page=<n>` | agree on every shape key; the pager and the films differ, both declared and printed. **Two inherited fragment faults found** — see §12 |
+| `/archive-index/` | `topic=<slug>` | agree on every shape key |
+| `/archive/` | `page`, `topic`, `q`, `place`, `ethnic`, `entity`, `role`, `period`, `source`, `completeness`, `order` | agree on every shape key; the pager differs, declared |
+| `/cultural-event/` | **none** — `fillCulturalEvent(html)` reads no parameter, so any query string is ignored | agree; there is no parameterised form to disagree with |
+| `/listen/` | **none** — `fillListen(html, tracks)` | agree |
+| `/folklore-reader/` | **none** — it always serves the alphabetically first folklores record, so **there is no per-record address for a story at all** | agree; the missing per-record address is a finding |
+| `/igbo-calendar/` | **none on the served page** — the middleware rewrites this address to the design screen, and **`apps/ozikoro/app/igbo-calendar/page.tsx`'s `?date=`, `?day=` and `?year=` views are shadowed and unreachable at the address the route documents** | agree; the shadowed route is a finding |
+| `/podcast/` | **no bare form** — `/podcast/` answers 404. The parameterised forms are `/podcast/<slug>/transcript.txt` (the file the feed names) and `/podcast/<slug>/transcript/` (the reading page, round 354) | not comparable |
+
+**And the identity rule the film-page fault proves, written into the same check:** *every element that carries
+a per-record address in a `data-<kind>-page` attribute must carry that record's own identity in the same
+element, and the address must contain it.* 27 identity-bearing controls are checked on every run. This is the
+town-tiles fault and the inline-player question in one line of policy: **a control that discards its own
+parameter is invisible to a status check and visible only from the reader's side.**
+
+`scripts/check-link-destinations.mjs` (round 354) follows every control on the listen and film pages and reads
+its `content-type`; this one compares the two forms of an address and reads fragments and identities. Neither
+subsumes the other, and both are needed because **"someone looked at the bare address" is not a control.**
+
+### 9. Every fragment and every control, followed
+
+**The bare page**, in the DOM: `/watch-video/#video` and `/watch-video/#related-video`, both targets present;
+**zero** fragments naming an id the page does not carry; `id="transcript"` and `id="transcript-copy"` absent.
+The inert control has no `href` and does not navigate. The `Watch` link reaches `/watch/`.
+
+**The `?v=` page, unchanged by this round:** `class="prose"` absent, `id="transcript"` absent, three controls
+(YouTube, the holding record twice), fragments `#video` and `#related-video` both present, and its related
+block still reads *"More films under Cultural Heritage"* with three archive films.
+
+**The family controls**, followed, with each destination's `<h1>` read: `/watch-video/?v=`'s
+"Low-bandwidth reading" → `/the-war-dance-festival-ila-oso-in-uzuakoli/`, h1 *The War Dance Festival (ILA OSO)
+In Uzuakoli* (200); `/archive-index/`'s "Contribute a history" → `/upload/`, h1 *Publish your work* (200);
+`/listen/`'s "Read the transcript" → `/podcast/igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage/transcript/`,
+h1 *Igbo Folklore: Twelve Timeless Tales of Wisdom, Wonder, and Moral Heritage* (200); and each pager control to
+the page it names.
+
+### 10. The design parity, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+`design/calm-comfort-construct/public/design` and `apps/ozikoro/public/design` are byte-identical, and nothing
+under either is in the commit. **The design keeps its `#transcript` section, its `#transcript-copy`, its
+"On this page" nav, its transcript statement and its boilerplate; only the served page changed.**
+
+### 11. The tests
+
+`node --test packages/ozikoro/src/design-fill.test.ts` — **89 pass, 0 fail**. Two tests changed with the page
+and one is new:
+
+* *"the design's own page is given a film page's shape, and says the archive holds no record"* replaces round
+  352's Option B test, and asserts the whole of §2 and §4 from the fill's own output.
+* *"a film's page offers the archive's own neighbours"* now asserts that the bare page does **not** keep
+  "Continue with Unspoken Stories" or the three example films.
+* *"a film's page does not carry the design's own 'for this design'"* now asserts the transcript sentence is on
+  **neither** page, because neither serves a reading view.
+* The three transcript-sentence replacements in `fillWatchVideo` were removed as dead code: no served page can
+  carry their output any more, and code that reads as live is how the next reader is misled.
+
+### 12. What does not work
+
+* **`npm run typecheck` exits 0 from the repository root**, `node --test packages/ozikoro/src/design-fill.test.ts`
+  is 89 pass, and the build was made by `bash scripts/serve-review.sh` and nothing else. **One transient
+  failure was observed and it was not this round's**: `apps/ozikoro/app/podcast/[slug]/transcript/route.ts`
+  (another agent's untracked file, mid-edit) failed with `TS2305: Module '"@ozikoro/platform"' has no exported
+  member 'fillTranscript'` for the couple of minutes before that agent added the export; the next run exited 0.
+  Named here because a typecheck that fails on someone else's half-written file is not a green tree.
+* **Four sets of dead fragment faults are declared in `scripts/check-page-variants.mjs` and NOT fixed here,
+  because none of them is a bare-vs-parameterised disagreement and all of them are inherited:**
+  * `/watch/`'s own nav writes `#short`, `#oral`, `#places`, `#conversations` and `#series`, and the page draws
+    only `#new` and `#series` — **the deliverable's own `watch.html` writes the same five controls over the same
+    two sections**, so they were never anywhere to land.
+  * The design's footer links `about.html#entrust`, `#privacy`, `#access`, `#partners`, `#licensing` and
+    `#contact` from fourteen screens, and **the deliverable's own `about.html` carries only `#main`, `#faq` and
+    `#terms`.**
+  * `/topics/` still links `#s` and `#t`. The nav is the design's and links twelve letters
+    (`a c e h i m o p r s t`); the design draws nine of them (`a c e f i o p r s`), so `#h`, `#m` and `#t` are
+    dead in the deliverable too. The served page draws the archive's own letters
+    (`a b c d e f h i l m n num o p r u v`), which resolves `#h` and `#m` and **loses `#s`, which the design did
+    draw — so that one is a fill's and is the next round's work.**
+  * Every article page writes `/<slug>/#listen` in its own section nav and carries no `id="listen"` — one
+    fragment fault per record, found on 25 records in a 40-page walk (27 dead fragments across 77 pages
+    outside the families in all).
+  Run with `--strict` and every one of them fails the run; they are printed on every run either way.
+* **Both film pages still carry the generic `<title>watch video — Ozikoro`.** `fillWatchVideo` writes a real
+  title and a real `<meta name="description">`, and **`withSeoHead` replaces the whole head after the fills
+  run, so those two replacements are dead code** — on the bare page and on all eighteen `?v=` pages alike. It
+  predates this round, it is not one of the owner's instructions, and it is not touched here.
+* **`/watch-video/#transcript`, the owner's own address, now lands at the top of the page.** The id it names is
+  deliberately gone; there is no transcript and the section that pretended otherwise is removed. The page is
+  the destination; the fragment is not, and no anchor on the page points at it.
+* **The bare page keeps the design's `Publisher: [Re:]Entanglements Project` and its project-page link**, with
+  the reason in §4. A reader who wants the archive's own rule about an unrecorded publisher sees it on the
+  `?v=` pages, which read `Publisher: not recorded`.
+* **The review server is shared and was rebuilt twice by other agents while this round was being verified**,
+  which is why the numbers in §1 and §2 carry the moment they were taken.
