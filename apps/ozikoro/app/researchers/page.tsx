@@ -32,9 +32,19 @@
  * published yet, and they join this page the moment they do.
  *
  * Nothing on this page is invented. Names, biographies, counts, institutions and interests are read
- * from the record; portraits are monogram initials, as `/about/` does, because no author has supplied
- * a photograph and no stock face may be used. The search box reads exactly the three things its label
- * promises — name, institution and research interest — which the note above it states.
+ * from the record; a portrait is shown only where the author uploaded one, and where none was uploaded the
+ * entry carries a monogram rather than a stock face.
+ *
+ * THE PARAGRAPH THAT USED TO END THAT SENTENCE SAID THE OPPOSITE, AND IT WAS WRONG. It read *"portraits are
+ * monogram initials, as `/about/` does, because no author has supplied a photograph"*. The WordPress usermeta
+ * table, which the archive holds in its own SQL dump, carries a `sabox-profile-image` for six of the eleven
+ * people below — the field the live site's author box reads — and every one of those files is in this
+ * archive's media store. The REST import read `avatar_urls` instead, which is Gravatar and answers one grey
+ * silhouette for everybody, so the real portraits were in the building and never on the page. **The claim was
+ * not a design decision; it was a missing query.** The research-directory backfill carries the portraits.
+ *
+ * The search box reads exactly the three things its label promises — name, institution and research
+ * interest — which the note above it states.
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -82,6 +92,7 @@ export default async function ResearchersPage({
 
   const matched = writers.length + profiles.length;
   const withoutBio = totals.writers - totals.writersWithBio;
+  const withoutPortrait = totals.writers - totals.writersWithPortrait;
   const unlinkedProfiles = Math.max(totals.profiles - totals.profilesOnWriters, 0);
 
   /*
@@ -100,12 +111,26 @@ export default async function ResearchersPage({
       ? 'No published record in this archive carries a byline yet.'
       : `${n(totals.writers)} ${totals.writers === 1 ? 'person' : 'people'} wrote ${bylinePhrase} in this archive.`;
 
-  // `/about/`'s wording for the same situation, so a reader comparing the two pages is told one thing.
+  /*
+   * THE TWO GAPS ARE TWO NUMBERS, BECAUSE THEY ARE TWO DIFFERENT SIZES.
+   *
+   * `/about/` used to carry this sentence as well, and it was wrong there in a way that turned out to be a
+   * fact about the record: it said **no author had uploaded a portrait**, when six of the eleven had, in the
+   * WordPress usermeta table the REST import never read. The counts stay here, on the directory, where a
+   * reader is asking exactly this question — but they say what the record holds rather than what the archive
+   * has "on file", and the portrait count is its own number because it is not the biography count.
+   */
   const bioSentence =
     totals.writers === 0
       ? ''
-      : `${totals.writersWithBio === 1 ? 'One has' : `${n(totals.writersWithBio)} have`} a biography on ` +
-        `file; the other ${withoutBio === 1 ? 'one is' : `${n(withoutBio)} are`} named by the work alone.`;
+      : `${totals.writersWithBio === 1 ? 'One has' : `${n(totals.writersWithBio)} have`} a biography; ` +
+        `the other ${withoutBio === 1 ? 'one is' : `${n(withoutBio)} are`} named by the work alone.`;
+
+  const portraitSentence =
+    totals.writers === 0 || totals.writersWithPortrait === totals.writers
+      ? ''
+      : `${totals.writersWithPortrait === 1 ? 'One has' : `${n(totals.writersWithPortrait)} have`} supplied a ` +
+        `portrait; the other ${withoutPortrait === 1 ? 'one appears' : `${n(withoutPortrait)} appear`} as a monogram.`;
 
   const profilePhrase =
     totals.profiles === 0
@@ -140,6 +165,7 @@ export default async function ResearchersPage({
       <p className="small muted" role="status">
         <strong>{writersSentence}</strong>{' '}
         {bioSentence ? `${bioSentence} ` : ''}
+        {portraitSentence ? `${portraitSentence} ` : ''}
         {profilePhrase}{' '}
         {unlinkedProfiles > 0 ? (
           <>
@@ -215,13 +241,18 @@ export default async function ResearchersPage({
             {writers.map((w) => (
               <article className="entry" key={`w-${w.slug}`}>
                 <div className="profile-head">
-                  <p
-                    className="avatar"
-                    role="img"
-                    aria-label={`Monogram for ${w.name}: no portrait has been supplied`}
-                  >
-                    {initials(w.name)}
-                  </p>
+                  {w.avatarUrl ? (
+                    /* The author's own portrait, from the archive's media store — never a Gravatar default. */
+                    <img className="avatar" src={w.avatarUrl} alt={`Portrait of ${w.name}`} loading="lazy" />
+                  ) : (
+                    <p
+                      className="avatar"
+                      role="img"
+                      aria-label={`Monogram for ${w.name}: no portrait has been supplied`}
+                    >
+                      {initials(w.name)}
+                    </p>
+                  )}
                   <div>
                     <h3><Link href={`/author/${w.slug}/`}>{w.name}</Link></h3>
                     <p className="small muted">
@@ -234,7 +265,7 @@ export default async function ResearchersPage({
                 <p className="small muted" style={{ marginTop: 'var(--s-3)' }}>
                   {w.bio?.trim()
                     ? `${w.bio.trim().slice(0, 240)}${w.bio.trim().length > 240 ? '…' : ''}`
-                    : 'No biography on file. Named here by the work alone.'}
+                    : 'No biography has been supplied. Named here by the work alone.'}
                 </p>
 
                 {/*

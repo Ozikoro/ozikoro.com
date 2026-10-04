@@ -99,3 +99,107 @@
 .sx-marquee:focus-within ul {
   animation-play-state: paused;
 }
+
+/*
+ * REFLOW — WCAG 2.2 SC 1.4.10. THE THIRD AND FOURTH MEASURED FAILURES, AND THEY ARE THE SAME DEFECT TWICE.
+ *
+ * The requirement is that content reflows to a 320 CSS-pixel viewport without two-dimensional scrolling. It
+ * is measured, not argued: `scripts/sweep-overflow.mjs` drives real Chrome over every reachable page at 390,
+ * 768 and 1440 px and reads `documentElement.scrollWidth` against `clientWidth`. Of 414 page-widths, **three
+ * scrolled sideways and all three were at 390 px:**
+ *
+ *   /documents/                                                  +86 px
+ *   /folklore-reader/                                           +150 px
+ *   /the-rise-decline-and-potential-revival-of-akwa-blacksmithing-a-centuries-old-igbo-craft/   +242 px
+ *
+ * At 768 and 1440 px nothing scrolled sideways. The cause in both cases is the same shape, and it is a shape
+ * the design had already guarded against in its WIDE rule and then dropped in its narrow one:
+ *
+ *   .sx-pdf-grid       base      grid-template-columns: repeat(3, minmax(0, 1fr))   <- guarded
+ *                      <=60rem   grid-template-columns: repeat(2, 1fr)               <- guard dropped
+ *                      <=40rem   grid-template-columns: 1fr                         <- guard dropped
+ *
+ *   .sx-reading-columns  base    grid-template-columns: 14rem minmax(0, 1fr)        <- guarded
+ *                        <=60rem grid-template-columns: 1fr                          <- guard dropped
+ *
+ * `1fr` is `minmax(auto, 1fr)`, and that `auto` minimum is the item's **min-content** width — so a track
+ * whose plain `1fr` was meant to mean "the column" silently becomes "whatever the widest unbreakable thing
+ * in this item measures". `minmax(0, 1fr)` is the design saying what it meant.
+ *
+ * WHAT WAS ACTUALLY IN THE COLUMNS, WHICH IS THE HALF THE DESIGN COULD NOT HAVE KNOWN
+ *
+ * These are migrated WordPress records, and their content is not the design's example content. Three
+ * different things were measured sitting in those tracks, and each needs its own answer:
+ *
+ *   /documents/       one record's title IS its filename — `capacity_building_for_traditional`, thirty-two
+ *                     characters with no space in them, set at 1.35rem in the card's `<h3>`. The outer
+ *                     track grew to 459 px inside a 358 px column; with the track corrected the title still
+ *                     overflowed its own 245 px cell by 82 px.
+ *   the article page  the body carries **raw URLs** as link text:
+ *                     `https://independent.ng/anambra-community-seeks-revival-of-aw…` measures 658 px at
+ *                     16.8 px. The track grew to 616 px inside a 358 px column.
+ *   /folklore-reader/ a WordPress `[caption]` figure, and this one is a FIXED WIDTH rather than a long
+ *                     token: the shortcode emits `<figure class="wp-caption alignnone" style="width:540px">`,
+ *                     an inline width copied from the uploaded image. `img { max-width: 100% }` is already
+ *                     in `main.css` and cannot help, because the image's containing block is the 540 px
+ *                     figure. **A fixed width wider than its parent is the one cause here that no
+ *                     `overflow-wrap` can touch**, and it is why the figure needs its own cap.
+ *
+ * **A URL is not a word and a filename used as a title is not a word either**, so breaking them is the
+ * correct answer rather than a concession — and the design already agrees: `.cite-block` in `main.css` sets
+ * `overflow-wrap: anywhere` for exactly this reason. `overflow-wrap: anywhere` rather than `break-word` is
+ * deliberate: it is the value that also shrinks the element's min-content contribution, which is what stops
+ * the track growing in the first place. It is applied to the containers migrated record text lands in rather
+ * than to one measured element, because **the next record with a filename for a title has not been imported
+ * yet**; on ordinary prose the declaration does nothing, since it only breaks a word that cannot fit a line
+ * by itself. `word-break: break-all` would break ordinary prose mid-word and is not used anywhere here.
+ *
+ * THE GRID TRACK IS ALSO CORRECTED, AND IT HAS TO BE, because `overflow-wrap` cannot help a REPLACED
+ * element or a fixed width, and only `minmax(0, 1fr)` tells the track it is allowed to be narrower than what
+ * it holds. With the track at the column width the figure's own `max-width: 100%` scales the image, which is
+ * what that declaration was always for.
+ *
+ * Nothing here changes a single design file, and none of these four screens is altered at 768 px or wider,
+ * where the design's own guarded wide rules apply and were measured clean.
+ */
+@media (max-width: 60rem) {
+  .sx-reading-columns,
+  .sx-folk-reader-book .sx-reading-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The design's own two-column step, with the guard it dropped. */
+@media (min-width: 40.0625rem) and (max-width: 60rem) {
+  .sx-year-grid,
+  .sx-pdf-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The design's own one-column step, with the guard it dropped. */
+@media (max-width: 40rem) {
+  .sx-year-grid,
+  .sx-pdf-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A migrated record's own words: a raw URL, or a title that is a filename. */
+.sx-reading-columns .prose,
+.sx-reading-columns .sx-page,
+.sx-reading-columns aside,
+.sx-pdf-grid article,
+.sx-publication-list article {
+  overflow-wrap: anywhere;
+}
+
+/* A WordPress caption figure carries the uploaded image's width inline; cap it rather than obey it. */
+.sx-reading-columns .prose figure,
+.sx-pdf-grid figure {
+  max-width: 100%;
+}
+
+.sx-reading-columns .prose figure img {
+  height: auto;
+}

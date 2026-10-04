@@ -727,11 +727,11 @@ export async function GET(
              (select count(*) from ozikoro_article where status='review')::int review,
              (select count(*) from ozikoro_media)::int media`
         );
-        const people = await db.rows<{ slug: string; name: string; records: number; bio: string | null }>(
-          `select c.slug, c.display_name as name, count(a.id)::int as records, c.bio
+        const people = await db.rows<{ slug: string; name: string; records: number; bio: string | null; avatarUrl: string | null }>(
+          `select c.slug, c.display_name as name, count(a.id)::int as records, c.bio, c.avatar_url as "avatarUrl"
              from ozikoro_contributor c
              left join ozikoro_article a on a.author_id = c.id and a.status = 'published' and a.is_page = false
-            group by c.id, c.slug, c.display_name, c.bio
+            group by c.id, c.slug, c.display_name, c.bio, c.avatar_url
             order by records desc, c.display_name`
         );
         const rights = await db.one<{ sources: number; licences: number }>(

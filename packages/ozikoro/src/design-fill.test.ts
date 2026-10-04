@@ -31,9 +31,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillDashboardLinks } from './design-fill.ts';
+import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillAbout, fillDashboardLinks } from './design-fill.ts';
 import { MARQUEE_PLACES, fillHome, fillMarquee } from './design-fill.ts';
 import { extractArchiveFilms, fillWatch, renderFilmCard } from './design-fill.ts';
+import { extendWatchScript, fillWatchVideo } from './design-fill.ts';
 import { COLLECTION_CAMERA_SIGN, renderCollection } from './design-fill.ts';
 import {
   AFRICAN_COUNTRIES,
@@ -1679,4 +1680,194 @@ test('the Photographs card carries a drawn camera and not a photograph', () => {
   assert.match(card, /stroke="currentColor"/, 'the sign must take the design\'s colour, not one of its own');
   assert.match(card, /width="1em" height="1em"/, 'the sign must size itself from the design\'s font-size');
   assert.ok(card.includes('href="/photographs"'), 'the card must still lead where it led');
+});
+
+test('the about page puts the fill\'s own paragraph inside the design\'s content column', () => {
+  /*
+   * THE OWNER'S LAYOUT FAULT, AS AN ASSERTION.
+   *
+   * *"the place written 'Of 1,051 published histories … largest open problem' does not even stay well on the
+   * website, rather it is even moving far left outside the website."*
+   *
+   * Measured in Chrome at 1440 px: the paragraph's box was `{x: 0, w: 475.9}` while the section beneath it
+   * began at `x: 136`, so it hung 136 px to the left of every other element on the page. At 390 px it ran
+   * from edge to edge with no padding. **`documentElement.scrollWidth` equalled the viewport at all three
+   * widths**, so a scrollWidth check called the page healthy: a block cannot be wider than its containing
+   * block, and the fault was that its containing block was the window rather than the column.
+   *
+   * The cause was placement, not CSS: the fill inserted the paragraph as the previous sibling of
+   * `<section class="sx-principles">`, which is a direct child of `<main>`, so the paragraph became one too.
+   * Every other block on the page is inside `.wrap`, which is what supplies the column. Nothing in
+   * `public/design/` is at fault and nothing there is changed.
+   *
+   * WHAT IS ASSERTED: the paragraph is inside a `.wrap`, and its containing element is therefore the same
+   * one the design's own sections use. `max-width:64ch` stays on the paragraph, so the measure is unchanged.
+   */
+  const html = readFileSync(join(SCREENS, 'about.html'), 'utf8');
+  const out = fillAbout(html, {
+    published: 1051, inReview: 0, media: 3488, towns: 188,
+    sources: 293, licences: 61, folklores: 41, photographs: 3462, documents: 12,
+    contributors: [],
+  });
+  assert.ok(
+    out.includes('<div class="wrap"><p class="small muted" style="max-width:64ch;margin-bottom:var(--s-5)">Of 1,051 published histories'),
+    'the principles paragraph must be inside a .wrap, which is the design\'s content column'
+  );
+  assert.ok(
+    !out.includes('</section><p class="small muted"'),
+    'no paragraph may be inserted as a bare sibling of a `<section>` directly under `<main>`'
+  );
+  /*
+   * AND THE EDITORIAL NOTE ABOUT WHY IT IS PRINTED GOES. *"That is printed here rather than left for a
+   * reader to find out later, because it is the archive's largest open problem."* — that is the archive
+   * explaining its own editorial choice to a reader. The figures themselves stay; the note about the act of
+   * printing them does not.
+   */
+  assert.ok(!out.includes('printed here rather than left for a reader'), 'the editorial aside is removed');
+});
+
+test('the people note does not claim the authors supplied no portrait, a card shows the one that exists, and a monogram tile carries no caption', () => {
+  /*
+   * THE OWNER'S QUESTION, AS AN ASSERTION. *"also, what is the relevant of this '… Portraits are monogram
+   * tiles because no author on ozikoro.com has uploaded one — no stock faces are used.'?"*
+   *
+   * The sentence was false. The WordPress usermeta table, which the archive holds in its own SQL dump at
+   * `data/ozikoro-wp/dbdump/sql/`, carries a `sabox-profile-image` for **six of the eleven** published
+   * contributors, and every one of those files is already in this archive's media store — the REST import
+   * read Gravatar's `avatar_urls` and never looked. It was also the wrong kind of sentence: it told a reader
+   * how the site was built rather than anything about the people.
+   *
+   * WHAT IS ASSERTED: the note claims no such thing, the reasoning behind a monogram is not printed at a
+   * reader, and `personCard` prefers a real portrait while still drawing a monogram when there is none.
+   * **A card must never render a Gravatar URL**, so a `d=mm` silhouette is asserted against by name: that is
+   * the stock face the archive's rule forbids.
+   *
+   * AND THE CAPTION OVER THE MONOGRAM IS ASSERTED ABSENT, ON THE OWNER'S READING OF HIS OWN PAGE. He read
+   * *"No portrait supplied"* over a monogram tile and asked for those four words to go: *"the profiles of
+   * authors with no images supplied shouldnt show this written words 'No portrait supplied' on it. remove
+   * only that written words."* **The assertion is written as a negative AND as a positive, because the two
+   * halves are one decision:** the words must not return, and the monogram must not go with them. A test
+   * that only asserted the caption absent would pass just as happily on a card with no tile at all, which is
+   * the fault the owner did *not* ask for. The tile's accessible name is asserted too: the monogram is
+   * `aria-hidden`, so the label is the only place the absence is stated for a reader who cannot see it, and
+   * *that* statement is deliberately kept.
+   */
+  const html = readFileSync(join(SCREENS, 'about.html'), 'utf8');
+  const out = fillAbout(html, {
+    published: 1051, inReview: 0, media: 3488, towns: 188,
+    sources: 293, licences: 61, folklores: 41, photographs: 3462, documents: 12,
+    contributors: [
+      { slug: 'nze', name: 'Idenze Ezeme', records: 791, bio: 'Igbo history and culture enthusiast.', avatarUrl: '/media/ozikoro/620-IMG_9354-1.jpeg' },
+      { slug: 'aka', name: 'Akachukwu Vitalis', records: 2, bio: null, avatarUrl: '/media/ozikoro/3560-akachukwu.jpg' },
+      { slug: 'camela', name: 'Camela Chimezirim', records: 0, bio: null, avatarUrl: null },
+      { slug: 'okenwa', name: 'Kenechukwu Umeghalu', records: 4, bio: null, avatarUrl: null },
+    ],
+  });
+  assert.ok(!out.includes('no author on ozikoro.com has uploaded one'), 'the false claim is gone');
+  assert.ok(!out.includes('no stock faces are used'), 'the archive\'s own drawing rules are not printed at a reader');
+  assert.ok(out.includes('Biographies and portraits are shown where the author supplied them.'),
+    'the note keeps the one honest reader-facing sentence, including why the list is in this order');
+  assert.ok(out.includes('<img src="/media/ozikoro/620-IMG_9354-1.jpeg" alt="Portrait of Idenze Ezeme"'),
+    'a contributor with an uploaded portrait is shown it');
+  assert.ok(out.includes('<img src="/media/ozikoro/3560-akachukwu.jpg" alt="Portrait of Akachukwu Vitalis"'),
+    'a portrait is shown even where there is no biography');
+  assert.match(out, /Monogram tile for Kenechukwu Umeghalu: no portrait has been supplied/,
+    'a contributor with no portrait keeps the accessible name on the tile, which is where the fact survives');
+  assert.ok(!out.includes('No portrait supplied'),
+    'the caption the owner removed is not printed over a monogram tile, and no sentence replaced it');
+  assert.match(out, /aria-hidden="true"[^>]*>KU<\/span>/,
+    'the monogram the owner chose to keep in place of a portrait still renders');
+  assert.ok(out.includes('No biography has been supplied. Named here by the work alone.'),
+    'a contributor with no biography says so in reader-facing words');
+  assert.ok(!/gravatar/i.test(out), 'no Gravatar default may be rendered as a person\'s portrait');
+});
+
+/* ------------------------------------------------------------------------------------------------
+ * ROUND 338 — ONE FILM'S PAGE, AND THE LINE THAT LINKS IT
+ * ---------------------------------------------------------------------------------------------- */
+
+test('watch.js is extended by one line, and a file without the anchor is left alone', () => {
+  /*
+   * WHY THE EXTENSION EXISTS AT ALL. The design's card plays a film in place, so the only place that knows
+   * which film a reader chose is `open(card)` inside `watch.js` — and `fillWatch` puts a film-page link in the
+   * inline player for it to point at. `public/design/watch.js` is inviolable, so the line is spliced at request
+   * time and served from `/design-screen-assets/watch.js`.
+   */
+  const base = readFileSync(
+    join(HERE, '..', '..', '..', 'design', 'calm-comfort-construct', 'public', 'design', 'watch.js'),
+    'utf8'
+  );
+  const once = extendWatchScript(base);
+  assert.notEqual(once, base, 'the film-page line was not spliced in, so the link would never follow the player');
+  assert.match(once, /inline-player-page/, 'the link this line exists for is not named');
+  assert.match(once, /\/watch-video\/\?v=/, 'the film page address the link is pointed at is not written');
+  /* It parses, rather than merely reading correctly: a script that does not parse takes the player with it. */
+  assert.doesNotThrow(() => new Function(once), 'the extended script does not parse');
+  // Idempotent, because the route reads the file on every request.
+  assert.equal(extendWatchScript(once), once, 'the extension is not idempotent');
+  assert.equal((once.match(/inline-player-page/g) ?? []).length, 1, 'the line was spliced in more than once');
+
+  /*
+   * AND A FILE THIS PASS DOES NOT RECOGNISE IS RETURNED UNCHANGED RATHER THAN HALF-EXTENDED. The extension is
+   * a convenience on top of a player that works; a throw from here would take the player away, which is the
+   * trade `extendMarketDaysScript` already records.
+   */
+  const stranger = 'var x = 1; // a script with no anchor\n';
+  assert.equal(extendWatchScript(stranger), stranger, 'a file this pass cannot read was altered');
+});
+
+test('one film’s page is filled from the record, and never with the design’s publisher', () => {
+  /*
+   * MEASURED BEFORE THIS: `/watch-video/` had one address and one film. `/watch/` draws 24 archive films, and a
+   * viewing page for any of them showed the design's `Faces | Voices` — its publisher, its YouTube id, its
+   * project-page link. **A card that names one film and opens a page about another is the wrong-destination
+   * fault at 200.**
+   */
+  const screen = readFileSync(
+    join(HERE, '..', '..', '..', 'design', 'calm-comfort-construct', 'public', 'design', 'screens', 'watch-video.html'),
+    'utf8'
+  );
+  const film = {
+    id: 'LL8YX0pXzdI',
+    title: 'ILA OSO',
+    titleFrom: 'film' as const,
+    topic: 'Cultural Heritage',
+    records: 2,
+    href: '/ila-oso-a-traditional-dance/',
+  };
+  const out = fillWatchVideo(screen, film);
+
+  assert.match(out, /youtube-nocookie\.com\/embed\/LL8YX0pXzdI/, 'the player still holds the design’s film');
+  assert.match(out, /<h1[^>]*>ILA OSO<\/h1>/, 'the heading names a different film from the one asked for');
+  assert.match(out, /youtube\.com\/watch\?v=LL8YX0pXzdI/, 'the outward link is not this film’s');
+  assert.match(out, /href="\/ila-oso-a-traditional-dance\/"/, 'the holding record is not named');
+
+  /*
+   * THE TWO SENTENCES THAT ARE TRUE OF THE DESIGN'S FILM AND FALSE OF AN ARCHIVE FILM. `Published by
+   * [Re:]Entanglements Project` and the project-page link are facts about one video, and the archive records
+   * neither for the films it embeds. **An unrecorded field is stated in this archive, never filled.**
+   */
+  assert.doesNotMatch(out, /\[Re:\]Entanglements/, 'the design’s publisher came with the design’s page');
+  assert.doesNotMatch(out, /re-entanglements\.net/, 'the design’s project-page link survived');
+  assert.doesNotMatch(out, /E3UBv8pmLxE/, 'the design’s film id survived on another film’s page');
+  assert.match(out, /Publisher: not recorded/, 'an unrecorded publisher was not stated');
+
+  // With no film the page is the design's own, which is what `/watch-video/` linked from the home screen is.
+  const own = fillWatchVideo(screen);
+  assert.match(own, /youtube-nocookie\.com\/embed\/E3UBv8pmLxE/, 'the page’s own film was replaced by nothing');
+  assert.match(own, /\[Re:\]Entanglements/, 'the publisher sentence is true of the design’s film and was removed');
+});
+
+test('the inline player carries the way to the film’s own page', () => {
+  /*
+   * A page nobody can reach is the same fault as a link that reaches nothing. `/watch/`'s cards are buttons by
+   * the design's own intent, so the link lives in the one place the reader has already named a film: the inline
+   * player's actions row, which `extendWatchScript` points at that film.
+   */
+  const screen = readFileSync(join(SCREENS, 'watch.html'), 'utf8');
+  /* An id the design's own cards do not already carry, or the fill returns early with nothing to add. */
+  const out = fillWatch(screen, extractArchiveFilms([
+    { slug: 'x', title: 'X', topic: null, body_html: '<iframe src="https://www.youtube.com/embed/LL8YX0pXzdI"></iframe>' },
+  ]));
+  assert.match(out, /id="inline-player-page" href="\/watch-video\/"/, 'the player has no way to a film’s page');
 });

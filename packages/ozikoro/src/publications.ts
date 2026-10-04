@@ -1206,6 +1206,14 @@ export interface DirectoryWriter {
   records: number;
   /** The account behind the byline, once a claim has been approved. Null while it has not. */
   accountId: number | null;
+  /**
+   * A portrait the contributor uploaded, or null.
+   *
+   * **Read from the contributor row rather than from Gravatar**, and null means the author supplied none —
+   * the directory draws a monogram then. It never carries a `d=mm` silhouette, because a stock face standing
+   * in for a person is what this archive's rule forbids.
+   */
+  avatarUrl: string | null;
   /** True when `accountId` also has a public research profile, shown on this entry. */
   hasProfile: boolean;
   headline: string | null;
@@ -1237,6 +1245,12 @@ export interface ResearchDirectoryTotals {
    */
   recordsByWriters: number;
   writersWithBio: number;
+  /**
+   * Writers with at least one published record **and a portrait they uploaded**. Kept apart from
+   * `writersWithBio` because the two gaps are different sizes: seven of the eleven have a biography and six
+   * have a portrait, so one number cannot stand for both.
+   */
+  writersWithPortrait: number;
   /** Public, active research profiles. */
   profiles: number;
   /** Profiles the record links to a writer — the ones shown on a writer's entry. */
@@ -1288,7 +1302,7 @@ export async function listResearchDirectory(
 
   const [writerRows, profileRows, totalRow] = await Promise.all([
     db.rows<Record<string, unknown>>(
-      `select c.slug, c.display_name as name, c.bio, c.account_id,
+      `select c.slug, c.display_name as name, c.bio, c.avatar_url, c.account_id,
               count(a.id)::int as records,
               (m.account_id is not null) as has_profile,
               m.headline, m.institution, m.department,
@@ -1299,7 +1313,7 @@ export async function listResearchDirectory(
          left join ozikoro_member m
                 on m.account_id = c.account_id and m.is_public = true and m.status = 'active'
         where true ${writerSearch}
-        group by c.id, c.slug, c.display_name, c.bio, c.account_id,
+        group by c.id, c.slug, c.display_name, c.bio, c.avatar_url, c.account_id,
                  m.account_id, m.headline, m.institution, m.department, m.research_interests
        having count(a.id) > 0
         order by records desc, c.display_name
@@ -1337,6 +1351,10 @@ export async function listResearchDirectory(
            where c.bio is not null and length(trim(c.bio)) > 0
              and exists (select 1 from ozikoro_article a
                           where a.author_id = c.id and a.status = 'published' and a.is_page = false)) as writers_with_bio,
+         (select count(*)::int from ozikoro_contributor c
+           where c.avatar_url is not null and length(trim(c.avatar_url)) > 0
+             and exists (select 1 from ozikoro_article a
+                          where a.author_id = c.id and a.status = 'published' and a.is_page = false)) as writers_with_portrait,
          (select count(*)::int from ozikoro_member m
            where m.is_public = true and m.status = 'active') as profiles,
          (select count(*)::int from ozikoro_member m
@@ -1355,6 +1373,7 @@ export async function listResearchDirectory(
       slug: String(r.slug),
       name: String(r.name),
       bio: r.bio ? String(r.bio) : null,
+      avatarUrl: r.avatar_url ? String(r.avatar_url) : null,
       records: Number(r.records ?? 0),
       accountId: r.account_id === null || r.account_id === undefined ? null : Number(r.account_id),
       hasProfile: Boolean(r.has_profile),
@@ -1376,6 +1395,7 @@ export async function listResearchDirectory(
       records: Number(totalRow?.records ?? 0),
       recordsByWriters: Number(totalRow?.records_by_writers ?? 0),
       writersWithBio: Number(totalRow?.writers_with_bio ?? 0),
+      writersWithPortrait: Number(totalRow?.writers_with_portrait ?? 0),
       profiles: Number(totalRow?.profiles ?? 0),
       profilesOnWriters: Number(totalRow?.profiles_on_writers ?? 0),
     },

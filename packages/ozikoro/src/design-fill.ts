@@ -2809,7 +2809,11 @@ export type AboutData = {
   /** Media records of kind `document`. */
   documents: number;
 
-  contributors: { slug: string; name: string; records: number; bio: string | null }[];
+  /**
+   * `avatarUrl` is a portrait **the author uploaded**, or null. It is never a Gravatar default: the
+   * archive clears `d=mm` silhouettes rather than rendering a stock face for a person.
+   */
+  contributors: { slug: string; name: string; records: number; bio: string | null; avatarUrl: string | null }[];
 };
 
 /** `IE` from `Idenze Ezeme`. Two letters, or one if the name has one word. */
@@ -2826,27 +2830,49 @@ function n(value: number): string {
 }
 
 /**
- * A filled `.sx-people` card: a real contributor, a monogram rather than a face.
+ * A filled `.sx-people` card: a real contributor, with their own portrait where the archive holds one.
  *
- * **Not one WordPress author has ever uploaded a profile photograph** (the migration holds the uploads table,
- * and it is empty of avatars), and Gravatar answers the same grey silhouette for every one of them — so that
- * many identical grey figures would be worse than that many initials. The design's own note anticipated exactly this:
- * *"Monogram tiles hold each place until approved portraits are supplied — no stock faces are used."*
+ * **THE COMMENT THAT USED TO STAND HERE WAS WRONG, AND IT WAS WRONG IN THE WAY THAT MATTERS: it asserted a
+ * fact about the record that the record did not support.** It said *"Not one WordPress author has ever
+ * uploaded a profile photograph (the migration holds the uploads table, and it is empty of avatars)"*. The
+ * archive's own SQL dump holds the WordPress usermeta table, and in it **six of the ten people below carry a
+ * `sabox-profile-image`** — the field the live site's author box reads. Every one of those six files was
+ * already in this archive's media store. The loss was the same one the EXIF credits suffered: the REST
+ * import read `avatar_urls` (Gravatar, which answers `d=mm` — one grey silhouette for everybody) and never
+ * looked at the usermeta table, so the real portraits were in the building and not on the page.
  *
- * The record count is counted from the archive, the link is the contributor's own byline page, and the design's
- * borrowed portrait image is dropped rather than tinting every card with the same photograph.
+ * So a card shows `avatarUrl` when there is one, and a monogram when there is not. **`avatarUrl` is only
+ * ever a portrait uploaded by the author**, because the backfill clears the Gravatar defaults rather than
+ * keeping them: a silhouette is a stock face, and substituting one for a person is the thing this archive's
+ * rule forbids. The monogram is not decoration standing in for a portrait — for the contributors who have
+ * supplied none, it is the honest state.
+ *
+ * **THE CARD NO LONGER SPELLS THAT STATE OUT, AND THAT IS THE OWNER'S DECISION RATHER THAN AN OMISSION.** A
+ * caption reading *"No portrait supplied"* used to sit over the monogram, and the owner read it on the page
+ * and asked for the four words to go and for nothing else about the card to change: *"the profiles of authors
+ * with no images supplied shouldnt show this written words 'No portrait supplied' on it. remove only that
+ * written words."* The monogram beside the author's name states the same thing adequately for a reader, so
+ * the caption is not replaced by a sentence — **an absence that has been read and accepted is not an absence
+ * that has been guessed at.** The tile keeps the design's own `role="img"` and its accessible name
+ * (`Monogram tile for <name>: no portrait has been supplied`), which is where the same fact still has to be
+ * stated: the monogram itself is `aria-hidden`, so a screen reader has no other way to learn it.
+ *
+ * The record count is counted from the archive, and the link is the contributor's own byline page.
  */
 function personCard(c: AboutData['contributors'][number]): string {
   const bio = c.bio?.trim();
+  const portrait = c.avatarUrl?.trim();
+  const tile = portrait
+    ? `<img src="${esc(portrait)}" alt="Portrait of ${esc(c.name)}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`
+    : `<span aria-hidden="true" style="position:absolute;inset:0;display:grid;place-items:center;font-family:'Noto Serif',serif;font-size:3rem;color:#d8b25a;font-weight:700">${esc(monogram(c.name))}</span>`;
   return `<article class="sx-person">
-  <div style="position:relative;aspect-ratio:1;overflow:hidden;background:#14261d;border:1px solid var(--rule)" role="img" aria-label="Monogram tile for ${esc(c.name)}: no portrait has been supplied">
-    <span aria-hidden="true" style="position:absolute;inset:0;display:grid;place-items:center;font-family:'Noto Serif',serif;font-size:3rem;color:#d8b25a;font-weight:700">${esc(monogram(c.name))}</span>
-    <small style="position:absolute;bottom:.5rem;left:.6rem;color:#f6efe0;font-size:.7rem">No portrait supplied</small>
+  <div style="position:relative;aspect-ratio:1;overflow:hidden;background:#14261d;border:1px solid var(--rule)"${portrait ? '' : ` role="img" aria-label="Monogram tile for ${esc(c.name)}: no portrait has been supplied"`}>
+    ${tile}
   </div>
   <div class="sx-person-copy">
     <p class="eyebrow">${c.records === 1 ? '1 published history' : `${n(c.records)} published histories`}</p>
     <h3><a href="/author/${esc(c.slug)}/">${esc(c.name)}</a></h3>
-    <p class="small muted" style="margin-top:var(--s-2)">${bio ? esc(decodeEntities(bio.slice(0, 240))) : 'No biography on file. Named here by the work alone.'}</p>
+    <p class="small muted" style="margin-top:var(--s-2)">${bio ? esc(decodeEntities(bio.slice(0, 240))) : 'No biography has been supplied. Named here by the work alone.'}</p>
   </div>
 </article>`;
 }
@@ -2862,7 +2888,9 @@ function personCard(c: AboutData['contributors'][number]): string {
  *
  *   the counts come from the database, so "1,051 histories" is a count rather than a claim about one
  *   the people are every contributor, in the order of how much of the archive they wrote
- *   the portraits are MONOGRAM TILES, because no author on ozikoro.com has uploaded a photograph
+ *   a portrait is the author's own uploaded photograph where the archive holds one, and **a monogram
+ *     where it does not** — six of the eleven have one, and the card that had none says so rather than
+ *     borrowing a face
  *   what is published is listed with the number beside each kind, so the page cannot overstate its own shelf
  *   the principles keep their wording and gain the numbers that sit behind them — including **0 recorded
  *     licences** — rather than a second, invented set of facts
@@ -2884,20 +2912,33 @@ export function fillAbout(html: string, d: AboutData): string {
   if (people) out = replaceContainer(out, '<div class="sx-people"', people);
 
   /*
-   * 2. THE NOTE ABOVE THEM, WHICH SAID SOMETHING THAT IS NOT TRUE OF THIS RUN.
+   * 2. THE NOTE ABOVE THEM, REWRITTEN FOR A READER RATHER THAN FOR THE BUILD.
    *
-   * The design's reads *"Biographies below are as published on ozikoro.com. Monogram tiles hold each place
-   * until approved portraits are supplied — no stock faces are used."* **The second sentence is right and the
-   * first is not phrased as a count**: the archive holds a biography for some of these people and none for the
-   * rest, so the note states both numbers and names no one as a "founder" or an "author" who has not been
-   * recorded as one.
+   * (Two earlier versions of this comment and this sentence stood here. The first said the note was being
+   * changed to state two counts; the second stated them. Both were superseded by the paragraph below and the
+   * paragraph it replaced was **false**, so the stale note is removed rather than left to mislead the next
+   * reader of this file.)
+   *
+   * The design's own note reads *"Biographies below are as published on ozikoro.com. Monogram tiles hold
+   * each place until approved portraits are supplied — no stock faces are used."*
+   *
+   * What replaced it counted biographies and then said **"Portraits are monogram tiles because no author
+   * on ozikoro.com has uploaded one — no stock faces are used."** That is **false**: the WordPress
+   * usermeta table holds a `sabox-profile-image` for six of the ten people below, every one of those files
+   * is already in this archive's media store, and the cards now show them. The sentence was also the wrong
+   * KIND of sentence — it told a reader how the site was built ("monogram tiles", "no stock faces") instead
+   * of telling them anything about the people.
+   *
+   * The first half was doing real work: it says why the list is in this order, which a reader cannot
+   * otherwise know. That stays. The counts of who has a biography go, because every card already says so in
+   * its own words, and a number in a preamble that a card contradicts is worse than no number. What remains
+   * is the one honest statement a reader does need — that each entry carries what its author supplied —
+   * in the shortest form that is still true.
    */
-  const withBio = named.filter((c) => c.bio?.trim()).length;
   out = out.replace(
     /<p class="sx-notice"[^>]*>[\s\S]*?<\/p>/,
     `<p class="sx-notice" style="margin-bottom:var(--s-5)">The people who wrote what is here, in the order of how much of it they wrote. ` +
-      `${withBio === 1 ? 'One has' : `${withBio} have`} a biography on file; the other ${named.length - withBio === 1 ? 'one is' : `${named.length - withBio} are`} named by the work alone. ` +
-      `Portraits are monogram tiles because <strong>no author on ozikoro.com has uploaded one</strong> — no stock faces are used.</p>`
+      `Biographies and portraits are shown where the author supplied them.</p>`
   );
 
   /*
@@ -2928,7 +2969,7 @@ export function fillAbout(html: string, d: AboutData): string {
               <li><strong>Towns</strong> — ${n(d.towns)} towns, clans and communities in the register.</li>
               <li><strong>Photographs</strong> — ${n(d.photographs)} published photographic records, out of ${n(d.media)} media items held.</li>
               <li><strong>Documents</strong> — ${n(d.documents)} document records held as files.</li>
-              <li><strong>Publications</strong> — 0 records. The research repository is built and holds nothing yet.</li>
+              <li><strong>Publications</strong> — 0 records. The research repository holds none yet.</li>
               <li><strong>Watch and Listen</strong> — films embedded in published records; no audio recording is held.</li>
               <li><strong>Igbo calendar and cultural calendar</strong> — the market week, and a calendar holding 0 verified events.</li>
             $2`
@@ -2947,12 +2988,28 @@ export function fillAbout(html: string, d: AboutData): string {
     [n(d.towns), 'towns and clans'],
     [n(d.media), 'images, films and documents'],
   ];
-  const figureRow = `<div class="sx-metrics" style="margin:var(--s-6) 0">${figures
+  /*
+   * THE FIGURES GO INSIDE A `.wrap` TOO, FOR THE SAME REASON AS THE PARAGRAPH BELOW — and this one is the
+   * same fault found a second time by measurement rather than by reading.
+   *
+   * `.sx-metrics` does not appear anywhere in the design's `about.html`; the fill introduces it. The design's
+   * own rule for it is `display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4)` with **no outer
+   * padding**, and every screen the design itself puts it on is an already-padded pane. Inserted bare as a
+   * child of `<main>` it therefore became a full-bleed band: measured at 1440 px, `.sx-metrics` was
+   * `{x:0, w:1440}` and its first figure's text began at 24 px, while the masthead wordmark, the image below
+   * it and every other text block on the page begin at 136 px. **On a phone the numbers sat 8 px closer to the
+   * edge than the rest of the page** (24 px inside a card against the design's 16 px column inset).
+   *
+   * The probe found it, not a reading of the CSS: `scripts/probe-overflow.mjs --url …/about/ --width 1440`
+   * reports it as outside the content column, which is why the sweep is worth running over every screen and
+   * not only the one the owner named.
+   */
+  const figureRow = `<div class="wrap"><div class="sx-metrics" style="margin:var(--s-6) 0">${figures
     .map(
       ([value, label]) =>
         `<article class="sx-metric"><b>${esc(value)}</b><span class="small muted">${esc(label)}</span></article>`
     )
-    .join('')}</div>`;
+    .join('')}</div></div>`;
   out = out.replace(/(<section class="wrap sx-mission">[\s\S]*?<\/section>)/, `$1${figureRow}`);
 
   /*
@@ -2963,12 +3020,30 @@ export function fillAbout(html: string, d: AboutData): string {
    * and 0 media items carry a recorded licence. That number belongs on this page rather than in a reader's
    * later disappointment.
    */
+  /*
+   * THE PARAGRAPH GOES INSIDE A `.wrap`, AND THAT IS THE WHOLE FIX FOR THE LAYOUT FAULT.
+   *
+   * It used to be inserted bare, as the previous sibling of `<section class="sx-principles">` — and that
+   * section is a direct child of `<main>`, so the paragraph became one too. **Every other thing on this
+   * page is inside the design's `.wrap` column; this paragraph was not**, and `.wrap` is what supplies the
+   * column: `width:100%; max-width:var(--container); margin-inline:auto; padding-inline:var(--s-5)`.
+   *
+   * So the owning reader saw it at x=0 on a 1440 px screen while the section below it began at x=136 — the
+   * text hanging 136 px to the LEFT of the whole site — and on a 390 px phone it ran edge to edge with no
+   * padding at all. Measured: the paragraph's box was `{x:0, w:475.9}` inside a 1440 px viewport whose
+   * content column starts at 136. **It never produced a scrollbar**, because a block cannot be wider than
+   * its containing block: the fault is that its containing block was the window rather than the column,
+   * which is why a `scrollWidth` check reports this page as healthy and a reader does not.
+   *
+   * The design file is not the thing at fault and is not touched. The fill put its own content outside the
+   * container the design gives every other block, so the fill puts it back inside one here. `max-width:64ch`
+   * stays on the paragraph itself, so the measure is unchanged; `.wrap` only decides where the column is.
+   */
   out = out.replace(
     /(<section class="sx-principles">)/,
-    `<p class="small muted" style="max-width:64ch;margin-bottom:var(--s-5)">Of ${n(d.published)} published histories, ` +
+    `<div class="wrap"><p class="small muted" style="max-width:64ch;margin-bottom:var(--s-5)">Of ${n(d.published)} published histories, ` +
       `${n(d.sources)} state their sources in the record. The archive holds <strong>${n(d.licences)} recorded licences</strong> ` +
-      `for ${n(d.media)} media items: every one is held with its rights basis recorded as unknown and consent as not sought. ` +
-      `That is printed here rather than left for a reader to find out later, because it is the archive's largest open problem.</p>$1`
+      `for ${n(d.media)} media items: every one is held with its rights basis recorded as unknown and consent as not sought.</p></div>$1`
   );
 
   /*
@@ -3344,7 +3419,7 @@ export function fillApproach(html: string, kind: 'sponsors' | 'investors', d: Ap
  */
 export function fillCareers(html: string, counts: { roles: number }): string {
   let out = clearExampleMaterial(html);
-  const empty = `<div><p class="eyebrow">Open roles</p><h2>No role is open at present.</h2><p>Ozi Ikoro Limited has recorded no vacancy. When one opens, the listing will show the responsibilities, whether the work is remote, the working arrangement, the salary range where one is approved, and the closing date.</p><p class="small muted" style="margin-top:var(--s-3)">This is the archive's actual state rather than a placeholder waiting to be replaced: its register of roles holds ${n(counts.roles)} ${counts.roles === 1 ? 'entry' : 'entries'}.</p></div>`;
+  const empty = `<div><p class="eyebrow">Open roles</p><h2>No role is open at present.</h2><p>Ozi Ikoro Limited has recorded no vacancy. When one opens, the listing will show the responsibilities, whether the work is remote, the working arrangement, the salary range where one is approved, and the closing date.</p><p class="small muted" style="margin-top:var(--s-3)">The register holds ${n(counts.roles)} ${counts.roles === 1 ? 'entry' : 'entries'}: that is the whole of what the archive can state about vacancies.</p></div>`;
   out = fillContainer(out, /<section class="sx-jobs"[^>]*>/, empty);
   return out;
 }
@@ -3659,7 +3734,7 @@ export function fillPublications(html: string, counts: { records: number }): str
   out = fillContainer(
     out,
     /<div class="sx-publications-list"[^>]*>/,
-    `<div class="sx-notice">No publication has been deposited yet, so none is listed. <strong>The repository is built and empty</strong>: its schema holds a title, an abstract, authors with affiliations, an institution, a kind, a licence, a peer-review flag and the files themselves, and no record has been written into it.</div>
+    `<div class="sx-notice">No publication has been deposited yet, so none is listed. <strong>The repository is empty.</strong> Nothing is shown here until a work is deposited.</div>
         <p class="small muted" style="margin-top:var(--s-5);max-width:70ch">A work listed here will name its authors and their institution, say whether it completed peer review, name the licence it is published under, and give a permanent address to cite. Where the full text is access-controlled, the record stays findable and citable and the text does not.</p>
         <p class="small muted" style="margin-top:var(--s-4);max-width:70ch">What the archive does hold is the record side of the same subject: ${n(counts.records)} published histories. Researchers may <a href="upload.html">deposit a paper</a>; it is reviewed before it appears here.</p>`
   );
@@ -3703,7 +3778,7 @@ export function fillPublicationRecord(html: string): string {
     0,
     `<p class="eyebrow">Publication record</p>
         <h1 style="margin-top:var(--s-3);font-size:var(--t-2xl);max-width:26ch">No publication has been deposited</h1>
-        <p class="lede" style="margin-top:var(--s-5)">The research repository is built and holds nothing yet, so there is no paper to read here. The design drew an example one — an invented title, two invented authors and their universities, a 2026 date and a page count — and <strong>none of it is carried over, because none of it is a record.</strong></p>
+        <p class="lede" style="margin-top:var(--s-5)">The research repository holds nothing yet, so there is no paper to read here. <strong>A record appears when a work is deposited, and nothing is shown before then.</strong></p>
         <p class="small muted" style="margin-top:var(--s-5);max-width:70ch">A publication record will carry its authors and their institutions, its abstract, its kind and year, its review state, its licence or access terms, its files where the depositor allows them, and a citation in the format the <a href="cite.html">citation guide</a> gives. Nothing about a real deposit is guessed at on this page.</p>
         <p class="small muted" style="margin-top:var(--s-4)"><a href="publications.html">&larr; All publications</a> · <a href="upload.html">Deposit a paper</a></p>`
   );
