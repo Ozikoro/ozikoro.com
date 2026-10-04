@@ -15888,3 +15888,23 @@ this round that touched the database — was opened only while nothing held it. 
 intact: **52 files** in both `apps/ozikoro/public/design/screens/` and
 `apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/`. No build was run, so no `next dev` was
 disturbed.
+
+**THIS ROUND'S COMMIT WAS BLOCKED FOR A WHILE BY SOMEONE ELSE'S UNCOMMITTED WORK, which is recorded because it
+will block theirs too — and because it was waited out rather than worked around.** `npm run typecheck` from the
+repository root **failed, 102 errors**, every one in `packages/ozikoro/src/pdf/publication.ts`. That file is
+unmodified; the cause was an in-flight refactor of `packages/ozikoro/src/pdf/writer.ts` (**527 insertions, 129
+deletions**, uncommitted at the time) which had removed eight symbols `publication.ts` still requires —
+`marginTop`, `marginBottom`, `headerY`, `ruleY`, `footerY`, `emeraldDeep`, `goldBright`, `ochre`, `paper`. All
+eight **were present at `HEAD`** and absent from the working copy (`git show HEAD:…/writer.ts | grep -c` against
+the working file, symbol by symbol), so it was a mid-refactor tree and not a broken `HEAD`, and the pre-commit
+hook refused every commit in this checkout for as long as it lasted. **`--no-verify` was not used**, and the PDF
+refactor was not touched: it was another agent's work in progress, and reverting or patching it would have
+destroyed it. The refactor typechecked a few minutes later, and this entry then committed with the hook passing
+both checks — which is the whole argument for waiting rather than reaching for the flag.
+
+**A caution for whoever reads the last line of a check next.** This round first recorded typecheck as passing
+because the command was run as `npm run typecheck 2>&1 | tail -25` and the `0` that came back was **`tail`'s**
+exit code, not `npm`'s. `/tmp/tc.log` and a bare `echo $?` say 1. That is precisely the fault the pre-commit
+hook's own header was written about in round 186 — "never read a checker's exit code after a pipe" — and it
+was reproduced here inside a round whose whole subject is numbers that describe the thing rather than the
+thing itself.
