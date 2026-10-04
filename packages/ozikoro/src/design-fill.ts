@@ -155,21 +155,137 @@ export function fillArchiveIndex(html: string, opts: {
   return out;
 }
 
-/** A real film: the YouTube id embedded in a published article, and that article as its source. */
-export type RealFilm = { id: string; title: string; source: string; href: string };
+/**
+ * A real film: one YouTube id the archive's own published articles embed, with the facts its card can carry.
+ *
+ * WHAT EACH FIELD IS, AND WHERE IT COMES FROM — because a card is a claim with a record behind it, and every
+ * value here is read from a record rather than fetched from YouTube:
+ *
+ *   * `id` — the 11-character id, exactly as it stands in the article body.
+ *   * `title` — the film's title as the archive recorded it, or, where the archive recorded none, the title
+ *     of the record that holds it.
+ *   * `titleFrom` — which of those two `title` is.
+ *   * `topic` — the holding record's topic, or `null` where the record has none.
+ *   * `records` — how many published articles embed the film. One card per film, not per embedding.
+ *   * `href` — the archive record the film is held in, which is the most recently published one.
+ */
+export type RealFilm = {
+  id: string;
+  title: string;
+  titleFrom: 'film' | 'record';
+  topic: string | null;
+  records: number;
+  href: string;
+};
 
 /**
  * One video card, in the design's own markup — `button.sx-video-card` with its data attributes, its poster
- * frame from `i.ytimg.com`, and its title and source.
+ * frame from `i.ytimg.com`, and its three text slots filled.
  *
  * **The design's card is a button rather than a link because it plays in place**, and that behaviour is the
- * design's. This reproduces the element exactly and changes only the id, the title and the source.
+ * design's. This reproduces the element exactly.
+ *
+ * THE THREE SLOTS, AND WHY THESE ARE THE HONEST VALUES FOR AN ARCHIVE FILM
+ *
+ * The design's card names a **category** in the small-caps line (it writes "Archive film", "Story film",
+ * "Conversation"), a **title** in the `<h3>`, and a **publisher** in the `<p>`. The archive's record carries a
+ * different set of facts, so each slot is filled with the fact it can carry:
+ *
+ *   * small-caps line — **the topic** the holding record is filed under (`Cultural Heritage`, `Biography`,
+ *     `Ethnohistory`, …), or `Ozikoro archive film` where the record has no topic. A topic is what the
+ *     design's line is for, and it is recorded rather than inferred.
+ *   * `<h3>` — **the film's title**, which for most of these is the title the archive's own `<iframe>` carries
+ *     in its `title` attribute ("Eddie Quansa", "Seun Rere (Live)", "Cabildo Carabali Isuama in Santiago,
+ *     Cuba"). Where the archive recorded no title of its own — the embed is titled "YouTube video player", or
+ *     has no title at all — the holding record's title is used, which is the only title the record carries.
+ *     `titleFrom` records which of the two it was, so the distinction is never lost.
+ *   * `<p>` — **the publisher is not recorded.** The archive's rule is that an unrecorded field is stated
+ *     rather than filled, so the slot says so and then names what the archive does hold: how many records
+ *     carry the film. Nothing here is fetched from YouTube.
  */
 export function renderFilmCard(f: RealFilm): string {
   const id = esc(f.id);
   const title = esc(f.title);
-  const meta = esc(f.source);
-  return `<button type="button" class="sx-video-card" data-video-id="${id}" data-video-title="${title}" data-video-meta="${meta}" aria-pressed="false"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="Thumbnail for ${title}"><span class="sx-video-play" aria-hidden="true">▶</span></span><span class="sx-video-meta">${meta} · Plays on this page</span><h3>${title}</h3><p>${meta}</p></button>`;
+  const category = f.topic ? esc(f.topic) : 'Ozikoro archive film';
+  const held = f.records > 1 ? ` · held in ${f.records} records` : '';
+  const meta = `${category}${held} · Plays on this page`;
+  const provenance = f.records > 1
+    ? `Held in ${f.records} Ozikoro archive records · publisher not recorded`
+    : 'Held in the Ozikoro archive · publisher not recorded';
+  return `<button type="button" class="sx-video-card" data-video-id="${id}" data-video-title="${title}" data-video-meta="${meta}" aria-pressed="false"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="Thumbnail for ${title}"><span class="sx-video-play" aria-hidden="true">▶</span></span><span class="sx-video-meta">${category} · Plays on this page</span><h3>${title}</h3><p>${provenance}</p></button>`;
+}
+
+/**
+ * The label WordPress's block editor writes when it has resolved an embed but has no title for it. A card
+ * titled "YouTube video player" would be a card claiming a film is called that, so it is refused and the
+ * holding record's title is used instead.
+ */
+const GENERIC_EMBED_TITLES = new Set(['youtube video player', 'video player', 'youtube']);
+
+/**
+ * Every film the archive's published articles embed, one entry per film.
+ *
+ * WHY THIS PARSES THE ARTICLE BODY AND NOT ONLY SQL — and what the SQL missed
+ *
+ * The archive's embeds are WordPress frames **with no `src`**: the address sits in `data-trx-lazyload-src` and
+ * the film's own title sits in the `title` attribute beside it. A SQL `substring(a.body_html from
+ * 'youtube…/embed/…')` does find the film — but **only the first one in each article**, because `substring`
+ * without the `g` flag stops at its first match. Measured on the 19 published articles that embed one:
+ * **25 embed frames carry 24 distinct ids**, and the first-match-only query produced **18**. Six films were
+ * lost, silently, one per article that embeds more than one — `the-egedege-dance-a-traditional-dance-from-
+ * unubi` alone embeds three, and `peacocks-international-guitar-band-…`, `nkwa-umuuagbogho-…`,
+ * `the-ikpirikpi-ogu-war-dance-…` and `atilogwu-dance-…` each embed two.
+ *
+ * So the extraction is done here, over each record's own `body_html`, which is also the only way to reach the
+ * embed's `title` attribute — the film's title as the archive holds it. Every value comes from a record.
+ *
+ * ORDER AND DE-DUPLICATION. `records` arrives newest-published first, so a film's first appearance is its most
+ * recently published holding record and that is the one the card names. **One card per film**: the id
+ * `jOMjbchyNXg` is embedded by two articles (`mmili-nkisi-day-…` and `nkisi-river-…`) and is one card that
+ * says so, not two cards repeating it. `records` counts **articles**, so an article that embedded the same
+ * film twice would still count once.
+ *
+ * A CITED LINK IS NOT A FILM, and the boundary is drawn deliberately. Six further addresses sit in these
+ * bodies as prose — four reading "For a visual glimpse into the festival, you may watch the following video:
+ * <address>", and three in a reference list ("Marre, J. (1985). Beats of the Heart: Konkombe. [Film].
+ * Retrieved from <address>"). They are **not** extracted, for three reasons that are measurements rather than
+ * preferences: the article page does not render a film at that point, so the archive holds an address and not
+ * a film; one of the six, `7f81_erOkxM`, is **dead** — the thumbnail and the oEmbed both answer 404, so a card
+ * for it would promise a film that does not exist; and a seventh, `kmux4aLXc1`, is **ten characters long**,
+ * which is not a YouTube id at all, so the class contains malformed addresses as well as deleted ones. An
+ * embedded film is on the page; a cited link is a reference.
+ */
+export function extractArchiveFilms(
+  records: readonly { slug: string; title: string; topic: string | null; body_html: string | null }[]
+): RealFilm[] {
+  const byId = new Map<string, RealFilm>();
+  const embed = /youtube(?:-nocookie)?\.com\/embed\/([A-Za-z0-9_-]{11})/i;
+  const titleAttribute = /\btitle\s*=\s*"([^"]*)"/i;
+  for (const record of records) {
+    const seenInThisRecord = new Set<string>();
+    for (const tag of (record.body_html ?? '').match(/<iframe\b[^>]*>/gi) ?? []) {
+      const id = embed.exec(tag)?.[1];
+      if (!id || seenInThisRecord.has(id)) continue;
+      seenInThisRecord.add(id);
+      const already = byId.get(id);
+      if (already) {
+        already.records += 1;
+        continue;
+      }
+      const attribute = titleAttribute.exec(tag)?.[1];
+      const recorded = attribute === undefined ? null : decodeEntities(attribute).trim();
+      const ownTitle = recorded && !GENERIC_EMBED_TITLES.has(recorded.toLowerCase()) ? recorded : null;
+      byId.set(id, {
+        id,
+        title: ownTitle ?? decodeEntities(record.title),
+        titleFrom: ownTitle ? 'film' : 'record',
+        topic: record.topic,
+        records: 1,
+        href: `/${record.slug}/`,
+      });
+    }
+  }
+  return [...byId.values()];
 }
 
 /**
@@ -204,8 +320,14 @@ export function fillWatch(html: string, films: RealFilm[]): string {
     if (nextOpen !== -1 && nextOpen < nextClose) { depth += 1; i = nextOpen + 4; }
     else { depth -= 1; i = nextClose + 6; }
   }
-  const inner = films.map(renderFilmCard).join('\n  ');
-  out = out.slice(0, open) + '\n  ' + inner + '\n' + out.slice(i - 6);
+  // De-duplicated against the WHOLE document rather than this grid alone: the design's second grid is a film
+  // list too, and a film standing in both places would be one film with two cards.
+  const shown = new Set([...out.matchAll(/data-video-id="([^"]*)"/g)].map((m) => m[1]));
+  const added = films.filter((f) => !shown.has(f.id));
+  if (added.length === 0) return out;
+  const close = i - 6;
+  const inner = added.map(renderFilmCard).join('\n  ');
+  out = out.slice(0, close) + '\n  ' + inner + '\n' + out.slice(close);
   return out;
 }
 
@@ -1819,9 +1941,23 @@ function unbuiltAnchor(label: string, attrs: string): string {
   );
 }
 
-/** The five entities the design's own labels actually contain, and nothing more. */
+/**
+ * The entities a record can carry, decoded before `esc` re-escapes the text for the page.
+ *
+ * THE NUMERIC FORMS ARE NOT DECORATION: the archive arrived from WordPress, and WordPress stores a title with
+ * whatever entity its editor wrote. **Three published records carry `&#038;` in their own title**, and one of
+ * them — `Ojeh &#038; Arishi Festival of Aboh Kingdom: A Celebration of Igbo Culture` — is an article that
+ * embeds a film, so its title reaches a `/watch/` card. `esc` escapes `&` to `&amp;`, so an entity that is not
+ * decoded first becomes `&amp;#038;` in the served markup and the reader sees the entity itself, printed.
+ *
+ * The original five were "the entities the design's own labels actually contain, and nothing more"; the
+ * numeric branches are added because a **record** is not a label, and the record's own titles use them.
+ */
 function decodeEntities(value: string): string {
   return value
+    .replace(/&#(\d+);/g, (_, digits: string) => String.fromCodePoint(Number(digits)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => String.fromCodePoint(parseInt(hex, 16)))
+    .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')

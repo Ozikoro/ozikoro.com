@@ -49,6 +49,7 @@ import {
   fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMarquee, fillMaterialCulture, fillPhotographs,
   fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
   fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
+  extractArchiveFilms,
   MARQUEE_PLACES,
   MARKET_DAY_ANCHOR,
   type DashboardWho, type RealAzEntry, type RealCollection, type RealDocument, type RealEntry, type RealFilm,

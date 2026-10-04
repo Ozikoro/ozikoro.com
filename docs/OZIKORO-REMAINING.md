@@ -18467,3 +18467,331 @@ links absolute is already there and two transforms drift.
   test asserted only the screens that carried `href="#"`; it now asserts the resolution as well, so a screen that
   stops being rewritten fails whichever half of the transform it needed.
 
+
+## ROUND 326 — THE WATCH SECTION NOW HOLDS EVERY FILM THE ARTICLES EMBED, AND STOPS DELETING THE `[Re:]Entanglements` FILMS
+
+The owner's words: *"the watch section, add the youtube videos. the videos from reentanglement and the ones
+already inside the web articles i have should be extracted and added there."* Two faults sat behind that
+sentence, and neither was visible from the page: **`/watch/` was carrying 18 of the archive's 24 embedded
+films, and the fill was deleting the two `[Re:]Entanglements` films the owner named — including the one the
+design gives a whole page at `/watch-video/`.**
+
+### 1. SIX FILMS WERE LOST BECAUSE `substring` STOPS AT ITS FIRST MATCH
+
+The fill's query extracted the id with `substring(a.body_html from 'youtube(?:-nocookie)?\.com/embed/(…)').
+`substring` without the `g` flag returns **the first match only**, so an article that embeds two or three films
+contributed one card and the rest vanished — silently, because every article still produced a card.
+
+| | measured |
+|---|---|
+| published articles that embed a film | **19** |
+| `<iframe>` frames those articles carry | **25** |
+| distinct ids in those frames | **24** |
+| ids the first-match-only query produced | **18** |
+
+The six it dropped, and why each was missed:
+
+| id | the film's own title | article | embeds |
+|---|---|---|---|
+| `E-bbdBIH4Wg` | Eddie Quansa | `peacocks-international-guitar-band-…` | 2nd of 2 |
+| `lAtHAK-5WZw` | *(none recorded)* | `nkwa-umuuagbogho-dance-…` | 2nd of 2 |
+| `0g2hAF8NdOA` | *(none recorded)* | `the-ikpirikpi-ogu-war-dance-…` | 2nd of 2 |
+| `c9hMdWsZDJY` | *(none recorded)* | `the-egedege-dance-a-traditional-dance-from-unubi` | 2nd of 3 |
+| `jVNIwrESgQ4` | *(none recorded)* | `the-egedege-dance-a-traditional-dance-from-unubi` | 3rd of 3 |
+| `_w9v21ndnm4` | *(none recorded)* | `atilogwu-dance-a-vibrant-celebration-of-igbo-culture` | 2nd of 2 |
+
+### 2. WHERE THE IDS ACTUALLY WERE — FOUR SOURCES, AND WHAT EACH YIELDED
+
+**a) `<iframe>` in `ozikoro_article.body_html`, lazy-load attributes included.** 29 published articles hold
+**38 `<iframe>` tags**, and **not one carries a `src`** — every address is in `data-trx-lazyload-src`, which is
+what the previous round meant by "the ids are in the markup but not in an attribute anything reads". All 38
+were read:
+
+| what the frame is | frames | distinct films |
+|---|---|---|
+| `youtube.com/embed/<id>` in `data-trx-lazyload-src` — **a film the article renders** | **25** | **24** |
+| `wp-embedded-content` pointing at `ozikoro.com/<slug>/embed/` — WordPress's *embed this post* card | 12 | 0 |
+| `facebook.com/plugins/video.php` — a Facebook video, not YouTube | 1 | 0 |
+
+The 12 WordPress frames are cross-references between articles and hold no film; they are left alone, and the
+articles they point at carry their own films on their own rows.
+
+**b) `<embed>`, `<object>`, `<video>`, `<source>`, and any YouTube address in prose.** There are no `<embed>`
+or `<object>` tags at all. There are **10 `<video>` elements with 10 `<source>` files across 7 published
+articles** — self-hosted mp4s in the media register — and **7 YouTube addresses in prose (6 valid ids)**.
+
+**c) `ozikoro_media`.** 3,488 rows: **3,462 image, 13 video, 12 document, 1 other.** The 13 video rows are 11
+distinct files (two `.mov` rows share a base name, and one row has a `storage_key` of `null`). **Ten of the 13
+are embedded in a published body; three are not embedded anywhere** — the "Oko Kingdom" mp4 (`id 1509`) and
+the two `RPReplay_Final1727524046.mov` rows (`3362`, `3365`, titled "Ekpo Masquerade dance in display at
+Ubakala, Umuahia, Abia State").
+
+**d) The WordPress dump's `postmeta` — the place nobody had looked, and it is NOT the more reliable one.**
+`data/ozikoro-wp/dbdump/sql/ozikbfpe_ozikoro.sql`, 115.8 MiB, table prefix **`wpc9_`** (not `wp_`). Parsed with
+a real MySQL tokenizer rather than a grep, because the values are PHP-serialised and backslash-escaped:
+**27,996 `wpc9_postmeta` rows, 264 of them `_oembed_*` payloads, holding 9 distinct YouTube ids.** The
+comparison is the finding:
+
+|  | distinct YouTube ids |
+|---|---|
+| `wpc9_posts.post_content`, `post`/`publish` | **30** |
+| `wpc9_postmeta` `_oembed_*` | **9** |
+
+So the rendered bodies are the **more** complete record, not the less, and postmeta adds exactly **one** id the
+bodies do not have: `YdtgiesAeHg`, whose oEmbed payload is a real frame — `title="AGBEJI MASQUERADE"`,
+`src="https://www.youtube.com/embed/YdtgiesAeHg?feature=oembed"` — attached to `post 4594`, the published
+*Agbeji Masquerade: The Unique Female Masquerade of Enugu-Ezike*. **That article's body no longer embeds it**:
+the author replaced the block with one of the archive's own mp4s, and the `_oembed_` row is the cache of the
+block that was there before. A card for it would claim the article holds a film it has since removed, so it is
+**reported and refused**. (The remaining postmeta-only id, `pqEGCQq1m9s`, belongs to two *pages*, "About US" and
+"Home", not to an article.)
+
+### 3. WHAT WAS TREATED AS A FILM, AND WHAT WAS REFUSED — AND WHY
+
+The page's own source note states the rule: *"Ozikoro would publish only videos it owns, has permission to
+embed, or can lawfully present from a public platform."* The line drawn here is narrower, and it is drawn on
+what the archive **holds**:
+
+**An embedded film is on the page; a cited link is a reference.** Four of the seven prose addresses read *"For
+a visual glimpse into the festival, you may watch the following video: <address>"* and three sit in a reference
+list. They are refused, for three measurements rather than a preference:
+
+* the article page **renders no film there**, so what the archive holds at that point is an address, not a film;
+* one of the six, **`7f81_erOkxM`, is dead** — its thumbnail answers `404` and its oEmbed answers `404`, so a card
+  for it promises a film that does not exist. That is the class proving itself;
+* a seventh, **`kmux4aLXc1`, is ten characters long**, which is not a YouTube id at all, so the class contains
+  malformed addresses as well as deleted ones.
+
+Refused, with the reason recorded rather than the omission left silent:
+
+| source | count | why it is not a card |
+|---|---|---|
+| YouTube addresses in prose | 6 valid ids (`I1TMgdxsT_A`, `TMiVGKPh974`, `yoBKbr6C9Qc`, `eiJ2IVocMOY`, `i8XaJuYqecs`, `7f81_erOkxM`) | cited, not embedded; one dead, one malformed |
+| self-hosted `<video>` files in articles | 10 files in 7 articles | **the design's card is a YouTube card** — its poster frame is `i.ytimg.com/vi/<id>/hqdefault.jpg` and `watch.js` builds a `youtube-nocookie.com/embed/<id>` player from `data-video-id`. An mp4 has no id, no YouTube poster and no player in this design, so a card for it would be a card that cannot play. Needs a card shape, which is a design decision, not a fill |
+| `ozikoro_media` videos not in any body | 3 (ids 1509, 3362, 3365) | same: no YouTube id, and not embedded in any article either |
+| `_oembed_` id `YdtgiesAeHg` | 1 | the body no longer embeds it — see §2d |
+| `pqEGCQq1m9s` | 1 | on two pages, not on an article |
+| `wp-embedded-content` frames | 12 | article-to-article cross-references, no film |
+
+**A film's title is the record's, never invented.** Where the archive's own `<iframe>` carries a specific
+`title` attribute, that is the film's name and it is used — this is how `E-bbdBIH4Wg` is "Eddie Quansa",
+`Gk5jUcXeUHc` is "Seun Rere (Live)" and `bPXKduoup8I` is "Cabildo Carabali Isuama in Santiago, Cuba". Where the
+attribute is absent, or is WordPress's own placeholder **"YouTube video player"**, the record has no title of
+its own and the holding article's title is used instead, which is the only title the record carries.
+`RealFilm.titleFrom` records which of the two it was, so the distinction is never lost. **The publisher and the
+duration are not recorded for any of the 24**, so the card states that instead of filling it.
+
+### 4. THE FILMS THE OWNER NAMED: `[Re:]Entanglements` — AND THE FILL WAS DELETING TWO OF THEM
+
+`fillWatch` **replaced** the first grid's whole inner content. The design's first grid holds three cards, and
+two of them are the project's films. Before this round, measured on the served page:
+
+| design card | grid | was it served? |
+|---|---|---|
+| `E3UBv8pmLxE` — Faces \| Voices — **[Re:]Entanglements Project** | Selected films | **deleted by the fill** |
+| `NBj1CvaDgbM` — Unspoken Stories 1: Onyeso | Selected films | **deleted by the fill** |
+| `0_MvyVVGcxE` — Christian and Igbo religious systems (Igbo Conference) | Selected films | deleted by the fill |
+| `3NnklFf2rXA` — Unnamed Children | Unspoken Stories | served |
+| `g1z_-5jqPG0` — Yainkain | Unspoken Stories | served |
+| `TwFgd11nvEg` — Ilọ Ụwa and the Paradox of Colonialism | Unspoken Stories | served |
+
+**Faces | Voices is the one film the design gives a whole page at `/watch-video/`, and it was absent from the
+index whose job is to list it.** The fill now **appends** and never removes: the design's cards are kept and
+the archive's films are added after them, one card per film the page does not already carry. The document is
+read for its own `data-video-id` values, so a film the design already shows is not shown twice.
+
+**Are there any `[Re:]Entanglements` *films* in the archive's articles? No — measured, and this is the answer
+to the owner's first half.** The dump was searched for `entangle` (case-insensitive): **406 occurrences**, and
+every one with the project's name attached is a **photograph or a citation**, never a film —
+
+* `Re-entangled_Traditions_Nsukka_2_re-entanglements.net_-1024x576-1.jpg`,
+  `Imoka_Shrine_Awka_Paul_Basu_re-entanglements.net_-1024x576-1.jpg`,
+  `Omu_red_cap_re-entanglements.net_-680x541.jpg` and the rest of the Northcote Thomas photographs;
+* the credits *"Photo: Re-Entanglements."* and *"Source; Re[Entanglements]."*;
+* one reference-list entry, *"[Re:]Entanglements: Agukwu Nri-Uli: Art and archive"*;
+* the caption *"Researchers from the [Re:]Entanglements project, George Agbo and Paul Basu…"*.
+
+The four film ids the design names were each searched for across every article body: **`E3UBv8pmLxE`,
+`NBj1CvaDgbM`, `3NnklFf2rXA` and `g1z_-5jqPG0` are in no article body at all.** The project's films exist only in
+the design's `watch.html` — which is why keeping the design's cards, rather than replacing them, is what puts
+the owner's named films on the page.
+
+### 5. THE TOTAL
+
+| | |
+|---|---|
+| **distinct films the archive embeds in its articles** | **24** |
+| already on `/watch/` (first-match-only) | **18** |
+| **added by this round** | **6** |
+| cards on `/watch/` after the round | **30** = the design's 6 + the archive's 24 |
+| other moving-image works the archive holds, all refused with a reason | 10 self-hosted files in bodies, 3 more in the register, 1 stale `_oembed_` id |
+| cited YouTube addresses, refused as references | 6 valid ids (+1 malformed) |
+
+The 24 are de-duplicated by id, and `jOMjbchyNXg` — embedded by both `mmili-nkisi-day-…` and
+`nkisi-river-…` — is **one card that says so**: *"Held in 2 Ozikoro archive records · publisher not recorded"*.
+
+### 6. TWO FIXES FOUND WHILE WRITING THE CARD
+
+**a) The topic is the design's small-caps slot, and the archive has it.** The design's card names a category
+there ("Archive film", "Story film", "Conversation"); the archive records the holding article's topic, so the
+line now reads `Cultural Heritage`, `Biography`, `Ethnohistory`, `Discography` or `Historical Studies`.
+
+**b) A WordPress entity was being printed to the reader.** `esc` escapes `&` to `&amp;`, and **three published
+records carry `&#038;` in their own title**. `Ojeh &#038; Arishi Festival of Aboh Kingdom: A Celebration of
+Igbo Culture` is one of the 19 articles that embed a film, so its card rendered **"Ojeh &#038; Arishi
+Festival"** — the entity itself, on the page. `decodeEntities` already existed for the design's own labels and
+handled the five named entities; it now handles the numeric forms too, and both the embed's `title` attribute
+and the article's title are decoded before `esc` re-escapes them. **One decoder, extended — not a second one
+beside it.**
+
+### 7. `/watch-video/` STILL SHOWS ONE FIXED FILM, AND THE 24 HAVE NO PAGE OF THEIR OWN
+
+`fillWatchVideo(html)` takes **only the design's HTML**. It does not read the query string, a path segment or
+the database; it rewrites the transcript sentences and leaves the film the design drew — `E3UBv8pmLxE`,
+"Faces | Voices" by the [Re:]Entanglements Project — in place. And **no card links to it**: the design's card is
+a `button` that plays in place through `watch.js`, and `/watch-video.html` is reachable only by typing its
+address.
+
+**So each of the 24 archive films opens the same page as Faces | Voices, which is not the film the card
+promised.** This is reported rather than built, because it is a larger job than the extraction and it is a
+design decision as much as a fill one. **The smallest useful version** is one signature change and one rule:
+
+* `fillWatchVideo(html, film)` — the same pattern `fillWatch` already uses — and `/watch-video/?v=<id>` (or
+  `/watch-video/<id>/`) selecting the film from the same `extractArchiveFilms` result the grid uses;
+* the player's `src`, the `<h1>`, `title`, the `data-video-*` facts and the side panel are then filled from the
+  record: **the film's title, its topic, the article that holds it, and an explicit "publisher not recorded"**
+  where the design currently names the project. The transcript area already says none has been supplied, and
+  the related-viewing list would have to name films that exist rather than the design's three.
+* what it must **not** do is inherit the design's provenance sentence — *"the embedded video and title are from
+  the named public publisher"* — because that sentence is true of the design's film and would be false of the
+  archive's.
+
+Until that exists, the honest state of the page is the one the grid states in each card's own text: the film
+is held in the Ozikoro archive, and its publisher is not recorded.
+
+### 8. THE DEAD FILM, LEFT ALONE
+
+`7f81_erOkxM` was **not touched**. It is a *cited* address in a reference list, it was already excluded from
+the grid when the embed-only selection was made, and **round 316 §8 had already recorded it** as a content
+fault — with the measurement that it renders YouTube's grey placeholder at `naturalWidth` 120 rather than 0, so
+a render check alone calls it healthy. This round's extraction never sees it: the embed pattern does not match
+a `youtu.be/` citation, and the id is not named in any condition. Re-verified while measuring: thumbnail `404`,
+oEmbed `404`.
+
+### 9. VERIFIED
+
+**The card table, fetched from `http://127.0.0.1:3110/watch/`** — 24,546 bytes of HTML:
+
+| | |
+|---|---|
+| cards | **30** |
+| distinct ids | **30** |
+| cards whose poster frame does not answer `200` | **0** |
+| duplicate ids on the page | **0** |
+| the design's own six cards | all present, in the design's own order |
+
+| # | id | title on the card | title source | topic | thumbnail |
+|---|---|---|---|---|---|
+| 1 | `E3UBv8pmLxE` | Faces \| Voices | design | Archive film | 200 |
+| 2 | `NBj1CvaDgbM` | Unspoken Stories 1: Onyeso | design | Story film | 200 |
+| 3 | `0_MvyVVGcxE` | Christian and Igbo religious systems: the new interface | design | Conversation | 200 |
+| 4 | `8fD66TzRmEg` | The Peacocks International Guitar Band - Feresirima | film | Biography | 200 |
+| 5 | **`E-bbdBIH4Wg`** | **Eddie Quansa** | film | Biography | 200 |
+| 6 | `Gk5jUcXeUHc` | Seun Rere (Live) | film | Biography | 200 |
+| 7 | `NcBE2UH8WOc` | Time Na Money | film | Biography | 200 |
+| 8 | `5a6tJhLpPa4` | Beautiful Woman | film | Biography | 200 |
+| 9 | `az6b5avH_Zc` | King Ja Ja - Sing Out Barbados | film | Discography | 200 |
+| 10 | `LL8YX0pXzdI` | The War Dance Festival (ILA OSO) In Uzuakoli | record | Cultural Heritage | 200 |
+| 11 | `SHPEwGDOI7c` | Ojeh & Arishi Festival of Aboh Kingdom | record | Cultural Heritage | 200 |
+| 12 | `jOMjbchyNXg` | Mmili Nkisi Day | record · **held in 2 records** | Cultural Heritage | 200 |
+| 13 | `H2Ch-R3EZkA` | Égwú Àmàlà: The Paddle Dance | record | Cultural Heritage | 200 |
+| 14 | `la4vThM0MUo` | Egwu Ogene | record | Cultural Heritage | 200 |
+| 15 | `NIR5CcOUoas` | Nkwa Ụmụagboghọ Dance | record | Cultural Heritage | 200 |
+| 16 | **`lAtHAK-5WZw`** | **Nkwa Ụmụagboghọ Dance** | record | Cultural Heritage | 200 |
+| 17 | `lg_dSLOKywk` | The Ikpirikpi-ogu War Dance | record | Cultural Heritage | 200 |
+| 18 | **`0g2hAF8NdOA`** | **The Ikpirikpi-ogu War Dance** | record | Cultural Heritage | 200 |
+| 19 | `ekO2hKFsbEk` | The Egedege Dance | record | Cultural Heritage | 200 |
+| 20 | **`c9hMdWsZDJY`** | **The Egedege Dance** | record | Cultural Heritage | 200 |
+| 21 | **`jVNIwrESgQ4`** | **The Egedege Dance** | record | Cultural Heritage | 200 |
+| 22 | `u4ZadZ5hyWs` | Atilogwu Dance | record | Cultural Heritage | 200 |
+| 23 | **`_w9v21ndnm4`** | **Atilogwu Dance** | record | Cultural Heritage | 200 |
+| 24 | `5M0gCNAaVqs` | Omu: A Unique Female Leader in Igboland | record | Cultural Heritage | 200 |
+| 25 | `bPXKduoup8I` | Cabildo Carabali Isuama in Santiago, Cuba | film | Historical Studies | 200 |
+| 26 | `vsV9gI_U184` | Ńdébé: Preserving and Advancing the Igbo Language | record | Cultural Heritage | 200 |
+| 27 | `Hr30SGgC8LY` | Eboe Town, Belize Oral History | film | Ethnohistory | 200 |
+| 28 | `3NnklFf2rXA` | Unnamed Children | design | Episode 2 | 200 |
+| 29 | `g1z_-5jqPG0` | Yainkain | design | Episode 3 | 200 |
+| 30 | `TwFgd11nvEg` | Ilọ Ụwa and the Paradox of Colonialism | design | Conference talk | 200 |
+
+**In a real browser** — headless Chrome over the DevTools protocol, `scripts/verify-round-323.mjs`, the whole
+document scrolled first because a lazy image and a blocked one read the same:
+
+* **30 cards, 0 broken poster frames.** Every one reads `naturalWidth × naturalHeight = 480 × 360` with
+  `complete === true`, which is the reading a blocked image and a 404 cannot produce.
+* **grid columns `378.656px 378.672px 378.656px`** — the design's own three-column grid, and the two section
+  headings `["Selected films", "Unspoken Stories"]` are the design's.
+* **click-through: 6 of 6 new cards opened their own film.** For each, the player's frame `src` names the card's
+  own id, `aria-pressed` is on that card, and **the embed answered `200`** — `Eddie Quansa`, `Nkwa Ụmụagboghọ
+  Dance`, `The Ikpirikpi-ogu War Dance`, `The Egedege Dance` ×2, `Atilogwu Dance`.
+* **CSP violations: 0.** `img-src` already names `https://i.ytimg.com` and `frame-src` names
+  `https://www.youtube-nocookie.com`, so no policy change was needed for a new card.
+
+**The design parity check** — `node scripts/check-design-parity.mjs`:
+
+```
+  ok   /watch                 10 design sections, 4 headings
+  compared 18 route(s) against their design screen
+  unverified, behind a loading boundary or an auth gate 1
+  declared omissions 1
+  3 ROUTE(S) DO NOT MATCH THEIR DESIGN
+```
+
+`/watch` matches its design. The three that do not are `/cultural-calendar`, `/cite` and `/projects` — missing
+headings and classes on screens this round did not touch (round 316 recorded five; `/archive` and `/about` have
+since been fixed).
+
+**The design is inviolable.** The brief's own check, verbatim:
+
+```
+identical 63 differing 0 missing 0
+```
+
+`git status --porcelain design/ apps/ozikoro/public/design/` returns nothing.
+`apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/` holds **52** files.
+`npm run typecheck` from the repository root, **read from its own exit code and not a pipe's: exit 0**, 0
+`error TS` lines. `node --test packages/ozikoro/src/design-fill.test.ts`: **47 tests, 47 pass, 0 fail** — ten
+of them added here, and two of those would have failed against the fault (three embeds in one article; the
+design's own ids surviving the fill).
+
+### 10. WHAT DOES NOT WORK, WITH THE EXACT OBSERVATION
+
+* **`/watch-video/` shows one film for all 30 cards.** Measured: it answers `200`, its player is
+  `youtube-nocookie.com/embed/E3UBv8pmLxE` and its `<h1>` is `Faces | Voices`, **and `/watch-video/?v=E-bbdBIH4Wg`
+  returns the same `E3UBv8pmLxE` frame and the same `<h1>`.** `fillWatchVideo(html)` takes no film argument. So
+  a reader who clicks *Eddie Quansa* gets the player on the grid, which is correct, and *cannot* reach a page
+  about it at all. §7 gives the smallest useful version; it is not built.
+* **The card has no link to the record behind it.** The design's card is a `button` — the design made it one so
+  it plays in place — and an `<a>` inside a `<button>` is invalid markup, so the article the film is held in is
+  not reachable from `/watch/`. The `RealFilm.href` field is carried for the per-film page in §7 and is not
+  rendered today.
+* **The ten self-hosted videos have no card, by decision rather than by omission.** `/watch/`'s card is a
+  YouTube card: its poster frame is `i.ytimg.com/vi/<id>/hqdefault.jpg` and `watch.js` builds a
+  `youtube-nocookie.com/embed/<id>` player from `data-video-id`. An mp4 has no id, so a card for one would be a
+  card that cannot play. Ten files in seven articles, plus three register rows embedded in no body.
+* **Four sets of films carry the same recorded title.** `NIR5CcOUoas`/`lAtHAK-5WZw` (Nkwa), `lg_dSLOKywk`/
+  `0g2hAF8NdOA` (Ikpirikpi-ogu), `ekO2hKFsbEk`/`c9hMdWsZDJY`/`jVNIwrESgQ4` (Egedege) and
+  `u4ZadZ5hyWs`/`_w9v21ndnm4` (Atilogwu) all have `title="YouTube video player"` in the archive, so the record
+  holds no film title for any of them and the holding article's title is used. They are distinguished on the
+  page by their poster frame and by their id, **and a title is not invented to tell them apart** — which is the
+  honest reading and an awkward one.
+* **The article fill is throwing on every request, and it is not this round's.** The server log carries
+  `article fill failed: [error: column "external_service" does not exist]` and
+  `[error: column e.external_direct_audio does not exist]` — another agent's in-flight column work, on a screen
+  this round did not touch. Reported, not touched.
+* **Three `serve-review.sh --rebuild` runs landed inside ten minutes of the verification, and one took
+  `/watch/` to `404` with a nine-byte body while a probe was in flight.** The probe reported "0 cards, 0 broken
+  thumbnails" — a PASS-shaped reading of a page that was not there, which is the same instrument fault round
+  316 recorded when a Chrome error page read as `imgs 2 broken 0`. The round's instruments now wait for the
+  lock to clear **and** for the served page to carry 30 distinct cards three checks running, and they print the
+  count before and after the run. Every number in §9 is from a run that passed that gate (`cards before: 30`,
+  `cards after: 30`).

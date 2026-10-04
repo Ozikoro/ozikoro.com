@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillDashboardLinks } from './design-fill.ts';
 import { MARQUEE_PLACES, fillHome, fillMarquee } from './design-fill.ts';
+import { extractArchiveFilms, fillWatch, renderFilmCard } from './design-fill.ts';
 import {
   AFRICAN_COUNTRIES,
   AFRICAN_COUNTRY_COUNT,
@@ -1140,4 +1141,145 @@ test('the design screen on disk is untouched: the transform is in memory only', 
   fillMarquee(HOME, allMarqueeLinks());
   fillHome(HOME, [{ title: 'A record', href: '/a-record/', topic: null }], allMarqueeLinks());
   assert.equal(readFileSync(join(SCREENS, 'home.html'), 'utf8'), before);
+});
+
+/*
+ * ==================================================================================================
+ * THE WATCH SECTION: THE FILMS THE ARCHIVE HOLDS, AND THE DESIGN'S OWN KEPT
+ * ==================================================================================================
+ *
+ * WHY THESE RUN AGAINST THE REAL `watch.html` AND NOT A FIXTURE
+ *
+ * The fill used to **replace** the first film grid's whole inner content. The design's first grid holds three
+ * cards, and two of them are the [Re:]Entanglements Project films — "Faces | Voices" and "Unspoken Stories 1:
+ * Onyeso" — so the fill deleted them from the served page, including the one film the design gives a whole
+ * page at `/watch-video/`. **A fixture would not have caught that**: the fault is in the relationship between
+ * the fill and this particular screen, so the screen is the input, as it is for the marquee above.
+ *
+ * The extraction assertions are the second half. `substring(… from 'youtube…/embed/…')` returned one film per
+ * article, and the Egedege article embeds three, so six films were lost silently. A test that used one embed
+ * per article would have passed against the fault.
+ */
+const WATCH = readFileSync(join(SCREENS, 'watch.html'), 'utf8');
+
+/** Every `data-video-id` on a page, in order — the page's own list of the films it claims. */
+const filmIds = (html: string) => [...html.matchAll(/data-video-id="([^"]*)"/g)].map((m) => m[1]!);
+
+/** One article row, shaped the way the route passes it. */
+const record = (slug: string, title: string, topic: string | null, body_html: string) =>
+  ({ slug, title, topic, body_html });
+
+/**
+ * One embed frame, in the archive's own shape: **no `src`**, the address in `data-trx-lazyload-src`, and the
+ * film's title — when the archive recorded one — in the `title` attribute beside it.
+ */
+const EMBED = (id: string, title?: string) =>
+  `<figure class="wp-block-embed is-type-video"><iframe${title === undefined ? '' : ` title="${title}"`}` +
+  ` data-trx-lazyload-src="https://www.youtube.com/embed/${id}?feature=oembed" width="560" height="315"` +
+  ` frameborder="0" allowfullscreen></iframe></figure>`;
+
+test('every embed in an article is extracted, not only the first', () => {
+  // The Egedege article really embeds three films. The first-match-only query returned one of them, so three
+  // is the assertion that would have failed before this work.
+  const body = `<p>text</p>${EMBED('ekO2hKFsbEk')}${EMBED('c9hMdWsZDJY')}${EMBED('jVNIwrESgQ4')}`;
+  const films = extractArchiveFilms([
+    record('the-egedege-dance', 'The Egedege Dance', 'Cultural Heritage', body),
+  ]);
+  assert.deepEqual(films.map((f) => f.id), ['ekO2hKFsbEk', 'c9hMdWsZDJY', 'jVNIwrESgQ4']);
+});
+
+test('one card per film, and the record count is the number of articles that carry it', () => {
+  // `jOMjbchyNXg` is genuinely embedded by two published articles. One card, saying two records.
+  const films = extractArchiveFilms([
+    record('mmili-nkisi-day', 'Mmili Nkisi Day', 'Cultural Heritage', EMBED('jOMjbchyNXg')),
+    record('nkisi-river', 'Nkisi River', 'Cultural Heritage', EMBED('jOMjbchyNXg')),
+  ]);
+  assert.equal(films.length, 1, 'one film must be one card');
+  assert.equal(films[0]!.records, 2);
+  // The newest-published record arrives first and is the one the card names.
+  assert.equal(films[0]!.href, '/mmili-nkisi-day/');
+});
+
+test('an article that embedded the same film twice still counts one record', () => {
+  const films = extractArchiveFilms([
+    record('a', 'A Record', null, `${EMBED('8fD66TzRmEg')}${EMBED('8fD66TzRmEg')}`),
+  ]);
+  assert.equal(films.length, 1);
+  assert.equal(films[0]!.records, 1);
+});
+
+test("the film's own title is used where the archive recorded one, the record's where it did not", () => {
+  const films = extractArchiveFilms([
+    record('peacocks', 'Peacocks International Guitar Band', 'Biography', EMBED('E-bbdBIH4Wg', 'Eddie Quansa')),
+    record('nkwa', 'Nkwa Umuagbogho Dance', 'Cultural Heritage', EMBED('lAtHAK-5WZw', 'YouTube video player')),
+    record('plain', 'A Record With No Embed Title', 'Ethnohistory', EMBED('Hr30SGgC8LY')),
+  ]);
+  const byId = new Map(films.map((f) => [f.id, f]));
+  assert.equal(byId.get('E-bbdBIH4Wg')!.title, 'Eddie Quansa');
+  assert.equal(byId.get('E-bbdBIH4Wg')!.titleFrom, 'film');
+  // "YouTube video player" is WordPress's placeholder, not a title: a card must not claim a film is called it.
+  assert.equal(byId.get('lAtHAK-5WZw')!.title, 'Nkwa Umuagbogho Dance');
+  assert.equal(byId.get('lAtHAK-5WZw')!.titleFrom, 'record');
+  assert.equal(byId.get('Hr30SGgC8LY')!.title, 'A Record With No Embed Title');
+  assert.equal(byId.get('Hr30SGgC8LY')!.titleFrom, 'record');
+});
+
+test('a cited link is not a film: only an embed is extracted', () => {
+  // The class this refuses, carrying both measurements that justify it: a deleted upload, and an address
+  // whose id is ten characters long and therefore not a YouTube id at all.
+  const cited = 'Marre, J. (1985). Beats of the Heart. [Film]. Retrieved from https://youtu.be/7f81_erOkxM '
+    + 'and for a glimpse you may watch https://www.youtube.com/watch?v=kmux4aLXc1';
+  assert.deepEqual(extractArchiveFilms([record('area-scatter', 'Area Scatter', null, cited)]), []);
+});
+
+test("the design's own cards survive the fill, including Faces | Voices, which has its own page", () => {
+  const films = extractArchiveFilms([
+    record('some-article', 'Some Article', 'Cultural Heritage', EMBED('8fD66TzRmEg')),
+  ]);
+  const ids = filmIds(fillWatch(WATCH, films));
+  for (const designId of ['E3UBv8pmLxE', 'NBj1CvaDgbM', '0_MvyVVGcxE', '3NnklFf2rXA', 'g1z_-5jqPG0', 'TwFgd11nvEg']) {
+    assert.ok(ids.includes(designId), `${designId} must still be on the page after the fill`);
+  }
+  assert.ok(ids.includes('8fD66TzRmEg'), 'the archive film must be added');
+  // And no id twice: the grid is a film list, not an embedding list.
+  assert.equal(new Set(ids).size, ids.length, `an id is on the page twice: ${ids.join(', ')}`);
+});
+
+test('a film the design already shows is not added a second time', () => {
+  const films = extractArchiveFilms([record('x', 'X', null, EMBED('E3UBv8pmLxE'))]);
+  assert.equal(filmIds(fillWatch(WATCH, films)).filter((id) => id === 'E3UBv8pmLxE').length, 1);
+});
+
+test('a fill with nothing to add leaves every card the design drew', () => {
+  assert.deepEqual(filmIds(fillWatch(WATCH, [])), filmIds(WATCH));
+});
+
+test('an archive card names no publisher and no duration that the record does not hold', () => {
+  const films = extractArchiveFilms([record('x', 'X', 'Cultural Heritage', EMBED('8fD66TzRmEg', 'A Film'))]);
+  const card = renderFilmCard(films[0]!);
+  assert.ok(
+    card.includes('https://i.ytimg.com/vi/8fD66TzRmEg/hqdefault.jpg'),
+    'the poster frame must be the frame that exists for every film'
+  );
+  assert.ok(!card.includes('maxresdefault'), 'maxresdefault does not exist for every film and must not be used');
+  assert.ok(card.includes('publisher not recorded'), 'an unrecorded publisher must be stated, not filled');
+  assert.ok(!/duration/i.test(card), 'no duration may be claimed: the archive records none');
+});
+
+test('the watch screen on disk is untouched: the fill is in memory only', () => {
+  const before = readFileSync(join(SCREENS, 'watch.html'), 'utf8');
+  fillWatch(WATCH, extractArchiveFilms([record('x', 'X', null, EMBED('8fD66TzRmEg'))]));
+  assert.equal(readFileSync(join(SCREENS, 'watch.html'), 'utf8'), before);
+});
+
+test('a WordPress entity in a record title is decoded, not printed', () => {
+  // `ojeh-arishi-festival-of-aboh-kingdom-…` really carries `&#038;` in its title, and it is one of the 19
+  // articles that embed a film. Escaping without decoding first renders "Ojeh &#038; Arishi" to the reader.
+  const films = extractArchiveFilms([
+    record('ojeh', 'Ojeh &#038; Arishi Festival of Aboh Kingdom', 'Cultural Heritage', EMBED('SHPEwGDOI7c')),
+  ]);
+  assert.equal(films[0]!.title, 'Ojeh & Arishi Festival of Aboh Kingdom');
+  const card = renderFilmCard(films[0]!);
+  assert.ok(card.includes('<h3>Ojeh &amp; Arishi Festival of Aboh Kingdom</h3>'), 'the title must be escaped once, after decoding');
+  assert.ok(!card.includes('&#038;'), 'the entity must not survive into the markup as text');
 });
