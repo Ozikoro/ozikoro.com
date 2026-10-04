@@ -19814,3 +19814,87 @@ click Next at /watch and /watch.html ->  http://127.0.0.1:3110/watch/?page=2   (
   amendment and the staged `scripts/verify-round-330.mjs` are not in it.** The staged index is also a hazard:
   if it is committed as it stands it will drop this round's `design-fill.ts` changes and this entry, because
   those paths must be re-staged after this commit.
+
+## ROUND 333 — THE NARRATION GATE THAT HAD STOPPED GUARDING, AND AN INDEPENDENT RUN OVER `/listen/`
+
+The `/listen/` change itself is round 332's, above. **This entry is a second agent's independent run over the
+built page, and one correction to the check that is supposed to protect it** — the check had stopped being able
+to fail. It also records three things round 332 does not, one of which is a second listen page still in the tree.
+
+### 1. THE GATE WAS PASSING WHILE CHECKING NOTHING, AND FAILING FOR THE WRONG REASON
+
+`scripts/check-narration.sh`'s fifth check grepped `apps/ozikoro/app/[slug]/route.ts` for the literal
+`status = 'published'`. That clause now lives inside `playableEpisodeSql`, composed by
+`playableEpisodeAudioSql` in `@ozikoro/platform`, and **the article route's only remaining
+`status = 'published'` is the ARTICLE's own filter** — so the check would have kept passing if the episode gate
+had been deleted from that file outright. The second half of the same check grepped for `if (episode)`, a line
+the route had already stopped having (the player script is added under `if (directAudio)`), so it was reporting
+a fault that was not there and the script exited 1.
+
+It now asserts the sharing in three places, because the sharing is the property that stops the surfaces
+drifting: the article composes `playableEpisodeAudioSql()`, the listen page composes
+`playableEpisodeAudioSql('e')`, and the fragment is itself composed from `playableEpisodeSql` rather than
+restating it. Measured after the correction:
+
+```
+PASS  article and listen compose one audio floor; the player script follows the episode
+```
+
+The database invariants and the live article gate could not be read in the same run: another agent's script
+held the PGlite cluster, and that check refuses rather than corrupting. It is contention, not a failure.
+
+### 2. WHAT AN INDEPENDENT FETCH AND A REAL CLICK FOUND
+
+Fetched from the review server on port 3110, before and after:
+
+| | before round 332 | after |
+|---|---|---|
+| `<img>` / `<audio>` / `data-listen-audio` | 13 / **0** / **0** | 4 / **1** / **1** |
+| library rows | **12** (none with a `data-playable` attribute) | **3**, every one `data-playable="yes"` |
+| `href="article.html"` | 1, answering 404 at `/listen/article.html` | 0 |
+
+The featured card before was the design's invented episode — *"The Ikoro: the drum that spoke for a town"* —
+with a `<button class="btn btn-gold" type="button">▶ Play episode</button>` carrying no `data-listen-toggle`
+and no handler, and `listen.html` loads no player on this screen at all (its only `<script>` is
+`../mobile-nav.js`). **So the owner's two sentences were each literally exact.**
+
+**The two surfaces were checked against each other in both directions**, which is the claim that matters:
+
+* the three listed records' articles all answer `200`, all carry the design's `#listen` panel, and all carry
+  exactly one `data-listen-audio` pointing at a file (`/media/ozikoro/episodes/…`);
+* the eleven records the old twelve-row page listed and this one does not — Umunede, Owa, Ogume, Igbodo, Amai,
+  Akumazi, Abbi, Oko and Okwe, Arondizuogu, Anam, Idumuje — all answer `200` and **all eleven serve no panel at
+  all** and no audio element.
+
+Clicked with a real `Input.dispatchMouseEvent` on the served control, not `element.click()`:
+
+```
+clicked      {"x":504.7578125,"y":861.1875,"w":111.515625,"h":48.5}
+button now   ❚❚ Pause
+audio after  {"paused":false,"currentTime":1.235425,"readyState":4,"duration":533.841063,"error":null}
+media        200 audio/mpeg 8541919 bytes
+```
+
+The URL stayed `/listen/`, the control relabelled itself and the clock advanced. The menu is root-absolute
+(`<base href="/">`, `/archive/`, `/watch/`, `/collections/`), so round 332's `LINKED_SCREENS` entry is in the
+built page. `scripts/verify-round-331.mjs` is the instrument: **`PROBLEMS: 0`**. `npm run typecheck` from the
+repository root: **exit 0**. `node --test packages/ozikoro/src/design-fill.test.ts`: **65 pass, 0 fail**. The
+standalone holds **52** design screens where the source holds 52, and the brief's parity check prints
+`identical 63 differing 0 missing 0`.
+
+### 3. THREE THINGS ROUND 332 DOES NOT RECORD
+
+* **`apps/ozikoro/app/listen/page.tsx` is unreachable and now says something false.** The middleware rewrites
+  `/listen/` to `/design-screen/listen`, which is the file the served page comes from, so this route has never
+  been reached — but it is still in the tree, still claims *"the archive holds no audio yet, so the library is
+  empty"*, and is a second listen page that would disagree with the served one the moment `listen` left the
+  middleware's screen list. It was not deleted here because it is another writer's file in a contended tree;
+  `scripts/check-screen-coverage.mjs` requires it to exist, so removing it means changing that check's `ROUTE`
+  entry for `listen` to say the screen is served by `/design-screen/[screen]`.
+* **A failed play in the featured card is silent.** The card carries no `[data-listen-status]` element, and
+  `audio-listen.js` writes *"Could not play: …"* into that element — so on this screen it writes to nothing, and
+  the button returns to `▶ Listen`, which is what it looked like before it was pressed. The article's own panel
+  has one; this card does not. A blocked autoplay and a missing file would both be indistinguishable from a
+  control nobody clicked.
+* **`/favicon.ico` answers 404.** It is the only console `404` the browser probe recorded, no page links it,
+  and it predates this round.

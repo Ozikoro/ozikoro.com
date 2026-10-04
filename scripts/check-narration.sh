@@ -105,18 +105,41 @@ else
 fi
 
 # ---------------------------------------------------------------------------------------------------------
-# 5. THE PLAYER IS OFFERED ONLY FOR A PUBLISHED EPISODE
+# 5. THE PLAYER IS OFFERED ONLY FOR AN APPROVED EPISODE THAT HAS SOMETHING TO PLAY
+#
+# THIS CHECK WAS PASSING WHILE CHECKING NOTHING, AND THEN IT WAS FAILING FOR THE WRONG REASON.
+#
+# It grepped the article route for the literal `status = 'published'` — the episode gate written out at the
+# call site. That clause now lives in `playableEpisodeSql`/`playableEpisodeAudioSql` in the platform package,
+# where the article, the podcast feed and the transcript compose it, and the article route's only remaining
+# `status = 'published'` is the ARTICLE's own filter. **So the old grep would have kept passing if the
+# episode gate had been deleted from that file entirely.** Its second half grepped for `if (episode)`, a line
+# the route had already stopped having — the player script is added under `if (directAudio)` — so the check
+# also reported a fault that was not there.
+#
+# It asserts the SHARING now, in three places, because that is the property that stops the surfaces drifting:
+# the article composes the shared floor, the listening library composes the same one, and the floor is itself
+# composed from `playableEpisodeSql` rather than restating it. **A second place that decides "has audio" is
+# the copy that drifts**, and this repository has paid for that four times.
 # ---------------------------------------------------------------------------------------------------------
 checked=$((checked + 1))
 ARTICLE='apps/ozikoro/app/[slug]/route.ts'
-if ! grep -q "status = 'published'" "$ARTICLE"; then
-  echo "  FAIL  the article page no longer restricts its episode lookup to published ones." >&2
+LISTEN='apps/ozikoro/app/design-screen/[screen]/route.ts'
+NARRATION='packages/ozikoro/src/narration.ts'
+if ! grep -q "playableEpisodeAudioSql()" "$ARTICLE"; then
+  echo "  FAIL  the article page does not compose the shared audio floor for its episode lookup." >&2
   failed=$((failed + 1))
-elif ! grep -q "if (episode)" "$ARTICLE"; then
+elif ! grep -q "playableEpisodeAudioSql('e')" "$LISTEN"; then
+  echo "  FAIL  the listen page does not compose the same floor — it is a second place deciding 'has audio'." >&2
+  failed=$((failed + 1))
+elif ! grep -q 'playableEpisodeSql(alias)' "$NARRATION"; then
+  echo "  FAIL  playableEpisodeAudioSql no longer composes playableEpisodeSql — the floor is restated, not shared." >&2
+  failed=$((failed + 1))
+elif ! grep -q "if (directAudio)" "$ARTICLE"; then
   echo "  FAIL  the article page adds the player script without checking an episode exists." >&2
   failed=$((failed + 1))
 else
-  echo "  PASS  the listen panel and the player script are written only for a published episode"
+  echo "  PASS  article and listen compose one audio floor; the player script follows the episode"
 fi
 
 # ---------------------------------------------------------------------------------------------------------
