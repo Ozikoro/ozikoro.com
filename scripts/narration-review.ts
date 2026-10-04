@@ -44,6 +44,7 @@
 import { readFileSync } from 'node:fs';
 import { closeDb, getDb, type Db } from '@ozituma/db/client';
 import {
+  can,
   declineNarration,
   findNarrationEpisode,
   isNarrationVoice,
@@ -248,6 +249,23 @@ async function run(): Promise<void> {
   } else if (command === 'approve-proposal') {
     const slug = requireSubject('slug');
     const actorId = await actor(db, true);
+    /*
+     * THE CAPABILITY IS CHECKED HERE TOO, AND IT WAS NOT BEFORE.
+     *
+     * `--actor=` proved only that an account with that email EXISTS. The API routes gate the same render on
+     * `manage_ai_corpus` through `guardNarration`, and this console did not — so anyone who could run a shell
+     * command could render the whole article in the owner's cloned voice on the owner's account, and the
+     * transition row would name whoever the operator typed. **A gate that lets anyone approve is not the gate
+     * the owner asked for**, and the console is a second door to the same charge.
+     */
+    if (!(await can(db, actorId as number, 'manage_ai_corpus'))) {
+      console.error('');
+      console.error(`  --actor=${flag('actor')} does not hold “manage ai corpus”, which is the permission that`);
+      console.error('  authorises a charge. Rendering it would spend the owner’s credits on somebody else’s say-so.');
+      console.error('  Nothing was sent. An administrator or the owner must run this command.');
+      console.error('');
+      process.exit(2);
+    }
     if (!has('yes')) {
       const episode = await findNarrationEpisode(db, { slug });
       heading('This would SPEND CREDITS');

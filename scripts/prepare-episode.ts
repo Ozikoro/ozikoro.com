@@ -53,7 +53,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { closeDb, getDb } from '@ozituma/db/client';
-import { isNarrationVoice, proposeNarration, type NarrationVoice } from '@ozikoro/platform';
+import { can, isNarrationVoice, proposeNarration, type NarrationVoice } from '@ozikoro/platform';
 import { ownVoiceId, genericVoiceId, configured } from '../apps/ozikoro/lib/elevenlabs.ts';
 import { renderProposedNarration } from '../apps/ozikoro/lib/render-episode.ts';
 
@@ -131,6 +131,21 @@ try {
     console.error('');
     console.error('  --actor=<email> is required with --approve. A render is attributed to a person.');
     console.error('  Nothing was rendered.');
+    console.error('');
+    process.exit(2);
+  }
+  /*
+   * THE PERMISSION, NOT ONLY THE NAME.
+   *
+   * Before this line `--actor=` proved only that the account exists, so anybody who could run a shell command
+   * could spend the owner's credits in the owner's cloned voice and the transition row would name whoever they
+   * typed. The API's render route has always required `manage_ai_corpus`; this console is the other door to
+   * the same charge and now asks the same question.
+   */
+  if (!(await can(db, Number(actor.id), 'manage_ai_corpus'))) {
+    console.error('');
+    console.error(`  ${actorFlag} does not hold “manage ai corpus”, which authorises a charge.`);
+    console.error('  Nothing was sent. An administrator or the owner must approve the render.');
     console.error('');
     process.exit(2);
   }

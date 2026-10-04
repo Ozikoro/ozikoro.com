@@ -23,6 +23,7 @@
  * flag stays on every screen this file does not fill.
  */
 import type { Db } from '@ozituma/db';
+import { EXTERNAL_AUDIO_LABELS, isExternalAudioService } from './external-audio.ts';
 
 /** An entry as the archive holds it. Every field except `title` may be absent, and then its chip is omitted. */
 export type RealEntry = {
@@ -785,6 +786,19 @@ export type RealArticle = {
    */
   episode?: {
     url: string;
+    /**
+     * WHETHER THE ADDRESS IS A FILE THIS PAGE CAN PLAY, OR A PAGE A READER IS SENT TO.
+     *
+     * `true` — our own MP3 on `/media/…`, or an external URL a fetch established is `audio/*`. The panel
+     * gets `<audio data-listen-audio>` and the listen script drives it.
+     *
+     * `false` — an external page (a Spotify episode link). **It is NOT an `<audio src>`**: pointing one at it
+     * gives a button that is pressed and does nothing, and the archive's rule is that the record says what
+     * happened. So the button becomes an anchor that opens the service in a new tab, and the panel says so.
+     */
+    directAudio: boolean;
+    /** The service holding the audio when `directAudio` is false and the audio is elsewhere. */
+    service: string | null;
     seconds: number | null;
     narratorKind: string;
     narratorName: string | null;
@@ -881,25 +895,79 @@ export function fillArticle(html: string, a: RealArticle): string {
     const secs = a.episode.seconds ? a.episode.seconds % 60 : null;
     const length = mins !== null ? `${mins}m ${String(secs).padStart(2, '0')}s` : '';
     const transcriptSlug = a.path.replace(/^\//, '').replace(/\/$/, '');
-    out = out.replace(
-      /(<p class="small" data-listen-status aria-live="polite">)[\s\S]*?(<\/p>)/,
-      `$1Ready to listen${length ? ` · ${esc(length)}` : ''}$2`
-    );
-    out = out.replace(
-      /(<button class="btn" type="button" data-listen-toggle[^>]*>)[\s\S]*?(<\/button>)/,
-      '$1▶ Listen$2'
-    );
-    // The audio element carries the file; the design's own script drives the button and the progress bar.
-    out = out.replace(
-      /(<section[^>]*\bid="listen"[^>]*>)/,
-      `$1<audio data-listen-audio preload="none" src="${esc(a.episode.url)}"></audio>`
-    );
+    const service = a.episode.service && isExternalAudioService(a.episode.service)
+      ? EXTERNAL_AUDIO_LABELS[a.episode.service]
+      : null;
+
+    if (a.episode.directAudio) {
+      /*
+       * THE FILE THE READER HEARS, PLAYED IN THE PAGE.
+       *
+       * The element carries the address; the design's own script drives the button and the progress bar, and
+       * `audio-listen.js` is what hands the panel to it instead of the browser's voice.
+       */
+      out = out.replace(
+        /(<p class="small" data-listen-status aria-live="polite">)[\s\S]*?(<\/p>)/,
+        `$1Ready to listen${length ? ` · ${esc(length)}` : ''}$2`
+      );
+      out = out.replace(
+        /(<button class="btn" type="button" data-listen-toggle[^>]*>)[\s\S]*?(<\/button>)/,
+        '$1▶ Listen$2'
+      );
+      out = out.replace(
+        /(<section[^>]*\bid="listen"[^>]*>)/,
+        `$1<audio data-listen-audio preload="none" src="${esc(a.episode.url)}"></audio>`
+      );
+    } else {
+      /*
+       * THE AUDIO LIVES ELSEWHERE AND THE PAGE SAYS SO.
+       *
+       * **The button becomes an anchor, not a player.** A Spotify episode address is an HTML page: an
+       * `<audio src>` pointing at it is a button that is pressed and answers with nothing, and the owner's
+       * rule is that a Spotify link must not be presented as this archive's own recording. So the control is
+       * a link with `target="_blank"`, the status line names the destination, and the two controls that
+       * would have tuned a file that is not here — the speed select and the progress bar — are removed
+       * rather than left as controls that do nothing.
+       *
+       * The transcript link stays: a reader sent to Spotify still has the words here, which is the whole
+       * reason the transcript exists.
+       */
+      out = out.replace(
+        /(<p class="small" data-listen-status aria-live="polite">)[\s\S]*?(<\/p>)/,
+        `$1${service ? `Audio held on ${esc(service)} — it opens there` : 'Audio held elsewhere — it opens there'}` +
+          `${length ? ` · ${esc(length)}` : ''}$2`
+      );
+      out = out.replace(
+        /(<button class="btn" type="button" data-listen-toggle[^>]*>)[\s\S]*?(<\/button>)/,
+        `<a class="btn" data-listen-external href="${esc(a.episode.url)}" target="_blank" rel="noopener noreferrer"` +
+          ` style="text-decoration:none">${service ? `Listen on ${esc(service)} ↗` : 'Listen elsewhere ↗'}</a>`
+      );
+      out = out.replace(/<label>Speed[\s\S]*?<\/label>/, '');
+      out = out.replace(/<progress[^>]*>[\s\S]*?<\/progress>/, '');
+      /*
+       * THE PANEL IS NO LONGER A READ-ALOUD CONTROL, AND THE ATTRIBUTE HAS TO SAY SO.
+       *
+       * Measured in a real browser: this sentence reached a reader as *"Browser narration is unavailable on
+       * this device."* — because `design/reader.js` selects `[data-listen-status]`, finds no
+       * `[data-listen-toggle]` (the button is an anchor now), and overwrites the status with its own message
+       * about browser narration. **The panel was describing a mechanism it no longer offers, which is the same
+       * fault as a dead control: the sentence and the thing disagree.**
+       *
+       * Renaming the attribute is the smallest serve-time change that keeps the design's own script out of a
+       * panel it does not own. `reader.js` then finds no status element and no toggle, returns early, and binds
+       * nothing — so the browser's voice cannot take over a page whose audio is a real recording held
+       * elsewhere. The design file is not edited.
+       */
+      out = out.replace(/(<p class="small") data-listen-status( aria-live="polite">)/, '$1 data-listen-external-status$2');
+    }
+
     // The design's last line becomes the disclosure, the credit and the transcript.
     out = out.replace(
       /(<p class="small muted">)[\s\S]*?(<\/p>)(\s*<\/section>)/,
       `$1${esc(a.episode.disclosure)}$2` +
         `<p class="small muted"><a href="/podcast/${esc(transcriptSlug)}/transcript.txt">Read the transcript</a>` +
-        `${a.episode.narratorName ? ` · ${esc(a.episode.narratorName)}` : ''}</p>$3`
+        `${a.episode.narratorName ? ` · ${esc(a.episode.narratorName)}` : ''}` +
+        `${!a.episode.directAudio && service ? ` · Audio held on ${esc(service)}, not by this archive` : ''}</p>$3`
     );
   } else {
     // **No approved episode, so no button.** The panel goes rather than sitting there inert.

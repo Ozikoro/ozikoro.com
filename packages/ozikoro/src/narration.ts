@@ -38,6 +38,52 @@ export function isNarrationVoice(value: string): value is NarrationVoice {
   return value === 'own' || value === 'generic';
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * THE ONE CONDITION THAT PUTS AN EPISODE IN FRONT OF A READER
+ * ---------------------------------------------------------------------------
+ *
+ * THE OWNER'S RULE, VERBATIM
+ *
+ *   "on the audio article, if one is not approved, please be sure it does not show audio"
+ *
+ * THE FAULT THIS CLOSES
+ *
+ * Three public surfaces select an episode: the article page, the podcast feed and the transcript. Each asked
+ * `status = 'published'`, and that is a gate on PUBLICATION. **It is not a gate on APPROVAL**, and the two
+ * are different facts on different columns: `published` is written by `publishNarrationEpisode`, which also
+ * writes `approved_by` and `approved_at` — but any other write that sets the status alone produces a row that
+ * LOOKS live and records that nobody approved it. `scripts/narration-review.ts check` already calls that
+ * state a failure ("published without an approver"); until this fragment existed, the public surfaces served
+ * it anyway.
+ *
+ * WHY IT IS ONE FRAGMENT AND NOT FOUR COPIES
+ *
+ * A condition written out at each call site is four places to forget — and this repository's record is that
+ * the second copy is the one that drifts (the media resolver, the design script paths, the two share
+ * controls). So all four surfaces compose the same string, and a surface added later has an obvious thing to
+ * call rather than a sentence to remember.
+ *
+ * `published` REMAINS THE BAR, and `approved` is not it: **no code path sets `status = 'approved'`** —
+ * `publishNarrationEpisode` moves `pending_review` (or `approved`) straight to `published` — so requiring the
+ * `approved` status would hide every episode the archive owns. What the record's own states say is that
+ * `published` is "live" and `approved_at` is "a person authorised this". Both are required here.
+ *
+ * `approved_by` is required beside `approved_at` because they are one act: `publishNarrationEpisode` writes
+ * both, and the two scripts that publish outside it (`restore-episodes.ts`, `adopt-episode-recording.ts`)
+ * write both. A timestamp with no account behind it is exactly the unattributable approval the owner asked
+ * not to have.
+ *
+ * `alias` is the table alias in the caller's query (`'e'` in the feed, `''` in the article and transcript).
+ * It is compiled into the string rather than parameterised because a table alias cannot be a bind parameter —
+ * and it is only ever a literal this repository writes.
+ */
+export function playableEpisodeSql(alias = ''): string {
+  const p = alias ? `${alias}.` : '';
+  return `${p}status = 'published' and ${p}approved_at is not null and ${p}approved_by is not null`;
+}
+
+
 /**
  * THE RATE THE ESTIMATE USES.
  *

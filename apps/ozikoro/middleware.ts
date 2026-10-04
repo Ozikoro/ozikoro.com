@@ -282,6 +282,22 @@ export function middleware(request: NextRequest) {
      * was found: the editor reported "the served page answered 404 when asked what is on it".
      */
     'design-screen',
+    /*
+     * THE PODCAST'S OWN PREFIX — the seventh real address this fallback has swallowed, found by asking
+     * `/podcast/<slug>/` what it was.
+     *
+     * The feed's `<link>` and its `<podcast:person href>` both pointed at `/podcast/<slug>/`, which has no route
+     * yet. Because `podcast` was in no list, the attachment fallback above rewrote it to `/attachment/<slug>/`
+     * **before routing was ever reached** — answering 308 to `/documents/<slug>/` where an attachment happened
+     * to share the name, and 404 otherwise. Neither answer is the address's own.
+     *
+     * The feed's links now point at the article, which exists and carries the audio. This entry is for the
+     * address itself: `/podcast/feed.xml` is skipped by the matcher (`.xml`) and
+     * `/podcast/<slug>/transcript.txt` is three segments, so the two routes that DO exist were never affected —
+     * which is exactly why the fault went unnoticed. **An omission here is a misroute for the real route, not a
+     * 404 for the fallback**, and the next episode page built under this prefix belongs to this line.
+     */
+    'podcast',
   ]);
   const segments = pathname.split('/').filter(Boolean);
   /*

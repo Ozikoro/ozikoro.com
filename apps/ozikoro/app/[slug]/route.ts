@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, can, withStoredDesignOverrides, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, can, withStoredDesignOverrides, playableEpisodeSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
@@ -132,27 +132,49 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     /*
      * THE SPOKEN RECORD, BUT ONLY ONCE A PERSON HAS APPROVED IT.
      *
-     * **`status = 'published'` and nothing else.** An episode sitting in `pending_review` is one nobody has
-     * listened to yet, and the whole point of the review step is that a mistake is caught before a reader
-     * hears it. A `draft` or `failed` episode has no audio worth offering either.
+     * **`playableEpisodeSql()` AND NOTHING ELSE.** It requires `status = 'published'` — an episode sitting in
+     * `pending_review` is one nobody has listened to yet, and the whole point of the review step is that a
+     * mistake is caught before a reader hears it — AND it requires `approved_at`/`approved_by`, because
+     * `published` is a state and the approval is a separate fact on separate columns.
+     *
+     * **THAT SECOND HALF IS THE ONE THIS ROUTE WAS MISSING.** The query asked only for `published`, so a row
+     * whose status had been set by anything other than `publishNarrationEpisode` served audio that nobody had
+     * approved — the owner's rule broken by a write, not by this route. The condition now lives in
+     * `@ozikoro/platform` and is composed by all three public surfaces, so the article cannot hold a gate the
+     * feed leaks through.
      */
     const episode = await db.one<{
-      slug: string; storage_key: string | null; external_url: string | null; duration_seconds: number | null;
+      slug: string; storage_key: string | null; external_url: string | null; external_service: string | null;
+      external_direct_audio: boolean | null; duration_seconds: number | null;
       narrator_kind: string; narrator_name: string | null; ai_disclosure: string; transcript: string;
     }>(
-      `select slug, storage_key, external_url, duration_seconds, narrator_kind, narrator_name, ai_disclosure, transcript
+      `select slug, storage_key, external_url, external_service, external_direct_audio, duration_seconds,
+              narrator_kind, narrator_name, ai_disclosure, transcript
          from ozikoro_episode
-        where article_id = $1 and status = 'published'
+        where article_id = $1 and ${playableEpisodeSql()}
           and coalesce(external_url, storage_key) is not null
         order by published_at desc nulls last limit 1`,
       [row.id]
     );
+
+    /*
+     * WHETHER THIS PAGE CARRIES A PLAYER AT ALL, OR A LINK THAT LEAVES.
+     *
+     * A file — ours, or an external URL that answered with an audio content type — becomes
+     * `<audio data-listen-audio>` and the listen script drives it. **A Spotify episode page is not an
+     * `<audio src>`**: pointing one at it produces a button that is pressed and does nothing, which is the
+     * dead-control fault this archive has recorded four times. So a page-shaped address becomes an anchor
+     * that says where it goes, and the script is not loaded because there is nothing for it to play.
+     */
+    const directAudio = Boolean(episode) && (episode?.external_url ? episode.external_direct_audio === true : true);
 
     let filled = fillArticle(await readFile(SCREEN, 'utf8'), {
       ...article,
       episode: episode
         ? {
             url: episode.external_url ?? `/media/${episode.storage_key}`,
+            directAudio,
+            service: episode.external_service,
             seconds: episode.duration_seconds,
             narratorKind: episode.narrator_kind,
             narratorName: episode.narrator_name,
@@ -227,16 +249,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
      * THE PLAYER SCRIPT IS ADDED ONLY WHERE THERE IS SOMETHING TO PLAY.
      *
      * `audio-listen.js` hands the listen panel to the recorded audio instead of the browser's voice — **and it
-     * does nothing at all on a page without `[data-listen-audio]`**, which is every page whose episode has not
-     * been approved. So the script tag is only written when an episode is present, and a page with no recording
-     * is byte-for-byte the page it was before.
+     * does nothing at all on a page without `[data-listen-audio]`**. That is every page whose episode has not
+     * been approved, AND every page whose audio is an external page rather than a file: a Spotify episode
+     * address cannot be an `<audio src>`, so no element is written and the script would be dead weight. The
+     * condition is `directAudio` rather than `episode` for exactly that reason.
      *
      * `article-share.js` IS UNCONDITIONAL, because the share control is: it does nothing on a page with no
      * `[data-share]`, and on a page that has one it is what turns a blocked popup into a visible outcome
      * instead of a click that appears to do nothing.
      */
     const extraScripts = ['<script src="/article-share.js" defer></script>'];
-    if (episode) extraScripts.push('<script src="/audio-listen.js" defer></script>');
+    if (directAudio) extraScripts.push('<script src="/audio-listen.js" defer></script>');
     filled = filled.replace('</body>', `${extraScripts.join('')}</body>`);
 
     /*

@@ -18107,6 +18107,92 @@ another pass is writing against the parent it will actually have, not against HE
 
 ---
 
+## ROUND 324 — THE MENU'S `Researchers` WAS NOT DEAD, IT WAS ONE STRANGER'S PROFILE
+
+The owner's report was *"on the menu, the 'Researchers' is not working, it is dead link."* **It was not dead.**
+`researcher-profile.html` resolves at `/researcher-profile/`, the middleware serves the design's profile screen
+there, and it answers **200** — with one real contributor in it. The owner was right that it does not do what the
+label says, and a 200 is exactly why every check before this one passed it.
+
+### 1. THE MEASUREMENT, AND THE NUMBER THAT MAKES IT MORE THAN A ONE-LINE CHANGE
+
+**Twenty anchors in nine screens name `researcher-profile.html`, and seventeen of them say *Researchers*,
+*Researcher profiles* or *Researchers and publications*.** (An earlier count in the brief said nineteen and
+sixteen; the second `Chinwe Ị̀kẹ̀jìànị̀` byline, the one carrying `class="small"`, was missed.) The directory is
+`/researchers/`, served by the application's own route — `app/researchers/page.tsx`, `h1 Researchers`, listing the
+eleven contributors with published records and linking each to `/author/<slug>/`.
+
+| | before | after |
+|---|---|---|
+| `Researchers` on `/` | `/researcher-profile/` → **h1 Chuka Odike** | `/researchers/` → **h1 Researchers** |
+| the same item on the other eight screens | same profile, or 404 | `/researchers/` → h1 Researchers |
+| `aria-current="page"` on the item | 3 screens | 0 screens |
+
+### 2. THE THREE PERSON ANCHORS, AND WHY THE DIRECTORY IS THE HONEST ANSWER
+
+The other three anchors name the design's own example person: the byline `Chinwe Ị̀kẹ̀jìànị̀` twice and the
+breadcrumb citation `Ị̀kẹ̀jìànị̀, C.` once, all on the design's single publication record. **She does not exist** —
+the design's own banner says its researcher is invented, and `fillResearcherProfile`'s comment records the same
+person as the demonstration the archive refuses to present. There is no `/author/<slug>/` for her because there
+is no such byline, so a citation cannot be pointed at a real author. All three resolve with the rest, to
+`/researchers/`, and **on the screen they are written on `fillPublicationRecord` removes them outright**: there
+is no deposited publication, so there is no byline and no citation to carry. Verified on the served page — zero
+occurrences of the name.
+
+### 3. `aria-current="page"`, WHICH NAMED A PAGE IT WAS NOT ON
+
+Three screens marked the item current: `publication.html`, `researcher-profile.html` and `upload.html`. The
+marker was already untrue on the first two — a publication record and the deposit form are not the directory —
+and the rewrite makes it untrue on the third as well. **`aria-current="page"` is announced to a screen reader as
+"this is the page you are on"**, so it is removed rather than weakened: the design's menu has no item for a
+profile, a record or the deposit form, and on those three screens no item is current.
+
+### 4. THE FOUR SCREENS NOBODY HAD CHECKED, WHERE THE WHOLE MENU WAS DEAD
+
+`fillDashboardLinks` only ran for the fourteen dashboards and six screens carrying `href="#"`. Four screens that
+carry the menu were in neither set — `home`, `documents`, `publications`, `404` — and **not one of them carries a
+placeholder**, so the fault that named the set walked past them. Their menu is written as bare sibling filenames,
+which resolve against the address the screen is *served* from:
+
+* `/` — the one address where the relative links happen to resolve, which is how `researcher-profile.html`
+  reached a stranger and answered 200;
+* `/documents/`, `/publications/` and `/404/` — **every menu item returned 404**, measured: `archive-index.html`
+  resolved to `/documents/archive-index.html` and was not a route. Six items and the whole footer on three live
+  screens.
+
+They were added to the same set rather than given a second rule, because the transform that makes the relative
+links absolute is already there and two transforms drift.
+
+### 5. WHAT WAS SEEN, BECAUSE A 200 IS NOT A WORKING LINK
+
+* **Every nav item on all nine screens fetched, with the `h1` of what answers** — *Researchers → `/researchers/`
+  → h1 Researchers* on all nine. The full before/after is in the round's measurement table; the four screens
+  above went from **404 on every item** to 200 on the promised page.
+* **A real browser, because a fetch is not a click.** Headless Chrome: every nav item on `/` clicked, and the
+  `Researchers` item clicked on each of the nine screens. Every one landed on the promised address —
+  `Researchers → /researchers/ → h1 Researchers`, nine times.
+* **Design parity** — `identical 63 differing 0 missing 0`, run at the end. The design was read as a template and
+  not one byte written.
+
+### 6. WHAT DOES NOT WORK, WITH THE EXACT ERROR
+
+* **Six links written by the fills themselves are still relative and 404**, and they are a different mechanism —
+  markup that arrives *after* the transform has run. `/publication/` carries `cite.html`, `upload.html` and
+  `publications.html`; `/researcher-profile/` carries `upload.html` and `publications.html`; `/publications/`
+  carries `upload.html`. Fetched: `/publication/cite.html` **404**, `/publication/upload.html` **404**,
+  `/publication/publications.html` **404**, `/researcher-profile/upload.html` **404**,
+  `/researcher-profile/publications.html` **404**, `/publications/upload.html` **404**. The fix is in the fills
+  (`fillPublications`, `fillPublicationRecord`, `fillResearcherProfile`), which should write `/upload/`, `/cite/`
+  and `/publications/` — not in the rewrite map, which cannot see text it did not write.
+* **One label reads differently from the page it reaches.** On `/` the menu's `Archive` item goes to
+  `/documents/`, whose `h1` is *Published work, ready to read.* — and the same screen is labelled `Documents` in
+  every other screen's menu. Both labels are right about the destination; the design simply uses two words for
+  it. Reported, not changed: the labels are the design's.
+* **The four screens that needed the transform were found by a fetch of the served page, not by a test.** The
+  test asserted only the screens that carried `href="#"`; it now asserts the resolution as well, so a screen that
+  stops being rewritten fails whichever half of the transform it needed.
+
+
 ## ROUND 323 — A CLAN IS A PLACE: THE CHIP AND THE FACET NOW READ ONE LIST, AND THE BUILDER MATCHES THE NAME THE RECORD ACTUALLY PRINTED
 
 **The owner's words:** *"on the archive, you showed that umunede and others are marked 'Place', but not Ute
@@ -18379,94 +18465,6 @@ one `.next`.
 
 **`apps/ozikoro/public/design/` was not touched, and `git status --porcelain` over `design/` returns
 nothing.**
-
----
-
-## ROUND 324 — THE MENU'S `Researchers` WAS NOT DEAD, IT WAS ONE STRANGER'S PROFILE
-
-The owner's report was *"on the menu, the 'Researchers' is not working, it is dead link."* **It was not dead.**
-`researcher-profile.html` resolves at `/researcher-profile/`, the middleware serves the design's profile screen
-there, and it answers **200** — with one real contributor in it. The owner was right that it does not do what the
-label says, and a 200 is exactly why every check before this one passed it.
-
-### 1. THE MEASUREMENT, AND THE NUMBER THAT MAKES IT MORE THAN A ONE-LINE CHANGE
-
-**Twenty anchors in nine screens name `researcher-profile.html`, and seventeen of them say *Researchers*,
-*Researcher profiles* or *Researchers and publications*.** (An earlier count in the brief said nineteen and
-sixteen; the second `Chinwe Ị̀kẹ̀jìànị̀` byline, the one carrying `class="small"`, was missed.) The directory is
-`/researchers/`, served by the application's own route — `app/researchers/page.tsx`, `h1 Researchers`, listing the
-eleven contributors with published records and linking each to `/author/<slug>/`.
-
-| | before | after |
-|---|---|---|
-| `Researchers` on `/` | `/researcher-profile/` → **h1 Chuka Odike** | `/researchers/` → **h1 Researchers** |
-| the same item on the other eight screens | same profile, or 404 | `/researchers/` → h1 Researchers |
-| `aria-current="page"` on the item | 3 screens | 0 screens |
-
-### 2. THE THREE PERSON ANCHORS, AND WHY THE DIRECTORY IS THE HONEST ANSWER
-
-The other three anchors name the design's own example person: the byline `Chinwe Ị̀kẹ̀jìànị̀` twice and the
-breadcrumb citation `Ị̀kẹ̀jìànị̀, C.` once, all on the design's single publication record. **She does not exist** —
-the design's own banner says its researcher is invented, and `fillResearcherProfile`'s comment records the same
-person as the demonstration the archive refuses to present. There is no `/author/<slug>/` for her because there
-is no such byline, so a citation cannot be pointed at a real author. All three resolve with the rest, to
-`/researchers/`, and **on the screen they are written on `fillPublicationRecord` removes them outright**: there
-is no deposited publication, so there is no byline and no citation to carry. Verified on the served page — zero
-occurrences of the name.
-
-### 3. `aria-current="page"`, WHICH NAMED A PAGE IT WAS NOT ON
-
-Three screens marked the item current: `publication.html`, `researcher-profile.html` and `upload.html`. The
-marker was already untrue on the first two — a publication record and the deposit form are not the directory —
-and the rewrite makes it untrue on the third as well. **`aria-current="page"` is announced to a screen reader as
-"this is the page you are on"**, so it is removed rather than weakened: the design's menu has no item for a
-profile, a record or the deposit form, and on those three screens no item is current.
-
-### 4. THE FOUR SCREENS NOBODY HAD CHECKED, WHERE THE WHOLE MENU WAS DEAD
-
-`fillDashboardLinks` only ran for the fourteen dashboards and six screens carrying `href="#"`. Four screens that
-carry the menu were in neither set — `home`, `documents`, `publications`, `404` — and **not one of them carries a
-placeholder**, so the fault that named the set walked past them. Their menu is written as bare sibling filenames,
-which resolve against the address the screen is *served* from:
-
-* `/` — the one address where the relative links happen to resolve, which is how `researcher-profile.html`
-  reached a stranger and answered 200;
-* `/documents/`, `/publications/` and `/404/` — **every menu item returned 404**, measured: `archive-index.html`
-  resolved to `/documents/archive-index.html` and was not a route. Six items and the whole footer on three live
-  screens.
-
-They were added to the same set rather than given a second rule, because the transform that makes the relative
-links absolute is already there and two transforms drift.
-
-### 5. WHAT WAS SEEN, BECAUSE A 200 IS NOT A WORKING LINK
-
-* **Every nav item on all nine screens fetched, with the `h1` of what answers** — *Researchers → `/researchers/`
-  → h1 Researchers* on all nine. The full before/after is in the round's measurement table; the four screens
-  above went from **404 on every item** to 200 on the promised page.
-* **A real browser, because a fetch is not a click.** Headless Chrome: every nav item on `/` clicked, and the
-  `Researchers` item clicked on each of the nine screens. Every one landed on the promised address —
-  `Researchers → /researchers/ → h1 Researchers`, nine times.
-* **Design parity** — `identical 63 differing 0 missing 0`, run at the end. The design was read as a template and
-  not one byte written.
-
-### 6. WHAT DOES NOT WORK, WITH THE EXACT ERROR
-
-* **Six links written by the fills themselves are still relative and 404**, and they are a different mechanism —
-  markup that arrives *after* the transform has run. `/publication/` carries `cite.html`, `upload.html` and
-  `publications.html`; `/researcher-profile/` carries `upload.html` and `publications.html`; `/publications/`
-  carries `upload.html`. Fetched: `/publication/cite.html` **404**, `/publication/upload.html` **404**,
-  `/publication/publications.html` **404**, `/researcher-profile/upload.html` **404**,
-  `/researcher-profile/publications.html` **404**, `/publications/upload.html` **404**. The fix is in the fills
-  (`fillPublications`, `fillPublicationRecord`, `fillResearcherProfile`), which should write `/upload/`, `/cite/`
-  and `/publications/` — not in the rewrite map, which cannot see text it did not write.
-* **One label reads differently from the page it reaches.** On `/` the menu's `Archive` item goes to
-  `/documents/`, whose `h1` is *Published work, ready to read.* — and the same screen is labelled `Documents` in
-  every other screen's menu. Both labels are right about the destination; the design simply uses two words for
-  it. Reported, not changed: the labels are the design's.
-* **The four screens that needed the transform were found by a fetch of the served page, not by a test.** The
-  test asserted only the screens that carried `href="#"`; it now asserts the resolution as well, so a screen that
-  stops being rewritten fails whichever half of the transform it needed.
-
 
 ## ROUND 326 — THE WATCH SECTION NOW HOLDS EVERY FILM THE ARTICLES EMBED, AND STOPS DELETING THE `[Re:]Entanglements` FILMS
 
@@ -18795,3 +18793,361 @@ design's own ids surviving the fill).
   lock to clear **and** for the served page to carry 30 distinct cards three checks running, and they print the
   count before and after the run. Every number in §9 is from a run that passed that gate (`cards before: 30`,
   `cards after: 30`).
+
+## ROUND 327 — THE REVIEW SITE WENT DOWN BECAUSE FOUR AGENTS SHARED ONE `.next`, AND THE FIX IS A LOCK BESIDE IT
+
+The owner's words: *"if this site keeps going down, why? what is the solution? solve it"*. The answer is not a
+fault in the site. It is that several agents share one checkout, one `apps/ozikoro/.next` and one port 3110,
+and **nothing serialised them**. Each of the five causes below was measured today.
+
+### 1. THE CAUSE, IN ONE PARAGRAPH
+
+`next build` **empties its output directory before it writes**, and the review server serves out of
+`.next/standalone` — so a build in place takes the running server's files away at its first second, whether or
+not the build succeeds. Two builds at once also destroy each other's manifests, and the old
+`serve-review.sh` was not idempotent: it SIGTERMed whatever held 3110, rebuilt unconditionally and restarted,
+**so every run cost the site 60–120 seconds even when the build it needed was already current.** It was run
+several times an hour all day. The measured proof of the wipe is in §2.
+
+### 2. WHAT WAS MEASURED, BEFORE ANYTHING WAS CHANGED
+
+| what happened | what it produced |
+|---|---|
+| a build that FAILED on another agent's type error | `.next` with no `BUILD_ID` and **no `standalone/` at all**; the site answered `404` for **eight minutes** |
+| the running server's log at that moment | `Could not find a production build in the '…/standalone/apps/ozikoro/.next' directory` |
+| two `serve-review.sh` runs in the same second, before this round | both built; the first recorded errors were `Cannot find module '…/.next/server/pages-manifest.json'` and `ENOENT … next-font-manifest.json` |
+| `npm run typecheck`, which every commit runs | rewrites `apps/ozikoro/tsconfig.tsbuildinfo`, which made every freshness check say "rebuild" |
+
+**A `200` was never the test.** Three faults today returned `200` and were unusable, and one
+`serve-review.sh --rebuild` taken during a verification probe took `/watch/` to a nine-byte `404` body that the
+probe read as "0 cards, 0 broken thumbnails" — a PASS-shaped reading of a page that was not there.
+
+### 3. WHAT WAS BUILT
+
+**`scripts/lib/next-build-lock.sh`** — one build per `.next`, in the shape of `packages/db/src/cluster-lock.ts`,
+because that guard's reasoning was already tested. `mkdir` is the shell's `O_CREAT|O_EXCL`; the holder writes
+pid, process start time, epoch and argv; a stale lock self-heals when the pid is dead or the pid was reused;
+the holder keeps a descriptor on the lock directory for its whole life, which is the test that survives pid
+reuse **and is what makes it work on macOS, where `ps` is denied in this sandbox**; the refusal names the
+holder and the exact `rm -rf`. The lock is **`apps/ozikoro/.next.lock`, beside `.next` and never inside it**,
+because a lock inside the build directory is deleted by the very `rm -rf` that needs it most — the reasoning
+that put the database lock beside the cluster.
+
+**`scripts/serve-review.sh`** changed in five ways:
+
+| change | why |
+|---|---|
+| it takes the lock before anything is built, copied or stopped | two agents starting at once was the actual failure |
+| it builds only when a source file is newer than `.next/BUILD_ID` (measured at **0.14–0.17 s**) | a restart should cost a restart, not 90 seconds |
+| the build writes `.next-next` (`OZIKORO_DIST_DIR`) and is **swapped in** only when complete | the running server keeps its own files for the whole build, so **a failed build leaves the site up** |
+| the copied artefact is asserted: `server.js` present and the design screens counted against the source | a standalone with 51 of 52 screens serves `200` everywhere and `404` for every screen |
+| `--check` reports and changes nothing; `--rebuild` forces a build | an agent can ask without taking the site down |
+
+The SIGTERM-and-wait and the **refusal to force-kill a process holding `.data/pg`** are untouched. That
+refusal is the single most important line in the script and it survives this change deliberately.
+
+### 4. THE SIX MEASUREMENTS, WITH TIMES AND STATUSES
+
+| # | what was done | result |
+|---|---|---|
+| 1 | two runs **0.3 s apart**, both seeing a stale build | A built and **the site ended up up** (86 s build + 4 s restart, 108 s wall); B **refused in 1 s** naming holder pid 84304 and its `argv` |
+| 2 | a run with the server up and the build current | **4 s** wall, `/` down for ~3 s of a 20-sample probe, **all five routes `200` after** |
+| 3 | a lock written by hand naming dead pid 99999 | reclaimed — `reclaimed a stale build lock (PID 99999 is no longer running)` — then built and swapped; lock gone afterwards |
+| 4 | a lock held by a live process | **refused in 2 s**; message named holder pid 72380, its start time, its `argv` and `rm -rf …/apps/ozikoro/.next.lock`; the holder's record was unchanged |
+| 5 | one copied design screen removed (51 of 52) | non-zero in **1 s**: `holds 51 files where apps/ozikoro/public/design/screens holds 52`; the running server's pid was **identical before and after** and all five routes stayed `200` |
+| 6 | the site after all of it | `/` `200` 18,327 B · `/about/` `200` 28,510 B and **its five images all `200`** · `/archive/` `200` · `/researchers/` `200` · `/igbo-calendar/` `200`; `/design-screen/about/` `200`; `main.css`, `/tokens.css` and `a11y.css` all `200` |
+
+### 5. A FLAW THE MEASUREMENT FOUND IN THE FIX ITSELF
+
+The first version of the completeness guard **deleted** the incomplete standalone from every caller, including
+the pre-flight — which runs while the server is serving *out of that directory*. Measured: deleting one copied
+screen took `/`, `/about/` and `/igbo-calendar/` from `200` to `404` while the refusal was printing. **The check
+had become an outage.** Deletion is now the build's job alone, on the artefact it just copied into staging,
+where nothing is served. The pre-flight refuses and leaves the directory where a human can look at it.
+
+### 6. THE PARITY OUTPUT, VERBATIM
+
+```
+identical 63 differing 0 missing 0
+```
+
+`apps/ozikoro/public/design/` was not edited. Nothing in this round touches the design deliverable or the site;
+it changes build tooling.
+
+### 7. WHAT STILL CAN GO WRONG
+
+* **The swap is a window, not a magic trick.** `rm -rf .next && mv .next-next .next` happens with the server
+  stopped, so the outage is the few seconds of the swap rather than zero. A true atomic exchange would need
+  `renameat(2)` or a symlinked serving directory; both are more machinery than this earns today.
+* **The freshness check is conservative.** It rebuilds when any source file under `apps/ozikoro` or
+  `packages/{ozikoro,db,core}/src` is newer, including a test file that cannot reach the bundle. A false
+  rebuild is 90 seconds; a false skip is the wrong site, so it errs that way on purpose.
+* **The lock is advisory.** `build-standalone.sh`, a hand-typed `npx next build`, and the Docker build do not
+  take it. The rule is in `AGENTS.md` now, which is the same remedy the database guard had to add — a guard
+  nobody knows about gets removed by the second person who meets it.
+* **A standalone damaged while the site is already down is not repaired by the guard.** It refuses, which is
+  correct, and `--rebuild` is what fixes it.
+* **`distDir` is read from `process.env.OZIKORO_DIST_DIR || '.next'`**, so the default is inert and every other
+  caller is unaffected — but it is a behaviour of `apps/ozikoro/next.config.ts` and a future refactor of that
+  file could drop it, which would take the staging build away silently. `--check` prints the staging path when
+  a build is due, which is the cheap way to notice.
+* **One shared long-lived server with an atomic artefact swap was considered and not built.** The lock plus the
+  freshness check plus the staging swap cover the measured failures without a second design; what such a server
+  would add over this is mainly the removal of the swap window, at the cost of a supervisor, a health check and
+  a new failure mode of its own.
+
+## ROUND 328 — THE AUDIO GATE WAS A GATE ON PUBLICATION AND NOT ON APPROVAL, AND THE OWNER WAS RIGHT TO ASK
+
+The owner, verbatim:
+
+> "on the audio article, if one is not approved, please be sure it does not show audio. pdf is automatica.
+>  the admin audio section should also make sure no voice note is done from elevenlabs without prior approval
+>  for it to be done. also, there should be an option to add spotify audio link, instead of my own generated
+>  link. all these are options"
+
+### 1. THE CLAIM THAT LOOKED RIGHT, AND THE MEASUREMENT THAT DISPROVED HALF OF IT
+
+`apps/ozikoro/app/[slug]/route.ts` selects one episode for the record with `status = 'published'`. Read on its
+own that **is** a gate, in the query rather than in a conditional — and it is the right shape. What the whole
+day's record warned about is that a shape can be right and the fact behind it wrong, so the claim was measured
+rather than read.
+
+A copy of the cluster was taken (`.data/scratch-r323/pg`, from the 12:17 backup), one episode was created for
+**every status the CHECK constraint allows**, each with a `storage_key` so the ONLY thing that varied was the
+status, and the served pages were fetched. The constraint was read from `pg_constraint`, not guessed:
+
+    draft, proposed, pending_review, corrections, approved, published, withdrawn, failed, declined
+
+    case                 | status          | approved | article | audio   | script | panel | transcript | feed
+    ---------------------+-----------------+----------+---------+---------+--------+-------+------------+-----
+    draft                | draft           | no       | 200     | no      | no     | no    | 404        | no
+    proposed             | proposed        | no       | 200     | no      | no     | no    | 404        | no
+    pending_review       | pending_review  | no       | 200     | no      | no     | no    | 404        | no
+    corrections          | corrections     | no       | 200     | no      | no     | no    | 404        | no
+    approved             | approved        | no       | 200     | no      | no     | no    | 404        | no
+    published            | published       | YES      | 200     | YES     | YES    | YES   | 200        | YES
+    withdrawn            | withdrawn       | no       | 200     | no      | no     | no    | 404        | no
+    failed               | failed          | no       | 200     | no      | no     | no    | 404        | no
+    declined             | declined        | no       | 200     | no      | no     | no    | 404        | no
+    published_unapproved | published       | **no**   | 200     | **YES** | **YES**| **YES**| **200**   | **YES**
+
+**Eight statuses are correctly refused. The ninth is the fault.** A row whose `status` says `published` but
+which records no approval served audio on the article, carried the listen script, appeared in the feed **and
+served its transcript** — on all three public surfaces at once. `status = 'published'` is a gate on
+PUBLICATION; the owner's rule is a gate on APPROVAL, and they are different facts on different columns.
+
+The inverse was measured too, because it is the same fault read backwards: **`status = 'approved'` is a dead
+state.** No code path writes it — `publishNarrationEpisode` moves `pending_review` straight to `published`
+while writing `approved_by`/`approved_at` beside it — so requiring the `approved` status would hide every
+episode the archive owns, including the owner's own recording. **The record's own states therefore say that
+the bar is `published` AND an approval record**, which is exactly the two halves the query now asks for.
+
+And the leak was reachable: `publishNarrationEpisode` is not the only writer of `status`. **Nothing in the
+schema stops a status write that skips it**, and `scripts/narration-review.ts check` already called that state
+a failure ("published without an approver") while the article, the feed and the transcript all served it.
+
+### 2. THE FIX IS IN THE QUERY, NOT IN A CONDITIONAL — AND IT IS ONE QUERY, NOT THREE
+
+    playableEpisodeSql('…')  ==  status = 'published' and approved_at is not null and approved_by is not null
+
+`packages/ozikoro/src/narration.ts:81`. It is a fragment rather than a sentence repeated at each call site
+because this repository has recorded the drift of a second copy four times (the media resolver, the design
+script paths, the two share controls), and because **the gate must not be one surface's property**: the
+article (`app/[slug]/route.ts`), the feed (`app/podcast/feed.xml/route.ts`) and the transcript
+(`app/podcast/[slug]/transcript.txt/route.ts`) now compose the same string, so a surface added later has an
+obvious thing to call rather than a rule to remember.
+
+`approved_by` is required beside `approved_at` because they are one act. The three writers that publish —
+`publishNarrationEpisode`, `scripts/restore-episodes.ts`, `scripts/adopt-episode-recording.ts` — all write
+both, and the three live episodes were checked before the change: all three carry `approved_by = 199` and a
+timestamp, so nothing that was working stopped working. **After the fix the same table reads:**
+
+    published_unapproved | published | no | 200 | no | no | no | 404 | no
+
+No audio, no script, no panel, no transcript, no feed item. The approved episode is unchanged and the other
+eight statuses are unchanged.
+
+### 3. THE TRANSCRIPT AND THE FEED — AND THE SEVENTH ROUTE THE MIDDLEWARE HAD SWALLOWED
+
+Both leaked the same row and both are fixed by the same fragment. The transcript asked only for
+`status = 'published'`; the feed asked the same and additionally required an audio column to be non-null,
+which the unapproved row satisfied because a fixture with audio is exactly what a rendered-but-unapproved
+episode is.
+
+`/podcast/<slug>/` was asked for as the brief requires, and **it is not a page at all.** Two segments, and
+`podcast` was in no `KNOWN_FIRST_SEGMENTS` list, so `apps/ozikoro/middleware.ts`'s WordPress-attachment
+fallback rewrote it to `/attachment/<slug>/` **before routing was ever reached** — answering 308 to
+`/documents/<slug>/` where an attachment happened to share the name, and 404 otherwise. Measured:
+`/podcast/enuani-…/` → `308 location: /documents/enuani-…/`, `/podcast/oja-…/` → `404`. That makes `podcast`
+**the seventh real address this rewrite has swallowed** (`town`, `sitemap`, `clans`, `/<slug>/pdf`,
+`publication-file` and `design-screen` were the six it already names), and it is why the fault went unnoticed:
+`/podcast/feed.xml` is skipped by the matcher (`.xml`) and `/podcast/<slug>/transcript.txt` is three segments,
+so the two routes that DO exist were never affected. One line and its reasoning are now in the list.
+
+**The feed's item `<link>` and every `<podcast:person href>` pointed at that address.** They now point at the
+article — the page that actually carries the recording, the disclosure and the transcript link — and the
+`<guid>` is deliberately unchanged, because changing it would make every existing subscriber see the whole
+back catalogue as new.
+
+### 4. INSTRUCTION 2 — EVERY GATE BETWEEN A PROPOSAL AND A CHARGE, IN ORDER
+
+    proposeNarration                     packages/ozikoro/src/narration.ts   spends nothing, cannot import the API client
+    POST /api/podcast/propose            gated on review_audio
+    ── an approval must happen here ──
+    POST /api/podcast/approve-proposal   sameOrigin, then guardNarration(input, 'manage_ai_corpus')   route.ts:39,45
+      or POST /api/podcast/generate      can(db, actor, 'manage_ai_corpus')                           route.ts:43
+      or the CLI                         can(db, actor, 'manage_ai_corpus')   narration-review.ts:261, prepare-episode.ts:145
+    renderProposedNarration              apps/ozikoro/lib/render-episode.ts
+      1. configured()                    line 83    no key or voice → 503, nothing sent
+      2. the episode exists              line 93    no proposal → 404
+      3. RENDERABLE = {proposed, corrections, failed}   line 49, 102    anything else → 409
+      4. the voice id resolves           line 115   missing → 503
+      5. narrationPronunciationGate      line 151   an unpronounceable Igbo word → 409 unpronounceable_words
+      6. the allowance is sufficient     line 158   not enough credits → 409 insufficient_allowance
+      7. speak()                         line 175   THE ONLY BILLED CALL IN THE REPOSITORY
+
+**The proof, and it spent nothing.** A mechanism whose only proof is a live render can only be tested by
+spending the money it protects, so `scripts/test-narration-gate.ts` replaces `globalThis.fetch` with a
+recording stub that REFUSES the speech endpoint. Measured on the scratch cluster:
+
+* every status a render may not start from is refused `not_awaiting_approval` **with zero requests recorded**
+  — including `published`, and `published` with no approval record;
+* for a renderable proposal the recorded calls are exactly
+  `GET /v1/user/subscription` then `POST /v1/text-to-speech/dummy_voice`, and the second is refused by the
+  harness (`render_failed: GATE-TEST-REFUSAL`), so the ORDER is measured and the charge is not made;
+* the row is unchanged afterwards (`status=proposed`, same `storage_key`) and **no `pending_review` transition
+  is written**;
+* `manage_ai_corpus` is held by `admin` and `owner` and by nobody else, asked of `ozikoro_role_capability`.
+
+Over HTTP, on the built site, all six narration endpoints (`propose`, `approve-proposal`, `generate`,
+`decline-proposal`, `review`, `sweep`) answer **403 `{"error":"Not signed in."}`** to an unauthenticated POST
+carrying a real slug. The guard is the first thing each does, before the slug is read.
+
+**A HOLE WAS FOUND AND CLOSED.** `scripts/narration-review.ts approve-proposal` and
+`scripts/prepare-episode.ts --approve` required `--actor=` but checked only that the account EXISTED. Anyone
+who could run a shell command could therefore spend the owner's credits in the owner's cloned voice, and the
+transition row would name whoever they typed — **a gate that lets anyone approve is not the gate the owner
+asked for.** Both now refuse unless the named account holds `manage_ai_corpus`.
+
+**THE APPROVAL IS RECORDED WITH AN ACTOR.** `publishNarrationEpisode` writes `approved_by`/`approved_at`
+(line 636 of `narration.ts`), the render writes `actor_account_id` on `ozikoro_episode_transition`, and the
+new external-audio path writes an `ozikoro_audit` row naming the actor — the same `can()` + audit shape
+`app/admin/users/` uses.
+
+**A SECOND RENDER PATH EXISTS, AND IT IS ALREADY SHUT.** `media.ozikoro.com` serves `POST /speak` with two
+engines and no approval flow of its own. Its ElevenLabs engine is fail-closed behind
+`OZIKORO_MEDIA_ALLOW_ELEVENLABS` (`apps/media/lib/engines/elevenlabs.ts:112`), and the live service confirms
+it: `GET /engines` reports `"available": false, "reason": "narration is paused and no credit may be spent…
+The account has 21552 characters remaining."` It is a global switch rather than a per-episode approval, and
+nothing in this repository sets it — **so the path is shut, by a gate that is not the owner's gate.** Named
+here because it is one environment variable away from being the second door.
+
+### 5. INSTRUCTION 3 — THE SPOTIFY OPTION
+
+**The field.** `external_url` has existed since 0045 and the routes already preferred it; what it could not
+carry was **which service** the address belongs to and **whether it is a file at all**.
+`packages/db/migrations/0052_ozikoro_external_audio.sql` adds `external_service`
+(`spotify|apple_podcasts|youtube|other`), `external_direct_audio`, `external_checked_at` and
+`external_check_note`, with a CHECK making the URL and its service atomic — a URL with no service is the
+"stored, served and invisible" fault in one row. `preview_url` does not exist and was not added.
+
+**Where it is set.** `/admin/audio/` gains a "Where the audio lives" card listing every episode, its recorded
+service, what the check found and **what the feed will do with it**. The write is
+`POST /api/podcast/external-audio`, gated on `review_audio` (no render is made, so the spend gate is not the
+right one), writing an `ozikoro_audit` row naming the actor. The act publishes the episode and records
+`approved_by`/`approved_at`, because **the act IS the approval** — there is no charge for it to gate.
+
+**How it is validated.** `externalAudioShapeProblem` is pure: https only, the host must belong to the named
+service (Spotify's own hosts are `open.spotify.com`, `spotify.com`, `spotify.link`), and `other` accepts any
+host. The route then fetches the address once, with a timeout and a named user agent, following
+`imageAddressProblem`'s shape exactly: **404/410 refuses the save with the status in the sentence**, any other
+non-2xx is recorded and allowed (a 401/403 is what a service does to a checkout runner it does not know), and
+**a fetch that throws is recorded as "could not be checked" and still saved**, because an unlucky check is not
+evidence about the address. What the check establishes is what one server-side request returned at that
+moment — `content-type: text/html` for a Spotify episode page, `audio/*` for a file — and
+`external_check_note` stores that sentence so nobody has to infer later what was and was not verified.
+**Spotify answers a bot and a browser differently, and this check does not claim to know what a reader's
+session will play.**
+
+**What the article does.** A file — ours, or an external URL that answered with an audio content type —
+becomes `<audio data-listen-audio>` as before. **A page becomes an anchor that leaves.** Read in a real
+browser, the Spotify case renders as: no `<audio>` element, no player script, no speed control, no progress
+bar, an anchor `Listen on Spotify ↗` with `target="_blank" rel="noopener noreferrer"`, the status line
+`Audio held on Spotify — it opens there`, and the disclosure `Read by a person. The audio is held on Spotify
+and is not stored by this archive; the link opens there.` **The approved episode with our own MP3 was checked
+in the same browser and still plays: `decodedDuration 144.335 s`, `playedInPlace true`.**
+
+**AND THE BROWSER FOUND A FAULT THE BYTES DID NOT SHOW.** The first build's served HTML carried our status
+sentence, and a reader saw *"Browser narration is unavailable on this device."* — because `design/reader.js`
+selects `[data-listen-status]`, finds no `[data-listen-toggle]` (the button is an anchor now), and overwrites
+it. **A panel was describing a mechanism it no longer offers**, which is the dead-control fault in prose. The
+serve-time fix renames that one attribute on the external page, so the design's script finds neither a status
+element nor a toggle, returns early, and cannot take over a page whose audio is a real recording held
+elsewhere. One assertion now covers it, and it exists because a browser said so.
+
+**What the feed does, and why.** An `<enclosure>` must be a directly playable audio resource, so:
+
+* **a directly playable external file is the enclosure** — it is the host the owner chose, and it wins over our
+  copy (`kind: 'external'`);
+* **a Spotify page is not, so the enclosure stays on the copy this archive holds** where there is one
+  (`kind: 'ours'`) — the page sends the reader to Spotify, the feed keeps the promise it can keep;
+* **where there is neither, the item is OMITTED and the reason is shown on the admin page** (`kind: 'omitted'`)
+  — a podcast item without an enclosure is rejected by Spotify and shown as unplayable by a subscriber, and
+  listing one would be worse than listing nothing.
+
+The decision lives in one exported function, `feedAudioChoice`, so the sentence the admin page shows is the
+decision the feed makes. Measured against the served bytes: `external` → `<enclosure url="…cdn.example.org…">`
+and the item present; `ours` → item present, enclosure on `/media/ozikoro/episodes/<slug>.mp3`; `omitted` →
+no `<item>` for that guid at all.
+
+### 6. THE PDF IS UNTOUCHED, AND CONFIRMED AUTOMATIC
+
+`/<slug>/pdf` is generated on request by `apps/ozikoro/lib/publication.ts` through
+`packages/ozikoro/src/pdf/`. It has no status gate, no approval step and no review queue, which is what
+"pdf is automatica" asks for, and it renders no audio so it costs nothing. Nothing in this round touched it:
+the only gate added anywhere is on the EPISODE, and the PDF path never reads `ozikoro_episode`.
+
+### 7. WHAT DOES NOT WORK, OR WAS NOT DONE
+
+* **`/podcast/<slug>/` has no page.** The middleware no longer misroutes it (404 rather than a 308 to a
+  documents page), the feed no longer links to it, and the transcript beside it works — but a listener who
+  wants the episode's own page has only the article. Building it is a page, not a patch, and it is named in the
+  middleware's list so it will not be swallowed when it arrives.
+* **The serve-review freshness check has a false positive.** `scripts/serve-review.sh` prunes `.next` and
+  `.next-next` from the "is any source newer than BUILD_ID" walk but not `.next.lock`, so the lock record a run
+  writes is always newer than the build and **`--check` reports STALE for a build that is current**. Observed:
+  `why  newer than the current build: apps/ozikoro/.next.lock/record.json`. That is the "rebuilds
+  unconditionally" fault the script's own header says it exists to remove. Not touched — the file is another
+  pass's in-flight work.
+* **The editor capability assertion was SKIPPED.** The scratch cluster holds one account (the owner), so
+  "an editor account cannot authorise the spend" was proved from `ozikoro_role_capability` (editor is not among
+  the holders) but not by asking a real editor's `can()`. Reported as a skip rather than counted as a pass.
+* **The rehearsal's direct-file case uses a URL that does not exist** (`cdn.example.org`), on purpose: the
+  content-type decision is the route's fetch, and a rehearsal must not depend on a third party answering. The
+  served page therefore has an `<audio>` element whose file 404s — which is what the browser check reports, and
+  is a property of the fixture rather than of the code.
+* **The live cluster was opened by two migrations in one hour and the site was down for eight minutes** while
+  a sibling's build containing this round's query reached the served artefact before migration 0052 was
+  applied to `.data/pg`. Every article answered 404 and the feed answered 500. A byte-verified backup was taken
+  first (`.data/backups/pg-2026-10-04T13-45-27`, `diff -rq` clean but for `pg_control`/`postmaster.pid`, which
+  a PGlite open rewrites), 0052 was applied with `OZITUMA_DB_PATH=.data/pg node packages/db/src/migrate.ts up`,
+  and the server was restarted with plain `nohup`. **The lesson is ordering, not the migration: a column added
+  to a served query must reach the database before the build that reads it does.**
+
+### 8. THE GATE
+
+* `npm run typecheck` from the repository root: **exit 0** (`@ozikoro/platform` and `@ozikoro/site` both
+  clean). One caveat for the next reader: `apps/ozikoro/tsconfig.json` includes `.next-next/types/**/*.ts`
+  and `incremental` is on, so a stale `tsconfig.tsbuildinfo` makes `tsc` report `TS6053` for files a previous
+  build generated — a build artefact, not a type error; delete it and re-run.
+* `node --test packages/ozikoro/src/external-audio.test.ts`: **17 pass, 0 fail**.
+* `scripts/test-narration-gate.ts` on the scratch cluster: **all assertions pass**, no request reached the
+  speech endpoint.
+* The gate tables above: **0 unapproved rows served, 0 approved rows missing**, on article, feed and transcript.
+* Design parity, verbatim:
+
+      identical 63 differing 0 missing 0
+
+* **No ElevenLabs credit was spent.** The account still reads `character_count 43448` of
+  `character_limit 65000` on `starter` — **21,552 remaining**, the same figure the brief recorded. The only
+  call made to the API all round was the free `GET /v1/user/subscription`.

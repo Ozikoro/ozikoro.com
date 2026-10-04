@@ -36,7 +36,7 @@
  * outranks anything generated, and an episode's script is the article's own words prepared for speaking.
  */
 import { getDb } from '@ozituma/db/client';
-import { SITE_ORIGIN } from '@ozikoro/platform';
+import { SITE_ORIGIN, feedAudioChoice, playableEpisodeSql } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,25 +68,35 @@ export async function GET() {
   if (!show) return new Response('No show configured', { status: 404 });
 
   /*
-   * ONLY PUBLISHED EPISODES, AND ONLY ONES WITH AUDIO.
+   * ONLY APPROVED EPISODES, AND ONLY ONES WITH SOMETHING AN ENCLOSURE CAN POINT AT.
    *
-   * An `<enclosure>` is mandatory in a podcast item, so **an approved episode whose render failed cannot be
-   * listed** — it would be an item Spotify rejects and, worse, one a subscriber sees as unplayable. It waits.
+   * `playableEpisodeSql('e')` is the SAME condition the article page and the transcript compose, so a gate
+   * that holds on one surface cannot leak through another. It requires the approval record, not only the
+   * `published` state: a row whose status was set without `approved_by`/`approved_at` is not an approved
+   * episode, and the feed is the surface where a leak is worst — it is delivered to subscribers' apps and
+   * cannot be recalled.
+   *
+   * AN `<enclosure>` IS MANDATORY in a podcast item, so an approved episode with no playable resource cannot
+   * be listed: it would be an item Spotify rejects and, worse, one a subscriber sees as unplayable. An
+   * external URL counts only when a fetch established it serves audio — a Spotify episode page is HTML and
+   * **is not an enclosure**, which is why `feedAudioChoice` decides between the external file, our own copy,
+   * and leaving the item out with a reason.
    */
   const episodes = await db.rows<{
     slug: string; title: string; summary: string | null; transcript: string;
-    storage_key: string | null; external_url: string | null; mime_type: string | null;
+    storage_key: string | null; external_url: string | null; external_direct_audio: boolean | null;
+    external_service: string | null; mime_type: string | null;
     byte_size: number | null; duration_seconds: number | null;
     narrator_kind: string; narrator_name: string | null; ai_disclosure: string;
     published_at: Date | null; article_slug: string;
   }>(
-    `select e.slug, e.title, e.summary, e.transcript, e.storage_key, e.external_url, e.mime_type,
-            e.byte_size, e.duration_seconds, e.narrator_kind, e.narrator_name, e.ai_disclosure,
-            e.published_at, a.slug as article_slug
+    `select e.slug, e.title, e.summary, e.transcript, e.storage_key, e.external_url, e.external_direct_audio,
+            e.external_service, e.mime_type, e.byte_size, e.duration_seconds, e.narrator_kind,
+            e.narrator_name, e.ai_disclosure, e.published_at, a.slug as article_slug
        from ozikoro_episode e
        join ozikoro_article a on a.id = e.article_id
-      where e.status = 'published'
-        and coalesce(e.external_url, e.storage_key) is not null
+      where ${playableEpisodeSql('e')}
+        and (e.storage_key is not null or (e.external_url is not null and e.external_direct_audio = true))
       order by e.published_at desc nulls last
       limit 500`
   );
@@ -97,8 +107,33 @@ export async function GET() {
 
   const items = episodes
     .map((e) => {
-      const audio = e.external_url ?? `${SITE_ORIGIN}/media/${e.storage_key}`;
-      const page = `${SITE_ORIGIN}/podcast/${e.slug}/`;
+      /*
+       * WHERE THE ENCLOSURE POINTS, WHICH IS NOT ALWAYS WHERE THE PAGE POINTS.
+       *
+       * `feedAudioChoice` is the one place that decides, and it is shared with the admin page so the answer
+       * shown to the person who set the link is the answer the feed gives. A directly playable external file
+       * is used — it is the host the owner chose — while a Spotify PAGE cannot be an enclosure, so the
+       * enclosure stays on the copy this archive holds. The query above has already excluded the case where
+       * there is neither.
+       */
+      const choice = feedAudioChoice(e);
+      if (choice.kind === 'omitted') return '';
+      const audio = choice.kind === 'external' ? choice.url : `${SITE_ORIGIN}/media/${choice.storageKey}`;
+      /*
+       * THE ITEM'S `<link>` IS THE ARTICLE, AND THAT IS A CORRECTION RATHER THAN A PREFERENCE.
+       *
+       * It pointed at `${SITE_ORIGIN}/podcast/${e.slug}/`, **which has no route at all.** Measured on the built
+       * site: `/podcast/<slug>/` is two segments whose first is in no `KNOWN_FIRST_SEGMENTS` list, so the
+       * middleware's WordPress-attachment fallback rewrites it to `/attachment/<slug>/` before routing is ever
+       * reached — answering 308 to a documents page for a slug that happens to be an attachment's, and 404 for
+       * the rest. **Every subscriber's "episode page" link, and every `<podcast:person href>`, went there.**
+       *
+       * The article is the page that actually carries the recording, the disclosure and the transcript link, so
+       * it is the honest destination until an episode page is built. The `<guid>` is deliberately UNCHANGED: it
+       * is what identifies the episode to a client that has already downloaded it, and changing it would make
+       * every existing subscriber see the whole back catalogue as new.
+       */
+      const page = `${SITE_ORIGIN}/${e.article_slug}/`;
       const transcriptUrl = `${SITE_ORIGIN}/podcast/${e.slug}/transcript.txt`;
       // The disclosure is placed first in the description, where it is read before the summary rather than after it.
       const description = [e.ai_disclosure, e.summary ?? ''].filter(Boolean).join('\n\n');
@@ -116,6 +151,7 @@ export async function GET() {
   <podcast:person role="narrator" href="${x(page)}">${x(e.narrator_name ?? (e.narrator_kind === 'human' ? 'Read by a person' : 'Synthetic voice'))}</podcast:person>
 </item>`;
     })
+    .filter(Boolean)
     .join('\n');
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

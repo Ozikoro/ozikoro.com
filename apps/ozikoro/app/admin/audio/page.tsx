@@ -30,6 +30,9 @@ import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   allowanceFrom,
+  EXTERNAL_AUDIO_LABELS,
+  EXTERNAL_AUDIO_SERVICES,
+  listEpisodeAudioSettings,
   listNarrationQueue,
   narrationCounts,
   narrationDelayMinutes,
@@ -106,9 +109,10 @@ export default async function AudioReviewPage({
   const { account, capabilities } = await requireCapabilityOrRedirect('review_audio', '/admin/audio/');
 
   const db = await getDb();
-  const [queue, counts] = await Promise.all([
+  const [queue, counts, audioSettings] = await Promise.all([
     listNarrationQueue(db, { limit: 100, includeScript: true }),
     narrationCounts(db),
+    listEpisodeAudioSettings(db, 60),
   ]);
 
   const proposals = queue.filter((q) => q.status === 'proposed');
@@ -382,6 +386,104 @@ export default async function AudioReviewPage({
           </ul>
         </Card>
       ) : null}
+
+      <Card title="Where the audio lives — our own file, or a link to somewhere else">
+        <p className="help">
+          The owner’s instruction: <em>“there should be an option to add spotify audio link, instead of my own
+          generated link. all these are options.”</em> Recording a link here spends nothing — no render is made
+          and ElevenLabs is not called — but it IS a publication: the episode becomes live on the article. It
+          therefore needs the same <span className="mono">review_audio</span> permission, and every change is
+          written to <span className="mono">ozikoro_audit</span> with your account.
+        </p>
+        <p className="help">
+          The address is fetched once, when you save it. A 404 refuses the save; the content type decides
+          whether it is a file or a page. <strong>A page cannot be a podcast enclosure</strong>, so a Spotify
+          episode link replaces the player on the article and leaves the feed’s enclosure on our own file where
+          we have one — and, where we have none, the episode is left out of the feed rather than listed
+          unplayable. Each row below states which of those the feed will do.
+        </p>
+
+        {audioSettings.length === 0 ? (
+          <p className="help">No episode exists yet. A proposal has to exist before a link can be recorded against it.</p>
+        ) : (
+          <ul className="history">
+            {audioSettings.map((item) => (
+              <li key={item.episodeId}>
+                <div className="history__when">
+                  {STATUS_LABEL[item.status] ?? item.status}
+                  {item.externalService ? ` · audio on ${EXTERNAL_AUDIO_LABELS[item.externalService]}` : ' · audio held here'}
+                  {item.externalUrl ? ' · link recorded' : ''}
+                </div>
+                <p className="history__what">
+                  <strong>{item.title}</strong>
+                </p>
+                <p className="history__detail">
+                  <Link href={`/${item.articleSlug}/`}>View the record</Link>
+                  {item.storageKey ? ` · our file: ${item.storageKey}` : ' · this archive holds no file'}
+                </p>
+                {item.externalUrl ? (
+                  <p className="history__detail">
+                    External: <span className="mono">{item.externalUrl}</span>
+                    {item.externalDirectAudio === true ? ' — a directly playable file.' : ' — a page, not a file.'}
+                    {item.externalCheckNote ? ` ${item.externalCheckNote}` : ''}
+                  </p>
+                ) : null}
+                <p className="history__detail">
+                  Feed:{' '}
+                  {item.feed.kind === 'external'
+                    ? 'the enclosure points at the external file.'
+                    : item.feed.kind === 'ours'
+                      ? 'the enclosure stays on the copy this archive holds.'
+                      : item.feed.reason}
+                </p>
+
+                <form method="post" action="/api/podcast/external-audio" style={{ marginTop: '0.6rem' }}>
+                  <ReturnTo />
+                  <input type="hidden" name="slug" value={item.slug} />
+                  <input
+                    name="url"
+                    type="url"
+                    defaultValue={item.externalUrl ?? ''}
+                    placeholder="https://open.spotify.com/episode/…"
+                    style={{ width: '100%', maxWidth: '38rem' }}
+                  />
+                  <div className="actions" style={{ marginTop: '0.4rem' }}>
+                    <label className="field" style={{ margin: 0 }}>
+                      <span className="help">Service</span>
+                      <select name="service" defaultValue={item.externalService ?? 'spotify'}>
+                        {EXTERNAL_AUDIO_SERVICES.map((s) => (
+                          <option key={s} value={s}>
+                            {EXTERNAL_AUDIO_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="field" style={{ margin: 0 }}>
+                      <span className="help">Who is speaking</span>
+                      <select name="narrator" defaultValue={item.narratorKind}>
+                        <option value="human">Read by a person</option>
+                        <option value="synthetic_own_voice">Synthetic, the author’s cloned voice</option>
+                        <option value="synthetic_generic">Synthetic, a stock voice</option>
+                      </select>
+                    </label>
+                    <label className="field" style={{ margin: 0, flex: 1 }}>
+                      <span className="help">Note for the record (optional)</span>
+                      <input name="note" type="text" maxLength={500} style={{ minWidth: '16rem' }} />
+                    </label>
+                    <button className="btn btn--primary" type="submit">
+                      Save the link and publish
+                    </button>
+                  </div>
+                  <p className="help">
+                    Saving publishes the episode with the approval recorded against your account. Nothing is
+                    rendered and no credit is spent. Leaving the address empty removes the link.
+                  </p>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <Card title="Catch up now">
         <p className="help">

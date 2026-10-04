@@ -12,6 +12,7 @@
  * text of an unreviewed render — which is the review gate's whole purpose.
  */
 import { getDb } from '@ozituma/db/client';
+import { playableEpisodeSql } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,9 +20,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const raw = (await params).slug;
   const slug = raw.replace(/\.txt$/i, '');
   const db = await getDb();
-  const row = await db.one<{ transcript: string; title: string; slug: string; narrator_kind: string }>(
-    `select transcript, title, slug, narrator_kind from ozikoro_episode
-      where slug = $1 and status = 'published'`,
+  /*
+   * THE SAME CONDITION THE ARTICLE AND THE FEED USE.
+   *
+   * This route asked only for `status = 'published'`, which is a gate on publication rather than on approval:
+   * a transcript is the whole spoken text, and serving it for a row whose status was set without an approval
+   * record would expose exactly what the review step exists to hold back. **Measured before this change: the
+   * `published_unapproved` row's transcript answered 200 where every other unapproved status answered 404.**
+   */
+  const row = await db.one<{
+    transcript: string; title: string; slug: string; narrator_kind: string; external_url: string | null;
+  }>(
+    `select transcript, title, slug, narrator_kind, external_url from ozikoro_episode
+      where slug = $1 and ${playableEpisodeSql()}`,
     [slug]
   );
   if (!row) return new Response('Not found', { status: 404 });
@@ -40,11 +51,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
    * spoken record" over an unchecked text would be a false statement about the record, which is the same fault
    * as labelling a human recording as AI-generated, and it is why the branch exists rather than one sentence
    * being chosen for both kinds.
+   *
+   * **AND FOR AN EXTERNAL RECORDING NEITHER SENTENCE IS AVAILABLE.** An episode whose audio is held on Spotify
+   * is one this archive did not make and cannot check: the text below is the article's, but whether the
+   * recording says it has no answer here at all. So a third branch says exactly that rather than borrowing the
+   * synthetic one's confidence.
    */
-  const header = row.narrator_kind === 'human'
-    ? 'The article’s own words, prepared for reading. The audio beside this text is the author’s own ' +
-      'recording; this text is the article’s spoken form and has not been checked word for word against it.'
-    : 'Transcript of the spoken record. The words are the article’s own.';
+  const header = row.external_url
+    ? 'The article’s own words. The audio linked from the article is held elsewhere and was not made by this ' +
+      'archive; this text has not been checked against it.'
+    : row.narrator_kind === 'human'
+      ? 'The article’s own words, prepared for reading. The audio beside this text is the author’s own ' +
+        'recording; this text is the article’s spoken form and has not been checked word for word against it.'
+      : 'Transcript of the spoken record. The words are the article’s own.';
 
   // A plain-text header, so a reader arriving from the feed knows what they are holding.
   const body = [`${row.title}`, '', header, '', row.transcript, ''].join('\n');

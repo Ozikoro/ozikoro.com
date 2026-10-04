@@ -73,6 +73,15 @@ export * from './design-override-store.ts';
 export * from './seo-head.ts';
 export * from './spoken.ts';
 export * from './narration.ts';
+/*
+ * WHERE THE AUDIO LIVES WHEN IT IS NOT HELD HERE.
+ *
+ * `external-audio.ts` owns the second way an episode can carry audio — a link to Spotify or another service
+ * instead of a file this archive rendered. It is separate from `narration.ts` because it is the one path in
+ * the audio pipeline that spends nothing: a proposal costs nothing, a render costs credits, and an external
+ * link costs nothing but is still a publication and is therefore audited.
+ */
+export * from './external-audio.ts';
 export * from './mp3.ts';
 /*
  * THE IGBO PRONUNCIATION PIPELINE, in the order the owner described it:
