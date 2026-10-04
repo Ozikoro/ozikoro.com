@@ -1,0 +1,26 @@
+{
+  "name": "@ozikoro/media",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ozikoro Media — the self-hosted text-to-speech service for media.ozikoro.com. Two engines behind one API: the local F5-TTS model for drafts and bulk work, and ElevenLabs for the public narration.",
+  "type": "module",
+  "main": "./src/server.ts",
+  "scripts": {
+    "start": "node src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test lib/*.test.ts lib/engines/*.test.ts",
+    "speak": "node scripts/speak.ts",
+    "compare": "node scripts/compare.ts",
+    "lexicon": "node scripts/build-lexicon.ts",
+    "voices": "node scripts/voices.ts",
+    "probe": "node scripts/probe.ts"
+  },
+  "dependencies": {
+    "@ozikoro/platform": "*"
+  },
+  "devDependencies": {
+    "@ozituma/db": "*",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

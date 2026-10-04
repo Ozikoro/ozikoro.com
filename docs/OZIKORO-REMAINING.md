@@ -16608,3 +16608,164 @@ on the day the owner wants it.
   `apps/media/**`. `transpilePackages: ['@ozikoro/platform']` makes Next type-check the whole of that
   package, so **any half-written file added under `packages/ozikoro/src/` breaks the build of every other
   pass in the tree.** Both were fixed by their owners while this round ran; neither was touched here.
+
+## ROUND 319 — `media.ozikoro.com` BECOMES A SERVICE: TWO ENGINES, A REAL AUDIO FILE, AND THE BUG THAT WAS DELETING THE IGBO LETTERS
+
+**The honest summary the owner asked for twice.** The library could not be started by anybody, because
+`package.json` declared a `main` of `./src/server.ts` that did not exist and five of its six scripts were
+empty. That is now a service a person can start, feed text, and get a WAV out of — **and the "out of" was
+verified by playing the file, not by reading a status code.** `media.ozikoro.com` still does not resolve,
+and no DNS record was created; see below and `apps/media/DNS.md`.
+
+### 1. THE COMMANDS EXIST, AND ONE OF THEM FOUND A REAL BUG THE MOMENT IT RAN
+
+`src/server.ts`, `scripts/speak.ts`, `scripts/compare.ts`, `scripts/build-lexicon.ts`, `scripts/voices.ts`
+and `scripts/probe.ts` were written. The first real end-to-end run of `speak` failed three times, and all
+three were genuine defects rather than setup problems:
+
+1. **`torch.backends.mps.is_available()` returns `True` on this Intel Mac and MPS cannot run the model.**
+   Device selection took the flag at its word, loaded 1.35 GB onto a GPU backend that lacks
+   `aten::_fft_r2c`, and died at synthesis with an error naming an operator rather than the wrong choice
+   that selected it. `choose_device` now **runs the STFT on the device it is about to choose** — the first
+   version of that probe built a CPU tensor and passed, which is worse than no probe because its success
+   got quoted. CPU is now chosen deliberately, with the reason recorded on `/health`.
+2. **`--preload` made the worker load the checkpoint TWICE, one frame out of step.** The extra `load` frame
+   was matched to the *synth* request, so the promise resolved with a frame that has no `out`, and the
+   failure surfaced three layers away as `TypeError: path argument must be a string … Received undefined`
+   at `concatWavs`/`readFileSync`. Nothing in that message points at a duplicated command. The client no
+   longer passes `--preload`, and `synthesize` now **checks the one field it cannot proceed without**, so a
+   mis-sequenced frame is reported as a protocol fault instead of a filesystem one.
+3. **F5-TTS prints on stdout**, eleven lines including `vocab :`, `token :` and `model :`. The worker's
+   docstring had always claimed this was redirected to stderr. It was not — and no care at the call site
+   could fix it, because `f5_tts` itself prints. `sys.stdout` is now swapped for stderr at the top of the
+   file, before any third-party import, and protocol frames go out through a private handle.
+
+### 2. THE MODEL PRODUCES A REAL FILE, AND IT IS A FILE YOU CAN PLAY
+
+* `docs/…` proof render — `npm -w @ozikoro/media run speak -- --engine local --voice proof-say --text "…"`:
+  **101,932 bytes · 24 kHz mono 16-bit · 2.123 s · peak 32768 · RMS 6173** — full scale, not silence.
+* over HTTP, `POST /speak`: **57,900 bytes · 1.205 s · RMS 5623**, with `x-ozikoro-engine: local` and
+  `x-ozikoro-marks-lost: 0` on the response.
+* The checkpoint is **exactly 1,348,645,281 bytes**. Getting it there required abandoning
+  `hf_hub_download`: its `hf_xet` fast-transfer path **truncated a partially-fetched 268 MB blob to zero
+  bytes and restarted it, twice, with no error**, and the cache went from 256 MB to 120 KB between two
+  consecutive reads of it. `resolve_checkpoint` now prefers a checkpoint on disk and treats the Hub as the
+  fresh-machine fallback, which also makes the service start offline.
+
+### 3. THE LICENCE, WHICH DECIDES WHETHER ANY OF THIS CAN BE PUBLISHED
+
+**F5-TTS's code is MIT and its WEIGHTS are `CC-BY-NC-4.0` — NON-COMMERCIAL.** Verified from the Hugging
+Face API rather than taken from a summary. The weights are what speak, so **a render made with the `local`
+engine must not be published on a commercial site.** The owner runs a public archive and whether it is a
+commercial use is his call; `GET /engines` returns `nonCommercial: true` and a plain `publishable` sentence
+so a review screen can refuse rather than depend on somebody remembering. **The commercially-usable
+alternative is named: [Chatterbox](https://huggingface.co/ResembleAI/chatterbox), MIT for code AND weights,
+zero-shot cloning, 23 languages** — also verified from the API. XTTS-v2 is *not* an answer; the Coqui
+licence is non-commercial too.
+
+### 4. THE PRONUNCIATION LAYER WAS DESTROYING THE DIACRITICS IT EXISTED TO PROTECT
+
+`prepare_text` normalised the whole string with NFD **before** testing it against the vocabulary. That
+turns `ụ` (U+1EE5, a token the model knows) into `u` + U+0323, keeps the `u`, and — because U+0323 is in
+the removable set — **strips the dot below.** Measured on the first synthesis this service ever ran:
+
+```
+in    "Ndeewo, aha m bụ Ozikoro."
+out   "Ndeewo, aha m bu Ozikoro."          stripped_marks: ['U+0323']
+```
+
+`bụ` is not `bu`. The dot below is a different **letter**, and this is exactly the mispronunciation the
+owner reported: *"check ozituma.com automatically on how igbo words are pronounced to avoid it being
+pronounced wrongly."* **No lexicon can repair it** — the damage happened after the lexicon had done its job
+and before the model saw the word. The fix tests each character **in its composed form first**. Two further
+findings came out of the same test: the vocabulary holds `ị`/`ọ` but **not** `Ị`/`Ọ`, so a sentence opening
+"Ọ dị mma" lost the dot on its first letter (capital marked letters now fold to lowercase — the letter is
+kept, the case is not); and F5-TTS's tokenizer is `vocab_char_map.get(c, 0)`, so **an unknown character
+silently becomes token 0**, which is why unrepresentable characters are removed and reported rather than
+passed through and quietly deleted by the model.
+
+The service's own pre-flight check had the mirror-image bug: `f5Vocab()` read
+`.tools/models/F5TTS_Base/vocab.txt` and split it on newlines — **the model's token list, not the character
+set** — and so reported that `a`, `b`, `d`, `e` and the comma were characters the model could not
+represent. It now reads `f5_tts/infer/examples/vocab.txt` and takes distinct characters: **1,221 of them,
+matching Python exactly.** A vocabulary check that reads the wrong file does not fail; it produces
+confident nonsense.
+
+### 5. THE LEXICON COMES FROM THE WORK THAT MEASURED IT, AND ITS BUILD PROVES ITSELF
+
+`scripts/build-lexicon.ts` runs `buildDictionaryIndex` from `packages/ozikoro/src/pronunciation.ts`
+**once**, against the dictionary, and snapshots it; the service rebuilds the same finder index from that
+file **with no database at all**, which is what keeps a PGlite cluster off the path of every audio request.
+It is derived data and **not committed** — the owner's rule is that the lookup must query ozituma rather
+than read a list.
+
+**The cluster was not disturbed.** The guard was checked first and refused correctly: it is genuinely held
+by a live standalone server (PID holding the lock file open). Rather than SIGTERM somebody's running site,
+the build ran from a **copy** — `cp -R .data/pg .data/pg-lexicon-read` — which takes its own lock, cannot
+corrupt the live cluster and needed no lock removal.
+
+`WordIndex.segment` is a closure and cannot be serialised, so its rule is transcribed in
+`apps/media/lib/lexicon.ts` — **and the transcription is proved, not trusted**: the build rebuilds the index
+from the bytes it is about to write and compares it against the live one over **every published search form
+(7,566, 0 mismatches)** and **every archive word (3,664, 0 mismatches)**, refusing to write on any
+disagreement. The dictionary measurements all reproduce the earlier round exactly: **8,728 published words,
+0 pronunciations, 0 syllables, 0 recordings, 1,953 clean forms, 1,882 phrases, 165 English collisions**,
+and the archive's spoken script is **5,514,389 characters**.
+
+**Two coverage figures do NOT reproduce and are recorded as unreproduced.** This run counts **1,751**
+distinct Igbo words (1,842 including English collisions), 663 named, 618 rescued by dissection, **470
+genuinely unsayable**; the earlier round recorded 2,368 / 1,289 / 617 / 462. The counting policy does not
+explain the gap. Rather than pick the flattering number, `README.md` prints both side by side and says the
+first two rows are unresolved.
+
+### 6. NO ELEVENLABS CREDIT WAS SPENT, AND THE PAUSE IS ENFORCED IN CODE
+
+The account has **21,552 of 65,000 characters** left. **The API was not called at all** — not even the free
+`GET /user/subscription`. The paid engine is refused at three levels: `OZIKORO_MEDIA_ALLOW_ELEVENLABS=1`
+must be set (it is set nowhere in this repository), any render exceeding what remains is refused with the
+numbers, and `compare` renders locally by default and needs an explicit `--paid` after printing the cost.
+Verified: `POST /speak {"engine":"elevenlabs"}` returned `engine_unavailable` naming the engine, the 11
+characters and `{"remaining":21552,"wouldCost":11}`, having built no request. **`compare`'s default path
+spends nothing by construction.**
+
+### 7. THE COST MODEL WAS WRONG BY TWO ORDERS OF MAGNITUDE, AND SAID SO
+
+The file claimed the local model renders "roughly one minute of audio per minute of compute" and that a
+fourteen-minute article is "about fourteen minutes". Measured here: **105× real time** (1.291 s of audio in
+135.6 s) and **144×** on a second, longer render. **A fourteen-minute article is about 24 hours, not
+fourteen minutes**, and the whole archive is over a year of continuous compute. The archive projection was
+also wrong in the other direction: it used the **9,794,392 characters of `body_html`**, and markup is never
+sent or billed — the spoken script is **5,514,389**, so 65,000 credits buys **12.4 records a month** and the
+archive is **≈ 7.1 years**, not 12. The local engine is still the only free option and still right for
+drafts and short passages, but it is a different decision from the one the old number invited.
+
+### 8. `media.ozikoro.com` — CHECKED FIRST, AND NOT TOUCHED
+
+It was checked before anything else because `AGENTS.md` warned it might already point at ozituma's
+recordings. **`media.ozikoro.com` does not exist** — 35 records in the ozikoro.com zone, none named
+`media`, no wildcard, `dig` empty, `https` `000`. **The `CNAME → public.r2.dev` is `media.ozituma.com`, in a
+different zone** (`id 614f661f5a911ee947c3023383bd015a`, proxied), and it was **not modified**: the
+dictionary's recordings were never at risk, because the record that carries them is not in the zone the
+owner's request named. **No record was created**, because the correct one cannot be verified: this machine
+has no public ingress (dynamic MTN Nigeria NAT, no `cloudflared` installed, no tunnel config), so any record
+creatable today would either be grey-clouded to a private address, orange-clouded with no origin and serve
+**522** on a hostname the owner believes is live, or point at the archive's cPanel host and be a promise
+this service does not keep. **The exact `cloudflared` sequence and the equivalent raw API call are written
+in `apps/media/DNS.md` and were not run.** The reason a **subdomain** is right is on the record there too:
+audio is bytes rather than documents, and **if audio ever moves hosts, Spotify feed enclosures break for
+every subscriber** — so the hostname is chosen once and is permanent.
+
+### 9. VERIFIED
+
+- `npm run typecheck` from the repository root, read from **its own exit code and not a pipe's**: **exit 0**.
+  Six errors this round introduced (three `TS2532` on the grade counters, a structural `Db` stand-in, a
+  `Buffer`/`BodyInit` mismatch and a missing `DOM.Iterable` for `FormData.entries()`) were fixed at the
+  cause; **the `FormData` one was a type-only fault and voice registration is functional** — proved by
+  registering a voice over `multipart/form-data` and reading back its transcript and converted duration.
+- `npm -w @ozikoro/media test`: **3 pass, 0 fail**, including a check that the two `NARRATION_SETTINGS`
+  copies have not diverged — a duplicate with a test that fails on divergence rather than a hope.
+- every endpoint exercised: `GET /` · `GET /health` (GPU `false`, licence `nonCommercial: true`, lexicon
+  built) · `GET /engines` · `GET /voices` · `POST /voices` (multipart) · `DELETE /voices/:name` (and a 404
+  for a voice that does not exist) · `POST /preview/pronunciation` · `POST /speak` returning **audio bytes**.
+- `apps/media/src/placeholder.ts`, which existed only so `tsc` had an input, was **deleted** — its own
+  header said a project with real sources does not need it.
