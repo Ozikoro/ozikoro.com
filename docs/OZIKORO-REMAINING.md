@@ -19331,3 +19331,47 @@ holds no repeat of itself, and the union is **24 distinct** cards.
 * **The archive's `Discography` topic would have been the honest rule and it covers one film of six.** Recorded
   in §1 so the next round does not re-derive it: if the owner ever files the five musician biographies'
   *films* rather than their *articles*, the exclusion becomes a query and this map can go.
+
+### 7. THE BROWSER FOUND THE NEXT LINK GOING TO THE FRONT PAGE, AND §3'S ADDRESS WAS WRONG UNTIL IT DID
+
+`curl` called this round's paging correct: `?page=2` returns 200 and 9 cards, and page 1's markup carries a
+`Next` link. **A click in a real browser did not.** The head this route generates carries **`<base href="/">`**
+(`fillDashboardLinks`), so a relative `href="?page=2"` does not resolve against `/watch/` — it resolves against
+the site root. Measured over the DevTools protocol in headless Chrome, clicking `Next →` on the served page:
+
+```
+page 1       http://127.0.0.1:3110/watch/         15 cards, 0 broken poster frames, 3 columns
+clicked Next -> http://127.0.0.1:3110/?page=2     the FRONT PAGE — 0 cards
+```
+
+**A 200 on the wrong page, which is the fault this round's brief is about — and no fetch can see it**, because
+the HTML is byte-identical either way: only a browser resolves a relative URL. So every address the fill
+writes is now root-absolute (`/watch/?page=2`), which is also the screen's own canonical address. The run
+after the fix, `scripts/verify-round-330.mjs`:
+
+| measured in headless Chrome | page 1 | page 2 |
+|---|---|---|
+| cards | **15** | **9** |
+| poster frames that did not load | **0** | **0** |
+| `grid-template-columns` | `378.656px 378.672px 378.656px` | the same three columns |
+| address after clicking `Next →` / `← Previous` | `/watch/?page=2` | `/watch/?page=1` |
+| pager text | `Showing films 1–15 of 24 · page 1 of 2` | `Showing films 16–24 of 24 · page 2 of 2` |
+| CSP violations | **0** | — |
+
+**And with every script switched off** (`Emulation.setScriptExecutionDisabled`), the same click on the same
+`<a>` reaches `/watch/?page=2` and draws the same 9 cards: `NO SCRIPT: before 15 cards at /watch/`, `after 9
+cards at /watch/?page=2`. That is the no-JavaScript requirement, measured rather than intended.
+
+**The pager's disabled controls are inert `<span>`s, not `href="#"` links** — page 1's `← Previous` and page
+2's `Next →` — because a link that goes nowhere is the same class of fault.
+
+Two corrections to §3 above, then: **the parameter is read as `page`, but every link the page writes is
+absolute** (`/watch/?page=N`), and the note that stood in for an empty section has since been replaced — see
+the round that follows this one — by distributing the cards so that both of the design's own sections carry
+films on page 1 and by not drawing a section at all on a page that has none of its cards.
+
+**A link inside `.sx-source-note` was also unreadable and is fixed here.** The design's global
+`a { color: var(--link) }` is drawn for a light page; on this screen's night body it measures **2.21:1**
+against the note's background where the note's own text measures **7.96:1**. The two links on the
+out-of-range page now carry `style="color:inherit"` — the same fix, for the same reason, that
+`fillDashboardLinks` already applies to the dashboard links.

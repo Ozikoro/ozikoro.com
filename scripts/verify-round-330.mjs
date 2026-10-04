@@ -82,26 +82,38 @@ try {
   await send('Runtime.enable');
   await send('Log.enable');
 
-  /** Navigate and wait for the document, because a click on a link is a navigation and not a repaint. */
-  async function open(url) {
+  /**
+   * Navigate and wait for the document, because a click on a link is a navigation and not a repaint.
+   *
+   * `scroll` is off for the no-script run, and that is a correction this probe made to itself: with
+   * `Emulation.setScriptExecutionDisabled` in force, a `Runtime.evaluate` of an async expression whose
+   * promise must settle NEVER RETURNS — the first run of this script hung there for ten minutes and had to be
+   * killed. A promise needs the script engine to resolve it, so asking for one is asking the thing that is
+   * switched off. The document's own `readyState` still answers, which is why the wait above still works.
+   */
+  async function open(url, scroll = true) {
     await send('Page.navigate', { url });
     for (let i = 0; i < 60; i += 1) {
       await sleep(250);
       const r = await send('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true });
       if (r?.result?.result?.value === 'complete') break;
     }
-    // Scroll the whole document: a lazy image that has not been asked for reads exactly like a blocked one.
-    await send('Runtime.evaluate', {
-      expression: `(async () => {
-        const step = Math.round(window.innerHeight * 0.8);
-        for (let y = 0; y < document.body.scrollHeight; y += step) {
-          window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 120));
-        }
-        window.scrollTo(0, 0);
-      })()`,
-      awaitPromise: true,
-    });
-    await sleep(2200);
+    if (scroll) {
+      // Scroll the whole document: a lazy image that has not been asked for reads exactly like a blocked one.
+      await send('Runtime.evaluate', {
+        expression: `(async () => {
+          const step = Math.round(window.innerHeight * 0.8);
+          for (let y = 0; y < document.body.scrollHeight; y += step) {
+            window.scrollTo(0, y); await new Promise((r) => setTimeout(r, 120));
+          }
+          window.scrollTo(0, 0);
+        })()`,
+        awaitPromise: true,
+      });
+      await sleep(2200);
+    } else {
+      await sleep(1500);
+    }
   }
 
   /** Everything the page says about itself, read from the rendered DOM. */
@@ -196,7 +208,7 @@ try {
 
   // ── 3. and with every script switched off ─────────────────────────────────────────────────────────
   await send('Emulation.setScriptExecutionDisabled', { value: true });
-  await open(`${BASE}/watch/`);
+  await open(`${BASE}/watch/`, false);
   const noJsBefore = await read();
   await send('Runtime.evaluate', {
     expression: `document.querySelector('nav[aria-label="Pagination"] a[rel="next"]').click()`,

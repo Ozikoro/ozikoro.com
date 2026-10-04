@@ -475,8 +475,14 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
   const pager = beyond
     ? `<div class="wrap"><p class="sx-source-note">There is no page ${page}: this index holds ${list.length} ` +
       `films in ${totalPages} ${totalPages === 1 ? 'page' : 'pages'}. ` +
-      `<a href="${esc(href(1))}">Page 1</a>` +
-      (totalPages > 1 ? ` · <a href="${esc(href(totalPages))}">page ${totalPages}, the last</a>` : '') +
+      // The links carry the colour of the note they stand in. The design's global `a { color: var(--link) }`
+      // is drawn for a light page; inside `.sx-source-note` on `body.sx-watch-body` it measured 2.21:1
+      // against the note's own background in headless Chrome, where the note's text measures 7.96:1. This is
+      // the same `style="color:inherit"` the dashboard links use for the same reason.
+      `<a href="${esc(href(1))}" style="color:inherit">Page 1</a>` +
+      (totalPages > 1
+        ? ` · <a href="${esc(href(totalPages))}" style="color:inherit">page ${totalPages}, the last</a>`
+        : '') +
       `</p></div>`
     : totalPages > 1
       ? `<div class="wrap">${renderWatchPager(page, totalPages, list.length, href)}</div>`
@@ -546,17 +552,35 @@ function watchCards(inner: string): string[] {
 }
 
 /**
- * A pager link, as a query string relative to the page it stands on.
+ * The screen's own public address, and why every link the fill writes from here is written from the root.
  *
- * `?page=2` resolved against `/watch/` is `/watch/?page=2`, and the middleware carries that search to the
- * fill route — so the address is the page, a reader can link to page 2, and a refresh keeps them there.
+ * **THE SERVED PAGE'S `<head>` CARRIES `<base href="/">`**, inserted by `fillDashboardLinks` in this file, so
+ * a relative `?page=2` does NOT resolve against `/watch/` — it resolves against the site root. Measured in a
+ * real browser (headless Chrome, a mouse click on the served `<a>`, read back with the DevTools protocol):
+ * with the bare `href="?page=2"` that this page used to serve, clicking `Next →` on `/watch/` landed on
+ * **`http://…/?page=2`, the front page** — `h1` "The stories of our towns, clans and kingdoms", 15 film cards
+ * before the click and **0** after it. **A 200 on the wrong page**, which is the fault the owner reported as
+ * "the next page is not working".
+ *
+ * **No `curl` can see it.** The HTML is byte-identical either way; only a browser resolves a relative URL, so
+ * a fetch of `/watch/?page=2` renders page 2 correctly while the link on the page goes to the front page. The
+ * path is therefore written out. `/watch/` is also the screen's canonical address, which is what the route's
+ * own generated `<link rel="canonical" href="https://ozikoro.com/watch/">` says.
+ */
+const WATCH_PATH = '/watch/';
+
+/**
+ * A pager link.
+ *
+ * The middleware carries the query string to the fill route, so `/watch/?page=2` is a plain GET that renders
+ * server-side — the address is the page, a reader can link to page 2, and a refresh keeps them there.
  * **Every other parameter is kept**: the owner's design preview travels in the query string at the public
  * address, and a Next that silently dropped it would be a control that goes somewhere else.
  */
 function watchPageHref(query: string | undefined, page: number): string {
   const params = new URLSearchParams(query ?? '');
   params.set('page', String(page));
-  return `?${params.toString()}`;
+  return `${WATCH_PATH}?${params.toString()}`;
 }
 
 /** The pager itself: where you are, how many there are, and the two real links. */
