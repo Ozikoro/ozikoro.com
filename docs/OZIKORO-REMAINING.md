@@ -20366,3 +20366,150 @@ this round was sent to fix.
   Reported, not fixed: fixing it means giving the other three drawn signs as well, which is a design decision.
 * **`/collections/` no longer reads `ozikoro_media` for the card's image**, so the page makes one fewer query
   than it did. Not a fault; recorded so the next reader of that block does not go looking for the query.
+
+---
+
+## ROUND 335 — THE IMAGE'S NAME COMES FROM THE RECORD, AND THE RECORD NOW SAYS WHICH HISTORIES USE IT
+
+The owner, on the archive's photographs: *"on the photographs section, the images tend to bear the names they
+were named, but please, every image name can be gotten from the photograph caption/description. just like this
+one 'http://127.0.0.1:3110/documents/opta/' has the correct caption, but not the correct name. also, do show
+the articles associated to the images inside the image page, so people can learn more on the image"*
+
+Both faults were real, both were measured before anything was edited, and the second one was a function that
+had been written for exactly this job and was reading the wrong relationship.
+
+### 1. WHICH ROUTE SERVES THESE PAGES, AND WHAT EACH COLUMN HOLDS
+
+**`/documents/<slug>/` is a real React route** — `apps/ozikoro/app/documents/[slug]/page.tsx`. The settled
+evidence is the served HTML naming its own chunk: `/ _next/static/chunks/app/documents/%5Bslug%5D/page-….js`.
+**`/photographs/` and `/documents/` are design screens** — one segment, so `middleware.ts` rewrites them to
+`/design-screen/<screen>` and the fill runs at serve time. **`/photographs/<slug>/` is neither**: `photographs`
+is absent from `KNOWN_FIRST_SEGMENTS`, so it is rewritten to `/attachment/<slug>/`, which answers **308 to
+`/documents/<slug>/`** (measured). So there is one record route, and two listing screens that are not routes.
+
+Measured over all 3,488 media rows, which is the number the archive states:
+
+| column | rows | what it actually holds |
+|---|---|---|
+| `kind` | 3,462 image · 13 video · 12 document · 1 other | |
+| `wp_media_id` | 3,488 | every row came from the migration |
+| `storage_key` | 3,437 | 51 files the archive does not hold |
+| `title` | 3,182 non-empty, **306 null** | **the field the heading was taken from**, and for 1,742 rows it is only the uploaded file's own name — `opta`, `owa`, `IMG_1839` |
+| `caption` | 2,852 | the text the old site published *with* the item — the field the owner was pointing at |
+| `description` | 1,527 | non-empty **only where a caption is**; for an image it is the attachment page's own text |
+| `alt_text` | 949 | a description written for a reader who cannot see the image — and, for the rows the in-body importer added, the file's name again |
+| `creator` | **0** | still empty on every row |
+| `credit` | 893 | **not** null on every row |
+| `licence` | 61 | **not** null on every row |
+| `rights_note` | 954 | |
+| `contributor_id` | 3,486 | |
+
+**A correction to round 306's note, which said `licence` and `creator` are null on every row.** `creator` is,
+and `licence` and `credit` are not: the rights derivation has run since that measurement and written 61
+licences and 893 credits. A reader of the old note would have concluded the rights register has no basis to
+show, which is no longer true.
+
+### 2. THE RULE, AND THE FALLBACK, IN ONE PLACE
+
+`mediaName` in `packages/ozikoro/src/media.ts` names a record, and both the record page and both listing
+fills call it, so a card and the page it opens cannot disagree:
+
+1. **`caption`** — the text published with the item, and the field the owner named. Over the 3,488 rows this
+   names **2,769**.
+2. **`description`** (2) and **`alt_text`** (11) where those are the only text the record has.
+3. **`title`**, for a record that holds no descriptive text — **126** rows, and only where the title is not
+   itself a machine's name for the file.
+4. **`Untitled <kind> — <the name the file carries>`** — **580** rows. The name is kept, because it is
+   evidence about the record, and it is not passed off as a title.
+
+**The line between a title and a file name is drawn by four mechanical markers**, each of which is a thing a
+browser or WordPress writes and a person does not: **one word** (`opta`, `SAMTDO-7v1`), **a parenthesised
+counter** (`download (20)`), **a long hexadecimal run** (`64b6dfc8d0d66d1e4a8d149a`), **a trailing dimension
+pair** (`Iguaro-Nri-Festival-768 432`) and **a machine date or time** (`Screenshot 2025-05-17 at 11.32.51`).
+It is applied to `title` and `alt_text`. It is deliberately **not** applied to a caption or a description,
+which are prose: a caption ending "(1978)" is a citation, and refusing it would put "Untitled" on a record
+that is plainly described. The single exception is that **a one-word caption is not a description** — the
+captions of two of the archive's twelve documents are literally `capacity_building_for_traditional` and
+`SAMTDO-7v1`.
+
+**Nothing is composed.** No name is built from a filename and a date, no record is titled "Photograph", and
+`packages/ozikoro/src/media-name.test.ts` asserts each case above — including the two documents that keep a
+real title and the records that reach the fallback.
+
+### 3. THE ARTICLES: TWO RELATIONSHIPS, AND THE FUNCTION READ THE ONE THAT WAS EMPTY
+
+`getMediaArticles` existed and was already called by the record page. It read `ozikoro_article_media`, and
+**that table holds featured images only**: `import/archive.ts` writes a row there for `featured_media_id` and
+nothing else — 1,050 rows, all `role='featured'`, measured. The images most readers mean are in the article's
+own `body_html`, which no function answered.
+
+The body test had to be more careful than `/media/<key>`: **1,024 of the 1,051 published bodies still hold a
+`ozikoro.com/wp-content/uploads/…` address and only 7 hold a `/media/…` one**, because the article route
+rewrites them at render time through `mediaUrlResolver`. So a record is `embedded` when the body holds its
+`source_url` with the WordPress resize suffix stripped, or the served `/media/<storage key>` path, **and the
+occurrence ends at a file boundary** (`.` or `-`), so `…/opt.jpeg` is not matched by a record whose file is
+`…/optical.jpeg`. A record that is both is listed once, and the page labels the two: *"its featured image"*
+and *"shown in its text"*.
+
+| relationship | media items |
+|---|---|
+| carried as a published record's **featured** image | **1,033** |
+| **embedded** in at least one published body | **2,696** |
+| in either | **2,804** (80.4%) |
+| **in none** | **684** (19.6%) |
+| both | 925 |
+
+By kind: images 2,794 of 3,462 (668 in none), video 10 of 13, **documents 0 of 12**, other 0 of 1. The empty
+state is therefore the common case for a document, and the page says so rather than drawing an empty list:
+*"No published record uses this photograph — neither as its featured image nor in its own text. The record is
+catalogued here in its own right…"*
+
+### 4. BEFORE AND AFTER, FETCHED RATHER THAN ASSUMED
+
+| page | before | after |
+|---|---|---|
+| `/documents/opta/` | `h1` **opta**, `<title>` **opta · Ozikoro**, `og:title` **opta**, structured-data `name` **opta**, **0** links to any article | `h1` **An illustration of King Oputa of "Aboh", an Igbo settlement noted to be near the Oshimiri**, the same in `<title>`, `og:title` and the structured data, and **1** article — `/the-igbo-origins-and-development-of-the-aboh-kingdom/`, labelled *"shown in its text"* |
+| `/documents/ute-king/` | `h1` **ute king**, 0 article links | `h1` the caption *"The picture of the Obi of Ute Okpu, Obi Solomon Chukwuk…"*, and `/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/` labelled *"its featured image"* |
+| `/documents/owa/` (no title that is not a file name, no caption, no description) | `h1` **owa** — the stored title, which is the file's name | `h1` **Untitled photograph — owa**, with the note *"Nothing describes this record… the heading is the name of the file as it was uploaded"*, and its one article |
+| `/documents/img_1037/` (same shape, and no article embeds it) | `h1` **IMG_1037** — the stored title | `h1` **Untitled photograph — IMG_1037** and the empty state quoted above |
+| `/documents/samtdo-7v1/` | `h1` **SAMTDO-7v1** — the stored title, and the caption too | `h1` **Untitled document — SAMTDO-7v1**, with the fallback note |
+| `/photographs/` cards | `ute king`, `umunede king`, `owa`, `ogume king`, `amai`, `Ika_People_of_Nigeria` | `The picture of the Obi of Ute Okpu…`, `Obi Umenede`, `Untitled photograph — owa`, `HRM/HE Dr. Valentine Sunday Akpati`, `The paramount ruler of Amai Kingdom…`, `Ika People` |
+| `/documents/` cards | `capacity_building_for_traditional`, `SAMTDO-7v1` | `Untitled document — capacity_building_for_traditional`, `Untitled document — SAMTDO-7v1` |
+
+`/documents/opta/` and the two listing screens were fetched before this round as well as after; the other
+record pages were fetched after, and their "before" is the stored title the page printed — read from the row,
+which is the same field `/photographs/` was printing on its cards at the time.
+
+The article link was followed, not status-checked: `/ute-okpu-an-ika-igbo-clan-and-its-nri-roots/` answers 200
+and its `h1` is **Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots**, with the record's image in it. The record
+page was also rendered in headless Chrome, which reads `h1` = the caption, one article anchor, and the image.
+
+### 5. THE DESIGN WAS NOT TOUCHED, AND THE BUILD IS THE LOCKED ONE
+
+`bash scripts/serve-review.sh --rebuild` — the only build command run — finished in 85 s, asserted
+`server.js present, 52 design screens`, and the standalone holds 52 against the source's 52. Nothing under
+`apps/ozikoro/public/design/` was written; `git status --porcelain -- design apps/ozikoro/public/design` is
+empty, and the parity check prints:
+
+    identical 63 differing 0 missing 0
+
+### 6. WHAT THIS ROUND DOES NOT FIX
+
+- **The two React listing pages are unreachable and still print the stored title**:
+  `apps/ozikoro/app/photographs/page.tsx` and `apps/ozikoro/app/documents/page.tsx` are shadowed by the
+  middleware rewrite to the design screens, so neither serves. They were left alone deliberately — a change
+  there cannot be verified on the site, and editing dead code is how a "fixed" page stays broken.
+- **117 records with no caption or description keep a title that has spaces and no machine marker** —
+  `nde aboh`, `Orashi River`, `Igbo Folk Idioms In Caribbean Phrase`, and the six `Pi7_Tool_…` names. They
+  are names a person could have written and the row holds them as titles; the alternative is to deny a title
+  the archive actually has.
+- **A long caption makes a long heading.** The longest is 621 characters, and it is used whole: truncating a
+  record's own words would be composing a name, which is the fault this round exists to remove.
+- **A body that embeds an image by an address the media table does not hold is not counted** — a third-party
+  URL quoted in an article and never imported. Those are the addresses `import-inbody-images.ts` exists to
+  bring in, and the ones it could not fetch are still external.
+- **The per-record article query scans the 1,051 published bodies** (302–724 ms measured). There is no index
+  on `body_html` and none is warranted for 10 MB of text.
+- **`/photographs/` still shows 24 records and has no pager.** That is the design screen's own grid; the
+  naming and the record links were the fault reported here, and the size of the listing is a separate one.

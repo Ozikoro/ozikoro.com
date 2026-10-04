@@ -47,6 +47,7 @@ import {
   DESIGN_THEME_HREF,
   LINKED_SCREENS,
   playableEpisodeAudioSql,
+  mediaName,
   type DesignOverride,
 } from '@ozikoro/platform';
 import { sessionCookieOptions } from '@ozituma/db/accounts';
@@ -818,13 +819,30 @@ export async function GET(
          * fault this archive already recorded once: presenting web captures as documents.
          */
         const db = await getDb();
-        const rows = await db.rows<{ id: number; slug: string; title: string | null; storage_key: string; filesize_bytes: number | null }>(
-          `select id, slug, title, storage_key, filesize_bytes from ozikoro_media
+        const rows = await db.rows<{
+          id: number; slug: string; title: string | null; caption: string | null; description: string | null;
+          alt_text: string | null; storage_key: string; filesize_bytes: number | null;
+        }>(
+          `select id, slug, title, caption, description, alt_text, storage_key, filesize_bytes
+             from ozikoro_media
             where kind = 'document' and mime_type = 'application/pdf' and storage_key is not null
             order by id`
         );
         const docs: RealDocument[] = rows.map((r) => ({
-          title: r.title?.trim() || `Document ${r.id}`,
+          /*
+           * THE CARD IS NAMED THE WAY THE RECORD PAGE IS HEADED — one rule, in one place. The card used to
+           * print `title`, which for these records is the uploaded file's own name: `/documents/` offered
+           * "capacity_building_for_traditional" and "SAMTDO-7v1" as if they were titles. `mediaName` reads
+           * the record's own caption and description first. See `packages/ozikoro/src/media.ts`.
+           */
+          title: mediaName({
+            kind: 'document',
+            slug: r.slug,
+            storedTitle: r.title,
+            caption: r.caption,
+            description: r.description,
+            altText: r.alt_text,
+          }).name,
           /*
            * THE RECORD, FIRST. This grid used to offer a download and nothing else, so the page that
            * carries the provenance, the rights and the citation was unreachable from the library — the
@@ -1183,27 +1201,44 @@ export async function GET(
         const db = await getDb();
         const rows = await db.rows<{
           id: number; slug: string; title: string | null; alt_text: string | null; storage_key: string | null;
+          caption: string | null; description: string | null;
           creator: string | null; credit: string | null; licence: string | null; captured_at: Date | null;
         }>(
-          `select id, slug, title, alt_text, storage_key, creator, credit, licence, captured_at
+          `select id, slug, title, alt_text, caption, description, storage_key, creator, credit, licence, captured_at
              from ozikoro_media
             where kind = 'image' and storage_key is not null
             order by id limit 24`
         );
-        const photos: RealPhotograph[] = rows.filter((r) => r.storage_key).map((r) => ({
-          id: r.id,
-          // The record page's address. Without it the gallery rendered 24 photographs and no way into
-          // any of their records — see the note on `RealPhotograph.slug`.
-          slug: r.slug,
-          title: r.title?.trim() || `Photograph ${r.id}`,
-          alt: r.alt_text?.trim() || r.title?.trim() || 'Archive photograph',
-          // `filter` does not narrow the property, and the guard above is what makes this safe.
-          src: mediaPath(r.storage_key as string),
-          creator: r.creator,
-          credit: r.credit,
-          licence: r.licence,
-          captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : null,
-        }));
+        const photos: RealPhotograph[] = rows.filter((r) => r.storage_key).map((r) => {
+          /*
+           * THE CARD IS NAMED THE WAY THE RECORD PAGE IS HEADED, and the same fix applies here: the grid
+           * was titled `ute king`, `owa`, `opta` — the uploaded files' own names — beside captions that
+           * name the people in them. One rule, in one place. See `mediaName`.
+           */
+          const named = mediaName({
+            kind: 'image',
+            slug: r.slug,
+            storedTitle: r.title,
+            caption: r.caption,
+            description: r.description,
+            altText: r.alt_text,
+          });
+          return {
+            id: r.id,
+            // The record page's address. Without it the gallery rendered 24 photographs and no way into
+            // any of their records — see the note on `RealPhotograph.slug`.
+            slug: r.slug,
+            title: named.name,
+            // A file name in the `alt` attribute describes nothing; the record's own text does.
+            alt: r.alt_text?.trim() || named.name,
+            // `filter` does not narrow the property, and the guard above is what makes this safe.
+            src: mediaPath(r.storage_key as string),
+            creator: r.creator,
+            credit: r.credit,
+            licence: r.licence,
+            captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : null,
+          };
+        });
         if (photos.length > 0) html = fillPhotographs(html, photos);
         // An ImageObject per photograph. `licence` is null for every one of them, so `imageNode` emits a
         // `copyrightNotice` saying so rather than a `license` asserting a permission nobody granted.

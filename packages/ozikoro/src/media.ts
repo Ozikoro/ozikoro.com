@@ -32,6 +32,14 @@ export interface MediaRecord {
   id: number;
   slug: string;
   kind: 'image' | 'audio' | 'video' | 'document' | 'dataset' | 'other';
+  /**
+   * The stored title, exactly as the row holds it — `null` where the record has none.
+   *
+   * Deliberately separate from `title` below, which substitutes "Untitled image" so that a column in the
+   * rights register or the audit has something to print. **A caller that must not claim a title the
+   * record does not have has to be able to see the null**, and `mediaName` is that caller.
+   */
+  storedTitle: string | null;
   title: string;
   altText: string | null;
   caption: string | null;
@@ -61,7 +69,13 @@ export interface MediaRecord {
   rightsNote: string | null;
   /** The archive's own stable reference, so a record can be cited even with no accession number. */
   reference: string;
-  /** How many articles use it, so a reader can go from a document to the histories it supports. */
+  /**
+   * How many articles carry the record as a FEATURED image, counted from `ozikoro_article_media`.
+   *
+   * Not the number of articles that embed it in their text — that relationship lives in `body_html` and
+   * is read by `getMediaArticles`. The rights register orders its work queue by this figure, and a
+   * placement in a body does not raise an article's dependence on the file the way a lead image does.
+   */
   usedByArticles: number;
 }
 
@@ -93,6 +107,7 @@ function rowToMedia(row: Record<string, unknown>): MediaRecord {
     id,
     slug: String(row.slug),
     kind,
+    storedTitle: row.title ? String(row.title) : null,
     title: String(row.title ?? '').trim() || `Untitled ${kind}`,
     altText: row.alt_text ? String(row.alt_text) : null,
     caption: row.caption ? String(row.caption) : null,
@@ -118,6 +133,121 @@ function rowToMedia(row: Record<string, unknown>): MediaRecord {
     rightsNote: row.rights_note ? String(row.rights_note) : null,
     reference: referenceFor(kind, id),
     usedByArticles: Number(row.used_by ?? 0),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// What a record is called
+// ---------------------------------------------------------------------------
+
+/** The noun the archive uses for each kind of record, so a heading and a table agree. */
+export const MEDIA_KIND_LABEL: Record<string, string> = {
+  image: 'Photograph', video: 'Film', audio: 'Recording', document: 'Document',
+  dataset: 'Dataset', other: 'Item',
+};
+
+export type MediaNameSource = 'caption' | 'description' | 'alt' | 'title' | 'fallback';
+
+export interface MediaName {
+  /** What the page is headed, and what the `<title>` says. */
+  name: string;
+  /** Which field it came from, so a caller can be honest about a name that is not a title. */
+  from: MediaNameSource;
+}
+
+/**
+ * Whether a stored string is a name a machine gave the file rather than a name a person gave the record.
+ *
+ * WHY THIS TEST EXISTS AT ALL
+ *
+ * The owner reported that `/documents/opta/` "has the correct caption, but not the correct name": the
+ * heading was `opta`, which is the name the FILE was uploaded under. Measured over the 3,488 migrated
+ * records, **1,742 carry a title that is only their file's own name** and 306 carry no title at all. So
+ * the heading is composed from the record's own descriptive text first, and the stored title is read
+ * afterwards — which leaves one class to decide: a record with no caption and no description whose title
+ * is itself the upload's file name. `title` and `alt_text` are the two fields the migration filled from
+ * the file (`scripts/import-inbody-images.ts` writes the file's name into both), and this is how a
+ * machine-named file is told apart from a name a person wrote:
+ *
+ *   - ONE WORD. A person titling a record writes words; WordPress writes `opta`, `owa`, `SAMTDO-7v1`.
+ *   - A PARENTHESISED COUNTER — `download (20)`, `images (13)`, `get (1)` — which a browser adds when a
+ *     name is already taken.
+ *   - A LONG HEXADECIMAL RUN, which is an upload id or a content hash (`64b6dfc8d0d66d1e4a8d149a`).
+ *   - A TRAILING DIMENSION PAIR, which is a resized copy's suffix (`Iguaro-Nri-Festival-768 432`).
+ *   - A MACHINE DATE OR TIME (`Screenshot 2025-05-17 at 11.32.51`, `images 2025-03-12T231330.373`).
+ *
+ * IT IS APPLIED TO `title` AND `alt_text` AND NOT TO THE CAPTION OR THE DESCRIPTION. Those two are prose
+ * fields the archive published as text, and a caption ending "(1978)" is a citation, not a file name —
+ * refusing it would put "Untitled" on a record that plainly is described, which is the opposite fault. A
+ * one-word caption is the single exception, and `mediaName` draws that line separately.
+ */
+function isMachineFileName(value: string): boolean {
+  const text = value.trim();
+  if (text === '') return true;
+  if (!text.includes(' ')) return true;
+  if (/\(\s*\d+\s*\)$/.test(text)) return true;
+  if (/[0-9a-f]{10,}/.test(text.toLowerCase())) return true;
+  if (/-?\d{2,4}\s*[x×]\s*\d{2,4}$/.test(text) || /-?\d{2,4}\s+\d{2,4}$/.test(text)) return true;
+  if (/\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{2}\.\d{2}|\d{8}[_ ]\d{4,}/.test(text)) return true;
+  return false;
+}
+
+/**
+ * What the archive calls a media record.
+ *
+ * THE RECORD'S OWN TEXT, IN THE ORDER THE RECORD ITSELF STATES IT. `caption` is the text the previous
+ * site published *with* the item, `description` is the record's own description, and `alt_text` is the
+ * description written for a reader who cannot see it. The owner's rule is that "every image name can be
+ * gotten from the photograph caption/description", and this is that rule: over the 3,488 migrated records
+ * the caption names 2,852 of them, 11 more are named by their alternative text and 3 by their description.
+ *
+ * NOTHING IS COMPOSED HERE. A name is a field the record actually holds. Where the record holds no
+ * descriptive text and its title is a machine-named file, the heading is `Untitled photograph — opta`:
+ * the name the file carries is kept, because it is evidence about the record, and it is not passed off as
+ * a title. **A page headed "opta" is wrong; a page headed "Untitled photograph — opta" is honest.**
+ *
+ * WHAT THIS DOES NOT DO. 117 records with no caption or description keep a title that has spaces and no
+ * machine marker — `nde aboh`, `Orashi River`, `Igbo Folk Idioms In Caribbean Phrase`. Those are names a
+ * person could have written and the archive holds them as titles, so they are used; the alternative is to
+ * deny a title the row actually has.
+ */
+export function mediaName(record: {
+  kind: string;
+  slug: string;
+  storedTitle: string | null;
+  caption: string | null;
+  description: string | null;
+  altText: string | null;
+}): MediaName {
+  const prose: [MediaNameSource, string | null][] = [
+    ['caption', record.caption],
+    ['description', record.description],
+  ];
+  for (const [from, value] of prose) {
+    const text = value?.trim();
+    /*
+     * A SINGLE WORD IS NOT A DESCRIPTION, IN ANY FIELD. `capacity_building_for_traditional` and `SAMTDO-7v1`
+     * are the captions two of this archive's twelve documents actually carry: the previous site's caption
+     * field holds the file's own name. A person writing a caption writes a phrase, so a one-word caption is
+     * passed over and the record reaches the fallback, which shows the same word as what it is. The other
+     * machine markers are deliberately NOT applied here — a caption ending "(1978)" is a citation.
+     */
+    if (text && text.includes(' ')) return { name: text, from };
+  }
+
+  const names: [MediaNameSource, string | null][] = [
+    ['alt', record.altText],
+    ['title', record.storedTitle],
+  ];
+  for (const [from, value] of names) {
+    const text = value?.trim();
+    if (text && !isMachineFileName(text)) return { name: text, from };
+  }
+
+  const evidence = record.storedTitle?.trim() || record.slug;
+  return {
+    name: `Untitled ${(MEDIA_KIND_LABEL[record.kind] ?? 'Item').toLowerCase()} — ${evidence}`,
+    from: 'fallback',
   };
 }
 
@@ -173,16 +303,86 @@ export async function getMediaBySlug(db: Db, slug: string): Promise<MediaRecord 
   return row ? rowToMedia(row) : null;
 }
 
-/** The articles that use a media record, so a photograph leads back to the histories it supports. */
-export async function getMediaArticles(db: Db, mediaId: number): Promise<{ slug: string; title: string }[]> {
+/**
+ * The published records an image is associated with, so a photograph leads back to the histories it
+ * supports.
+ *
+ * THERE ARE TWO RELATIONSHIPS IN THIS ARCHIVE AND THEY ARE NOT THE SAME ONE.
+ *
+ *   `featured`  an `ozikoro_article_media` row — how the record is drawn as the article's lead image.
+ *               `ozikoro_article.featured_media_id` is the same fact, and the importer wrote both.
+ *   `embedded`  the image appears in the article's own `body_html`, which is where most of them are:
+ *               measured, 2,871 images sit inside 1,027 article bodies.
+ *
+ * The function used to read the link table alone, which is why `/documents/opta/` — an image the article
+ * `the-igbo-origins-and-development-of-the-aboh-kingdom` embeds — said nothing about it. **The link table
+ * holds featured images only**: `packages/ozikoro/src/import/archive.ts` writes a row there for
+ * `featured_media_id` and for nothing else, and `scripts/import-inbody-images.ts` rewrites a body to
+ * `/media/<storage_key>` without touching the table. So a reader asking "which histories does this
+ * photograph belong to?" was answered from the one relationship that does not hold them.
+ *
+ * THE BODY STILL HOLDS THE OLD SITE'S ADDRESS, AND THAT IS WHAT IS MATCHED. Measured in this cluster: 1,024
+ * of the 1,051 published bodies hold a `ozikoro.com/wp-content/uploads/…` address and only 7 hold a
+ * `/media/…` one, because the article route rewrites them **at render time** through `mediaUrlResolver`.
+ * So the test is the record's own `source_url`, with the WordPress resize suffix stripped from the file
+ * name, and a `/media/<storage key>` address for the bodies that have already been rewritten. The suffix is
+ * stripped because a body that quotes a resized copy (`…/opta-184x300.jpeg`) names the same file as the
+ * record holding the original (`…/opta.jpeg`) — which is exactly what `mediaUrlMap` resolves.
+ *
+ * THE OCCURRENCE MUST END AT A FILE BOUNDARY. `strpos` finds the file name and the next character must be
+ * `.` or `-`, so `…/opta.jpeg` is not matched by a record whose file is `…/optical.jpeg`. A record that
+ * claimed an article it is not in would be worse than one that says nothing.
+ *
+ * BOTH ARE REPORTED, AND A RECORD THAT IS BOTH IS LISTED ONCE, as `featured`: that is the stronger of the
+ * two statements and it is not false. The page labels them differently — see
+ * `apps/ozikoro/app/documents/[slug]/page.tsx`.
+ */
+export interface MediaArticleLink {
+  slug: string;
+  title: string;
+  role: 'featured' | 'embedded';
+}
+
+export async function getMediaArticles(db: Db, mediaId: number): Promise<MediaArticleLink[]> {
   const rows = await db.rows<Record<string, unknown>>(
-    `select a.slug, a.title from ozikoro_article_media am
-       join ozikoro_article a on a.id = am.article_id
-      where am.media_id = $1 and a.status = 'published' and a.is_page = false
-      order by a.published_at desc nulls last limit 20`,
+    `with media as (
+       select id, storage_key,
+              case when source_url is null then null
+                   else regexp_replace(regexp_replace(source_url, '\\.[A-Za-z0-9]+$', ''), '-\\d+x\\d+$', '')
+              end as file_stem
+         from ozikoro_media where id = $1
+     )
+     select a.slug, a.title,
+            (am.media_id is not null) as is_featured,
+            (m.storage_key is not null
+              and strpos(a.body_html, '/media/' || m.storage_key) > 0
+              and substring(a.body_html
+                            from strpos(a.body_html, '/media/' || m.storage_key)
+                                 + length('/media/' || m.storage_key) for 1) !~ '[A-Za-z0-9._-]'
+            ) as by_served_path,
+            (m.file_stem is not null
+              and strpos(a.body_html, m.file_stem) > 0
+              and substring(a.body_html from strpos(a.body_html, m.file_stem) + length(m.file_stem) for 1)
+                  in ('.', '-')
+            ) as by_source_file
+       from ozikoro_article a
+       cross join media m
+       left join ozikoro_article_media am on am.article_id = a.id and am.media_id = m.id
+      where a.status = 'published' and a.is_page = false
+        and (am.media_id is not null
+             or (m.storage_key is not null and strpos(a.body_html, '/media/' || m.storage_key) > 0)
+             or (m.file_stem is not null and strpos(a.body_html, m.file_stem) > 0))
+      order by a.published_at desc nulls last, a.id desc
+      limit 20`,
     [mediaId]
   );
-  return rows.map((r) => ({ slug: String(r.slug), title: String(r.title ?? '').trim() || 'Untitled record' }));
+  return rows
+    .filter((r) => Boolean(r.is_featured) || Boolean(r.by_served_path) || Boolean(r.by_source_file))
+    .map((r) => ({
+      slug: String(r.slug),
+      title: String(r.title ?? '').trim() || 'Untitled record',
+      role: (Boolean(r.is_featured) ? 'featured' : 'embedded') as MediaArticleLink['role'],
+    }));
 }
 
 export interface MediaStats {

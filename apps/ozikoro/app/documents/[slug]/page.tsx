@@ -10,14 +10,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { getMediaArticles, getMediaBySlug, humanBytes } from '@ozikoro/platform';
+import {
+  getMediaArticles, getMediaBySlug, humanBytes, mediaName, MEDIA_KIND_LABEL as KIND_LABEL,
+} from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
-
-const KIND_LABEL: Record<string, string> = {
-  image: 'Photograph', video: 'Film', audio: 'Recording', document: 'Document',
-  dataset: 'Dataset', other: 'Item',
-};
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -30,8 +27,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const db = await getDb();
   const item = await getMediaBySlug(db, slug);
   if (!item) return { title: 'Not found' };
+  /*
+   * The tab says what the heading says. A page renamed in its `h1` and still titled `opta` in the tab is
+   * half a fix, and the same name is what `og:title` and the structured data carry.
+   */
+  const named = mediaName(item);
   return {
-    title: item.title,
+    title: named.name,
     description: item.caption ?? item.description ?? `${KIND_LABEL[item.kind] ?? 'Item'} ${item.reference} in the Ozikoro archive.`,
     robots: { index: false, follow: true },
   };
@@ -45,6 +47,13 @@ export default async function MediaPage({ params }: { params: Promise<{ slug: st
 
   const using = await getMediaArticles(db, item.id);
   const uploaded = formatDate(item.uploadedAt);
+  /*
+   * WHAT THE PAGE IS CALLED. `item.title` is the stored title, and in this archive that is very often the
+   * name of the uploaded file — 1,742 of the 3,488 records carry exactly that — so the heading is the
+   * record's own descriptive text. See `mediaName` in `packages/ozikoro/src/media.ts` for the order and
+   * for what happens to a record that has no description at all.
+   */
+  const named = mediaName(item);
 
   /*
    * Structured data for a media record.
@@ -58,7 +67,7 @@ export default async function MediaPage({ params }: { params: Promise<{ slug: st
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': item.kind === 'image' ? 'ImageObject' : 'MediaObject',
-    name: item.title,
+    name: named.name,
     ...(item.description ? { description: item.description } : {}),
     ...(item.caption ? { caption: item.caption } : {}),
     ...(item.creator ? { creator: { '@type': 'Person', name: item.creator } } : {}),
@@ -80,7 +89,20 @@ export default async function MediaPage({ params }: { params: Promise<{ slug: st
       <p className="eyebrow">
         <Link href="/documents">Archive</Link> · {KIND_LABEL[item.kind] ?? item.kind}
       </p>
-      <h1>{item.title}</h1>
+      <h1>{named.name}</h1>
+
+      {/*
+        A FALLBACK IS SHOWN AS ONE. Where nothing describes the record and its title is only the name of
+        the uploaded file, the heading states that name — it is evidence about the record — and says so,
+        rather than passing it off as a title the archive holds.
+      */}
+      {named.from === 'fallback' ? (
+        <p className="small muted">
+          Nothing describes this record: it holds no caption, no description and no title of its own, and
+          the heading is the name of the file as it was uploaded. That name is kept rather than replaced
+          with one invented here.
+        </p>
+      ) : null}
 
       {/*
         The archive shows a file only when it holds the file.
@@ -136,16 +158,36 @@ export default async function MediaPage({ params }: { params: Promise<{ slug: st
         </tbody>
       </table>
 
-      {using.length > 0 ? (
-        <section className="section">
-          <p className="eyebrow">Used in</p>
+      {/*
+        THE HISTORIES THIS IMAGE BELONGS TO. `getMediaArticles` reads both relationships the archive
+        holds — the article's featured image, and the image embedded in the article's own text — and the
+        list says which. **The empty state is the point of the section as much as the list is**: a
+        photograph no published record uses has to say so, or the section reads as a page that failed to
+        finish loading.
+      */}
+      <section className="section">
+        <p className="eyebrow">Used in</p>
+        {using.length > 0 ? (
           <ul className="stack">
             {using.map((a) => (
-              <li key={a.slug}><Link href={`/${a.slug}/`}>{a.title}</Link></li>
+              <li key={a.slug}>
+                <Link href={`/${a.slug}/`}>{a.title}</Link>
+                {a.role === 'featured' ? (
+                  <span className="small muted"> — its featured image</span>
+                ) : (
+                  <span className="small muted"> — shown in its text</span>
+                )}
+              </li>
             ))}
           </ul>
-        </section>
-      ) : null}
+        ) : (
+          <p className="small muted">
+            No published record uses this {KIND_LABEL[item.kind]?.toLowerCase() ?? 'item'} — neither as
+            its featured image nor in its own text. The record is catalogued here in its own right, and
+            nothing has been written around it yet.
+          </p>
+        )}
+      </section>
 
       <div className="partial-note section">
         <p className="eyebrow">Reusing this</p>
