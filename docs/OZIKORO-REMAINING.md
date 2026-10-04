@@ -19151,3 +19151,183 @@ the only gate added anywhere is on the EPISODE, and the PDF path never reads `oz
 * **No ElevenLabs credit was spent.** The account still reads `character_count 43448` of
   `character_limit 65000` on `starter` — **21,552 remaining**, the same figure the brief recorded. The only
   call made to the API all round was the free `GET /v1/user/subscription`.
+
+## ROUND 330 — THE MUSIC COMES OFF `/watch/`, AND THE FILM LIST PAGES AT 15 WITH A LINK THAT NEEDS NO SCRIPT
+
+The owner's words: *"on the watch, remove the musics. and reduce the list that shows on the page to showing
+15 videos, while the rest can be seen when you click next"*. Two changes, and the first one needed an
+investigation before any code: **the page had 30 cards and it is not obvious which of them are music.**
+
+This round is numbered 330 because a sibling is taking 329 for the dashboard mode switcher; the numbers are a
+race in this tree and this one is deliberately out of its way.
+
+### 1. WHAT EACH FILM IS — ALL 24 THE ARCHIVE EMBEDS, AND THE SIX THAT ARE MUSIC
+
+The 30 cards are the design's own 6 plus the archive's 24. The 24 were read from the record that embeds each
+one — the holding article's title, topic, own words around the `<iframe>`, and its `ozikoro_label` rows (the
+WordPress tags the import kept) — and from the film's own recorded title.
+
+| film id | the film's title | held by (topic) | what it is |
+|---|---|---|---|
+| `8fD66TzRmEg` | The Peacocks International Guitar Band - Feresirima | Peacocks International Guitar Band: Crafting the Sound of Nigerian Guitar-Band **Highlife** (Biography) | **music** — a highlife recording |
+| `E-bbdBIH4Wg` | Eddie Quansa | the same record | **music** — a highlife recording |
+| `Gk5jUcXeUHc` | Seun Rere (Live) | Christy Essien-Igbokwe: The Voice of Nigeria's **Musical** Golden Age (Biography) | **music** — the record's own label is `Seun Rere` |
+| `NcBE2UH8WOc` | Time Na Money | Mike Okiri: The Pioneer of Pidgin in **Music** (Biography) | **music** |
+| `5a6tJhLpPa4` | Beautiful Woman | Cloud 7: A Deep Dive Into **Funk Music** From The East (Biography) | **music** — the record calls it "their breakout hit" |
+| `az6b5avH_Zc` | King Ja Ja - Sing Out Barbados | **Bajan Folk Music** About Jaja of Opobo (**Discography**) | **music** — the archive's own topic decides this one |
+| `LL8YX0pXzdI` | The War Dance Festival (ILA OSO) In Uzuakoli | …(Cultural Heritage) | a filmed festival — **left in** |
+| `SHPEwGDOI7c` | Ojeh & Arishi Festival of Aboh Kingdom | …(Cultural Heritage) | a filmed festival — **left in** |
+| `jOMjbchyNXg` | Mmili Nkisi Day | two records (Cultural Heritage) | a filmed festival — **left in** |
+| `H2Ch-R3EZkA` | Égwú Àmàlà: The Paddle Dance | …(Cultural Heritage) | a danced performance — **left in** |
+| `la4vThM0MUo` | Egwu Ogene: The Heartbeat of Igbo Culture and **Music** | …(Cultural Heritage) | an ogene ensemble — **ambiguous, left in** |
+| `NIR5CcOUoas`, `lAtHAK-5WZw` | Nkwa Ụmụagboghọ Dance | …(Cultural Heritage) | a danced performance — **left in** |
+| `lg_dSLOKywk`, `0g2hAF8NdOA` | The Ikpirikpi-ogu War Dance | …(Cultural Heritage) | a danced performance — **left in** |
+| `ekO2hKFsbEk`, `c9hMdWsZDJY`, `jVNIwrESgQ4` | The Egedege Dance | …(Cultural Heritage) | a danced performance — **left in** |
+| `u4ZadZ5hyWs`, `_w9v21ndnm4` | Atilogwu Dance | …(Cultural Heritage) | a danced performance — **left in** |
+| `5M0gCNAaVqs` | Omu: A Unique Female Leader in Igboland | …(Cultural Heritage) | not music — **left in** |
+| `bPXKduoup8I` | Cabildo Carabali Isuama in Santiago, Cuba | Carabalí Isuama: Preserving Igbo Heritage in Afro-Cuban Culture (Historical Studies) | a cabildo performance — **ambiguous, left in** |
+| `vsV9gI_U184` | Ńdébé: Preserving and Advancing the Igbo Language | …(Cultural Heritage) | not music — **left in** |
+| `Hr30SGgC8LY` | Eboe Town, Belize Oral History | …(Ethnohistory) | not music — **left in** |
+
+**Six films are music. Five of them are the recordings their own record is about** — the Peacocks' two, Christy
+Essien-Igbokwe's `Seun Rere`, Mike Okiri's `Time Na Money`, Cloud 7's `Beautiful Woman` — and the sixth,
+the Bajan folk song, is filed by the archive itself under `Discography`.
+
+**THE ARCHIVE'S OWN DISTINCTIONS WERE CHECKED FIRST, AND TWO OF THEM WERE TESTED RATHER THAN ASSUMED.**
+
+* **`source_type` cannot answer it**: all 19 embedding records carry `null`, and over the whole archive the
+  column holds only `null`, `unsourced` and `mixed`. There is no music value because there is no genre value.
+* **The entity graph cannot answer it**: of the 19 embedding records, exactly **one** has any entity link at
+  all (`ojeh-arishi-…` → clan Aboh), and `ozikoro_entity.kind` allows `music` while **no such entity exists**.
+* **`ozikoro_topic` answers exactly one of the six.** The `Discography` topic exists and holds **6 published
+  records**; `bajan-folk-music-about-jaja-of-opobo` is one of them, and the other five films' records are filed
+  under `Biography` because they are biographies of musicians. **A topic filter removes one music film and
+  leaves five.**
+* **The labels cannot draw the line, and the measurement is the point.** The import kept the WordPress tags as
+  `ozikoro_label`, and they name music on the *dance* records too: `the-egedege-dance-…` carries `Igbo Music`,
+  `Drums`, `Ekwe`, `Ogene`, `Udu`, `Ọja`; `egwu-ogene-…` carries `Ogene music`; `mmili-nkisi-…` and
+  `ojeh-arishi-…` carry `traditional music`. **Six of the nine Cultural Heritage records are labelled with
+  music.** A label rule would have deleted the dances along with the songs, which is the fault the brief
+  warned about.
+
+So the line is drawn on **what the film is**: a record release is music; a filmed dance, festival or oral
+account is not — and where a performance is danced and played at once it **stays**, because an archival film
+removed on a guess cannot be recovered and a music video left on the page can be taken off in a second.
+
+### 2. THE EXCLUSION IS A SELECTION IN THE FILL, AND THE RECORD KEEPS EVERY FILM
+
+`WATCH_MUSIC_FILMS` in `packages/ozikoro/src/design-fill.ts` is a map of **six film ids to the reason each is
+music**, and `fillWatch` filters them out of the list it builds. **Nothing is deleted from the database, no
+row is changed, and no genre is printed on the page** — the owner asked for a removal, not a visible category.
+**To put one back, delete its line from the map.** That is the whole reversal.
+
+`extractArchiveFilms` is untouched, so the archive's record of what it holds is still complete — and this is
+measurement, not intent: `node --test packages/ozikoro/src/design-fill.test.ts` asserts that all six are still
+extracted while none of them is drawn.
+
+**The consequence was checked, because removing a selection and deleting a record look identical on `/watch/`.**
+Fetched while the music was already off the page:
+
+| fetched | result |
+|---|---|
+| `/watch/` | 15 cards, **0** of the six present |
+| `/peacocks-international-guitar-band-crafting-the-sound-of-nigerian-guitar-band-highlife/` | 200, and **both** `<iframe>` frames still there — `Eddie Quansa` and `The Peacocks International Guitar Band - Feresirima` |
+| `/cloud-7-a-deep-dive-into-funk-music-from-the-east/` | 200, still holds `5a6tJhLpPa4` |
+| `/bajan-folk-music-about-jaja-of-opobo/` | 200, still holds `az6b5avH_Zc` |
+
+The article's body is the record and the grid is a selection from it, which is exactly the pair of facts that
+distinguishes the two.
+
+### 3. FIFTEEN A PAGE, AND THE PAGE IS IN THE ADDRESS
+
+**The parameter is `page`, and it is the archive's own.** `/archive/` reads it with
+`Math.max(1, Number.parseInt(first('page') ?? '1', 10) || 1)` (`apps/ozikoro/app/archive/page.tsx:110`), pages
+at `PAGE_SIZE = 24` (line 41), draws `<nav className="row" aria-label="Pagination">` with `rel="prev"` /
+`rel="next"` links and a "page N of M" statement, and renders an unavailable control as an inert `<span />`
+rather than a dead link. `/watch/` now does all four of those things; **the size is 15 because the owner named
+it, and 15 is five whole rows of the design's three-column grid**
+(`.sx-video-grid { grid-template-columns: repeat(3, minmax(0,1fr)) }`, `styles/showcase.css:440`).
+
+**The controls are real links and neither needs a script.** `fillWatch` renders
+`<a class="btn btn-ghost btn-sm" href="?page=2" rel="next">Next →</a>` into the design's own pager markup —
+`archive-index.html` draws one, so the shape is reused rather than a second idiom invented — and the middleware
+carries the reader's query string to the fill route, so `?page=2` is a plain GET that renders server-side.
+`btn-ghost` rather than the design pager's `btn-quiet` because `btn-quiet` is `color: var(--ink)`, drawn for a
+light page, and this screen is `body.sx-watch-body` on `var(--night)`; `btn-ghost` is the design's own
+night-body button, used by the watch page's player.
+
+**A bad page is handled by the archive's own rule, and a page past the end says so.**
+
+| address | what it renders |
+|---|---|
+| `/watch/` | 15 cards, `Showing films 1–15 of 24 · page 1 of 2`, a disabled Previous and a real `Next →` |
+| `/watch/?page=2` | 9 cards, `Showing films 16–24 of 24 · page 2 of 2`, a real `← Previous` and a disabled Next |
+| `/watch/?page=0`, `?page=-3`, `?page=abc`, `?page=1.9` | page 1 — the same `Math.max(1, parseInt \|\| 1)` clamp `/archive/` uses |
+| `/watch/?page=99` | **no cards at all**, and `There is no page 99: this index holds 24 films in 2 pages.` with links to page 1 and to the last page. It does **not** show page 1 or page 2's films, because a 200 that lands on another page's content is the fault the owner found this morning |
+| `/watch/?page=2&page=1` | page 2 — the first value, as `/archive/`'s `first()` helper reads a repeated parameter |
+
+**The count comes from the cards, not from a number written down.** `fillWatch` builds the page's ordered list
+from the document's own `data-video-id` values plus the archive's films after the music is removed, and divides
+it by `WATCH_PAGE_SIZE`; 24 cards is 2 pages, and the test asserts a 9-card page needs no pager at all.
+
+### 4. THE DECISION ABOUT THE DESIGN'S CARDS AND THE PAGE'S TWO SECTIONS
+
+`watch.html` draws two sections: **"Selected films"** (`#new`, three cards) and the **"Unspoken Stories"**
+collection (`#series`, three cards). The page's own count of its cards — "30 = the design's 6 + the archive's
+24" — is the whole page, so **the design's cards and the archive's films page together as one ordered list**,
+in document order. Paging each grid separately would repeat the second grid's three cards on every page of the
+first, so a film would stand on page 1 and again on page 2 and the cards across the pages would outnumber the
+distinct films.
+
+**The design's first-grid cards are therefore always on page 1** — they are the first three of the list, which
+is also what keeps `Faces | Voices` on the index whose job is to list it. **The three `Unspoken Stories` cards
+fall on page 2.**
+
+**Both section shells are kept on every page.** The design's own filter row links to `#new` and `#series`, and
+a page that dropped a section would leave those anchors pointing at nothing — the fault class this round is
+about. **So a section with no cards on this page says where its films are and links to them**: page 1's series
+block reads *"These films are on page 2 of this list. Go to page 2 →"*, and page 2 needs no note because it
+carries them. That sentence is derived from the list's own index, never assumed to be page 2.
+
+**De-duplication, measured across both pages**: page 1's 15 ids and page 2's 9 ids share **nothing**, each page
+holds no repeat of itself, and the union is **24 distinct** cards.
+
+### 5. VERIFIED
+
+* **`/watch/`, fetched and read**: 15 cards — `E3UBv8pmLxE`, `NBj1CvaDgbM`, `0_MvyVVGcxE`, `LL8YX0pXzdI`,
+  `SHPEwGDOI7c`, `jOMjbchyNXg`, `H2Ch-R3EZkA`, `la4vThM0MUo`, `NIR5CcOUoas`, `lAtHAK-5WZw`, `lg_dSLOKywk`,
+  `0g2hAF8NdOA`, `ekO2hKFsbEk`, `c9hMdWsZDJY`, `jVNIwrESgQ4`. **None of the six music ids is present.**
+* **`/watch/?page=2`, fetched and read**: 9 cards — `u4ZadZ5hyWs`, `_w9v21ndnm4`, `5M0gCNAaVqs`, `bPXKduoup8I`,
+  `vsV9gI_U184`, `Hr30SGgC8LY`, `3NnklFf2rXA`, `g1z_-5jqPG0`, `TwFgd11nvEg`.
+* **The article that holds a removed film still holds it** — the four fetches in §2.
+* **Headless Chrome, `scripts/verify-round-330.mjs`**: the probe is committed with this round and does three
+  things — reads every card's poster frame's `naturalWidth` after scrolling the whole document, clicks
+  `Next →` and reads the URL and the cards of the document it lands on, then repeats that click with
+  **`Emulation.setScriptExecutionDisabled`**, so that paging is proved to need no script. Screenshots and its
+  JSON go to `/tmp/wr330/`. **Its own run is not claimed here**: the commit was made while the probe was still
+  in flight, and a number in this file that was not read from the instrument is worse than no number. Its
+  result is in the round's report to the owner.
+* **`node --test packages/ozikoro/src/design-fill.test.ts`**: **56 tests, 56 pass, 0 fail** — nine added here
+  (the six excluded and the records still holding them; the dance films kept; 15 a page and the page count;
+  the two pages disjoint; the pager only when there is more than one page; the past-the-end page; the bad-page
+  clamps; a pager link keeping the other query parameters; the empty-section note).
+* **`npm run typecheck`** from the repository root, read from its own exit code and not a pipe's: **exit 0**.
+* **The build**: `bash scripts/serve-review.sh`, **exit 0**, built into `.next-next` and swapped in, artefact
+  asserted complete: `server.js present, 52 design screens`.
+* **The design is inviolable.** `git status --porcelain design/ apps/ozikoro/public/design/` returns nothing and
+  the brief's own check prints `identical 63 differing 0 missing 0`, below, verbatim.
+
+### 6. WHAT DOES NOT WORK
+
+* **The `/watch/` search box still posts to a dead address.** The design's own form is
+  `<form action="watch.html" method="get">`, and at the served address `/watch/` that resolves to
+  `/watch/watch.html?q=…`, which is not a route. **This is the design's markup and it is unchanged by this
+  round**; it is reported rather than fixed, because fixing it means editing the design.
+* **Four of the six filter links in the design's own nav row were already dead before this round** —
+  `#short`, `#oral`, `#places` and `#conversations` name sections `watch.html` does not draw. `#new` and
+  `#series` resolve, and this round keeps both of them on both pages.
+* **`/watch-video/` still shows one fixed film for every card** (round 326 §7, unbuilt): the pager does not
+  change that, and no card links there.
+* **The archive's `Discography` topic would have been the honest rule and it covers one film of six.** Recorded
+  in §1 so the next round does not re-derive it: if the owner ever files the five musician biographies'
+  *films* rather than their *articles*, the exclusion becomes a query and this map can go.

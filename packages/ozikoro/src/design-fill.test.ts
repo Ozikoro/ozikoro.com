@@ -1234,13 +1234,13 @@ test('a cited link is not a film: only an embed is extracted', () => {
 
 test("the design's own cards survive the fill, including Faces | Voices, which has its own page", () => {
   const films = extractArchiveFilms([
-    record('some-article', 'Some Article', 'Cultural Heritage', EMBED('8fD66TzRmEg')),
+    record('some-article', 'Some Article', 'Cultural Heritage', EMBED('Hr30SGgC8LY')),
   ]);
   const ids = filmIds(fillWatch(WATCH, films));
   for (const designId of ['E3UBv8pmLxE', 'NBj1CvaDgbM', '0_MvyVVGcxE', '3NnklFf2rXA', 'g1z_-5jqPG0', 'TwFgd11nvEg']) {
     assert.ok(ids.includes(designId), `${designId} must still be on the page after the fill`);
   }
-  assert.ok(ids.includes('8fD66TzRmEg'), 'the archive film must be added');
+  assert.ok(ids.includes('Hr30SGgC8LY'), 'the archive film must be added');
   // And no id twice: the grid is a film list, not an embedding list.
   assert.equal(new Set(ids).size, ids.length, `an id is on the page twice: ${ids.join(', ')}`);
 });
@@ -1282,4 +1282,151 @@ test('a WordPress entity in a record title is decoded, not printed', () => {
   const card = renderFilmCard(films[0]!);
   assert.ok(card.includes('<h3>Ojeh &amp; Arishi Festival of Aboh Kingdom</h3>'), 'the title must be escaped once, after decoding');
   assert.ok(!card.includes('&#038;'), 'the entity must not survive into the markup as text');
+});
+
+/*
+ * ==================================================================================================
+ * THE MUSIC THE OWNER ASKED OFF THE PAGE, AND THE FILMS THAT MUST SURVIVE IT
+ * ==================================================================================================
+ *
+ * The owner said *"on the watch, remove the musics."* The six ids are named in `WATCH_MUSIC_FILMS` with the
+ * reason for each; these tests hold the two edges of that decision — the six are not drawn, and the dance and
+ * oral records around them are untouched — and check that the exclusion is a SELECTION and not a deletion:
+ * `extractArchiveFilms` still returns the music, so the record keeps the film and a future round has only to
+ * delete a line of the map to put a card back.
+ */
+const MUSIC_IDS = ['8fD66TzRmEg', 'E-bbdBIH4Wg', 'Gk5jUcXeUHc', 'NcBE2UH8WOc', '5a6tJhLpPa4', 'az6b5avH_Zc'];
+
+test('the six films that are music are not drawn on /watch/, and the record still holds them', () => {
+  const films = extractArchiveFilms([
+    record('peacocks', 'Peacocks International Guitar Band', 'Biography',
+      EMBED('8fD66TzRmEg', 'The Peacocks International Guitar Band  - Feresirima') + EMBED('E-bbdBIH4Wg', 'Eddie Quansa')),
+    record('christy', 'Christy Essien-Igbokwe', 'Biography', EMBED('Gk5jUcXeUHc', 'Seun Rere (Live)')),
+    record('okiri', 'Mike Okiri', 'Biography', EMBED('NcBE2UH8WOc', 'Time Na Money')),
+    record('cloud-7', 'Cloud 7', 'Biography', EMBED('5a6tJhLpPa4', 'Beautiful Woman')),
+    record('bajan', 'Bajan Folk Music About Jaja of Opobo', 'Discography', EMBED('az6b5avH_Zc', 'King Ja Ja - Sing Out Barbados')),
+    // One non-music film beside them, so the assertion cannot pass by the fill drawing nothing at all.
+    record('egedege', 'The Egedege Dance', 'Cultural Heritage', EMBED('ekO2hKFsbEk')),
+  ]);
+  // The extraction is untouched: every one of the six is still a film the archive holds.
+  for (const id of MUSIC_IDS) {
+    assert.ok(films.some((f) => f.id === id), `${id} must still be extracted from its record`);
+  }
+  const ids = filmIds(fillWatch(WATCH, films));
+  for (const id of MUSIC_IDS) {
+    assert.ok(!ids.includes(id), `${id} is music and must not be drawn on the page`);
+  }
+  assert.ok(ids.includes('ekO2hKFsbEk'), 'the dance film beside them must still be drawn');
+});
+
+test('the dance and oral films are NOT removed: no film is dropped for having "dance" in its title', () => {
+  // The boundary the owner set: a performance that is danced and played at once is ambiguous, and an
+  // archival film removed on a guess is worse than one music video left on the page. Each of these records
+  // carries a music label of its own (`Igbo Music`, `Ogene music`, `traditional music`), which is exactly
+  // why a label rule could not draw this line.
+  const films = extractArchiveFilms([
+    record('nkwa', 'Nkwa Ụmụagboghọ Dance', 'Cultural Heritage', EMBED('NIR5CcOUoas') + EMBED('lAtHAK-5WZw')),
+    record('ikpirikpi', 'The Ikpirikpi-ogu War Dance', 'Cultural Heritage', EMBED('lg_dSLOKywk') + EMBED('0g2hAF8NdOA')),
+    record('egedege', 'The Egedege Dance', 'Cultural Heritage', EMBED('ekO2hKFsbEk') + EMBED('c9hMdWsZDJY') + EMBED('jVNIwrESgQ4')),
+    record('atilogwu', 'Atilogwu Dance', 'Cultural Heritage', EMBED('u4ZadZ5hyWs') + EMBED('_w9v21ndnm4')),
+    record('egwu-ogene', 'Egwu Ogene: The Heartbeat of Igbo Culture and Music', 'Cultural Heritage', EMBED('la4vThM0MUo')),
+    record('cuba', 'Carabalí Isuama', 'Historical Studies', EMBED('bPXKduoup8I')),
+  ]);
+  const ids = filmIds(fillWatch(WATCH, films));
+  for (const f of films) {
+    assert.ok(ids.includes(f.id), `${f.id} (${f.title}) must stay: it is a danced or oral performance, not a record`);
+  }
+});
+
+/*
+ * ==================================================================================================
+ * 15 A PAGE, WITH A NEXT THAT NEEDS NO SCRIPT
+ * ==================================================================================================
+ *
+ * The owner: *"reduce the list that shows on the page to showing 15 videos, while the rest can be seen when
+ * you click next"*. The archive's own paging is the model — `apps/ozikoro/app/archive/page.tsx` reads `page`
+ * from the query, clamps it with `Math.max(1, parseInt(...) || 1)`, and draws real `rel="prev"`/`rel="next"`
+ * links with a "page N of M" statement — and these tests hold the same four properties on `/watch/`.
+ */
+/** Eleven characters, as a YouTube id is, and not one of the archive's real ids. */
+const synthId = (i: number) => `flm${String(i).padStart(8, '0')}`;
+/** `n` archive films, none of them music, each from its own record. */
+const synthFilms = (n: number) => extractArchiveFilms(
+  Array.from({ length: n }, (_, i) => record(`record-${i}`, `Record ${i}`, 'Cultural Heritage', EMBED(synthId(i))))
+);
+
+test('page 1 of /watch/ draws 15 cards, and the pager says which page of how many', () => {
+  // 3 design cards in the first grid + 18 archive films + 3 in the series grid = 24 cards, which is the real
+  // number after the music is removed from the archive's 24 films. 24 cards at 15 a page is 2 pages.
+  const films = synthFilms(18);
+  const page1 = fillWatch(WATCH, films);
+  assert.equal(filmIds(page1).length, 15, 'page 1 must draw exactly 15 cards');
+  assert.ok(page1.includes('page 1 of 2'), 'the page must state which page of how many');
+  assert.ok(page1.includes('Showing films 1–15 of 24'), 'the count must come from the real cards');
+  assert.ok(page1.includes('href="?page=2"'), 'Next must be a real link, not a script');
+  assert.ok(!/<script[^>]*>[^<]*page=/i.test(page1), 'paging must not be done in script');
+});
+
+test('page 2 draws the rest, and no film stands on both pages', () => {
+  const films = synthFilms(18);
+  const page1 = fillWatch(WATCH, films);
+  const page2 = fillWatch(WATCH, films, { page: 2 });
+  const ids1 = filmIds(page1);
+  const ids2 = filmIds(page2);
+  assert.equal(ids2.length, 9, 'page 2 must draw the remaining 9 cards');
+  assert.equal(new Set(ids2).size, ids2.length, 'no card may appear twice on page 2');
+  const both = ids1.filter((id) => ids2.includes(id));
+  assert.deepEqual(both, [], `a film stands on both pages: ${both.join(', ')}`);
+  // Every distinct film the fill was given is on one page or the other, plus the design's own six.
+  assert.equal(new Set([...ids1, ...ids2]).size, 24, 'the two pages together must be every distinct card');
+  assert.ok(page2.includes('page 2 of 2'));
+  assert.ok(page2.includes('rel="prev"'), 'page 2 must offer a way back');
+  assert.ok(!page2.includes('rel="next"'), 'there is no page 3 and no link may pretend otherwise');
+});
+
+test('the pager appears only when there is more than one page, and the count is not hard-coded', () => {
+  // Six design cards plus three archive films: nine cards, one page, no pager and no "of 2".
+  const onePage = fillWatch(WATCH, synthFilms(3));
+  assert.equal(filmIds(onePage).length, 9);
+  assert.ok(!onePage.includes('aria-label="Pagination"'), 'a single page needs no pager');
+  // Sixteen cards in the first grid plus three in the series is nineteen — two pages, at 15 a page.
+  const twoPages = fillWatch(WATCH, synthFilms(16));
+  assert.equal(filmIds(twoPages).length, 15);
+  assert.ok(twoPages.includes('page 1 of 2'));
+});
+
+test('a page past the end shows the count and a link, never another page’s films', () => {
+  const films = synthFilms(18);
+  const beyond = fillWatch(WATCH, films, { page: 99 });
+  assert.deepEqual(filmIds(beyond), [], 'page 99 must not show page 1 or page 2’s cards');
+  assert.ok(beyond.includes('There is no page 99'), 'the page must say so');
+  assert.ok(beyond.includes('24 films in 2 pages'), 'and state the real size of the index');
+  assert.ok(beyond.includes('href="?page=1"'), 'and offer the way back');
+});
+
+test('page 0, a negative page and a page that is not a number all fall back to page 1', () => {
+  // Exactly what /archive/ does: Math.max(1, parseInt(...) || 1). Every one of these is the first page.
+  const films = synthFilms(18);
+  const first = filmIds(fillWatch(WATCH, films));
+  for (const page of [0, -3, Number.NaN]) {
+    assert.deepEqual(filmIds(fillWatch(WATCH, films, { page })), first, `page ${page} must be page 1`);
+  }
+});
+
+test('a pager link keeps every other parameter the reader arrived with', () => {
+  const films = synthFilms(18);
+  const html = fillWatch(WATCH, films, { page: 1, query: '?ozpreview=abc123&page=1' });
+  assert.ok(html.includes('href="?ozpreview=abc123&amp;page=2"'), 'the design preview must survive Next');
+});
+
+test('a section with no cards on this page says where its films are', () => {
+  // The series grid's three cards fall on page 2, and the design's own filter row links to `#series`. The
+  // section is kept and says so, rather than standing empty with no explanation.
+  const films = synthFilms(18);
+  const page1 = fillWatch(WATCH, films);
+  assert.ok(page1.includes('id="series"'), 'the design’s section must survive paging');
+  assert.ok(page1.includes('These films are on page 2 of this list.'), 'and must say where its films are');
+  assert.ok(page1.includes('href="?page=2"'));
+  const page2 = fillWatch(WATCH, films, { page: 2 });
+  assert.ok(!page2.includes('These films are on page'), 'page 2 carries the series, so no note is needed');
 });

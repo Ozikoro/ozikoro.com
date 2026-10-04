@@ -180,6 +180,81 @@ export type RealFilm = {
 };
 
 /**
+ * HOW MANY CARDS ONE PAGE OF `/watch/` DRAWS.
+ *
+ * The owner's words: *"reduce the list that shows on the page to showing 15 videos, while the rest can be
+ * seen when you click next"*. **15 is not an arbitrary shape for this grid**: `.sx-video-grid` is
+ * `grid-template-columns: repeat(3, minmax(0,1fr))` (`styles/showcase.css:440`), so 15 is five whole rows of
+ * three, with no half-row left at the foot of a page. The brief's own precedent for a page size is
+ * `/archive/`'s `PAGE_SIZE = 24` (`apps/ozikoro/app/archive/page.tsx:41`); the size differs because the card
+ * is a poster frame three-across rather than a stacked entry, and the owner named the number.
+ */
+export const WATCH_PAGE_SIZE = 15;
+
+/**
+ * THE FILMS ON `/watch/` THAT ARE MUSIC, AND WHY EACH ONE IS — one entry per film, keyed by its YouTube id.
+ *
+ * THE OWNER'S WORDS: *"on the watch, remove the musics."* This map IS the exclusion: `fillWatch` drops every
+ * film whose id is here, and **nothing else changes** — no row is deleted, no card is re-titled, no genre is
+ * printed on the page. **To put a film back, delete its line here.** That is the whole reversal, and it is
+ * why the decision sits in the fill rather than in the database or in the design.
+ *
+ * WHAT EACH ONE IS, FROM THE RECORD THAT EMBEDS IT AND FROM THE FILM'S OWN TITLE — not from its name.
+ * Every id below is embedded by a record whose subject is a piece of music, and the film's own recorded
+ * title is the title of that piece:
+ *
+ *   * `8fD66TzRmEg` and `E-bbdBIH4Wg` — **two recordings by the Peacocks International Guitar Band**,
+ *     embedded by the band's own biography, *"Peacocks International Guitar Band: Crafting the Sound of
+ *     Nigerian Guitar-Band Highlife"* (topic Biography). The record's own words around the first are
+ *     "guitar lines, steady highlife rhythms suitable for dancing"; its labels are `Highlife`,
+ *     `Guitar-Band Highlife`, `Dance Music`, `Nigerian Popular Music`. The films' titles — "The Peacocks
+ *     International Guitar Band - Feresirima" and "Eddie Quansa" — are the band-and-track form a record
+ *     release is titled in. **These are the recordings, not films about the band.**
+ *   * `Gk5jUcXeUHc` — *"Seun Rere (Live)"*, embedded by *"Christy Essien-Igbokwe: The Voice of Nigeria's
+ *     Musical Golden Age"* (Biography). The record's labels are `Seun Rere`, `Lady of Songs`, `Music Icon`,
+ *     `highlife music` — the film's own title is one of the record's own labels, which is the archive
+ *     naming the song.
+ *   * `NcBE2UH8WOc` — *"Time Na Money"*, embedded by *"Mike Okiri: The Pioneer of Pidgin in Music"*
+ *     (Biography); labels `Pidgin Music`, `African music`, `Afrobeat`, `Highlife`.
+ *   * `5a6tJhLpPa4` — *"Beautiful Woman"*, embedded by *"Cloud 7: A Deep Dive Into Funk Music From The
+ *     East"* (Biography). The record writes *"With their breakout hit 'Beautiful Woman'"*, and `Beautiful
+ *     Woman` is one of its own labels: the film is the hit the record is about.
+ *   * `az6b5avH_Zc` — *"King Ja Ja - Sing Out Barbados"*, embedded by *"Bajan Folk Music About Jaja of
+ *     Opobo"*. **This is the one case the archive's own taxonomy decides by itself**: that record is one of
+ *     the six filed under the `Discography` topic, which exists for records of music and for nothing else.
+ *
+ * WHAT WAS *NOT* EXCLUDED, AND WHY — the boundary is drawn deliberately, because an archival film removed
+ * for having "dance" in its title is worse than one music video left on the page:
+ *
+ *   * the five **dance and festival films** (`LL8YX0pXzdI` ILA OSO, `SHPEwGDOI7c` Ojeh & Arishi,
+ *     `jOMjbchyNXg` Mmili Nkisi, `H2Ch-R3EZkA` Égwú Àmàlà, `la4vThM0MUo` Egwu Ogene, `NIR5CcOUoas` and
+ *     `lAtHAK-5WZw` Nkwa Ụmụagboghọ, `lg_dSLOKywk` and `0g2hAF8NdOA` Ikpirikpi-ogu, `ekO2hKFsbEk`,
+ *     `c9hMdWsZDJY` and `jVNIwrESgQ4` Egedege, `u4ZadZ5hyWs` and `_w9v21ndnm4` Atilogwu) — **left in.**
+ *     Each is a filmed performance of a dance or a festival, held by a record filed under Cultural Heritage
+ *     about that tradition, not a record release. **The archive's own labels cannot draw this line**:
+ *     measured, six of those nine records are labelled with music — `the-egedege-dance-…` carries `Igbo
+ *     Music`, `Drums`, `Ekwe`, `Ogene`; `egwu-ogene-…` carries `Ogene music`; `mmili-nkisi-…` and
+ *     `ojeh-arishi-…` carry `traditional music`. A label rule would have removed the dances with the songs.
+ *     So the line is drawn on what the film is, and where it is genuinely a performance that is both danced
+ *     and played, **the film stays and is reported** — the owner can take one off in a second and cannot
+ *     recover one deleted on a guess.
+ *   * `bPXKduoup8I` — *"Cabildo Carabali Isuama in Santiago, Cuba"*, held by *"Carabalí Isuama: Preserving
+ *     Igbo Heritage in Afro-Cuban Culture"* (Historical Studies; labels `cabildo`, `Abakuá society`,
+ *     `Afro-Cuban culture` — no music label). **Ambiguous: a cabildo performance may be music and dance at
+ *     once, and the record does not say which. Left in, and reported to the owner.**
+ *   * everything else the archive embeds — oral history, Ńdébé, the Omu, the war-dance festival — is not a
+ *     record release and is untouched.
+ */
+export const WATCH_MUSIC_FILMS: ReadonlyMap<string, string> = new Map([
+  ['8fD66TzRmEg', 'a Peacocks International Guitar Band highlife recording, held by the band\'s own biography'],
+  ['E-bbdBIH4Wg', 'a Peacocks International Guitar Band highlife recording, held by the band\'s own biography'],
+  ['Gk5jUcXeUHc', 'Christy Essien-Igbokwe\'s "Seun Rere (Live)", named by the record\'s own label "Seun Rere"'],
+  ['NcBE2UH8WOc', 'Mike Okiri\'s "Time Na Money", held by "The Pioneer of Pidgin in Music"'],
+  ['5a6tJhLpPa4', 'Cloud 7\'s "Beautiful Woman", the record\'s own "breakout hit" and one of its labels'],
+  ['az6b5avH_Zc', 'a Bajan folk song about Jaja of Opobo, held by one of the six records filed under Discography'],
+]);
+
+/**
  * One video card, in the design's own markup — `button.sx-video-card` with its data attributes, its poster
  * frame from `i.ytimg.com`, and its three text slots filled.
  *
@@ -306,30 +381,199 @@ export function extractArchiveFilms(
  * does not already carry. The document is read for its own `data-video-id` values, so a film the design
  * already shows is not shown twice. **A document that already holds every film is returned unchanged**, so a
  * database that is down degrades to the design rather than to a page that has lost cards.
+ *
+ * TWO THINGS ADDED SINCE, AND NEITHER ONE UNPICKS THAT FIX
+ *
+ *   * **The music is not drawn.** `WATCH_MUSIC_FILMS` names six films the owner asked to be off the page and
+ *     carries the reason for each; this function filters them out of the list it builds. The design's cards
+ *     are read from the document and re-emitted, so the `[Re:]Entanglements` films survive by construction —
+ *     and a page whose films are all music returns the design untouched, exactly as a page whose films are
+ *     all already drawn does.
+ *   * **The list is paged at `WATCH_PAGE_SIZE`,** with the page carried in `?page=`. The section shells stay
+ *     on every page; a section whose cards are on another page says where they are instead of standing empty.
  */
-export function fillWatch(html: string, films: RealFilm[]): string {
+export function fillWatch(html: string, films: RealFilm[], options: WatchFillOptions = {}): string {
   let out = dropExampleFlag(html);
-  const openTag = '<div class="sx-video-grid">';
-  const start = out.indexOf(openTag);
-  if (start === -1) return out;
-  const open = start + openTag.length;
-  let depth = 1, i = open;
-  while (i < out.length && depth > 0) {
-    const nextOpen = out.indexOf('<div', i);
-    const nextClose = out.indexOf('</div>', i);
-    if (nextClose === -1) break;
-    if (nextOpen !== -1 && nextOpen < nextClose) { depth += 1; i = nextOpen + 4; }
-    else { depth -= 1; i = nextClose + 6; }
-  }
-  // De-duplicated against the WHOLE document rather than this grid alone: the design's second grid is a film
-  // list too, and a film standing in both places would be one film with two cards.
+  const grids = watchGrids(out);
+  if (grids.length === 0) return out;
+
+  /*
+   * THE PAGE'S OWN CARDS, READ FROM THE PAGE.
+   *
+   * `watch.html` draws two grids: "Selected films" (`#new`, three cards) and the "Unspoken Stories"
+   * collection (`#series`, three cards). The archive's films are added **after the first grid's own cards**,
+   * which is the round-326 rule that stopped the fill deleting the owner's `[Re:]Entanglements` films. The
+   * document is read for its own `data-video-id` values, so a film the design already shows is not shown
+   * twice — and now against the whole document, because a film standing in both grids would be one film with
+   * two cards.
+   */
   const shown = new Set([...out.matchAll(/data-video-id="([^"]*)"/g)].map((m) => m[1]));
-  const added = films.filter((f) => !shown.has(f.id));
+  const added = films.filter((f) => !shown.has(f.id) && !WATCH_MUSIC_FILMS.has(f.id));
   if (added.length === 0) return out;
-  const close = i - 6;
-  const inner = added.map(renderFilmCard).join('\n  ');
-  out = out.slice(0, close) + '\n  ' + inner + '\n' + out.slice(close);
-  return out;
+
+  /*
+   * ONE ORDERED LIST OF EVERY CARD THE PAGE DRAWS, AND WHICH GRID EACH CARD BELONGS TO.
+   *
+   * **The design's cards and the archive's films are paged TOGETHER, as one list.** They are two sections of
+   * one index, the owner asked for "the list that shows on the page" to be 15, and the page's own count of
+   * its cards — "30 = the design's 6 + the archive's 24" — is the whole page, not one grid. Paging each grid
+   * separately would repeat the second grid's three cards on every page of the first, so a film would stand
+   * on page 1 and on page 2, and the number of cards across the pages would exceed the number of distinct
+   * films.
+   *
+   * The section shells are kept on every page, because the design's own filter row links to `#new` and
+   * `#series`; a page that dropped a section would leave those anchors pointing at nothing, which is the
+   * fault class this work exists to remove. **A section with no cards on this page says so and links to the
+   * page that has them** — see below — rather than showing an empty grid with no explanation.
+   */
+  const slots: { html: string; grid: number }[][] = grids.map((g, gi) =>
+    watchCards(out.slice(g.open, g.close)).map((card) => ({ html: card, grid: gi })));
+  slots[0]!.push(...added.map((f) => ({ html: renderFilmCard(f), grid: 0 })));
+  const list = slots.flat();
+
+  const totalPages = Math.max(1, Math.ceil(list.length / WATCH_PAGE_SIZE));
+  const requested = Math.trunc(Number(options.page ?? 1));
+  const page = Number.isFinite(requested) ? Math.max(1, requested) : 1;
+  const beyond = Number.isFinite(requested) && requested > totalPages;
+  const href = (p: number) => watchPageHref(options.query, p);
+
+  let rebuilt = out;
+  // Backwards, so an insertion after one grid cannot move an earlier grid's offsets.
+  for (let gi = grids.length - 1; gi >= 0; gi--) {
+    const g = grids[gi]!;
+    const mine = beyond ? [] : list.slice((page - 1) * WATCH_PAGE_SIZE, page * WATCH_PAGE_SIZE)
+      .filter((s) => s.grid === gi).map((s) => s.html);
+    if (mine.length === 0 && !beyond) {
+      // Where this section's films actually are. Derived from the list, never assumed to be page 2.
+      const at = list.findIndex((s) => s.grid === gi);
+      if (at !== -1) {
+        const onPage = Math.floor(at / WATCH_PAGE_SIZE) + 1;
+        const note = `<p class="sx-source-note">These films are on page ${onPage} of this list. ` +
+          `<a href="${esc(href(onPage))}">Go to page ${onPage} <span aria-hidden="true">→</span></a></p>`;
+        rebuilt = rebuilt.slice(0, g.close + 6) + '\n    ' + note + rebuilt.slice(g.close + 6);
+      }
+    }
+    rebuilt = rebuilt.slice(0, g.open) +
+      (mine.length > 0 ? '\n  ' + mine.join('\n  ') + '\n' : '') + rebuilt.slice(g.close);
+  }
+
+  /*
+   * THE PAGER, IN THE DESIGN'S OWN MARKUP. `archive-index.html` draws one — `<nav class="row"
+   * style="margin-top:var(--s-6);justify-content:space-between" aria-label="Pagination">` with the count on
+   * the left and the two controls on the right — so that shape is reused rather than a second one invented.
+   *
+   * **BOTH CONTROLS ARE REAL LINKS AND NEITHER NEEDS SCRIPT.** `?page=2` is a plain GET: the middleware
+   * carries the query to the fill route, the route reads it, and the page renders. `watch.js` builds the
+   * inline player and has nothing to do with paging. An unavailable control is an inert `<span>` rather than
+   * an `href="#"`, because a link that goes nowhere is the fault the owner found this morning — a 200 that
+   * lands on the wrong thing.
+   *
+   * `btn-ghost` rather than the design pager's `btn-quiet`: `btn-quiet` is `color: var(--ink)` for the
+   * light-page body it was drawn for, and this screen is `body.sx-watch-body` on `var(--night)`. `btn-ghost`
+   * is the design's own night-body button — the watch page's "Open on YouTube" and "Close player".
+   */
+  const pager = beyond
+    ? `<div class="wrap"><p class="sx-source-note">There is no page ${page}: this index holds ${list.length} ` +
+      `films in ${totalPages} ${totalPages === 1 ? 'page' : 'pages'}. ` +
+      `<a href="${esc(href(1))}">Page 1</a>` +
+      (totalPages > 1 ? ` · <a href="${esc(href(totalPages))}">page ${totalPages}, the last</a>` : '') +
+      `</p></div>`
+    : totalPages > 1
+      ? `<div class="wrap">${renderWatchPager(page, totalPages, list.length, href)}</div>`
+      : '';
+  if (pager !== '') {
+    const closeMain = rebuilt.lastIndexOf('</main>');
+    rebuilt = closeMain === -1
+      ? rebuilt + pager
+      : rebuilt.slice(0, closeMain) + pager + '\n' + rebuilt.slice(closeMain);
+  }
+  return rebuilt;
+}
+
+/** What the fill needs to know about the request that asked for a page of `/watch/`. */
+export type WatchFillOptions = {
+  /** The `page` parameter, as it arrived. Anything that is not a page number in range is handled, not trusted. */
+  page?: number;
+  /** The request's own query string, so a pager link keeps every other parameter it was asked with. */
+  query?: string;
+};
+
+/**
+ * Every `div.sx-video-grid` in a document, as the range of its inner content.
+ *
+ * The close is found by balanced depth — the existing rule — because the design's grids hold only cards
+ * today and a card that grows a nested `div` tomorrow must not end the grid early.
+ */
+function watchGrids(html: string): { open: number; close: number }[] {
+  const grids: { open: number; close: number }[] = [];
+  const openTag = '<div class="sx-video-grid">';
+  let from = 0;
+  for (;;) {
+    const start = html.indexOf(openTag, from);
+    if (start === -1) break;
+    const open = start + openTag.length;
+    let depth = 1, i = open;
+    while (i < html.length && depth > 0) {
+      const nextOpen = html.indexOf('<div', i);
+      const nextClose = html.indexOf('</div>', i);
+      if (nextClose === -1) break;
+      if (nextOpen !== -1 && nextOpen < nextClose) { depth += 1; i = nextOpen + 4; }
+      else { depth -= 1; i = nextClose + 6; }
+    }
+    grids.push({ open, close: i - 6 });
+    from = i;
+  }
+  return grids;
+}
+
+/**
+ * The film cards inside a grid, as whole `<button>` elements, in order.
+ *
+ * A `button` cannot contain a `button`, so the first `</button>` after a card's open tag is its own — no
+ * depth counting is needed here, and the markup this returns is the design's, character for character.
+ */
+function watchCards(inner: string): string[] {
+  const cards: string[] = [];
+  const open = /<button\b[^>]*\bclass="[^"]*\bsx-video-card\b[^"]*"[^>]*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = open.exec(inner)) !== null) {
+    const end = inner.indexOf('</button>', match.index);
+    if (end === -1) break;
+    cards.push(inner.slice(match.index, end + '</button>'.length));
+    open.lastIndex = end;
+  }
+  return cards;
+}
+
+/**
+ * A pager link, as a query string relative to the page it stands on.
+ *
+ * `?page=2` resolved against `/watch/` is `/watch/?page=2`, and the middleware carries that search to the
+ * fill route — so the address is the page, a reader can link to page 2, and a refresh keeps them there.
+ * **Every other parameter is kept**: the owner's design preview travels in the query string at the public
+ * address, and a Next that silently dropped it would be a control that goes somewhere else.
+ */
+function watchPageHref(query: string | undefined, page: number): string {
+  const params = new URLSearchParams(query ?? '');
+  params.set('page', String(page));
+  return `?${params.toString()}`;
+}
+
+/** The pager itself: where you are, how many there are, and the two real links. */
+function renderWatchPager(
+  page: number, totalPages: number, total: number, href: (page: number) => string
+): string {
+  const first = (page - 1) * WATCH_PAGE_SIZE + 1;
+  const last = Math.min(page * WATCH_PAGE_SIZE, total);
+  const prev = page > 1
+    ? `<a class="btn btn-ghost btn-sm" href="${esc(href(page - 1))}" rel="prev">← Previous</a>`
+    : '<span class="btn btn-ghost btn-sm" aria-disabled="true" style="opacity:.45">← Previous</span>';
+  const next = page < totalPages
+    ? `<a class="btn btn-ghost btn-sm" href="${esc(href(page + 1))}" rel="next">Next →</a>`
+    : '<span class="btn btn-ghost btn-sm" aria-disabled="true" style="opacity:.45">Next →</span>';
+  return `<nav class="row" style="margin-top:var(--s-6);justify-content:space-between" aria-label="Pagination">` +
+    `<span class="small" style="color:var(--on-night-muted)">Showing films ${first}–${last} of ${total} · ` +
+    `page ${page} of ${totalPages}</span><span class="row">${prev}${next}</span></nav>`;
 }
 
 /** Replace every occurrence of a container's inner content, matched by balanced depth. */

@@ -1088,7 +1088,23 @@ export async function GET(
             order by a.published_at desc nulls last`
         );
         const films: RealFilm[] = extractArchiveFilms(rows);
-        if (films.length > 0) html = fillWatch(html, films);
+        /*
+         * THE PAGE, FROM THE ADDRESS. `?page=2` is the whole mechanism: the middleware carries the reader's
+         * query string to this route (see `apps/ozikoro/middleware.ts`), this reads it, and `fillWatch`
+         * renders that page of the list with real links to the pages either side — **no script is involved,
+         * and `watch.js` never sees it.** The parameter is named `page` because that is the archive's own
+         * name for it (`apps/ozikoro/app/archive/page.tsx:110`, `PAGE_SIZE` at line 41). A value that is not
+         * a page number (`abc`) or is below the first (`0`, `-3`) falls back to page 1, which is exactly what
+         * `/archive/` does; a page past the last is answered with the count and a link rather than with
+         * another page's films.
+         */
+        const url = new URL(request.url);
+        if (films.length > 0) {
+          html = fillWatch(html, films, {
+            page: Number(url.searchParams.get('page') ?? '1'),
+            query: url.search,
+          });
+        }
       }
     } catch (error) {
       /*
