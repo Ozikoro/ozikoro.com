@@ -20,7 +20,7 @@ export const Route = createFileRoute("/account")({
   //
   // Doing it here rather than in an effect means somebody who is already signed in never sees the
   // form flash before being redirected, and the page needs no loading state to be correct.
-  loader: async () => ({ account: await currentUser() }),
+  loader: async () => ({ account: (await currentUser()).account }),
   component: AccountPage,
 });
 

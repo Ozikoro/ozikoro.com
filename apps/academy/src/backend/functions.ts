@@ -40,19 +40,36 @@ function sessionToken(): string | undefined {
   return readCookie(getRequestHeader("cookie"), SESSION_COOKIE);
 }
 
-/** The signed-in account, or null. Never throws — used by pages that render signed-out too. */
+/**
+ * The signed-in account, wrapped so that "nobody" is a value rather than an absence.
+ *
+ * THE WRAPPER IS NOT DECORATION. This returned a bare `Account | null`, and `null` is what a
+ * signed-out visitor gets — the majority case. Seroval cannot serialise that as the result of a
+ * server function: a GET to this endpoint with no session produced
+ *
+ *   500, an HTML error page, and "Error: Internal Server Error" in the log
+ *
+ * while a GET with a valid session returned 200. Server-side rendering never noticed, because the
+ * loader runs in-process there; only the RPC path fails, which is the path a client-side navigation
+ * takes. So clicking a link to /account or a course page while signed out was broken, and every full
+ * page load looked fine.
+ *
+ * Returning an object makes the empty case a normal value. Never throws — pages render signed out.
+ */
 export const currentUser = createServerFn({ method: "GET" }).handler(
-  async (): Promise<Account | null> => {
+  async (): Promise<{ account: Account | null }> => {
     const session = await resolveSession(sessionToken());
-    return session
-      ? {
-          id: session.id,
-          email: session.email,
-          displayName: session.displayName,
-          role: session.role,
-          status: session.status,
-        }
-      : null;
+    return {
+      account: session
+        ? {
+            id: session.id,
+            email: session.email,
+            displayName: session.displayName,
+            role: session.role,
+            status: session.status,
+          }
+        : null,
+    };
   }
 );
 

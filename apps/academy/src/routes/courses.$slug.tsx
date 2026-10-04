@@ -18,12 +18,12 @@ export const Route = createFileRoute("/courses/$slug")({
     // and an enrol button, a signed-in learner gets their own progress, and neither sees a spinner
     // or a flash of the wrong state. `courseProgress` answers with an empty list when nobody is
     // signed in rather than failing, which is what lets one loader serve both cases.
-    const [account, progress] = await Promise.all([
+    const [session, progress] = await Promise.all([
       currentUser(),
       courseProgress({ data: { courseSlug: params.slug } }),
     ]);
 
-    return { course, account, progress: progress.ok ? progress.data : [] };
+    return { course, account: session.account, progress: progress.ok ? progress.data : [] };
   },
   head: ({ loaderData }) => ({
     meta: [

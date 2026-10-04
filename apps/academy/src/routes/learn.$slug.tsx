@@ -4,7 +4,7 @@ import { createFileRoute,Link,notFound } from "@tanstack/react-router";import { 
 // Both are read here so the page renders once — a visitor sees the lesson and an invitation to
 // enrol, a learner sees where they are. `courseProgress` answers with an empty list when nobody is
 // signed in rather than failing, which is what lets one loader serve both.
-const[account,progress]=await Promise.all([currentUser(),courseProgress({data:{courseSlug:params.slug}})]);
+const[session,progress]=await Promise.all([currentUser(),courseProgress({data:{courseSlug:params.slug}})]);const account=session.account;
 // The lesson being read. The course's lessons are not modelled individually yet, so the reader
 // tracks one stable slug per course; when the curriculum lands in `learn_lesson` this becomes the
 // real lesson id from the URL.
