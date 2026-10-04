@@ -47,8 +47,8 @@ const PLATFORMS = [
     body: 'Histories, records, publications and the research network.' },
   { href: 'https://ozituma.com', name: 'ozituma.com', label: 'Dictionary',
     body: 'A living dictionary for African languages.' },
-  { href: 'https://learn.ozituma.com', name: 'learn.ozituma.com', label: 'Learn Igbo',
-    body: 'Lessons for speaking and reading Igbo.' },
+  { href: '/academy/', name: 'academy.ozikoro.com', label: 'Learn Igbo',
+    body: 'Lessons for speaking and reading Igbo. The academy is being prepared.' },
 ];
 
 const PRINCIPLES = [

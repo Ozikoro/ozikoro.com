@@ -1,5 +1,0 @@
-# Keep this directory in version control.
-#
-# The Dockerfile COPYs apps/learn/public into the image. Without this file the
-# directory would not exist in a fresh clone, the COPY would fail, and the build
-# would break for a reason that has nothing to do with what was being changed.

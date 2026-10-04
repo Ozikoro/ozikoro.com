@@ -1616,8 +1616,15 @@ main {
 }
 
 /* =========================================================================
-   Ozituma Learn — learn.ozituma.com
+   The course pages — now the Ozikoro Academy's
    =========================================================================
+
+   **THE HOST THESE WERE WRITTEN FOR, `learn.ozituma.com`, IS BEING RETIRED AND
+   `academy.ozikoro.com` REPLACES IT.** The rules are kept rather than deleted:
+   they style classes this application still renders, and removing CSS whose last
+   users are hard to enumerate is how a layout breaks quietly on a page nobody
+   opened. The heading loses the host name because the host name is the part that
+   is no longer true.
 
    The course pages share the dictionary's tokens, type scale and palette, so
    the two sites read as one family. What differs is density: a dictionary page

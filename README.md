@@ -32,7 +32,7 @@ accounts, contributions, an editorial review queue and three practice modes. Add
 | **Dialect coverage** | 21,108 dialect spellings across 33 named varieties, each with its own pronunciation where one was recorded |
 | **Multi-language** | 2 languages live, 17 registered. Grammar categories, inflection types and dialects are per-language **rows**, so adding a language is a corpus, not a migration — Yoruba proved it end to end with no code change |
 | **Practice** | Three quiz modes generated live from the dictionary — meanings, listening and dialects — with distractors chosen to be genuinely hard |
-| **Ozituma Learn** | Authored language courses at [learn.ozituma.com](https://learn.ozituma.com): units, lessons with vocabulary, phrases, grammar notes and dialogues, and lesson-scoped exercises that are graded on the server. Igbo is live; adding a course for another language is a JSON file, not a migration |
+| **The Academy** | Authored language courses: units, lessons with vocabulary, phrases, grammar notes and dialogues, and lesson-scoped exercises that are graded on the server. Igbo is live; adding a course for another language is a JSON file, not a migration. **Hosted at the retiring `learn.ozituma.com` today; `academy.ozikoro.com` replaces it and is being prepared.** |
 | **Verified data** | 40 integrity checks plus a 77-check lifecycle test that creates and removes its own data, media included |
 
 ---
@@ -68,16 +68,20 @@ npm run import:igbo
 # 5. Prove the data is sound
 npm run verify
 
-# 6. Load the courses for learn.ozituma.com (idempotent, safe to re-run)
-npm run import:learn -- --apply
-
-# 7. Run the app
+# 6. Run the app
 npm run dev            # http://localhost:3000
 ```
 
-The courses are then at **http://localhost:3000/learn**, or at the real subdomain
-shape if you browse to **http://learn.localhost:3000** — Chrome resolves
-`*.localhost` to loopback, so the Host-based routing can be exercised without DNS.
+**There is no longer a step that loads the courses.** `learn.ozituma.com` was retired entire on
+2026-10-04 — the Worker, its DNS and its Supabase project were all deleted — and `npm run import:learn`
+went with them, because there is no database for it to import into. **http://localhost:3000/learn**
+serves this site's own "the Academy is being prepared" page, which is the interim destination and the
+only one there is.
+
+The **authored** curriculum survives at `data/learn/igbo.json` with its importer at
+`packages/db/src/import/learn-curriculum.ts`, kept deliberately as the Academy's inheritance rather than
+the retired host's plumbing. It is a source file, not a wired-up path: it will need a target database and
+an npm script again when the Academy has somewhere to put its courses.
 
 Then get a key and call the API:
 

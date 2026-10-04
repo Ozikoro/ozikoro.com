@@ -202,8 +202,20 @@ test('a bare button label on a non-dashboard screen becomes a non-link that says
 
   assert.match(out, /<a class="btn btn-quiet" aria-disabled="true" title="Not built yet[^"]*">Save as draft /);
   assert.doesNotMatch(out, /<a[^>]*href="#"[^>]*>Save as draft/);
-  // The academy screen names its own destination in its text, so its courses keep a real address.
-  assert.match(fillDashboardLinks(screen('academy'), 'academy'), /<a href="https:\/\/learn\.ozituma\.com\/">Igbo from the beginning<\/a>/);
+  /*
+   * THE ACADEMY'S COURSES POINT AT THIS ARCHIVE, NOT AT THE RETIRING HOST.
+   *
+   * They used to be wired to `https://learn.ozituma.com/`, and the note here said the page named that
+   * address in its own text and the address answered. Both halves of that stopped being true: the host is
+   * being retired in favour of `academy.ozikoro.com`, which has no record in its zone. **`/academy/` is
+   * this archive's own page and it answers**, and asserting the OLD host still present is exactly the
+   * assertion that would have let a retired link ship.
+   */
+  const academy = fillDashboardLinks(screen('academy'), 'academy');
+  assert.match(academy, /<a href="\/academy\/">Igbo from the beginning<\/a>/,
+    'a course title reaches the archive\'s own academy page, which answers');
+  assert.doesNotMatch(academy, /learn\.ozituma\.com/,
+    'no course title on the academy screen is wired to the retiring host');
   // The archive's own indexes are wired; the design's example topics are not.
   assert.match(fillDashboardLinks(screen('archive-index'), 'archive-index'), /<a class="small" href="\/clans\/">All 62 clans →<\/a>/);
   assert.match(fillDashboardLinks(screen('researcher-profile'), 'researcher-profile'), /<a href="\/researchers\/">Researchers<\/a>/);

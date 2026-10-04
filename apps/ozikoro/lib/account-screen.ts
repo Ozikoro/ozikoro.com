@@ -108,7 +108,21 @@ export const ACCOUNT_LINES = {
      * **The attribute is set by `/account-auth.js` when joining and only then**, which is where the decision
      * belongs — the box and its requirement are both the join form's, and neither should exist while signing in.
      */
-    '<div class="terms" id="terms" style="display:none"><label class="check"><input type="checkbox"><span>I agree to the <a class="link" href="#">Terms of Use</a> and <a class="link" href="#">Privacy Policy</a>.</span></label></div>\n',
+    /*
+     * THIS IS A **FIND** STRING, NOT OUTPUT, AND IT MUST MATCH THE DESIGN EXACTLY.
+     *
+     * `/forgot` and `/reset` use it to locate the row they replace. **Editing it to drop `required` — which is
+     * what happened here — made it stop matching the design, and `replaceOnce` then refused to serve the page
+     * at all:**
+     *
+     *     Error: The account design no longer contains "<div class="terms" id="terms" …"
+     *     Refusing to serve a page whose fields were not rewritten
+     *
+     * **The refusal is correct and it is the reason this was found.** `required` is removed from the SERVED
+     * copy by the `replace` below, which is the right place for it — a find string describes the document as it
+     * is, never as it should become.
+     */
+    '<div class="terms" id="terms" style="display:none"><label class="check"><input type="checkbox" required><span>I agree to the <a class="link" href="#">Terms of Use</a> and <a class="link" href="#">Privacy Policy</a>.</span></label></div>\n',
   submit: '<button class="primary" type="submit" id="submit">Sign in&nbsp; →</button>',
   google:
     '<div class="or">or continue with</div><button class="google" type="button">G&nbsp;&nbsp; Continue with Google</button>\n',
@@ -153,6 +167,153 @@ function noticeHtml(notice: ScreenNotice): string {
   return `<p id="${NOTICE_ID}" role="status" style="${style}">${escapeHtml(notice.text)}</p>\n`;
 }
 
+/**
+ * THE EIGHTEEN CONTROLS THE ACCOUNT SCREEN WRITES AS `href="#"`, DECIDED ONE AT A TIME (round 338).
+ *
+ * WHY THIS IS NOT `fillDashboardLinks`, AND WHY THAT MATTERS
+ *
+ * The shared transform already turns a placeholder into either a real address or an inert non-link, and
+ * adding `account` to `LINKED_SCREENS` would have been one line. **It would also have been wrong on every
+ * one of them.** `fillDashboardLinks` reads a label and looks it up in a table written for the dashboards
+ * and the eleven record screens; the account screen's labels are the SITE's own menu, and only some of them
+ * are in that table. The rest — `ozituma.com — dictionary`, `Terms of Use`, `Create one` — would have
+ * become "— Not built yet" text, replacing eighteen live controls with a statement that is not true of all
+ * of them. **A label is only meaningful in the page it is written on**, so each is decided here.
+ *
+ * THE THREE ANSWERS, AND WHY EACH ONE IS THE HONEST ONE
+ *
+ *   1. THE NAV, WIRED TO THE DESIGN'S OWN DESTINATIONS. The account screen's seven-item menu is `home.html`'s
+ *      menu written with placeholders — measured: `home.html` carries the identical seven labels and the
+ *      sibling filenames the other fifty screens use. So each label takes the address the same label has on
+ *      every other screen once `designScreenLinks` has resolved it. **`Researchers` follows that rule rather
+ *      than the design's `researcher-profile.html`, because the design's profile is one stranger and the
+ *      label is a directory's** — the fault `design-paths.ts` records.
+ *   2. THE BRAND, THE SECTION TAB AND THE THREE HOST LINKS. `ozikoro.com — archive & research` and the brand
+ *      go to `/`; the section tab `History & Archive` is this site, so it goes to `/` as well. The other two
+ *      hosts are the addresses `home.html`'s own platform bar prints — `https://ozituma.com/` and
+ *      `https://learn.ozituma.com/` — and that host is being retired, so the destination is this
+ *      archive's own `/academy/`, which is the page that says the academy is being prepared.
+ *   3. `Terms of Use` AND `Privacy Policy` GO TO `/about/#terms`, WHICH IS THE DESIGN'S OWN ANSWER. The
+ *      deliverable's own footer has one link, "Terms & privacy", pointing at `about.html#terms`, and the
+ *      section it lands on states plainly that binding terms and a data-controller notice must be supplied.
+ *      That is the page for both labels; inventing a `/terms/` would be inventing a page.
+ *   4. THE THREE `onclick` CONTROLS KEEP THEIR HANDLER AND GAIN A REAL ADDRESS. `Create one` and `Sign in`
+ *      call the screen's own `signup()`/`signin()` and `return false`, so with JavaScript they switch the
+ *      form in place exactly as the design drew them. **Without it, `href="#"` scrolled to the top of the
+ *      page and did nothing** — the control the reader needs to reach the other form was dead. Pointed at
+ *      `/join/` and `/signin/` it is a working link in that case and an unchanged control in the other.
+ *      *Removing the `href` instead would have been worse than the fault: an `<a>` without one is not
+ *      focusable and not keyboard-operable, so the fix would have taken these two controls away from exactly
+ *      the readers who cannot fall back on a mouse.*
+ *   5. AND ONE LABEL IS LEFT ALONE RATHER THAN GUESSED AT. A placeholder whose text is not in the table is
+ *      reported to the log and left as it was, because the only two options for an unknown label are a
+ *      destination invented for it or a rewrite that changes what the control says — and both are worse than
+ *      a fault that is visible in the log on the first request.
+ */
+const ACCOUNT_LINK_TARGETS: Record<string, string> = {
+  // The platform bar and the masthead — `home.html`'s own addresses.
+  'ozikoro.com — archive & research': '/',
+  'ozituma.com — dictionary': 'https://ozituma.com/',
+  // The design's platform bar names the retired host; the label is what is looked up, so the KEY
+  // stays as the design wrote it and only the destination moves. `/academy/` is this archive's own
+  // page and it answers — see the retirement rule in `design-paths.ts`.
+  'learn.ozituma.com — Learn Igbo': '/academy/',
+  'History & Archive': '/',
+  // The seven-item menu, at the addresses the same labels reach on the other fifty-one screens.
+  Histories: '/archive/',
+  Folklores: '/folklore/',
+  Watch: '/watch/',
+  Archive: '/documents/',
+  Researchers: '/researchers/',
+  Calendars: '/cultural-calendar/',
+  About: '/about/',
+  // The deliverable's own "Terms & privacy" destination.
+  'Terms of Use': '/about/#terms',
+  'Privacy Policy': '/about/#terms',
+  // Live controls with a fallback address for a reader whose browser runs no scripts.
+  'Create one': '/join/',
+  'Sign in': '/signin/',
+  /*
+   * `Forgot password?` IS NOT IN THE DESIGN'S OWN ADDRESS — the sign-in and join routes replace it with
+   * `/forgot/` before this function runs, and the two reset routes remove the row it sits in. It is in the
+   * table anyway, because the table is what decides what an *unhandled* placeholder becomes: without the
+   * entry, a route that stopped replacing it would leave a dead "Forgot password?" on a sign-in page, which
+   * is the one control a locked-out reader needs.
+   */
+  'Forgot password?': '/forgot/',
+};
+
+/**
+ * The brand is matched by its class rather than by its text.
+ *
+ * Its inner text is `<span>O</span>` + `<strong>Ozikoro</strong>` + `<small>History & Archive</small>` — three
+ * pieces of a masthead, not a label, and reading it as one gives `OOzikoroHistory & Archive`. **A class is
+ * what the element is; a concatenation of its children is not a name for it.**
+ */
+const ACCOUNT_LINK_TARGET_BY_CLASS: Array<[RegExp, string]> = [[/\bclass="brand"/, '/']];
+
+/**
+ * The one label that has to change with its address, and the reason it is a second table rather than a
+ * `[href, label]` pair in the first.
+ *
+ * `design-paths.ts` retires `learn.ozituma.com`: the address becomes `/academy/`, **and the label becomes
+ * `Academy — Learn Igbo`**, because the label named a host rather than the place and the host is going. This
+ * screen is the eighteenth that carries the three-host platform bar and the only one not served through
+ * `designScreenLinks`, so the rule has to be repeated here or the bar would disagree with itself across the
+ * site. **A table keyed by the design's own label cannot also change that label**, which is why the labels
+ * are their own map.
+ */
+const ACCOUNT_LINK_LABELS: Record<string, string> = {
+  'learn.ozituma.com — Learn Igbo': 'Academy — Learn Igbo',
+};
+
+/** The handful of entities the design's own labels carry, decoded before the table is consulted. */
+function decodeLabel(value: string): string {
+  return value
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#8217;/g, '\u2019')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function accountScreenLinks(html: string): string {
+  let out = html;
+  let from = 0;
+  for (;;) {
+    const at = out.indexOf('<a ', from);
+    if (at === -1) break;
+    const openEnd = out.indexOf('>', at);
+    if (openEnd === -1) break;
+    from = openEnd + 1;
+
+    const attrs = out.slice(at + 2, openEnd);
+    /* Only the placeholder. A real address is some other pass's business, and the forged one is not a link. */
+    if (!/\shref="#"/.test(attrs)) continue;
+
+    const close = out.slice(openEnd + 1).search(/<\/a\s*>/);
+    if (close === -1) continue;
+    const inner = out.slice(openEnd + 1, openEnd + 1 + close);
+    const label = decodeLabel(inner.replace(/<[^>]+>/g, ''));
+    const target = ACCOUNT_LINK_TARGETS[label] ?? ACCOUNT_LINK_TARGET_BY_CLASS.find(([re]) => re.test(attrs))?.[1];
+    if (!target) {
+      console.warn(`account-screen: a placeholder link with no decided destination was left alone: ${label}`);
+      continue;
+    }
+    const renamed = ACCOUNT_LINK_LABELS[label];
+    const replacement = `<a ${attrs.replace(/\shref="#"/, ` href="${target}"`).trim()}>`;
+    out = out.slice(0, at) + replacement
+      + (renamed ? escapeHtml(renamed) : out.slice(openEnd + 1, openEnd + 1 + close))
+      + out.slice(openEnd + 1 + close);
+    from = at + replacement.length;
+  }
+  return out;
+}
+
 /** Read the design, apply the substitutions, and return the page to send. */
 export async function accountScreen(options: AccountScreenOptions = {}): Promise<string> {
   let html = await readFile(SCREEN, 'utf8');
@@ -185,6 +346,8 @@ export async function accountScreen(options: AccountScreenOptions = {}): Promise
    * signing in.**
    */
   html = html.replace('type="checkbox" required', 'type="checkbox"');
+
+  html = accountScreenLinks(html);
 
   html = replaceOnce(html, FORM, `${noticeHtml(options.notice ?? { text: '' })}${FORM}`);
 

@@ -56,13 +56,17 @@ const CADDYFILE = join(ROOT, 'docker', 'Caddyfile');
  * Which source trees each service actually runs.
  *
  * This is the part that has to be right, and it is a judgement rather than a measurement: `web`
- * and `ozikoro` both import `@ozituma/db` and `@ozituma/core`, while only `learn` and `ozikoro`
- * import `@ozikoro/platform`. Deriving it from imports would be better and is worth doing if this
- * check starts producing false positives.
+ * and `ozikoro` both import `@ozituma/db` and `@ozituma/core`, while `ozikoro` alone imports
+ * `@ozikoro/platform`. Deriving it from imports would be better and is worth doing if this check
+ * starts producing false positives.
+ *
+ * **THE `learn` ENTRY WAS HERE AND WENT WITH ITS SERVICE.** It named `apps/learn`, the legacy Next.js
+ * courses app, which has been deleted along with `learn.ozituma.com`. This table is read by service
+ * name out of the compose file, so an entry with no service is a line that describes nothing — and
+ * the check would have gone on claiming to cover a directory that is not in the repository.
  */
 const SERVICE_SOURCES = {
   web: ['apps/web/app', 'apps/web/lib', 'apps/web/components', 'apps/web/middleware.ts', 'apps/web/next.config.ts', 'packages/core/src', 'packages/db/src'],
-  learn: ['apps/learn/app', 'apps/learn/lib', 'apps/learn/components', 'apps/learn/next.config.ts', 'packages/core/src', 'packages/db/src'],
   ozikoro: ['apps/ozikoro', 'packages/ozikoro/src', 'packages/db/src', 'packages/core/src'],
 };
 

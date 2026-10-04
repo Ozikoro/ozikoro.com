@@ -45,8 +45,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-      # The dictionary's own build target. `--target web` never builds the courses,
-      # and `--target learn` never builds this. See the note on the learn service.
+      # The dictionary's own build target, so `--target web` never builds the archive, and building
+      # the archive never builds this. The third target, `learn`, has been removed.
       target: web
     image: ozituma-web:latest
     restart: unless-stopped
@@ -73,14 +73,15 @@ services:
       # key the donate page says donations are not open yet, rather than failing at
       # the moment someone tries to give.
       PAYSTACK_SECRET_KEY: ${PAYSTACK_SECRET_KEY:-}
-      # Accounts are shared with learn.ozituma.com. The courses service calls
-      # /api/learn-bridge/account when somebody registers there, so the same credentials
-      # work here. A shared secret, not a session — the caller is a server with no user.
+      # `LEARN_BRIDGE_SECRET` WAS HERE AND IS GONE. It gated /api/learn-bridge/account, the endpoint
+      # the courses app called on signup so one account worked on both sites.
       #
-      # Allowed to be EMPTY: with no secret the endpoint returns 503 and refuses every
-      # request. An unauthenticated account-creation endpoint on a public dictionary would
-      # let anyone create accounts with any password, so failing closed is the only default.
-      LEARN_BRIDGE_SECRET: ${LEARN_BRIDGE_SECRET:-}
+      # It was removed in the same change as its only caller, which is the rule the earlier version of
+      # this comment set out: deleting one without the other breaks signup one way round and leaves a
+      # live unused route the other. `learn.ozituma.com` has now been retired entire — Worker, DNS and
+      # Supabase project all deleted — so the route, the shared secret and the Supabase mirror in
+      # `packages/db` went with it. Do not reintroduce any of them for the retired host; the Academy
+      # that replaces it will need its own arrangement, designed rather than inherited.
       # Mail. The only thing Ozituma sends is a password-recovery link, and it is
       # the one message whose failure locks somebody out of their own account.
       #
@@ -107,18 +108,20 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       OZIKORO_MAIL_FROM: ${OZIKORO_MAIL_FROM:-}
       # The shared session cookie domain. `packages/db/src/accounts.ts` reads it; the `learn`
-      # service has always been given it and this one was not. Left empty by default, which is the
+      # service used to be given it and this one was not. Left empty by default, which is the
       # host-only behaviour the dictionary has today — naming it is what lets the operator widen
       # the cookie to `.ozituma.com` without a compose edit.
       OZITUMA_AUTH_COOKIE_DOMAIN: ${OZITUMA_AUTH_COOKIE_DOMAIN:-}
-      # Accounts are mirrored to the courses' Supabase so one account works on both.
-      # `registerAccount` in `packages/db/src/accounts.ts` calls `mirrorAccount`, which reads these.
-      # NEITHER WAS NAMED IN ANY SERVICE, so in production the mirror was silently off: a
-      # registration succeeded, the dictionary's own row was written, and the courses never heard
-      # about the account — with nothing in the log to say so, because the call is fire-and-forget
-      # by design. Empty means the mirror stays off, which is now a decision rather than a surprise.
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      # SUPABASE_URL AND SUPABASE_SERVICE_ROLE_KEY WERE HERE AND ARE DELETED, IN THE SAME CHANGE AS
+      # THE CODE THAT READ THEM. `registerAccount` no longer reaches a second system: the mirror,
+      # `packages/db/src/supabase-mirror.ts`, went with the Supabase project when `learn.ozituma.com`
+      # was retired entire on 2026-10-04.
+      #
+      # They are recorded rather than silently dropped because naming a variable is not free. The
+      # dictionary's accounts now live in exactly one place — the `account` table in its own
+      # PostgreSQL — and an orphaned name here would read as a second system that still exists.
+      # `scripts/check-compose-env.mjs` would have named them, and did, which is how they were found
+      # after the deletion.
       OZITUMA_EHLO_NAME: ${OZITUMA_EHLO_NAME:-}
       AWS_REGION: ${AWS_REGION:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
@@ -129,19 +132,6 @@ services:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }
 
-  # ---------------------------------------------------------------------------
-  # Ozituma Learn — the courses, at learn.ozituma.com.
-  # ---------------------------------------------------------------------------
-  #
-  # Its OWN image, built from its own target. That is the isolation §6.1 asks for: building and
-  # deploying the courses never builds the dictionary, so a half-finished change in `apps/web`
-  # cannot fail this deploy, and this deploy cannot ship it.
-  #
-  # A separate service too, so either can be restarted or redeployed without touching the other.
-  #
-  # Deploy it alone with:  docker compose -f docker-compose.prod.yml up -d --build learn
-  #
-  # No Paystack key: the courses take no payments in v1.0 (§18 #7 defaults to payments off).
   # ---------------------------------------------------------------------------
   # The archive — ozikoro.com
   #
@@ -168,7 +158,7 @@ services:
       # the sign-in and password-recovery links it hands to a member. It was NOT passed here, so on
       # the host that variable would be absent and the links built from it would be wrong or empty
       # — while every page still rendered, which is why the omission is worth a paragraph rather
-      # than a line. The courses service has always been given it; the archive shares the account
+      # than a line. The courses service was given it; the archive shares the account
       # table with the dictionary and now has the address too.
       #
       # COMPOSE PASSES A SERVICE ONLY THE VARIABLES THE SERVICE NAMES. Adding this to
@@ -232,11 +222,10 @@ services:
       # The shared session cookie domain, read by `packages/db/src/accounts.ts`. The archive shares
       # the one account table with the dictionary, so it needs the same setting the dictionary has.
       OZITUMA_AUTH_COOKIE_DOMAIN: ${OZITUMA_AUTH_COOKIE_DOMAIN:-}
-      # The archive's own sign-up route calls `registerAccount`, which mirrors the account to the
-      # courses' Supabase — so this service needs these exactly as the dictionary does. See the
+      # The archive's own sign-up route calls `registerAccount`, and as of 2026-10-04 that writes to
+      # exactly one place: the `account` table in this compose's own Postgres. `SUPABASE_URL` and
+      # `SUPABASE_SERVICE_ROLE_KEY` were named here for the mirror and are deleted. See the longer
       # note on the dictionary's service above.
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
       # Media. The archive self-hosts 3,437 files and hotlinks 51; the same S3-compatible store the
       # dictionary uses is where the bytes go, so the variables have the same names.
       S3_ENDPOINT: ${S3_ENDPOINT}
@@ -290,52 +279,24 @@ services:
       retries: 5
       start_period: 40s
 
-  learn:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      target: learn
-    image: ozituma-learn:latest
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
-      # The canonical origin written into course canonical links.
-      OZITUMA_LEARN_URL: ${OZITUMA_LEARN_URL:-https://learn.ozituma.com}
-      # Where the chrome's links back to the dictionary point.
-      OZITUMA_SITE_URL: ${OZITUMA_SITE_URL:-https://ozituma.com}
-      # The SAME cookie domain as the dictionary service. This is the mechanism by which one
-      # account works on both: leave it empty and a learner who signs in on ozituma.com arrives
-      # at the courses signed out.
-      OZITUMA_AUTH_COOKIE_DOMAIN: ${OZITUMA_AUTH_COOKIE_DOMAIN:-}
-      # Media. These are here for the SAME reason the dictionary has them, and their absence is
-      # silent: with no S3_BUCKET the storage helper falls back to a local directory and returns
-      # URLs like /media/audio/ibo/corpus/… which 404 at the edge. Every listening exercise would
-      # render a play button that does nothing, and nothing in the logs would say why.
-      #
-      # The courses need no write access — recordings belong to dictionary words and are uploaded
-      # by the dictionary's own pipeline — but they must be able to RESOLVE a storage key to a
-      # public URL, which is what these are for.
-      S3_ENDPOINT: ${S3_ENDPOINT}
-      S3_BUCKET: ${S3_BUCKET}
-      S3_REGION: ${S3_REGION:-auto}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
-      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
-      MEDIA_PUBLIC_BASE_URL: ${MEDIA_PUBLIC_BASE_URL}
-      # Analytics is server-side only, and nothing is sent unless consent is granted.
-      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
-      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://us.i.posthog.com}
-      OZITUMA_ANALYTICS_CONSENT: ${OZITUMA_ANALYTICS_CONSENT:-false}
-      NODE_ENV: production
-    expose:
-      - '3000'
-    logging:
-      driver: json-file
-      options: { max-size: '10m', max-file: '3' }
-
+  # ---------------------------------------------------------------------------
+  # THE `learn` SERVICE IS GONE, AND SO IS THE APP IT RAN.
+  #
+  # `ozituma-learn:latest` was the legacy Next.js courses app in `apps/learn`, served at
+  # `learn.ozituma.com`. Three things retired it in turn: the Cloudflare Worker took the subdomain, the
+  # `learn` CNAME was deleted, and the host itself is now being retired in favour of
+  # `academy.ozikoro.com`. So the app, its Dockerfile target and this service are removed together.
+  #
+  # **WHAT WAS NOT TOUCHED, AND MUST NOT BE FROM HERE:** the running Cloudflare Worker
+  # (`tanstack-start-ts-learn`), its DNS, and its Supabase project. The subdomain still answers; taking
+  # the source out of this repository does not take it down, and a deleted Worker with data behind it
+  # is not something this file should be able to do.
+  #
+  # **THAT WORKER IS NOW GONE TOO.** `learn.ozituma.com` was retired entire — the Worker, its custom
+  # domain and its Supabase project — and the `learn/` source tree was deleted. So the bridge endpoint,
+  # `LEARN_BRIDGE_SECRET` and the Supabase mirror were removed in the same change, which is the rule
+  # this note used to state for the future.
+  # ---------------------------------------------------------------------------
   # ---------------------------------------------------------------------------
   # Backups — the one service whose absence is discovered on the worst day
   #
@@ -404,7 +365,6 @@ services:
     restart: unless-stopped
     depends_on:
       - web
-      - learn
       - ozikoro
     entrypoint:
       - sh
@@ -412,7 +372,7 @@ services:
       - |
         apk add --no-cache curl > /dev/null 2>&1 || true
         while true; do
-          for pair in "ozituma.com http://web:3000" "learn.ozituma.com http://learn:3000" "ozikoro.com http://ozikoro:3000"; do
+          for pair in "ozituma.com http://web:3000" "ozikoro.com http://ozikoro:3000"; do
             name=$${pair%% *}; url=$${pair#* }
             code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$$url/api/health" || echo 000)
             echo "healthwatch: $$name -> $$code"
@@ -437,7 +397,6 @@ services:
     # unset variable impossible to reach the interpolation.
     depends_on:
       - web
-      - learn
       # Listed so the reverse proxy's target exists before Caddy starts. Without it the first
       # request to ozikoro.com can be proxied to a name that has not been created yet.
       - ozikoro

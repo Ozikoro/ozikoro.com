@@ -98,7 +98,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         { href: '/admin/ads', label: 'Advertisements' },
         { href: '/admin/analytics', label: 'Analytics' },
         { href: '/admin/settings', label: 'Settings' },
-        { href: '/admin/learn', label: 'Learn subdomain' },
+        /*
+         * `{ href: '/admin/learn', label: 'Learn subdomain' }` WAS HERE AND IS GONE WITH ITS PAGE.
+         *
+         * That screen described `learn.ozituma.com` — which container served it, which database it used,
+         * and that a change deployed here was deployed there. **The host is being retired, so the page
+         * went with it**: an administrator screen about a subdomain that is going away is an instruction
+         * to maintain something that no longer exists. `academy.ozikoro.com` will be a separate
+         * application with its own deployment and its own admin, so it is not administered from this
+         * menu either.
+         */
         { href: '/admin/record', label: 'Record settings' },
       ],
     },

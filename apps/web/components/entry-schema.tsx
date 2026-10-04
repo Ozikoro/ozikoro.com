@@ -46,8 +46,13 @@ export function EntrySchema({ entry }: { entry: EntrySchemaInput }) {
       '@id': 'https://ozituma.com/#organization',
       name: 'Ozi Ikoro Limited',
       url: 'https://ozituma.com/',
-      // The three sites are one publisher. Saying so is what lets an index connect them.
-      sameAs: ['https://ozikoro.com/', 'https://learn.ozituma.com/'],
+      // The sites are one publisher. Saying so is what lets an index connect them.
+      //
+      // `learn.ozituma.com` WAS THE THIRD ENTRY AND IS DELETED, NOT REPLACED. A `sameAs` is fetched by
+      // machines; `academy.ozikoro.com` has no record in its zone, so naming it would assert a
+      // relationship with a host that does not answer. It returns with the change that brings the
+      // academy live.
+      sameAs: ['https://ozikoro.com/'],
     },
     {
       '@type': 'WebSite',

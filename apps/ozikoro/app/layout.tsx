@@ -92,6 +92,28 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="stylesheet" href="/design/styles/main.css" />
         <link rel="stylesheet" href="/design/styles/showcase.css" />
         {/*
+          THE DESIGN'S OWN ICON, SERVED RATHER THAN DRAWN.
+
+          `/favicon.ico` answered 404 on every page of this site — the browser asks for it unprompted, so it
+          was the one console 404 a reader could see, and no page linked it because none declared one.
+
+          **The design ships a favicon and it had simply never been copied into `public/`.** It sits at
+          `design/calm-comfort-construct/public/favicon.ico` — in the deliverable's PUBLIC ROOT, outside
+          `design/`, which is why it was missed: every other design asset is under `public/design/`. The file
+          at `apps/ozikoro/public/favicon.ico` is that file byte for byte, so nothing here is drawn or
+          approximated. The apple-touch icon points at the same file, because there is one icon in the
+          deliverable and inventing a second would be inventing artwork.
+
+          `/apple-touch-icon.png` is the one format a platform requires and the ICO does not provide: the
+          touch icon must be a PNG. **The design's ICO holds a single 256×256 PNG and nothing else** — one
+          directory entry, no mask, no second size — so that embedded image is served at the touch-icon
+          path, byte for byte, with no conversion and no re-drawing. The link below names the ICO for
+          browsers that accept it and the PNG for the ones that do not.
+        */}
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="shortcut icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/*
           Accessibility corrections, linked LAST so the design's own tokens cannot override them.
           See the file for what it corrects, the measurement that found it, and why that value.
         */}
@@ -127,7 +149,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <a href="https://ozituma.com">ozituma.com — dictionary</a>
               </li>
               <li>
-                <a href="https://learn.ozituma.com">learn.ozituma.com — academy</a>
+                <Link href="/academy/">academy.ozikoro.com — academy</Link>
               </li>
             </ul>
             <span className="owner">Ozi Ikoro Limited</span>
@@ -144,6 +166,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <ul>
                 <li>
                   <Link href="/archive">Histories</Link>
+                </li>
+                <li>
+                  {/*
+                      The clan register. The design's own masthead puts the place directory second — its
+                      screens read "Histories · Towns · Watch · Explore · Calendars · About" — so the
+                      register sits here, beside Histories, rather than at the end with the site pages.
+
+                      The design draws no clan screen, so `public/design/screens/towns.html` is the screen
+                      this section is built from; the label names the section for what it holds, because
+                      64 of its 188 published entries are not clans.
+                    */}
+                  <Link href="/clans">Clans</Link>
                 </li>
                 <li>
                   <Link href="/folklore">Folklores</Link>
@@ -167,7 +201,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Link href="/researchers">Researchers</Link>
                 </li>
                 <li>
-                  <a href="https://learn.ozituma.com">Academy</a>
+                  <Link href="/academy/">Academy</Link>
                 </li>
                 <li>
                   <Link href="/about">About</Link>
@@ -201,8 +235,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="wrap">
             <p>
               <strong>Ozikoro</strong> — the history and archive of Igbo and African peoples. The
-              dictionary is <a href="https://ozituma.com">Ozituma</a> and the courses are{' '}
-              <a href="https://learn.ozituma.com">Ozituma Learn</a>.
+              dictionary is <a href="https://ozituma.com">Ozituma</a> and the academy is{' '}
+              <Link href="/academy/">the Academy</Link>, which is being prepared.
             </p>
             <p className="small muted">
               Ozi Ikoro Limited. Write to <a href="mailto:hello@ozikoro.com">hello@ozikoro.com</a>.

@@ -180,7 +180,7 @@ export async function POST(
    *
    * WHAT IT CREATES, IN ONE PLACE
    *
-   *   account                  the credentials, shared with ozituma.com and learn.ozituma.com
+   *   account                  the credentials, shared with ozituma.com
    *   ozikoro_member           the public profile row the researcher pages read
    *   ozikoro_member_role      the `reader` grant, which every other role is added to
    *

@@ -36,8 +36,7 @@ import {
   can,
   decodeDesignPreview,
   designInventory,
-  listDesignOverrides,
-  applyDesignOverrides,
+  withStoredDesignOverrides,
   DASHBOARD_MODE_COOKIE,
   DASHBOARD_MODE_MAX_AGE_SECONDS,
   dashboardModeForScreen,
@@ -47,6 +46,7 @@ import {
   fillModeSwitcher,
   DESIGN_THEME_HREF,
   LINKED_SCREENS,
+  PLACE_NAMES_SQL,
   playableEpisodeAudioSql,
   mediaName,
   type DesignOverride,
@@ -211,14 +211,21 @@ const FILLED = new Set([
 
 async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
   const db = await getDb();
+  /*
+   * THE PLACE IS THE CARD'S PLACE, FROM THE CARD'S OWN SQL.
+   *
+   * This query used to have its own copy: `string_agg(e.name, ', ' order by e.name)` over every
+   * linked entity, with no `kind` and no `distinct`. It had already drifted from the card in two
+   * ways — it chipped a record linked to a person or a people as a place, and it printed a name
+   * twice when two entity rows reached the same place. `PLACE_NAMES_SQL` is the card's own
+   * expression, so the design screen and `/archive/` cannot disagree about what a record's place is.
+   */
   const rows = await db.rows<{
     slug: string; title: string; standfirst: string | null;
     place: string | null; period: string | null; source: string | null; attached: number;
   }>(
     `select a.slug, a.title, a.standfirst,
-            (select string_agg(e.name, ', ' order by e.name)
-               from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
-              where ae.article_id = a.id) as place,
+            ${PLACE_NAMES_SQL} as place,
             a.period_label as period,
             a.source_type  as source,
             (select count(*)::int from ozikoro_article_source s where s.article_id = a.id) as attached
@@ -307,41 +314,39 @@ async function previewOverrides(url: URL, db: Awaited<ReturnType<typeof getDb>>)
 }
 
 /**
- * Apply the element overrides, stored first and the preview last so a pending value beats the one it is
- * previewing.
+ * Load the overrides in force for this screen and hand them to the shared rule.
  *
- * A FAILURE HERE DEGRADES TO THE DESIGN. An overridden colour that cannot be read is a page with the
- * deliverable's palette; a thrown error would be a 404 for a whole screen, which is worse than a heading that
- * did not change.
+ * THE APPLICATION RULE IS NOT HERE ANY MORE. Stored first, preview last, and never a 404 when a row cannot be
+ * read is `withStoredDesignOverrides` in `@ozikoro/platform`, called by this route and by the article route.
+ * It moved because this route applied the overrides and `[slug]/route.ts` did not, so an element edit reached
+ * the design screens and silently did nothing on 1,051 articles — the same shape as the `reader.js` fault,
+ * which was fixed by moving the shared rule and calling it from both.
+ *
+ * The account question — may this viewer see the page as the design leaves it — stays here, because accounts
+ * are the app's and `@ozikoro/platform` has none.
  */
 async function withDesignOverrides(html: string, name: string, url: URL): Promise<string> {
-  try {
-    const db = await getDb();
-    /*
-     * THE OFF SWITCH, AND WHY THE OWNER'S OWN SAVE PATH NEEDS ONE.
-     *
-     * A saved edit has to be PROVED, not assumed: the row can be written and the page can still be unchanged,
-     * because the selector matched nothing once the fills had run. The only honest test is to render the page
-     * with this edit applied and compare it with the same page without — and the page is already carrying the
-     * stored edits by the time the save returns, so the comparison needs a way to ask for the page as the
-     * design and the fills leave it. `?oznooverride=1` is that way, and it is honoured **only for an account
-     * holding `manage_design`**: the public gets the site, not a viewer with the owner's edits removed.
-     */
-    if (url.searchParams.has('oznooverride')) {
-      const viewer = await getCurrentAccount().catch(() => null);
-      if (viewer && (await can(db, viewer.account.id, 'manage_design'))) return html;
-    }
-    const stored = (await listDesignOverrides(db, name)).filter((override) => override.kind !== 'token');
-    let out = stored.length > 0 ? applyDesignOverrides(html, stored) : html;
-    const preview = await previewOverrides(url, db);
-    if (preview.length > 0) {
-      out = applyDesignOverrides(out, preview, { inlineTokens: true });
-    }
-    return out;
-  } catch (error) {
-    console.error(`design-screen: could not apply the design overrides to ${name}`, error);
-    return html;
+  const db = await getDb();
+  /*
+   * THE OFF SWITCH, AND WHY THE OWNER'S OWN SAVE PATH NEEDS ONE.
+   *
+   * A saved edit has to be PROVED, not assumed: the row can be written and the page can still be unchanged,
+   * because the selector matched nothing once the fills had run. The only honest test is to render the page
+   * with this edit applied and compare it with the same page without — and the page is already carrying the
+   * stored edits by the time the save returns, so the comparison needs a way to ask for the page as the
+   * design and the fills leave it. `?oznooverride=1` is that way, and it is honoured **only for an account
+   * holding `manage_design`**: the public gets the site, not a viewer with the owner's edits removed.
+   */
+  let asDesign = false;
+  if (url.searchParams.has('oznooverride')) {
+    const viewer = await getCurrentAccount().catch(() => null);
+    asDesign = Boolean(viewer && (await can(db, viewer.account.id, 'manage_design')));
   }
+  return withStoredDesignOverrides(db, html, name, {
+    preview: await previewOverrides(url, db),
+    asDesign,
+    label: 'design-screen',
+  });
 }
 
 /**
@@ -1399,6 +1404,12 @@ export async function GET(
          * a page number (`abc`) or is below the first (`0`, `-3`) falls back to page 1, which is exactly what
          * `/archive/` does; a page past the last is answered with the count and a link rather than with
          * another page's films.
+         *
+         * **AND THE LINKS THE FILL WRITES GO OUT FROM THE ROOT**, because the head this route generates
+         * carries `<base href="/">` — a relative `?page=2` resolves against the site root there and lands on
+         * `/?page=2`, the front page. Measured in headless Chrome: the first run of
+         * `scripts/verify-round-330.mjs` clicked Next on `/watch/` and read `http://127.0.0.1:3110/?page=2`
+         * with zero cards. `curl` cannot see it, because `curl` never resolves a relative URL.
          */
         const url = new URL(request.url);
         if (films.length > 0) {
@@ -1480,11 +1491,20 @@ export async function GET(
 
       if (name === 'academy') {
         /*
-         * The Academy is `learn.ozituma.com`, a separate application with its own Supabase project, and it is
-         * NOT queried from here: a render-time fetch to a third-party host would put this page's availability
-         * in another deployment's hands. The page states what the Academy says about itself instead.
+         * The Academy was `learn.ozituma.com`; **that host is being retired and `academy.ozikoro.com`
+         * replaces it.** It is still a separate application with its own Supabase project, and it is NOT
+         * queried from here: a render-time fetch to another host would put this page's availability in
+         * another deployment's hands, and `academy.ozikoro.com` has no record in its zone to fetch from.
+         *
+         * So the page states what the archive can state: that the academy is being prepared. The
+         * design screen's own eight mentions of the old host are rewritten at serve time by
+         * `designScreenLinks`, which is the only place an inviolable screen can be changed.
+         *
+         * `reachable` is FALSE rather than the `true` this passed while the old host answered. It is
+         * what selects the sentence, and the sentence it selects now — the academy's curriculum is not
+         * published — is the true one.
          */
-        html = fillAcademy(html, [], true);
+        html = fillAcademy(html, [], false);
       }
 
       if (name === 'donate') {
@@ -1705,7 +1725,43 @@ export async function GET(
       }
 
       if (name === 'watch-video') {
-        html = fillWatchVideo(html);
+        /*
+         * ONE FILM'S PAGE, FOR ANY FILM THE ARCHIVE HOLDS — `?v=<id>`, SELECTED FROM THE SAME LIST `/watch/`
+         * IS BUILT FROM.
+         *
+         * The page had one film. `/watch/` draws 24, and the design's page says `Published by [Re:]Entanglements
+         * Project` about `Faces | Voices` — **so every archive film's viewing page, if a reader reached one,
+         * would have been about a different film, with a publisher the archive has no record of.** A card that
+         * names one film and opens a page about another is the wrong-destination fault at 200.
+         *
+         * The list is `extractArchiveFilms` over the same published bodies `/watch/` reads, so the two surfaces
+         * cannot disagree about a title, a topic or a holding record — a second query here is how they would
+         * come to.
+         *
+         * AN UNKNOWN `?v=` IS A 404 RATHER THAN THE DESIGN'S FILM. Falling back to `Faces | Voices` would be
+         * the exact fault this branch removes: a page that answers 200 to a request for one film and shows
+         * another. Nothing links to an unknown id, so the 404 is only ever reached by a typo.
+         *
+         * WITHOUT `?v=` THE PAGE IS THE DESIGN'S OWN — the film it was drawn for, with the publisher sentence
+         * that is true of that film. `/watch-video/` is linked from the home screen and must keep working.
+         */
+        const url = new URL(request.url);
+        const requested = url.searchParams.get('v');
+        if (requested) {
+          const rows = await db.rows<{ slug: string; title: string; topic: string | null; body_html: string | null }>(
+            `select a.slug, a.title, t.name as topic, a.body_html
+               from ozikoro_article a
+               left join ozikoro_topic t on t.id = a.topic_id
+              where a.status = 'published' and a.is_page = false
+                and a.body_html ~ 'youtube(?:-nocookie)?\\.com/embed/'
+              order by a.published_at desc nulls last`
+          );
+          const film = extractArchiveFilms(rows).find((f) => f.id === requested);
+          if (!film) return new Response('Not found', { status: 404 });
+          html = fillWatchVideo(html, film);
+        } else {
+          html = fillWatchVideo(html);
+        }
       }
 
       if (name === 'folklore-reader') {
@@ -1828,6 +1884,25 @@ export async function GET(
   }
 
   /*
+   * AND `/watch/` TAKES THE EXTENDED `watch.js`, FOR THE ONE LINE THAT NAMES THE FILM'S OWN PAGE.
+   *
+   * `fillWatch` adds `#inline-player-page` to the inline player's actions row, and the only place that knows
+   * which film the reader chose is `open(card)` inside `watch.js` — so `extendWatchScript` splices one line in
+   * and this points the page at the copy that has it. **The design's own file is untouched**; the mechanism is
+   * the market-days one, which is the point of `/design-screen-assets/[name]` existing.
+   *
+   * IT IS CHECKED, like the market-days rewrite above: a page that quietly kept `/design/watch.js` would lose
+   * the film's page link with nothing in the markup to say so.
+   */
+  if (name === 'watch') {
+    const before = html;
+    html = html.replace(/src="\/design\/watch\.js"/g, 'src="/design-screen-assets/watch.js"');
+    if (before === html) {
+      console.error('design-screen: /watch/ did not take the extended watch.js, so the film-page link will not follow the player');
+    }
+  }
+
+  /*
    * THE DESIGN'S RELATIVE ADDRESSES, ONCE MORE, NOW THAT THE FILLS HAVE RUN.
    *
    * **THE FIRST CALL IS TOO EARLY TO SEE THE ADDRESSES A FILL WROTE.** It sits beside
@@ -1841,8 +1916,26 @@ export async function GET(
    * written here rather than in each fill for the same reason: **by the time this runs, a link is a link
    * whether the design wrote it or a fill did.** The function is idempotent — the `<base>` is added only
    * when the document has none — so the earlier call is not undone and not repeated.
+   *
+   * ── AND IT IS THE ONLY CALL THAT IS TOLD WHERE THE PAGE IS, WHICH IS WHY IT IS THE ONLY ONE THAT CAN
+   *    MAKE AN IN-PAGE ANCHOR POINT AT THIS PAGE (round 338) ─────────────────────────────────────────
+   *
+   * The `<base href="/">` this function writes decides what a fragment-only address means, and the answer
+   * is the site root: `#library` on `/documents/` resolves to `/#library` — **the front page** — so every
+   * skip link, every table of contents and every filter row on every screen stopped at `/` instead of
+   * scrolling. Measured in Chrome, on `/watch/`, `/about/`, `/listen/` and `/documents/`.
+   *
+   * It is fixed by making the fragment absolute, which needs the address the page is actually served at —
+   * path AND query, because `#series` on `/watch/?page=2` must stay on page 2 and not send the reader back
+   * to page 1. `name` gives the path the middleware rewrites FROM (`/watch/`), which is the address a reader
+   * has; the query is carried through the rewrite by the middleware and is on `request.url`.
+   *
+   * THE EARLIER CALL IS DELIBERATELY NOT TOLD, and that is load-bearing rather than tidy: `fillWatch` looks
+   * for `href="#series"` in order to move an anchor to the page that really draws that section, and a first
+   * pass that had already made it absolute would leave it pointing at whichever page the reader happened to
+   * be on.
    */
-  html = designScreenLinks(html);
+  html = designScreenLinks(html, `${name === 'home' ? '/' : `/${name}/`}${new URL(request.url).search}`);
 
   /*
    * EVERY SCREEN GETS A REAL HEAD, NOT THE WALKTHROUGH'S.
@@ -1934,6 +2027,16 @@ export async function GET(
    */
   html = await withDesignOverrides(html, name, new URL(request.url));
 
+  /*
+   * THE CHOSEN WORKSPACE IS REMEMBERED HERE, AND ONLY FOR A DASHBOARD THAT WAS ACTUALLY SERVED.
+   *
+   * Set after every refusal and every redirect, so a cookie is never written for an address this account may
+   * not open — and set on the dashboard's own response, which is what makes a link inside it (to `/account/`,
+   * to `/admin/archive/`) return the reader to the workspace they were in rather than to the reader's.
+   *
+   * It is read back through `rememberedDashboardMode`, which validates it against the same allow-list the
+   * parameter goes through, so this value can only ever select among workspaces the account may already open.
+   */
   const headers = new Headers({ 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
   if (modeCookie) headers.append('set-cookie', modeCookie);
 

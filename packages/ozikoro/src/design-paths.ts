@@ -73,8 +73,37 @@ export function designScriptPaths(html: string): string {
  * It is idempotent, so being called twice costs nothing: the `<base>` is added only when the document
  * has none — a second one would silently change what every relative address on the page means, since
  * the last base wins — and every rewrite is anchored on a relative form the first pass removed.
+ *
+ * ── AND THE ONE THING THE `<base>` ITSELF BREAKS: EVERY IN-PAGE ANCHOR (round 338) ─────────────────
+ *
+ * A `<base href="/">` decides what a **fragment-only** address means as well as a filename, and the
+ * answer is not the page you are on. `href="#series"` on `/watch/` is resolved against the base, so it
+ * becomes `/#series` — **the front page** — and every skip link, every table of contents and every filter
+ * row written as an in-page anchor stops at the site root instead of scrolling. Measured in Chrome, not
+ * reasoned:
+ *
+ *     /watch/     #videos -> http://127.0.0.1:3110/#videos     (not /watch/#videos)
+ *     /about/     #main   -> http://127.0.0.1:3110/#main
+ *     /documents/ #library-> http://127.0.0.1:3110/#library
+ *     /listen/    #episodes -> http://127.0.0.1:3110/#episodes
+ *
+ * **The base is not the fault and removing it is not the cure.** It is what makes the address a *script*
+ * writes work: `mobile-nav.js` injects `<a href="igbo-calendar.html">` at run time, which nothing in the
+ * served markup can rewrite, and the base is what resolves it to `/igbo-calendar.html` rather than to
+ * `/watch/igbo-calendar.html`. So the fragment is made absolute instead — `#series` becomes
+ * `/watch/#series` — which is the same fix as the filenames, applied to the one relative address form the
+ * earlier rules did not reach.
+ *
+ * ── WHY IT NEEDS TO BE TOLD THE ADDRESS, AND WHY THE ADDRESS CARRIES THE QUERY ─────────────────────
+ *
+ * `#series` is only correct as `/watch/#series`. On the second page of an index it is `/watch/?page=2#series`,
+ * and a rewrite that dropped the query would send a reader from page 2 back to page 1 — the fault in
+ * miniature. So the caller passes **the address the page is served at**, query included, and the rule
+ * is skipped when it is not given: a fill that writes `href="#series"` and then moves the section to
+ * another page must still be able to find that anchor. The route passes it on its LAST call, after every
+ * fill has run, which is the same reason the last call exists at all.
  */
-export function designScreenLinks(html: string): string {
+export function designScreenLinks(html: string, at?: string): string {
   let out = html;
 
   // THE `<base>` IS ADDED ONCE. This runs early and again late in the same request, and two `<base>`
@@ -172,6 +201,51 @@ export function designScreenLinks(html: string): string {
   );
 
   /*
+   * ── AND THE RETIRED ACADEMY HOST ────────────────────────────────────────────────────────────────
+   *
+   * `learn.ozituma.com` is being retired and `academy.ozikoro.com` will replace it, so the owner's
+   * instruction is that the archive stops sending readers there: *"everything about learn.ozituma.com
+   * should be removed entire. we have a new academy coming up which is academy.ozikoro.com, which will
+   * replace learn.ozituma.com."*
+   *
+   * **SEVENTEEN OF THE FIFTY-TWO DESIGN SCREENS NAME IT, AND NOT ONE OF THEM CAN BE EDITED.** The files
+   * under `public/design/` are inviolable — byte-identical to the deliverable — so the rewrite is here,
+   * where the design's other addresses are already resolved at serve time. This is the same arrangement
+   * the `../styles/…` rule above uses.
+   *
+   * ── WHY THE RULE ABOVE DID NOT ALREADY CATCH IT ─────────────────────────────────────────────────
+   *
+   * The screen-link pattern matches a `file.html` with a negative lookahead that skips anything beginning
+   * `/` or `https:`, **and that lookahead is right**: an absolute address is already the address the
+   * author meant. So every one of the design's `https://learn.ozituma.com/` anchors survived it, and
+   * `design-fill.ts` records one of them being measured as answering — which was true when it was written
+   * and is exactly the kind of fact that stops being true from under a rule like that.
+   *
+   * ── AN ANSWER FOR EACH OF THE THREE THINGS THE HOST IS DOING ────────────────────────────────────
+   *
+   *   1. A LINK, in the platform bar, the footer and the about screen's platform family. **It goes to
+   *      `/academy/`, which this archive serves** — its own page about the academy. That page is the
+   *      honest interim destination and it is not a 404; pointing a reader at `academy.ozikoro.com` today
+   *      would be a link to a host with no record in its zone.
+   *   2. A LABEL that named the host rather than the place — `learn.ozituma.com — Learn Igbo`. It becomes
+   *      `Academy — Learn Igbo`, which is the word the archive's own masthead already uses for this.
+   *   3. THE HOST NAMED IN PROSE — the footer's list of the platform's own domains, the academy screen's
+   *      eyebrow, its course-lead line, its comparison table and its meta description. A bare name is not
+   *      a link, so it cannot 404; it becomes `academy.ozikoro.com`, the announced replacement, rather
+   *      than being deleted and leaving the sentence without a subject. **What is deliberately NOT done is
+   *      to claim the academy is open:** the page the links reach is the one that says it is being
+   *      prepared, and `fillAcademy` is where that sentence lives.
+   *
+   * ORDERED, and the order is the rule. The label is rewritten first, or rule 3 would turn it into
+   * `academy.ozikoro.com — Learn Igbo` and lose the place-name. The addresses go second, so that a
+   * path-bearing address such as `https://learn.ozituma.com/practice` is caught whole. Rule 3 is last and
+   * therefore only ever sees text.
+   */
+  out = out.replace(/>learn\.ozituma\.com — Learn Igbo</g, '>Academy — Learn Igbo<');
+  out = out.replace(/href="https:\/\/learn\.ozituma\.com(\/[^"]*)?"/g, 'href="/academy/"');
+  out = out.replace(/learn\.ozituma\.com/g, 'academy.ozikoro.com');
+
+  /*
    * AN `aria-current="page"` THAT NAMES ANOTHER PAGE GOES.
    *
    * The rule above has just turned the nav's `Researchers` item into a link to `/researchers/` — **the
@@ -211,6 +285,21 @@ export function designScreenLinks(html: string): string {
       }
     )
   );
+
+  /*
+   * AND EVERY IN-PAGE ANCHOR BECOMES AN ADDRESS ON THIS PAGE, BECAUSE THE `<base>` ABOVE WOULD SEND IT TO
+   * THE SITE ROOT. The reasoning and the measurements are in this function's header; the shape is here.
+   *
+   * ONLY WHEN THE CALLER SAYS WHERE THE PAGE IS. `at` is `/watch/` or `/watch/?page=2`, and the fragment is
+   * appended to it whole. Without `at` the addresses are left exactly as the design wrote them, which is what
+   * lets `fillWatch` find `href="#series"` and move it to the page that actually draws that section.
+   *
+   * `#` ALONE IS NOT TOUCHED, and the reason is that it is not an anchor at all — it is the placeholder a
+   * control with no destination is written as, and turning it into `/watch/#` would dress it up as a link to
+   * a page rather than reporting it. Those are dealt with where they are: `fillDashboardLinks` makes them
+   * inert, and the account screen's eighteen are handled one at a time in `lib/account-screen.ts`.
+   */
+  if (at) out = out.replace(/href="#([^"]+)"/g, (_m, fragment: string) => `href="${at}#${fragment}"`);
 
   return out;
 }

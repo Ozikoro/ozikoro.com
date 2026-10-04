@@ -83,13 +83,17 @@ export const viewport: Viewport = { themeColor: '#1E1B16' };
  * This application serves the dictionary at ozituma.com, and nothing else.
  *
  * It used to serve learn.ozituma.com as well, choosing its chrome from the Host header. The
- * courses now have their own app (`apps/learn`) and their own deployment, for the reasons §6.1
- * gives: a separate release cycle and a clean boundary, so that a change to the lesson player
- * cannot take the dictionary down and vice versa. The chrome no longer has to branch, which
- * removes a whole class of bug rather than managing it.
+ * courses now have their own app and their own deployment, for the reasons §6.1 gives: a separate
+ * release cycle and a clean boundary, so that a change to the lesson player cannot take the
+ * dictionary down and vice versa. The chrome no longer has to branch, which removes a whole class
+ * of bug rather than managing it.
  *
- * `ozituma.com/learn` still works — it redirects to the subdomain, so the navigation link and any
- * shared link keep resolving.
+ * **AND THAT APP WAS `apps/learn`, WHICH IS NOW DELETED.** It served the retired
+ * `learn.ozituma.com`, and `academy.ozikoro.com` replaces that host.
+ *
+ * `ozituma.com/learn` still works, and it no longer redirects to a subdomain: it serves this
+ * site's own page saying the Academy is being prepared, so the navigation link and any shared
+ * course address keep resolving without sending a reader to a host that is going away.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   /*

@@ -121,46 +121,81 @@ the older claim.
 
 ## Two hostnames, two applications
 
-**This changed.** The single-application design previously described here was replaced by the owner.
-It is summarised at the end of this section, because the Next.js course routes still exist.
+**This changed twice.** The single-application design described here originally was replaced by the owner
+with a split; **the split is now being retired in favour of an Academy**, and the owner's instruction is the
+one to work from:
+
+> *"everything about learn.ozituma.com should be removed entire. we have a new academy coming up which is
+> academy.ozikoro.com, which will replace learn.ozituma.com."*
+
+**`academy.ozikoro.com` IS NOT LIVE AND MUST NOT BE BROUGHT LIVE FROM THIS REPOSITORY YET.** It is not a
+record in the `ozikoro.com` zone (`1ebe8c1f9ce3dcec95448b6d93d63e00`), whose apex still points at cPanel. Do
+not create the DNS record, do not deploy to it, and do not point a served link at it — **a link to a host
+with no record in its zone is a link to nothing.** The archive's own `/academy/` page is the interim
+destination and it says the academy is being prepared.
 
 - **ozituma.com** — the dictionary. Next.js on the EC2 host, PostgreSQL, its own scrypt auth and
   `ozituma_session` cookies. Unchanged.
-- **learn.ozituma.com** — Ozituma Learn. **No longer the same container.** A TanStack Start app
-  deployed to **Cloudflare Workers** (worker `tanstack-start-ts-learn`, source in `staging/learn/`),
-  with its own **Supabase** project for accounts, content and progress.
+- **learn.ozituma.com** — **RETIRED ENTIRE, ON THE OWNER'S INSTRUCTION, ON 2026-10-04.**
+  *"delete every single thing associated to learn.ozituma.com, including the database and every other
+  thing, please delete entirely."* Everything below was deleted, and the earlier plan to leave it until
+  the Academy existed was overridden by that instruction.
 
 ### What that means in practice
 
 | | Where it lives now |
 |---|---|
-| `learn.ozituma.com` | Cloudflare Worker via a **Worker custom domain** — not a CNAME to the EC2 host |
-| The old `learn` CNAME | **Deleted.** `dig learn.ozituma.com` answers with Cloudflare Worker IPs |
-| Courses database | Supabase `kouczrxrsdjykxoyxzgi` (`eu-west-2`) |
-| `ozituma.com/learn/*` | **301 redirects** — the Next.js course routes are not what the subdomain serves |
-| `ozituma-learn-1` container | Legacy; serving nothing once the DNS moved |
+| `learn.ozituma.com` | **GONE.** The Worker was deleted, which released the custom domain; the zone now holds **no record** for the host and it does not resolve. |
+| The Workers | **Both deleted** — `tanstack-start-ts-learn` and the phantom `ozikoro-ozituma-dictionary-learn` an earlier build had created with the auto-generated name. **Zero Workers remain on the account.** |
+| Courses database | **DELETED.** Supabase project `kouczrxrsdjykxoyxzgi` (`eu-west-2`) is gone. It held 30,028 `lexeme_examples`, 8,415 `lexemes` (a re-importable copy; the dictionary is the source of truth), 6 profiles, 6 course lessons, 3 units, 2 user roles and 1 review schedule. Two PATs in the session records were used; both reported the project before deletion and **zero projects after**. |
+| `staging/learn/` | **DELETED** (220 tracked entries plus 9 untracked files). A source archive survives at `handover/learn-retired-2026-10-02.tar.gz` (1.9 MB) — delete it too if nothing is wanted back. |
+| `ozituma.com/learn/*` | **THE REPOSITORY AND PRODUCTION DISAGREE, AND PRODUCTION IS WRONG.** The source serves `apps/web/app/learn/[[...rest]]/page.tsx` — "the Academy is being prepared" — but that change has **never been deployed**. Measured on 2026-10-04, the live dictionary still answers `301` with `location: https://learn.ozituma.com/`, i.e. **it sends every course link to a host that no longer resolves.** Fixing it needs a deploy of `apps/web` to the EC2 host, which needs `aws login --profile ozikoro` first. Until then, any shared course link lands on a dead host. |
+| `apps/learn` (`@ozituma/learn`) | **DELETED** earlier. The legacy Next.js courses app, its Dockerfile target and its compose service went with it. |
+| The bridge and the mirror | **DELETED in the same change as their caller**, which was the rule this file set: `apps/web/app/api/learn-bridge/account/route.ts`, `packages/db/src/supabase-mirror.ts` and its call in `registerAccount`, `packages/db/src/test-learn.ts`, the `import:learn` scripts and the `LEARN_BRIDGE_SECRET` compose variable. |
+| The course tables and `import:learn` | The imported data is gone with the project. `data/learn/igbo.json` — the **authored** curriculum, and the importer that loads it — were **kept**, because they are the Academy's inheritance rather than the retired host's plumbing. |
 
-### Accounts are shared, in both directions
+**Still not to be done from here:** create the `academy.ozikoro.com` record or deploy to it. It has no
+record in the `ozikoro.com` zone, and a link to a host with no record is a link to nothing.
 
-One account works on either site with the same password.
+### The Academy's host, and how a retired link is handled
 
-- **ozituma.com → Supabase** — `packages/db/src/supabase-mirror.ts`, called from `registerAccount`.
-  `backfillAccounts` is idempotent and repairs accounts that were never mirrored.
-- **learn → ozituma.com** — `POST /api/learn-bridge/account` in `apps/web`, called from the learn
-  app on signup. Gated by a shared secret (`LEARN_BRIDGE_SECRET`) and **fails closed with 503 when
-  unset** — an unauthenticated account-creation endpoint on a public dictionary would let anyone mint
-  accounts.
+`learn.ozituma.com` is named in code, in env examples, in docs **and in seventeen of the fifty-two design
+screens**. The design deliverable under `apps/ozikoro/public/design/` is **inviolable** — byte-identical to
+`design/calm-comfort-construct/public/design` — so it cannot be edited to stop naming the host. The rewrite
+lives in `designScreenLinks` in `packages/ozikoro/src/design-paths.ts`, which is where the design's other
+addresses are already resolved at serve time, and it does three things: an address becomes `/academy/`, the
+platform bar's label becomes `Academy — Learn Igbo`, and a bare host name in prose becomes
+`academy.ozikoro.com`. **`fillAcademy` is where the page says the academy is being prepared**, because a
+rewrite can change an address but it cannot supply the tense.
 
-Both are fire-and-forget: if the other system is unreachable the registration still succeeds and the
-gap is repaired later. Registration must never depend on the other host being up.
+### Accounts are no longer shared with anything
 
-**The compose file matters here.** Compose passes a service only the variables it names, so adding a
-variable to `/opt/ozituma/.env` is not enough — it must also be listed under the service in
-`docker/docker-compose.prod.yml`, or the container never sees it and the endpoint returns 503.
+**The dictionary's accounts are now self-contained, and that is a change from every previous version of
+this file.** There is one place an account lives: the `account` table in the dictionary's own PostgreSQL.
 
-**Existing accounts cannot share a password.** The dictionary stores a scrypt hash, which is
-irreversible, so those accounts need one password reset on the side they were not created on. A real
-cost of two systems that predate the requirement.
+What used to exist and is gone:
+
+- **ozituma.com → Supabase** — `packages/db/src/supabase-mirror.ts` wrote a copy of every new account into
+  the courses project so the same person could sign in at `learn.ozituma.com`. **Removed**, along with its
+  call in `registerAccount` and its `backfillAccounts` repair pass. `registerAccount` no longer reaches
+  any second system.
+- **learn → ozituma.com** — `POST /api/learn-bridge/account` in `apps/web` minted dictionary accounts from
+  the courses app, gated by `LEARN_BRIDGE_SECRET` and failing closed with 503 when unset. **Removed**,
+  together with the compose variable, in the same change as its only caller — which is the rule this file
+  had set for exactly this moment.
+
+**Two lessons worth keeping from that arrangement**, because the Academy will raise the same questions:
+
+- **A shared secret must not be a `VITE_`-prefixed variable.** It was one, which inlined it into the
+  browser bundle and let anyone mint accounts. The fix was to move the call server-side; the rule is to
+  keep gate secrets out of anything the client can read.
+- **Compose passes a service only the variables it names**, so adding a variable to `/opt/ozituma/.env` is
+  never enough on its own — it must also be listed under the service in `docker/docker-compose.prod.yml`,
+  and the symptom of forgetting is a silent 503 rather than a startup error.
+
+**If the Academy wants one account across sites again**, that is a new design decision with a new bridge,
+not a revival of this one: the old endpoint, its secret and the mirror are deleted, and the accounts that
+were mirrored into the courses project went with that project.
 
 ### Content is Central Igbo only
 
@@ -200,12 +235,50 @@ DDL needs the SQL Editor or a Management API access token. The service key canno
 gone and the Management API rejects the service key. `POST /v1/projects/{ref}/database/query` with a
 personal access token (`sbp_…`) does work, and is how the migrations were applied.
 
-### The older design, for reference
+### What was removed and what was not
 
-The Next.js course routes remain in `apps/web`, and the app still picks chrome and rewrites paths from
-the `Host` header (`apps/web/middleware.ts`, `apps/web/lib/learn-host.ts`). They serve
-`ozituma.com/learn/*` only if something stops redirecting. Universal SSL still covers
-`*.ozituma.com`, which now matters only if the subdomain is ever pointed back at the EC2 host.
+**REMOVED, and the build was kept green by removing its plumbing in the same change:**
+
+- `apps/learn/` — the legacy Next.js courses app (`@ozituma/learn`, 58 files). It was already dead: the
+  `learn` CNAME was deleted when the Worker took the subdomain, so the container it built served nothing.
+- Its Dockerfile stage and target (`builder-learn`, `--target learn`), its `docker-compose.prod.yml`
+  service, the root `dev:learn` script, its `scripts/check-compose-env.mjs` entry and its
+  `package-lock.json` workspace entry — **each of these existed only to build or run that app**, so
+  leaving one behind would have pointed a build at a directory that no longer exists.
+- Every reference a reader can meet: the archive's platform bar, masthead and footer, its `/academy/`
+  page, its not-found doors, the account screen's link table, the dictionary's `/learn` redirect and its
+  admin's "Learn subdomain" screen.
+
+**ALSO REMOVED ON 2026-10-04, when the owner retired the host entire rather than waiting for the Academy:**
+
+- **`staging/learn/` — the TanStack Start app itself**, 220 tracked entries plus 9 untracked files. The
+  earlier reasoning was to keep it until the Academy existed, on the grounds that deleting the source
+  would not retire the live Worker while removing the ability to maintain or migrate what was running.
+  That reasoning was sound and was **overridden by an explicit instruction** — *"delete every single thing
+  associated to learn.ozituma.com, including the database and every other thing, please delete
+  entirely."* The Worker, the DNS and the database were retired in the same pass, so nothing was left
+  running without a source tree.
+- **The bridge, the secret and the mirror** — `apps/web/app/api/learn-bridge/account/route.ts`,
+  `packages/db/src/supabase-mirror.ts` and its call in `registerAccount`, `packages/db/src/test-learn.ts`,
+  the `import:learn` scripts and the `LEARN_BRIDGE_SECRET` compose variable. Deleted in one change, as the
+  rule above required, so the dictionary serves no route and holds no variable for a host that is gone.
+- **The courses database** — Supabase project `kouczrxrsdjykxoyxzgi`, deleted with the host it belonged to.
+- **A source archive** was taken first, at `handover/learn-retired-2026-10-02.tar.gz` (1.9 MB), because
+  nine of those files had never been committed and git could not have given them back.
+
+**STILL KEPT, deliberately:**
+
+- **`data/learn/igbo.json` — the authored curriculum — and `packages/db/src/import/learn-curriculum.ts`,
+  the importer that loads it.** These are the Academy's inheritance, not the retired host's plumbing. The
+  imported rows died with the Supabase project; this file is their source, and it is tracked in git.
+- **`packages/db/migrations/0028_learn.sql`, `0031_learn_lesson_lifecycle.sql` and the course tables in the
+  migration chain.** Migrations are history: they are what a fresh database replays. Deleting applied
+  migrations from the middle of the sequence would break `migrate` long before it removed anything a
+  reader could see.
+- **The retired host's name in the design screens and their rewrite.** The design deliverable is
+  inviolable and names the host in seventeen of its fifty-two screens, so `designScreenLinks` resolves
+  those addresses to `/academy/` at serve time. That rewrite stays, because a reader can still meet the
+  old name.
 
 ## Do not run database scripts while the dev server is running
 

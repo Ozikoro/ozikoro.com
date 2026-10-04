@@ -190,9 +190,10 @@ export default async function AboutPage() {
           earned.
         </p>
         <p>
-          There is more here than reading. The <a href="https://learn.ozituma.com/practice">practice section</a> turns
-          entries into questions — a meaning to choose, a recording to identify a word by, a variety
-          to place a spelling in — and the <Link href="/docs">public API</Link> gives anyone a free
+          There is more here than reading, and the practice that turned entries into questions — a
+          meaning to choose, a recording to identify a word by, a variety to place a spelling in — has
+          moved with the courses to the Ozikoro Academy at <span className="mono">academy.ozikoro.com</span>,
+          which is <Link href="/learn">being prepared</Link>. Meanwhile the <Link href="/docs">public API</Link> gives anyone a free
           key from their own <Link href="/contribute/account">account page</Link>, so a keyboard, a learning
           app or a translation tool does not have to begin by collecting a word list.
         </p>

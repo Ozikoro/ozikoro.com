@@ -5,20 +5,21 @@
 # Built from the REPOSITORY ROOT, not from an app directory, because this is an npm workspace
 # monorepo and the apps consume packages/core and packages/db as TypeScript source:
 #
-#   docker build -f docker/Dockerfile --target web   -t ozituma-web:latest   .
-#   docker build -f docker/Dockerfile --target learn -t ozituma-learn:latest .
+#   docker build -f docker/Dockerfile --target web     -t ozituma-web:latest     .
+#   docker build -f docker/Dockerfile --target ozikoro -t ozikoro-site:latest    .
 #
-# TWO IMAGES, AND WHY THAT MATTERS MORE THAN THE SAVING
+# ONE TARGET PER APP, AND WHY THAT MATTERS MORE THAN THE SAVING
 #
-# An earlier version of this file built both apps into ONE image and ran them as two services. That
-# was cheaper, and it looked like separation, but it was not: shipping the courses required
-# rebuilding the dictionary, because one image means one build. §6.1 chose a separate deployment for
-# the courses precisely so that a change to the lesson player is not a risk to ozituma.com, and a
-# single image quietly re-created the coupling the arrangement was meant to remove.
+# An earlier version of this file built several apps into ONE image and ran them as separate
+# services. That was cheaper, and it looked like separation, but it was not: shipping one app
+# required rebuilding another, because one image means one build. §6.1 chose a separate deployment
+# precisely so that a change to one app is not a risk to the others, and a single image quietly
+# re-created the coupling the arrangement was meant to remove.
 #
-# So there is one target per app. `--target learn` builds the courses and never builds the
-# dictionary, which means deploying the courses cannot be affected by the state of the dictionary's
-# code — and cannot affect it.
+# **THERE WERE THREE TARGETS AND THERE ARE TWO.** The third was `learn`, which built the legacy
+# Next.js courses app in `apps/learn` for `learn.ozituma.com`. That app, its directory and its target
+# are gone — the host was already answering from a Cloudflare Worker and is now being retired in
+# favour of `academy.ozikoro.com`. See the note where the target used to be.
 #
 # Both images are built from one checkout, so the shared `packages/` they carry are the same schema
 # and the same orthography rules as each other.
@@ -44,9 +45,8 @@ COPY package.json package-lock.json ./
 COPY packages/core/package.json ./packages/core/
 COPY packages/db/package.json ./packages/db/
 COPY apps/web/package.json ./apps/web/
-COPY apps/learn/package.json ./apps/learn/
 # The archive. THIS LINE AFFECTS ALL THREE IMAGES: this layer is shared, so adding a workspace here
-# invalidates the cached `npm ci` for web and learn as well as ozikoro. That is the cost of one lockfile
+# invalidates the cached `npm ci` for web and ozikoro alike. That is the cost of one lockfile
 # and one install, and it is why this is not an "ozikoro-only" change — round 152 recorded that the
 # Dockerfile work is five parts across two files rather than one service definition.
 COPY packages/ozikoro/package.json ./packages/ozikoro/
@@ -66,9 +66,8 @@ RUN npm -w @ozituma/web run build
 
 # The archive — ozikoro.com
 #
-# Its own builder for the same reason web and learn have theirs: `docker build --target
-# builder-ozikoro` must not build the dictionary or the academy, so a fault in either cannot fail this
-# app's image.
+# Its own builder for the same reason web has its own: `docker build --target builder-ozikoro` must
+# not build the dictionary, so a fault in it cannot fail this app's image.
 FROM base AS builder-ozikoro
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -76,11 +75,6 @@ COPY . .
 # needs no DATABASE_URL. If a route ever becomes statically rendered, this is where a build-time
 # database would be wired in.
 RUN npm -w @ozikoro/site run build
-
-FROM base AS builder-learn
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-RUN npm -w @ozituma/learn run build
 
 # ---------------------------------------------------------------------------
 # Runtime base — everything both images need and neither app produces.
@@ -150,18 +144,17 @@ COPY --from=builder-web --chown=nextjs:nodejs /app/apps/web/public ./apps/web/pu
 CMD ["node", "apps/web/server.js"]
 
 # ---------------------------------------------------------------------------
-# Ozituma Learn — learn.ozituma.com
+# THE `learn` TARGET IS GONE, AND `apps/learn` WITH IT.
 #
-# `docker build --target learn` never builds the dictionary. That is the isolation §6.1 asks for:
-# the state of the dictionary's code cannot fail this build.
+# `FROM runtime-base AS learn` built the legacy Next.js courses app into `ozituma-learn:latest`. That
+# app served `learn.ozituma.com`, the `learn` CNAME was deleted when the Cloudflare Worker took the
+# subdomain, and **the host is now being retired in favour of `academy.ozikoro.com`** — so the app,
+# its source directory and this target are all removed together.
+#
+# A target with no source directory does not fail politely: `docker build --target learn` would fail
+# on the `COPY apps/learn/package.json` in the `deps` stage above. That is why the workspace line, the
+# builder stage and this target were removed in one change.
 # ---------------------------------------------------------------------------
-FROM runtime-base AS learn
-
-COPY --from=builder-learn --chown=nextjs:nodejs /app/apps/learn/.next/standalone ./
-COPY --from=builder-learn --chown=nextjs:nodejs /app/apps/learn/.next/static ./apps/learn/.next/static
-COPY --from=builder-learn --chown=nextjs:nodejs /app/apps/learn/public ./apps/learn/public
-
-CMD ["node", "apps/learn/server.js"]
 
 # ---------------------------------------------------------------------------
 # The archive — ozikoro.com

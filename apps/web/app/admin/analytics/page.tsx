@@ -13,7 +13,7 @@ const DAYS = 30;
  * The owner: "There should be page for analytics of both the main and subdomain outside the admin."
  *
  * "Outside the admin" is how this counts: the pages it measures are the ones a reader sees —
- * ozituma.com and learn.ozituma.com — and the admin is deliberately excluded, because counting the
+ * ozituma.com and its subdomain — and the admin is deliberately excluded, because counting the
  * people running the site alongside the people reading it would make every number on this page a
  * lie about the second group.
  *

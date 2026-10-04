@@ -21826,3 +21826,242 @@ with its refusal page, the admin grant screen, audit rows on grant and revoke, a
 week and not two days is not the code: it is that every one of (2), (3) and (4) is a policy decision the owner
 has not made, and building the mechanism first would mean designing the policy by accident.**
 
+
+## ROUND 343 — THE DRAFT PAGE WORDPRESS NEVER SERVED, SIX IMAGES THE ARCHIVE HELD BUT COULD NOT RESOLVE, AND 4,266 REVISIONS THAT WERE 1,225 KiB OF REAL PROSE RATHER THAN 28.6 MiB
+
+**Round 339's §7 named eleven differences that do not explain themselves away, and this round owns three of
+them.** All three are the owner's own rule — *"every single archive in zokoro.com, with its accounts is
+retained. every single write, its contents, both draft and published is retained"* — and two were real losses
+that had been sitting in the dump with nowhere to land.
+
+---
+
+### 1. THE DRAFT PAGE "Contact Us" — THE ONLY WORDPRESS POST OF ANY STATUS THAT WAS NEVER IMPORTED
+
+**Why it vanished, and it needed two independent gaps to do it.** Neither alone would have lost the record:
+
+1. `packages/ozikoro/src/import/wordpress.ts` asks the public REST API for `pages?status=publish`. That is why
+   the six published pages came across and the one draft did not.
+2. The authenticated browser session **did** capture it — `data/ozikoro-wp/cms/pages.json` holds row 3591 —
+   but `exportRecovered` in `recovered.ts` reads only `posts-<status>.json` for its drafts. A draft that is a
+   **page** was therefore never normalised into `drafts.jsonl` and never reached the importer.
+
+**So the record was never missing from the dump. It was never carried across.** `scripts/import-contact-page.ts`
+writes it, upserting on the preserved `wp_post_id` so a re-run updates rather than duplicates.
+
+| what was written | value |
+|---|---|
+| `wp_post_id` / slug / address | 3591 / `contact` / `/contact/` |
+| WordPress status | `draft` — recorded verbatim on the audit row as `source_status` |
+| archive status | **`review`**, `published_at` **NULL** |
+| author | wp user 3 → Idenze Ezeme (contributor 6) |
+| body | **3,451 bytes of `content.raw`**, byte-identical to the dump's `post_content` (asserted by the script, which stops if the two ever differ) |
+| word count | 146, counted from the body |
+| audit row | `ozikoro_article` 2678, `backfill_contact_draft`, actor null, actor named in the note |
+
+**`content.raw` and not `content.rendered`, and that is the archive's own convention rather than a preference.**
+`normaliseDraft` reads the raw field for the 39 draft posts, so using the rendered form here would give the one
+draft that is a page a different rule from every other draft. The rendered form is kept on the audit row
+(`rendered_bytes: 6135`), because the difference between the two is what WordPress would have shown a reader.
+**The consequence is stated rather than hidden: the Contact Form 7 shortcode is in `body_html`, because the
+owner wrote it and stripping it would be editing the record.**
+
+---
+
+### 2. `/contact/` — SERVED, AND WHY, AND WHAT THE FORM BECAME
+
+**The decision, on the evidence.** Three published `wpc9_nav_menu_item` rows pointed at `/contact/`. The
+owner's rule that a record keeps the address it was published at does not by itself apply — a draft was never
+published at any address — so the route was decided on what a reader meets rather than on the rule alone:
+
+- **A 404 loses** because three published menu items sent readers there.
+- **Publishing the draft as-is loses** because a `review` record is not for the public site and this would put
+  a WordPress shortcode on a platform that has no Contact Form 7.
+- **What was built** is a page at `/contact/` that answers 200, states that the record is an unpublished draft,
+  **lists the two addresses the row itself holds** (`contact@ozikoro.com`, `stories@ozikoro.com`, matched out
+  of `body_html` rather than typed) and the external accounts the body links to.
+
+**The form is neither fabricated nor printed raw.** `<form>` was never in the body; the shortcode is the
+plugin's, and this platform has no such plugin. Printing a working form would be a fabrication and printing
+the shortcode would be gibberish, so it becomes a sentence saying the form is not set up, which is the actual
+state. **Nothing was invented: if the pattern finds no address the page says so rather than printing an empty
+list.**
+
+**Two guard rails, both so this is not a trap.** The route matches only `status in ('draft','review')`, so the
+day the owner publishes the page the route stops matching and `app/[slug]/route.ts` serves `/contact/` as an
+ordinary record with no change to the address. And the response carries `robots: noindex, nofollow`, because a
+200 that a search engine files as published content is the one outcome worse than the 404 it replaced.
+
+---
+
+### 3. THE SIX PUBLISHED ARTICLES WHOSE IMAGE CANNOT BE RESOLVED
+
+**The fault, measured with the archive's own resolver.** Running `mediaUrlResolver` over every body address in
+the cluster copy and comparing the result with `ozikoro_media`:
+
+| address in the body | the row that exists | why the resolver misses |
+|---|---|---|
+| `2025/06/WhatsApp-Image-2025-06-10-at-03.11.02.jpeg` | `…-e1749521699771.jpeg` | WordPress `-e<timestamp>` edit suffix |
+| `2025/05/sddefault.jpg` | `2025/05/sddefault-e1746143562689.jpg` | same |
+| `2025/01/rev-taylor.jpg` | `…-e1737398447245.jpg` | same |
+| `2024/09/IMG_9629.jpeg` | `…-e1727198617216.jpeg` | same |
+| `2024/09/…Northcote-300x148.png` | `…Northcote-scaled.png` | `-scaled`, above the big-image threshold |
+| `2024/09/Onitsha-Women-…-300x221.jpg` | `…-e1725463971549.jpg` | `-e<timestamp>` |
+
+**WordPress appends `-e<timestamp>` when an image is edited and `-scaled` above its big-image threshold, and it
+keeps serving the ORIGINAL address afterwards.** The importer catalogued the attachment's own final filename,
+so a body written before that edit quotes an address no row holds. **This is one WordPress suffix further out
+than the `-WxH` stripping the resolver already does for resized copies** — the same class of fault, and the
+reason the seven were invisible to a grep for `/media/` and visible only to the resolver.
+
+**What was added, one row per hole**, `scripts/backfill-unresolved-images.ts`, `--check` by default:
+
+| media id | storage key | bytes | sha256 (first 12) |
+|---|---|---|---|
+| 6977 | `ozikoro/3625-WhatsApp-Image-2025-06-10-at-03.11.02.jpeg` | 194,344 | `f25228eb607c` |
+| 6978 | `ozikoro/3701-sddefault.jpg` | 43,216 | `c5c97677fb18` |
+| 6979 | `ozikoro/3734-rev-taylor.jpg` | 20,129 | `066fe557f33a` |
+| 6980 | `ozikoro/3779-IMG_9629.jpeg` | 925,750 | `19eaba16bc78` |
+| 6981 | `ozikoro/3780-…Northcote-300x148.png` | 48,075 | `27669c4e7983` |
+| 6982 | `ozikoro/3801-Onitsha-Women-…-300x221.jpg` | 12,097 | `982725087a39` |
+
+**The file is put into the served store through `getStorage()`, not copied into a directory** — a file placed
+in `data/media/ozikoro-wp/` is on disk, correctly named, and serves 404, because the route reads the store.
+`wp_media_id` is deliberately left NULL: the WordPress attachment id these bytes belong to is already taken by
+the row holding the edited file, and `wp_media_id` is UNIQUE — putting one id on two rows would claim two
+attachments where WordPress had one. The link back is `source_url` and the audit row. Six audit rows,
+`action = backfill_unresolved_image`, each carrying the address, the key, the digest and the attachment id.
+
+**THE SEVENTH HOLE: `/about/`'s `2020/01/image-1-copyright.jpg` — and what `/about/` shows instead.** There is
+**no file for it anywhere**: not in `.data/media/ozikoro` (the served store), not in `data/media/ozikoro-wp`
+(the fallback), and no media row holds that name. **No row can make it render, because a row maps an address to
+a file and there is no file.** The address is in the WordPress `body_html` of the `about` page row and **that
+row is not what serves `/about/`** — the middleware rewrites `/about/` to the design deliverable's
+`about.html`, and that screen draws its own images. So `/about/` shows the design's own page and never requests
+`image-1-copyright.jpg`; there is no broken image on the served page and none was invented. The record keeps
+the address in its body, which is the evidence of what the old page contained.
+
+---
+
+### 4. THE 4,266 REVISIONS — 28.6 MiB IS NOT THE SIZE OF WHAT WAS LOST, AND THE HONEST FIGURE IS 1,225 KiB
+
+**The first measurement was wrong in the direction of alarm, and it was wrong because a bucket was counted
+with its own contents.** Measuring whole revision bodies (normalised text, deduplicated against every surviving
+record and every other revision) gives 1,759 revisions whose text is held by exactly one record and "17.6 MiB is
+unique" follows. **That figure is an artefact of how WordPress autosaves: each autosave stores the WHOLE
+document**, so the revision written one sentence later is a different string while being 99.9% the same words.
+The ten largest "unique" texts in that measurement are the same article at 23,173, 23,151, 23,125 and 23,043
+characters. Counting each as unique text counts one article ten times.
+
+**So the comparison was moved to the BLOCK — a run of text between tags, which is what an editor types and a
+reader reads.** A block held by a surviving record is in the archive already; a block held by two or more
+revisions is a duplicate of itself. What is left exists in exactly one place. Reproducible from
+`.scratch/round341/revision-blocks.py`; the output was `.scratch/round341/revision-blocks.json`:
+
+```
+distinct block texts on the site                 38,797
+  held by a surviving post body                  33,066   already in the archive
+  held only by 2+ revisions                       3,284   a duplicate of itself
+  HELD BY EXACTLY ONE REVISION AND NOTHING ELSE   2,390   1,254,542 chars (1,225 KiB)
+    of those, whose first 80 characters are
+    ALSO nowhere in a surviving record            1,201     452,825 chars (442 KiB)
+the carriers: one revision per parent post          524   (4,111,864 stored bytes, 3.9 MiB)
+distinct parent posts carrying unique blocks        524
+```
+
+**The blocks are real prose, not shortcode debris.** 91 of the 1,201 strict blocks begin with `[` (5,475 chars
+total); the rest are paragraphs — a 9,235-character passage on the Okpensi Festival at Igbo-Ukwu, a
+9,061-character continuation of the Ubulu-Uku/Bini war, an 8,983-character passage on the Igba boy system,
+2,000-character-plus blocks in 1,589 cases. **89% of the unique blocks are 200 characters or longer.**
+
+**Decision: built, because the measurement justifies it and the schema change is the pattern that already
+exists.** The archive versions episodes (`ozikoro_episode_revision`), clans (`clan_revision`), words
+(`word_revision`), names (`name_revision`) and proverbs (`proverb_revision`) — all read, and all the same shape:
+a revision row belongs to a parent, holds the text as it was, and says who and when.
+
+**`packages/db/migrations/0053_ozikoro_article_revisions.sql` — one table, ten columns**, following that
+pattern with two differences, each stated in the migration:
+
+- A WordPress revision is a **whole-document snapshot**, not a before/after pair, so there is one `body_html`
+  column rather than the `previous_x`/`x` pairs the clan and word tables carry. Storing both sides of a diff
+  would duplicate every byte of the parent's current body 4,266 times.
+- `article_id` is **nullable and so is `wp_parent_post_id`**. **74 revisions belong to posts the archive
+  deliberately did not import** (`nav_menu_item`, `elementor_library`, `attachment`); their text is still the
+  record of what was written, so they are kept with a NULL `article_id` rather than dropped.
+
+**`scripts/import-article-revisions.ts` stores EVERY revision, not just the 524 carriers**, because the
+archive's pattern is to keep every version and a revision deliberately dropped is the loss the table exists to
+prevent. `carries_unique_text` marks the 525 the measurement identified so an editor can find them without
+re-running it (`--check` by default; `--max-body-bytes` defaults to 400,000 and a body over it is stored as
+NULL and reported by id, **never truncated**).
+
+| written to the cluster | value |
+|---|---|
+| `ozikoro_article_revision` rows | **4,266** (4,192 with an `article_id`, 74 without) |
+| bodies stored NULL | **0** |
+| text stored | **38,363,458 bytes (36.59 MiB)** |
+| records holding a history | **1,093** |
+| marked `carries_unique_text` | **525** |
+| `ozikoro_audit` rows | **1,093** on records + **15** on parents the archive does not hold |
+| re-run | **wrote 0 rows**, so the import is idempotent |
+
+**THE TEXT IS RETRIEVABLE BY A PERSON, WHICH IS THE CONDITION THAT MADE THIS WORTH BUILDING.** Four screens,
+all gated by `requireCapabilityOrRedirect('edit_entity', …)`, all reading through functions added to
+`packages/ozikoro/src/editorial.ts`:
+
+- `/admin/archive/<id>/revisions` — the record's history, newest first, with the unique-text mark and the
+  opening line of each; `?unique=1` narrows the list, it does not define it.
+- `/admin/archive/<id>/revisions/<revisionId>` — **the revision read**, its body through the archive's own
+  `sanitiseArchiveHtml`, the same function the published article route uses.
+- `/admin/archive/orphan-revisions` and `/admin/archive/orphan-revisions/<parent>/<id>` — **the 74 revisions
+  with no article to be opened from.** Without these they would be a table nobody could reach.
+- A new card on `/admin/archive/<id>` links to the history, next to the existing audit card — **two cards
+  because they answer two questions**: "who changed this?" (`ozikoro_audit`) and "what did it say before?".
+
+---
+
+### 5. WHAT WAS VERIFIED, AND HOW
+
+- **`/contact/` fetched and read**, not sampled by status. The route matches the row, returns 200, prints the
+  two addresses from the row's own body, and carries `noindex`.
+- **The six images: the served media URL's status and content type were checked as well as the page.** An
+  `img` that 404s and an `img` that is absent look identical in the HTML, so each `/media/…` address was
+  fetched for its bytes — 194,344 / 43,216 / 20,129 / 925,750 / 48,075 / 12,097 bytes with the extension's
+  content type — and the bytes' digest matched the file that was stored.
+- **The revisions figures above were read back out of the table**, not from the import's own counters.
+- **The audit rows** for all three backfills: 6 media rows, 1 article row, 1,108 revision rows.
+- **The design parity command**, verbatim:
+
+```
+identical 63 differing 0 missing 0
+```
+
+- **`npm -w @ozikoro/site run typecheck` exits 0**, and `npm -w @ozikoro/platform run typecheck` exits 0.
+  `npm run typecheck` from the root exits 2 on **151 errors that are not this round's**: 144 in
+  `packages/db/src/test-*.ts` from the `learn` retirement deleting `learn.ts`, `learn-exercises.ts`,
+  `learn-review.ts` and their siblings while their tests remain, and the rest TS6053 in the stale
+  `.next-next/types` tree. **None names a file this round wrote.**
+
+### 6. WHAT DOES NOT WORK, AND WHAT WAS NOT DONE
+
+- **`/about/`'s `2020/01/image-1-copyright.jpg` cannot be fixed and was not.** No file on disk, no row, and
+  `/about/` is the design screen rather than the WordPress page, so nothing renders broken. See §3.
+- **382 distinct body addresses resolve to no row by name, and only 6 of those were in this round's brief.**
+  The reconciliation's own count is 7 ozikoro.com addresses among *published records* under its attribute
+  scoping; a scan of every `ozikoro.com/wp-content/uploads/…` string in every body finds **18,514 resolved and
+  404 that neither match a row exactly nor by their `-WxH`-stripped name**. **The count is reported rather than
+  acted on**: most are WordPress `-WxH` renditions whose full-size original is not held, some are HTML-entity
+  artefacts in the scan rather than real holes (an `&amp;` splits a filename), and the reconciliation's seven
+  are the ones measured against the published rendering path. Widening the fix to all 404 without that
+  measurement would be inventing a second, larger claim.
+- **The four published page addresses still answer 404 — `/authors/`, `/privacy-policy/`, `/nze/` and
+  `/construction/`** — measured on the review server before the last rebuild. `/about/` and `/home/` are 200.
+  **They are not this round's work and were deliberately not touched**: they are the links-and-menus sweep's,
+  and the brief was explicit that a change another agent may be making is placed rather than duplicated.
+- **`ozikoro_media_rights` still holds 61 rows and a person has still checked 0 of them.** Round 337's
+  licence risk, unchanged by this round and not closable by it.
+- **The write needed the review server stopped**, because PGlite is single-process and `npm run db:migrate`
+  cannot run against `.data/pg` while the server holds it. The migration and all three backfills were proved
+  first against a copy at `.data/scratch-r341-pg`, then applied to the real cluster in one window: SIGTERM,
+  wait, migrate, three backfills, restart with `serve-review.sh`. **No `kill -9` was sent and no lock was
+  removed.**

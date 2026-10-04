@@ -155,8 +155,16 @@ export function seoHead(record: SeoRecord, styles: string[]): string {
       '@id': `${SITE_ORIGIN}/#organization`,
       name: PUBLISHER,
       url: `${SITE_ORIGIN}/`,
-      // The three sites are one publisher, and saying so is what lets a search engine connect them.
-      sameAs: ['https://ozituma.com/', 'https://learn.ozituma.com/'],
+      /*
+       * The sites are one publisher, and saying so is what lets a search engine connect them.
+       *
+       * `learn.ozituma.com` WAS THE THIRD ENTRY AND IT IS DELETED RATHER THAN REPLACED. A `sameAs`
+       * asserts that two addresses are the same entity, and it is read by machines that will fetch
+       * both. `academy.ozikoro.com` has no record in its zone, so naming it here would assert a
+       * relationship with a host that does not answer — the one thing this property cannot mean.
+       * It goes back when the academy is live, in the change that brings it live.
+       */
+      sameAs: ['https://ozituma.com/'],
     },
     {
       '@type': 'WebSite',

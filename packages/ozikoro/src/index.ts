@@ -4,7 +4,8 @@
  * WHY THIS PACKAGE EXISTS
  *
  * Three sites, one institution: ozikoro.com is the parent, and ozituma.com (the dictionary)
- * and learn.ozituma.com (the courses) are its children. They are one platform, and the parts
+ * and the Academy are its children. **The Academy's host is `academy.ozikoro.com`, which replaced
+ * the retired `learn.ozituma.com` and is still being prepared**, so the parts
  * that make them one are deliberately shared:
  *
  *   - one database, one schema, one migration lineage (`@ozituma/db`)

@@ -278,7 +278,7 @@ of this document as missing have since been added:
 ```
 A      ozituma.com        44.194.56.187     proxied
 CNAME  www.ozituma.com    ozituma.com       proxied
-CNAME  learn.ozituma.com  ozituma.com       proxied
+CNAME  learn.ozituma.com  ozituma.com       proxied   <- DELETED SINCE; see the next section
 CNAME  media.ozituma.com  public.r2.dev     proxied
 MX     ozituma.com        eforward1-5.registrar-servers.com
 TXT    ozituma.com        "v=spf1 include:spf.efwd.registrar-servers.com ~all"
@@ -287,12 +287,31 @@ TXT    ozituma.com        "v=spf1 include:spf.efwd.registrar-servers.com ~all"
 The mail records are Namecheap email forwarding and must be left alone — replacing
 the SPF rather than adding to it breaks forwarding.
 
-### The learn subdomain
+### The learn subdomain — RETIRED IN THIS REPOSITORY, STILL ANSWERING
 
-`learn.ozituma.com` serves the Ozituma Learn courses. It is **not** a second
-application: it is the same container, the same database and the same Next.js
-process as the dictionary. The app decides which site it is serving from the
-`Host` header, and rewrites `/` to `/learn` for requests that arrive on a
+**READ `AGENTS.md` FIRST.** `learn.ozituma.com` is being retired and `academy.ozikoro.com` replaces it;
+`academy.ozikoro.com` has no record in the `ozikoro.com` zone and must not be created from here. What
+follows describes the arrangement this file recorded while the subdomain was served **by this
+application**, which it no longer is — the host is a Cloudflare Worker, and the legacy Next.js app that
+built the fallback container (`apps/learn`) has been deleted.
+
+**EVERYTHING FROM HERE TO THE END OF THIS SECTION IS HISTORY, AND TWO OF ITS INSTRUCTIONS ARE NOW
+WRONG.** It is kept because it records what was built and why, not because it can be followed:
+
+  * **`apps/web/lib/learn-host.ts` DOES NOT EXIST.** The file this section names twice was deleted when
+    the courses stopped being served by the dictionary on a second hostname. A reader who goes looking
+    for it will not find it, and `apps/web/middleware.ts` no longer decides chrome from the `Host`
+    header.
+  * **THE `learn` CNAME ABOVE WAS DELETED.** `dig learn.ozituma.com` answers with Cloudflare Worker
+    addresses, not with this origin, and the `learn` service in `docker-compose.prod.yml` — which this
+    section's Caddy block describes — has been removed along with `apps/learn`.
+
+While it was true, it read as follows.
+
+`learn.ozituma.com` served the Ozituma Learn courses. It was **not** a second
+application: it was the same container, the same database and the same Next.js
+process as the dictionary. The app decided which site it was serving from the
+`Host` header, and rewrote `/` to `/learn` for requests that arrived on a
 `learn.*` host. See `apps/web/middleware.ts` and `apps/web/lib/learn-host.ts`.
 
 Two DNS facts make this cheap:

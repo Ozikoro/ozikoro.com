@@ -4,8 +4,15 @@
  * WHY THIS IS AN ADAPTER AND NOT A CONSTANT
  *
  * `packages/core/src/ai/retrieval.ts` already implements the whole pipeline — `selectKnowledge`,
- * `formatKnowledgeBlock` and `trustForGrounding` — and `apps/learn/app/api/learn/tutor/route.ts` is a
- * working caller. What the archive lacked was a `KnowledgeItem` source over its own records. This is it.
+ * `formatKnowledgeBlock` and `trustForGrounding`.
+ *
+ * **IT ONCE HAD A WORKING CALLER AND NOW HAS NONE.** The tutor that drove this pipeline lived in the
+ * courses app, and then in the TanStack Start app in `learn/`; both were deleted with
+ * `learn.ozituma.com` on 2026-10-04. The pipeline and this source are kept because the Academy will
+ * want them, but nothing in this repository calls them today — so a change here cannot be verified by
+ * exercising a live route.
+ *
+ * What the archive lacked was a `KnowledgeItem` source over its own records. This is it.
  *
  * THE ONE FIELD THE CALLER MUST SUPPLY
  *

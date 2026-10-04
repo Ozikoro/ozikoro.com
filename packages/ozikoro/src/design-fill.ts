@@ -568,6 +568,30 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
       rebuilt = rebuilt.slice(0, after) + '\n' + pager + rebuilt.slice(after);
     }
   }
+  /*
+   * THE WAY FROM A FILM THAT IS PLAYING TO THE FILM'S OWN PAGE.
+   *
+   * `/watch-video/` had no address a reader could reach from the grid: the cards are `<button>`s that play in
+   * place by the design's own intent, and **the page a card's film deserves was one the grid never linked.**
+   * A page nobody can reach is the same fault as a link that reaches nothing.
+   *
+   * The design's inline player already has an actions row — "Open on YouTube ↗" and "Close player" — and this
+   * is one more control in it. **It is the only place on the page where the reader has already said which film
+   * they mean**, which is why the address can be attached here and not to a card: `watch.js` is extended at
+   * serve time (`extendWatchScript`, served from `/design-screen-assets/watch.js`) to point this link at
+   * `/watch-video/?v=<id>` as it opens the film. **The design's own `watch.js` is not edited** — it is inside
+   * `public/design/`, which is inviolable — and the mechanism is the one the market-days extension already
+   * established for exactly this.
+   *
+   * WITHOUT JAVASCRIPT IT IS NOT SEEN AT ALL, because `#inline-player` is `hidden` until the script opens it.
+   * That is why the default address is the page's own film rather than a dead `#`: the control is drawn only
+   * where a player exists, and the one film it can honestly name before a card is chosen is the design's, whose
+   * page is real.
+   */
+  rebuilt = rebuilt.replace(
+    /(<div class="sx-inline-player-actions">)/,
+    '$1<a class="btn btn-ghost" id="inline-player-page" href="/watch-video/">This film’s page</a>'
+  );
   return rebuilt;
 }
 
@@ -578,6 +602,46 @@ export type WatchFillOptions = {
   /** The request's own query string, so a pager link keeps every other parameter it was asked with. */
   query?: string;
 };
+
+/**
+ * `watch.js`, with ONE line appended: the film's own page, pointed at the film that was just opened.
+ *
+ * WHY THIS EXISTS AND WHY IT IS AN EXTENSION RATHER THAN AN EDIT
+ *
+ * The card's click handler is the design's, and it plays the film in place — which is what the design drew.
+ * What it did not do is tell a reader where the film's own page is, and `fillWatch` adds that control
+ * (`#inline-player-page`) to the inline player's actions row. **Setting its address needs the id of the card
+ * that was clicked, and that is known only inside `open(card)`** — so it has to be one line in the script.
+ *
+ * `public/design/watch.js` is inviolable, so the line is spliced at request time and served from
+ * `/design-screen-assets/watch.js`, exactly as `extendMarketDaysScript` serves the extended calendar script.
+ * The route refuses a name that is not in its map, so this cannot be reached with a name of the caller's
+ * choosing.
+ *
+ * THE ANCHOR IS ASSERTED, AND A FILE THIS PASS DOES NOT RECOGNISE IS RETURNED UNCHANGED. The line it splices
+ * after is the one that already writes the YouTube address, which is the same place in the same handler — and
+ * if it is absent or appears twice, the script is served as the design wrote it. **That is the right failure
+ * for this file**: the page keeps playing films, and the only thing missing is one link, where a throw from
+ * here would take the whole inline player with it. `extendMarketDaysScript` records the same reasoning.
+ *
+ * IDEMPOTENT, because the route reads the file on every request: the marker is the id this function writes, and
+ * a second pass finds it already there.
+ */
+export function extendWatchScript(script: string): string {
+  const ANCHOR = 'externalEl.href = "https://www.youtube.com/watch?v=" + encodeURIComponent(id);';
+  const MARKER = 'inline-player-page';
+  if (script.includes(MARKER)) return script;
+  if (script.split(ANCHOR).length !== 2) return script;
+  /*
+   * THE GUARD IS NOT DECORATION. `getElementById` answers `null` on any page that loads this script without the
+   * control — and a bare `.href` on `null` throws inside the click handler, which would leave the film unopened.
+   * The link is a convenience; the player is the page.
+   */
+  const line =
+    '\n    var pageEl = document.getElementById("' + MARKER + '");' +
+    '\n    if (pageEl) pageEl.href = "/watch-video/?v=" + encodeURIComponent(id);';
+  return script.replace(ANCHOR, () => `${ANCHOR}${line}`);
+}
 
 /**
  * Every `div.sx-video-grid` in a document, as the range of its inner content.
@@ -1354,6 +1418,37 @@ export type RealArticle = {
   context: string;
   /** The archive's own reference, e.g. `OZ-H-0001`. */
   reference: string;
+  /**
+   * THE CLAN, TOWN, PLACE OR PEOPLE THIS RECORD IS LINKED TO — §3.1's "a reader should be able to move from
+   * an article to the clan, the town and the period it belongs to".
+   *
+   * **This was the largest gap in the archive and it was not a data problem.** `ozikoro_article_entity`
+   * holds a link for every record whose title names a place, `/clans/<slug>/` and `/entities/<slug>/` both
+   * answer, and the archive index has shown a `Place` chip since round 323 — **and the article head showed
+   * none of it.** The reader could see the chip on the listing and had no way to follow it from the record
+   * itself. 197 of 1,051 published records are linked; the other 854 say so.
+   *
+   * The shape is the design's own: `archive-index.html` draws `.chips > .chip.chip-place` with a
+   * `<span class="k">Place</span>` label, and `main.css` styles `a.chip:hover`. So this fills a shape the
+   * design drew — on another of its screens — rather than inventing markup. **Where the design drew no
+   * shape at all the page states the absence instead**, which is what `archiveTotals` is for.
+   */
+  entities: RealArticleEntity[];
+  /**
+   * THE TWO FACETS NO RECORD IN THE ARCHIVE CAN FILL, SO THE ABSENCE CAN BE STATED RATHER THAN IMPLIED.
+   *
+   * Measured on 4 October 2026: **0 of 1,051 published records carry a period, and 0 carry a structured
+   * source of their own** — `ozikoro_article.source_type`, `period_label` and `period_start` are null on
+   * every row, and `ozikoro_article_source` is empty. `archive.ts` carries the same two facts on the filter
+   * rail, which says *"No record in the archive has a period recorded yet"* and *"Of 1,051 published
+   * entries, 0 carries a source of its own."*
+   *
+   * **The design draws no chip for an absence, and a page that showed nothing at all would read as a record
+   * that has no place**, which is a different and false claim. So the record says which of the two it is —
+   * the archive holds none of either — and the figure is read rather than remembered, so this sentence
+   * stops being true the day somebody records a period or attaches a source.
+   */
+  archiveTotals: { published: number; withPeriod: number; withSource: number };
   related: { title: string; href: string; topic: string | null; image: string | null }[];
   /** Maps an original media URL to the file this archive serves. Absent means leave the URL alone. */
   resolveImage?: (url: string) => string | null;
@@ -1385,6 +1480,24 @@ export type RealArticle = {
     disclosure: string;
     transcript: string;
   } | null;
+};
+
+/**
+ * A record's link to a clan, a town, a place or a people. See `RealArticle.entities`.
+ *
+ * The link's `role` and the entity's `kind` are separate facts and both are carried: `kind` is what the
+ * entity is in the dictionary, `role` is what *this record's link to it* asserts. `igbodo-a-community-formed-
+ * by-convergence` links to the clan `igbodo` and to the town `igbodo-northern-ika`, and their names are both
+ * "Igbodo" — so a page that printed `kind` would label the same word twice and say nothing about which is
+ * which.
+ */
+export type RealArticleEntity = {
+  /** `clan`, `town`, `people`, `kingdom` — the entity's own kind in the dictionary. */
+  kind: string;
+  slug: string;
+  name: string;
+  /** `clan`, `town`, `ethnic_group`, `place` — what this record's link to the entity asserts. */
+  role: string;
 };
 
 /**
@@ -1445,6 +1558,61 @@ const dateFmt = (iso: string | null) =>
 export function fillArticle(html: string, a: RealArticle): string {
   // The design's sibling links are relative and this page is not served from their directory.
   let out = absolutiseLinks(dropExampleFlag(html));
+
+  /*
+   * THE CHIPS THE DESIGN DRAWS, IN THE CHIP ROW IT DOES NOT — §3.1's largest gap.
+   *
+   * See `RealArticle.entities` for what this is and why it belongs here. Three details are load-bearing:
+   *
+   *   * THE ANCHOR IS THE DESIGN'S CLASS. `main.css` styles `a.chip:hover`, so a linked chip is drawn by the
+   *     design's own stylesheet and not by anything added here.
+   *   * THE LABEL IS THIS RECORD'S ROLE, not the entity's kind. `an-igbo-family-shrine-…` links to `Onicha`
+   *     twice — once as a clan and once as a town — and `ozikoro_article_entity.role` is what tells the two
+   *     apart. Printing the kind instead relabels one of them.
+   *   * THE ADDRESS IS THE ONE THAT ANSWERS. `/entities/<slug>/` is the entity's own page for every kind;
+   *     `/clans/<slug>/` is the register's page and only resolves for a clan. So every chip points at
+   *     `/entities/`, which is the address the index's `Place` chip would land on too.
+   */
+  const chips = a.entities.length > 0
+    ? `<div class="chips sx-article-entities">${a.entities
+        .map((e) => {
+          const role = /^[a-z_]+$/i.test(e.role) ? e.role : 'place';
+          /*
+           * SENTENCE CASE, BECAUSE THE DESIGN UPPERCASES THIS LABEL ITSELF.
+           *
+           * `.chip .k` is `text-transform: uppercase`, so the reader sees caps whatever is written here.
+           * `ETHNIC GROUP` in the markup would be shouted twice and once on screen; this is the same thing
+           * on screen and readable in the source.
+           */
+          const label = role
+            .split('_')
+            .map((w, i) => (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+            .join(' ');
+          return `<a class="chip chip-${esc(role)}" href="/entities/${esc(e.slug)}/">` +
+            `<span class="k">${esc(label)}</span> ${esc(e.name)}</a>`;
+        })
+        .join('')}</div>`
+    : `<p class="small muted sx-article-entities">The archive holds no clan, town or place recorded for this entry. A link is made when the record's own title names one that the dictionary already holds, so a record that names none opens no register page.</p>`;
+
+  /*
+   * THE PERIOD AND THE SOURCE, WHICH NO RECORD IN THE ARCHIVE CAN FILL.
+   *
+   * The design draws a `chip-period` and a `chip-oral` on its archive screen; it draws neither on an
+   * article, and it draws no shape at all for "this is recorded nowhere" — so the sentence is the honest
+   * form, in the same words the archive's own filter rail uses for the same two absences, and it goes away
+   * by itself when the reason for it does. See `RealArticle.archiveTotals`.
+   */
+  const missing = a.archiveTotals.withPeriod === 0 && a.archiveTotals.withSource === 0
+    ? `<p class="small muted sx-article-completeness">The archive records no period and no source type for ` +
+      `this entry, or for any of its ${esc(n(a.archiveTotals.published))} published entries: 0 carry ` +
+      `either. Dating and sourcing are editorial work, and this line disappears when it is done rather ` +
+      `than being approximated now.</p>`
+    : '';
+
+  // The record's own links go under the byline, which is where a reader looks for what a record is.
+  if (chips + missing) {
+    out = out.replace(/(<p class="sx-article-byline">[\s\S]*?<\/p>)/, `$1${chips}${missing}`);
+  }
 
   // The eyebrow: the record's topic and the archive's own description of its standing.
   out = out.replace(
@@ -2374,19 +2542,27 @@ const DASHBOARD_LINK: Record<string, string> = {
   // `/account/` is the reader's own record and the page the design's four account cards already reach.
   'Complete your profile': '/account/',
   /*
-   * THE ACADEMY'S COURSES ARE DELIVERED ON ANOTHER HOST, AND THE SCREEN SAYS SO.
+   * THE ACADEMY'S COURSES ARE THIS ARCHIVE'S ACADEMY PAGE, NOT ANOTHER HOST.
    *
-   * `academy.html` prints "Delivered at learn.ozituma.com · enrolment opens there" directly above the
-   * course list, and every course title is a placeholder `href="#"`. **The page itself names the address,
-   * and it answers** — measured with curl before it was written down. This is not the dashboard's
-   * `Learning` item, which promises a catalogue inside this site and is still `NOT BUILT`; it is the one
-   * destination the academy screen states in its own words.
+   * `academy.html` prints its course list's lead line directly above five placeholder course titles, each
+   * a bare `href="#"`. The five used to be wired to `https://learn.ozituma.com/` and the note here
+   * recorded, correctly at the time, that the page named that address and the address answered.
+   *
+   * **THE ADDRESS IS BEING RETIRED, AND THAT IS WHY THEY MOVED.** `learn.ozituma.com` is replaced by
+   * `academy.ozikoro.com`, which has no record in its zone yet, so a course title wired to either of those
+   * hosts would be a link to nothing. `/academy/` is this archive's own page about the academy and it
+   * answers, and it is where the archive says the academy is being prepared.
+   *
+   * In the served page these five are not reached at all: `fillAcademy` replaces the whole `#courses`
+   * grid, because the design's five courses are invented and the academy holds none to put in their
+   * place. The destinations are still decided here, because `fillDashboardLinks` is a function with a
+   * test of its own and a placeholder it does not answer is a placeholder it has left dead.
    */
-  'Igbo from the beginning': 'https://learn.ozituma.com/',
-  'Reading and writing with tone marks': 'https://learn.ozituma.com/',
-  'The market week, title and kinship': 'https://learn.ozituma.com/',
-  'Recording and transcribing oral testimony': 'https://learn.ozituma.com/',
-  'Your name, your town, your clan': 'https://learn.ozituma.com/',
+  'Igbo from the beginning': '/academy/',
+  'Reading and writing with tone marks': '/academy/',
+  'The market week, title and kinship': '/academy/',
+  'Recording and transcribing oral testimony': '/academy/',
+  'Your name, your town, your clan': '/academy/',
 };
 
 /**
@@ -2429,7 +2605,7 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   'Supervisor & institution': 'fields on the member record, and a route to edit them',
   Notes: 'a private notes table per account, and a route to read and write it',
   Submissions: 'a submission queue joining an account to what it sent, and a route to list it',
-  Learning: 'the academy’s course catalogue for this site; learn.ozituma.com is a separate application',
+  Learning: 'the academy’s course catalogue for this site; the Academy is its own application at academy.ozikoro.com, which is being prepared',
   Resources: 'a teaching-resources library, and a route to browse it',
   Courses: 'a course record owned by a teacher, and a route to list it',
   'Classes & projects': 'a class group joining a teacher to students, and a route to open one',
@@ -2899,6 +3075,11 @@ function personCard(c: AboutData['contributors'][number]): string {
  *     because **a partner reads this page before deciding to work with the archive** (brief §3.6)
  *
  * **Nothing here is typed into a file. Every figure is passed in, counted at render time by the route.**
+ *
+ * AND EVERY BLOCK IT INSERTS GOES INSIDE THE DESIGN'S OWN CONTAINER. **A fill that writes markup the design
+ * never drew is writing markup the design never laid out**, so it must not assume the design's CSS will
+ * place it: the principles paragraph below is wrapped in `.wrap` for exactly that reason, and the fault it
+ * fixes — text hanging outside the content column, with no scrollbar to announce it — is documented there.
  */
 export function fillAbout(html: string, d: AboutData): string {
   let out = clearExampleMaterial(html);
@@ -3068,7 +3249,7 @@ export function fillAbout(html: string, d: AboutData): string {
             <ul>
               <li><a href="https://ozikoro.com/">ozikoro.com</a> — the history and archive: ${n(d.published)} published records, ${n(d.towns)} towns and clans, ${n(d.media)} media items.</li>
               <li><a href="https://ozituma.com/">ozituma.com</a> — the African-languages dictionary.</li>
-              <li><a href="https://learn.ozituma.com/">learn.ozituma.com</a> — courses in Igbo language and culture.</li>
+              <li><a href="/academy/">academy.ozikoro.com</a> — courses in Igbo language and culture, being prepared.</li>
             </ul>
             <p>All three are cited as one publisher: Ozi Ikoro Limited.</p>
           </div>
@@ -3447,20 +3628,39 @@ export type CiteSample = {
  *
  * A citation format is instruction and is true of every record of that shape; a filled-in citation is a
  * statement about one record. The design says to use the real one, and this does.
+ *
+ * ── WHY THIS PUTS THE EXAMPLE ABOVE THE DESIGN'S BLOCKS INSTEAD OF IN THEIR PLACE ────────────────────
+ *
+ * This used to call `fillContainer`, which replaces a container's whole contents — and the container it named
+ * is `sx-cite-examples`, **the five `<article>` blocks the design draws.** So the served page carried the h1,
+ * the lede, the nav and the worked example, and **lost "Ozikoro article", "Archive record", "Photograph",
+ * "Oral recording" and "Research publication" — and with them the `.sx-cite-examples` and `.sx-cite-nav`
+ * containers themselves.** `check-design-parity.mjs` reported exactly that: *"/cite — 5 missing headings"*,
+ * and the nav's five anchors pointed at five ids that no longer existed.
+ *
+ * **A fill that consumes the element it fills has deleted the design, not filled it.** The example is a
+ * property of this screen and has no block of its own in the design, so it goes at the head of the container
+ * rather than over it, and the design's five formats — which are the screen's actual content — are left as
+ * they were delivered.
  */
 export function fillCite(html: string, sample: CiteSample | null): string {
   let out = clearExampleMaterial(html);
   if (!sample) return out;
-  out = fillContainer(
-    out,
-    /<div class="sx-cite-examples"[^>]*>/,
-    `<p class="small muted" style="margin-bottom:var(--s-3)">The worked example below is the citation this archive generates for a real record — the same text its own page offers under &ldquo;Cite this article&rdquo;. The four formats below it are the design's forms, which are guidance rather than citations of anything.</p>
+  /*
+   * INSERTED JUST INSIDE THE OPENING TAG, located by position rather than by a whole-container match, so
+   * nothing after it is touched. `fillContainer` is deliberately not used here: its contract is replacement,
+   * and replacement is the fault this fixes.
+   */
+  const marker = /<div class="sx-cite-examples"[^>]*>/.exec(out);
+  if (!marker) return out;
+  const at = marker.index + marker[0].length;
+  const worked = `
+        <p class="small muted" style="margin-bottom:var(--s-3)">The worked example below is the citation this archive generates for a real record — the same text its own page offers under &ldquo;Cite this article&rdquo;. The five formats under it are the design's forms, which are guidance rather than citations of anything.</p>
         <div class="cite-block" style="padding:var(--s-4);background:var(--ochre-wash);border-left:3px solid var(--gold)">
           <p>${esc(sample.citation)}</p>
           <p class="small muted" style="margin-top:var(--s-3)">From <a href="${esc(sample.path)}">${esc(sample.title)}</a>, published on this site. Its address is permanent, so this citation keeps resolving.</p>
-        </div>`
-  );
-  return out;
+        </div>`;
+  return out.slice(0, at) + worked + out.slice(at);
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -3643,15 +3843,52 @@ export function fillProjectsIndex(html: string, counts: {
         <p class="small muted" style="margin-top:var(--s-5);max-width:70ch">A project will appear here when it has a purpose, a start and something to show. The four figures above are the archive's own counts rather than project progress, because those exist and project progress does not.</p>
         <div class="row" style="margin-top:var(--s-5)"><a class="btn btn-gold" href="/submit">Propose a project</a><a class="btn btn-quiet" href="/ledger">See who helped</a></div>`
   );
+  /*
+   * THE GRID KEEPS THE DESIGN'S CARD SHAPE AND SAYS THERE IS NOTHING IN IT.
+   *
+   * `.sx-proj-grid` is a grid of `.sx-proj` cards, and each card is a `<figure>` beside a
+   * `.sx-proj-body` that carries the title, the summary, a `.sx-meter` and a `.sx-proj-meta` footer. **This
+   * used to put a single bare `<p>` inside the grid**, so the classes `.sx-proj-body`, `.sx-meter` and
+   * `.sx-proj-meta` were absent from the served page and `check-design-parity.mjs` reported all three —
+   * correctly, because the grid the design draws had no card in it.
+   *
+   * **What is filled and what is not.** The design's six cards carried example progress figures — 60%, 75%,
+   * 45%, 10%, 5% — and **not one of those percentages is reproduced, and no card is invented**. What is
+   * kept is the shape: one card that is the register's empty state, its body in `.sx-proj-body`, and a
+   * `.sx-meter` whose bar is at zero **with `role="img"` and an accessible name that says so in words**, so
+   * the element is not a picture of progress nobody measured. `.sx-proj-meta`'s two ends are the register's
+   * actual state and the way to change it. A percentage is the most measurement-looking thing a page can
+   * print, which is why this bar is empty and says why.
+   */
   out = fillContainer(
     out,
     /<div class="sx-proj-grid"[^>]*>/,
-    `<p class="small muted">No project is recorded, so there is no register to list here. The six cards the design drew described real work with example figures — town histories, the market-day calendar, the folklore library, oral recordings, digitisation and the Ozituma link-up — and none is reproduced, because there is no record behind any of them.</p>`
+    `<article class="sx-proj"><div class="sx-proj-body">
+          <p class="eyebrow">Project register</p>
+          <h3>No project is recorded</h3>
+          <p class="small muted">No project is recorded, so there is no register to list here. The six cards the design drew described real work with example figures — town histories, the market-day calendar, the folklore library, oral recordings, digitisation and the Ozituma link-up — and none is reproduced, because there is no record behind any of them.</p>
+          <div class="sx-meter" role="img" aria-label="No progress is recorded: no project is recorded"><i style="width:0%"></i></div>
+          <div class="sx-proj-meta"><span>No progress recorded</span><a href="/submit">Propose a project →</a></div>
+        </div></article>`
   );
-  // The filter bar's four states, described rather than drawn as though each had a list behind it.
+  /*
+   * THE FILTER BAR STAYS A FILTER BAR, AND IT SAYS WHY IT HAS ONE ENTRY.
+   *
+   * This replaced the whole `<nav class="sx-filterbar">` with a paragraph, so **the class the design draws
+   * was absent from the page** and the parity check reported it. `check-design-parity.mjs` already has the
+   * mechanism for a control whose states only appear once there is something to control: on `/archive` the
+   * `chips` row is listed under `CONDITIONAL` and looked for at a URL that produces it. Here there is no
+   * such URL, because no project record exists at all and no table to write one into — so the nav is kept
+   * with the one state that is true, and the note that stood in its place is kept beside it rather than
+   * instead of it. **A filter that filters nothing is not drawn as four filters.**
+   */
   out = out.replace(
     /<nav class="sx-filterbar"[\s\S]*?<\/nav>/,
-    `<p class="small muted" style="margin-top:var(--s-4)">Filters appear here once there is more than one project to filter. There is not yet one.</p>`
+    `<nav class="sx-filterbar" aria-label="Filter projects">` +
+      `<a href="/projects" aria-current="page">All</a></nav>` +
+      `<p class="small muted" style="margin-top:var(--s-3)">Ongoing, planned, completed, research and preservation ` +
+      `appear here once there is more than one project to filter. There is not yet one, so the bar offers ` +
+      `the register's only state rather than five that match nothing.</p>`
   );
   return out;
 }
@@ -3796,7 +4033,7 @@ export function fillPublicationRecord(html: string): string {
  * THE ACADEMY
  * ---------------------------------------------------------------------------------------------- */
 
-/** One course the Academy really runs, as `learn.ozituma.com` lists it. */
+/** One course an academy course list supplied, as the academy itself would list it. */
 export type AcademyCourse = { title: string; level: string | null; summary: string | null };
 
 /**
@@ -3805,37 +4042,56 @@ export type AcademyCourse = { title: string; level: string | null; summary: stri
  * THE COURSES ARE REAL; THEY ARE NOT HELD IN THIS DATABASE
  *
  * The design's six course cards carry invented titles and invented lengths — "Twelve weeks", "8 weeks", "3
- * weeks" — and its own banner says so. **The Academy is `learn.ozituma.com`**, a separate application with its
+ * weeks" — and its own banner says so. **The Academy is a separate application with its
  * own Supabase project, and **this archive's database holds no course at all** — the `learn_course` table here
  * holds the dictionary's own test fixtures, not the Academy's catalogue.
  *
  * So the page is filled from the source that does hold the courses: the Academy's own public site. Its course
  * names are read from there, **with no length and no enrolment date attached**, because those live on the
  * Academy's pages and a number copied to this page would go stale the moment a cohort changed. The design's
- * own link — "Delivered at learn.ozituma.com · enrolment opens there" — is the honest answer and is kept.
+ * own line — "Delivered at … · enrolment opens there" — named the host, and the host is retired, so that
+ * line is rewritten below to name `academy.ozikoro.com` and to say when enrolment actually opens.
  *
  * If the Academy cannot be reached, **the page says that rather than showing the design's example weeks**: an
  * unreachable catalogue is a fact, and "Twelve weeks" is not.
  */
 export function fillAcademy(html: string, courses: AcademyCourse[], reachable: boolean): string {
   let out = clearExampleMaterial(html);
+  /*
+   * ── THE ACADEMY MOVED, AND THIS PAGE IS WHERE A READER IS TOLD SO ──────────────────────────────
+   *
+   * `learn.ozituma.com` is being retired and `academy.ozikoro.com` replaces it, on the owner's
+   * instruction. **The design screen names the old host in eight places and cannot be edited** — it is
+   * inviolable — so the addresses and the bare host names are rewritten at serve time in
+   * `designScreenLinks`, which is where the design's other addresses are resolved too.
+   *
+   * What is left for this function is the one thing a rewrite cannot supply: **the truth about when.**
+   * `academy.ozikoro.com` has no record in its zone today, so a page that named it and stopped would be
+   * a page that reads as though the academy were open. This function is where the archive says, in its
+   * own voice, that the academy is being prepared — the rule the design screen could not state for
+   * itself.
+   */
+  out = out.replace(
+    /Delivered at learn\.ozituma\.com · enrolment opens there/,
+    'Delivered at academy.ozikoro.com · enrolment opens when the Academy launches'
+  );
   const body = courses.length
     ? courses
         .map(
           (c) =>
-            `<article class="card"><div class="chips"><span class="chip">${esc(c.level ?? 'Course')}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary ?? 'Course details are on the Academy site.')}</p><p class="small muted">Enrolment, dates and length are shown on <a href="https://learn.ozituma.com/">learn.ozituma.com</a>.</p></article>`
+            `<article class="card"><div class="chips"><span class="chip">${esc(c.level ?? 'Course')}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary ?? 'Course details are on the Academy site.')}</p><p class="small muted">Enrolment and course dates are on the Academy’s own site.</p></article>`
         )
         .join('\n          ')
-    : `<article class="card"><div class="chips"><span class="chip">Not listed here</span></div><h3>Courses are held at learn.ozituma.com</h3><p>${
+    : `<article class="card"><div class="chips"><span class="chip">Being prepared</span></div><h3>The Academy is being prepared</h3><p>${
         reachable
-          ? 'The Academy is a separate application: it holds the courses, the lessons and the enrolment. Its own published curriculum is not accessible from this archive, so no course title or length is listed here rather than the design\u2019s example ones.'
-          : 'The Academy could not be reached while this page was rendered, so no course is listed rather than the design\u2019s example courses.'
-      } Enrolment and course dates are on the Academy\u2019s own pages.</p><p class="small muted"><a href="https://learn.ozituma.com/">Open the Academy</a></p></article>`;
+          ? 'The Academy is its own application and it holds the courses, the lessons and the enrolment. Its curriculum is not published yet, so no course title and no length is listed here rather than the design’s example ones.'
+          : 'The Academy could not be reached while this page was rendered, so no course is listed rather than the design’s example courses.'
+      } Courses will be taught at <strong>academy.ozikoro.com</strong>, which replaces learn.ozituma.com and does not answer yet — **so this page names it rather than linking to it**, because a link to a host with no record in its zone is a link to nothing.</p></article>`;
 
   /*
    * THE COURSE GRID IS `#courses .grid-3`, NOT `.spread`.
    *
-   * `.spread` holds the section's own heading and its one true sentence — "Delivered at learn.ozituma.com ·
+   * `.spread` holds the section's own heading and its one true sentence — "Delivered at … ·
    * enrolment opens there" — so replacing it would have thrown away the only accurate line on the screen while
    * the six example course cards sat untouched beneath it, still claiming "Twelve weeks".
    */
@@ -3849,11 +4105,18 @@ export function fillAcademy(html: string, courses: AcademyCourse[], reachable: b
    * demonstration content until approved curriculum is published"* and *"Demonstration text is never presented
    * as verified teaching material"*. So this page repeats what the Academy says about itself, names the source
    * of that statement, and does not copy either set of example courses across.
+   *
+   * THE HOST IS NAMED AND NOT LINKED, BECAUSE THE PAGE IS ALREADY THE LINK'S DESTINATION. The address this
+   * page offers for the academy is its own — `/academy/` — and an anchor on `/academy/` pointing back at
+   * `/academy/` would be a link that does nothing dressed as a link that goes somewhere. The name is the
+   * announcement, and the sentence around it is where the archive says the academy is being prepared rather
+   * than open.
    */
   out = out.replace(
     /Courses in Igbo language and culture, taught by speakers and scholars\./,
-    `Courses in Igbo language and culture, taught by speakers and scholars, at <a href="https://learn.ozituma.com/">learn.ozituma.com</a>. ` +
-      `The Academy is its own application and holds the courses, the lessons and the enrolment. ` +
+    `Courses in Igbo language and culture, taught by speakers and scholars, at <strong>academy.ozikoro.com</strong>. ` +
+      `The Academy is its own application and holds the courses, the lessons and the enrolment, and <strong>it is being prepared</strong>: ` +
+      `it replaces learn.ozituma.com, which is being retired, and it does not answer yet. ` +
       `<strong>Its own site describes its current activity as demonstration content pending an approved curriculum</strong>, ` +
       `so no course is listed on this page as though it were a verified one — neither the Academy's own examples nor the design's are reproduced here.`
   );
@@ -4356,10 +4619,17 @@ export function fillCulturalCalendar(
    * hooks is what lets the same markup start working the day an event exists.**
    */
   if (month.events === 0) {
-    out = out.replace(
-      /(<h2 data-event-title>)[\s\S]*?(<\/h2>)/,
-      '$1No event is recorded$2'
-    );
+    /*
+     * THE PANEL KEEPS THE DESIGN'S OWN HEADING AND SAYS THE ABSENCE IN THE TWO PLACES BUILT FOR IT.
+     *
+     * This rewrote the `<h2>` itself to "No event is recorded", which read honestly and **cost the page a
+     * heading the design draws** — `check-design-parity.mjs` reported *"/cultural-calendar — missing h2
+     * 'choose a highlighted date'"*. The heading is the panel's accessible name for a control a reader does
+     * use — select a date — and the design puts the standing of the selected date in the badge and the
+     * description, which is where an event's verification state lives too. So the heading stays as delivered
+     * and the honest state is stated in the badge, the meta line and the description, all three of which the
+     * design provides and the archive fills.
+     */
     out = out.replace(
       /(<span class="sx-event-badge" data-event-status>)[\s\S]*?(<\/span>)/,
       '$1No date has an event$2'
@@ -5456,8 +5726,32 @@ ${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB',
  * The film's provenance sentence is kept because it is the design telling the truth about a real embed — Ozikoro
  * does not present an external film as its own production — and the two sentences that describe the interface
  * as example material go, because they are about the design rather than about the film.
+ *
+ * ── AND THE SAME PAGE, FOR ANY FILM THE ARCHIVE HOLDS (round 338) ──────────────────────────────────
+ *
+ * Measured before this: `/watch-video/` had one address and one film. `/watch/` draws **24 archive films** and
+ * every one of them, if a reader reached a viewing page for it at all, was shown the design's `Faces | Voices`
+ * — the design's publisher, the design's YouTube id, the design's project-page link. **A card that names one
+ * film and opens a page about another is the wrong-destination fault at 200**, which is the class this round
+ * exists to close.
+ *
+ * So the page takes a film. `film` is one entry of the same `extractArchiveFilms` result `/watch/` is built
+ * from, so the two surfaces cannot disagree about a title, a topic or a holding record, and `?v=<id>` is the
+ * selector. **Nothing is fetched from YouTube**: every value written here comes from the record that embeds the
+ * film — its id, the title the archive recorded, its topic, and the record itself.
+ *
+ * ── WHAT IS DELIBERATELY NOT CARRIED OVER, AND WHY IT IS THE WHOLE POINT ───────────────────────────
+ *
+ * The design's page says `Published by [Re:]Entanglements Project`, links the project's own page, and states
+ * that the film comes from a named public publisher. **All three are true of the design's film and none of them
+ * is recorded for an archive film**: the archive holds an embed in a record's body and nothing about who
+ * published it. So the publisher line becomes `Publisher not recorded`, the project-page link becomes the
+ * holding record, and the sentence that says Ozikoro does not present an external film as its own is kept —
+ * because it is the one sentence in the block that is a policy rather than a fact about one video.
  */
-export function fillWatchVideo(html: string): string {
+export type RealFilmPage = RealFilm;
+
+export function fillWatchVideo(html: string, film?: RealFilmPage | null): string {
   let out = clearExampleMaterial(html);
   out = out.replace(
     /In the live platform, this area would carry the complete timed transcript, speaker names and language information—not invented text\./,
@@ -5466,6 +5760,82 @@ export function fillWatchVideo(html: string): string {
   out = out.replace(
     /Transcript status: awaiting a publisher-approved transcript\./,
     'Transcript status: no publisher-approved transcript has been supplied.'
+  );
+  if (!film) return out;
+
+  const id = esc(film.id);
+  const title = esc(film.title);
+  const topic = esc(film.topic ?? 'Ozikoro archive film');
+  const held = film.records > 1 ? `Held in ${film.records} Ozikoro archive records` : 'Held in one Ozikoro archive record';
+
+  /*
+   * THE PLAYER. The design's `<iframe>` is the right instrument here — the film is a third-party embed, which
+   * is exactly what the design assumed — so its `src` and its `title` are pointed at this film. `frame-src`
+   * already names `youtube-nocookie.com` in `next.config.ts`; nothing in the policy changes.
+   */
+  out = out.replace(
+    /(<iframe\b[^>]*\ssrc=")[^"]*(")/i,
+    (_m, before: string, after: string) => `${before}https://www.youtube-nocookie.com/embed/${id}${after}`
+  );
+  out = out.replace(
+    /(<iframe\b[^>]*\stitle=")[^"]*(")/i,
+    (_m, before: string, after: string) => `${before}${title}${after}`
+  );
+
+  // The heading, the kicker line and the breadcrumb all name the film the reader asked for.
+  out = out.replace(/(<h1[^>]*>)[\s\S]*?(<\/h1>)/, `$1${title}$2`);
+  out = out.replace(/<p class="sx-video-kicker">[^<]*<\/p>/, `<p class="sx-video-kicker">${topic}</p>`);
+  out = out.replace(
+    /(<p class="sx-video-breadcrumbs">[\s\S]*?<\/a>\s*\/\s*)[^<]*(<\/p>)/,
+    `$1${topic}$2`
+  );
+
+  /*
+   * THE FACTS LINE. The design prints `Publisher: …`, `Platform: YouTube`, `Captions: check player`. The
+   * publisher is not recorded anywhere for an archive film, so the slot says so rather than borrowing the
+   * design's — an unrecorded field is stated in this archive, never filled with a plausible one.
+   */
+  out = out.replace(
+    /<p class="sx-video-facts">[\s\S]*?<\/p>/,
+    `<p class="sx-video-facts"><span>Publisher: not recorded</span><span>Platform: YouTube</span>`
+      + `<span>${held}</span><span>Captions: check the player</span></p>`
+  );
+
+  // The outward link is this film's own YouTube address; the in-page one still reaches the transcript.
+  out = out.replace(
+    /<a class="btn btn-gold" href="[^"]*">[^<]*<\/a>/,
+    `<a class="btn btn-gold" href="https://www.youtube.com/watch?v=${id}">Watch on YouTube ↗</a>`
+  );
+
+  /*
+   * THE SENTENCE THAT SAID WHAT THE DESIGN'S FILM WAS. It names a publisher this record does not carry, so it
+   * is replaced by the statement the archive can support: the film is embedded by a record, the archive holds
+   * no publisher or rights information beyond that record, and it is not presented as Ozikoro's own.
+   */
+  out = out.replace(
+    /<p class="sx-video-copy">[\s\S]*?<\/p>/,
+    `<p class="sx-video-copy">This film is embedded by a record in the Ozikoro archive — <a href="${esc(film.href)}">${title}</a> — and the archive holds no publisher, transcript or reuse terms for it beyond what that record says. Ozikoro does not present an external film as its own production.</p>`
+  );
+
+  /*
+   * THE SIDE PANEL. The design's whole `<aside>` is about its own film — the publisher, the publisher's terms
+   * and a link to the publisher's project page — so it is replaced rather than patched, field by field. What
+   * replaces it is the one source the archive actually has: the record that embeds the film.
+   */
+  out = out.replace(
+    /<aside class="sx-video-side">[\s\S]*?<\/aside>/,
+    `<aside class="sx-video-side"><h2>Source record</h2>`
+      + `<p><b>Held in</b><br><a href="${esc(film.href)}">${title}</a></p>`
+      + `<p><b>Rights and reuse</b><br>Not recorded. Follow the publisher’s terms on YouTube.</p>`
+      + `<p><b>The film</b><br><a href="https://www.youtube.com/watch?v=${id}" rel="noopener noreferrer">Open it on YouTube ↗</a></p>`
+      + `</aside>`
+  );
+
+  // The document's own title and description, which are what a search result and a browser tab show.
+  out = out.replace(/<title>[\s\S]*?<\/title>/, `<title>${title} — Watch — Ozikoro</title>`);
+  out = out.replace(
+    /(<meta name="description" content=")[^"]*(")/,
+    `$1Watch ${title} with its source context, transcript status and the record that embeds it.$2`
   );
   return out;
 }

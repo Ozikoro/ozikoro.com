@@ -16,7 +16,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { designScriptPaths, designScreenLinks } from './design-paths.ts';
@@ -131,6 +131,52 @@ test('the one meta refresh carries an absolute address too', () => {
   assert.equal(designScreenLinks(`<html><head>${kept}</head><body></body></html>`).includes(kept), true);
 });
 
+test('an in-page anchor is made an address on THIS page, because the base would send it to the root', () => {
+  /*
+   * THE FAULT THE BASE ITSELF CAUSES, MEASURED IN CHROME RATHER THAN REASONED. A `<base href="/">` decides
+   * what a fragment-only address means, and the answer is the site root:
+   *
+   *     /documents/  #library  ->  http://127.0.0.1:3110/#library     NOT /documents/#library
+   *     /about/      #main     ->  http://127.0.0.1:3110/#main
+   *
+   * So every skip link, every table of contents and every filter row on every served screen left the page.
+   * The base stays — `mobile-nav.js` injects `<a href="igbo-calendar.html">` at run time and the base is what
+   * resolves it — and the fragment is made absolute instead.
+   */
+  const screen = '<html><head></head><body><a href="#library">Skip to the library</a>'
+    + '<a href="#research">Research</a><a href="#">A placeholder, not an anchor</a></body></html>';
+
+  const out = designScreenLinks(screen, '/documents/');
+  assert.match(out, /href="\/documents\/#library"/, 'the skip link still leaves the page for the site root');
+  assert.match(out, /href="\/documents\/#research"/);
+  // A bare `#` is a placeholder rather than an anchor, and dressing it up as a link is the fault, not the fix.
+  assert.match(out, /href="#"/);
+  assert.doesNotMatch(out, /href="\/documents\/#"/);
+
+  /*
+   * THE QUERY IS PART OF THE ADDRESS, and this is the case that makes it so: on the second page of an index,
+   * `#series` must stay on page 2. A rule that used the path alone would send the reader back to page 1 —
+   * the round-330 fault in miniature.
+   */
+  assert.match(
+    designScreenLinks('<html><head></head><body><a href="#series">Series</a></body></html>', '/watch/?page=2'),
+    /href="\/watch\/\?page=2#series"/,
+    'the pager lost its page, so a fragment link is a link back to page 1'
+  );
+
+  /*
+   * AND WITH NO ADDRESS IT IS LEFT ALONE, WHICH IS LOAD-BEARING RATHER THAN TIDY: `fillWatch` looks for
+   * `href="#series"` in order to move an anchor to the page that really draws that section, and a first pass
+   * that had already made it absolute would leave it pointing at whichever page the reader was on.
+   */
+  assert.match(designScreenLinks('<html><head></head><body><a href="#series">Series</a></body></html>'),
+    /href="#series"/);
+
+  // Idempotent with an address too, because the rewritten form no longer matches the rule.
+  const once = designScreenLinks(screen, '/documents/');
+  assert.equal(designScreenLinks(once, '/documents/'), once);
+});
+
 test('the address rule is idempotent, because one request calls it twice', () => {
   /*
    * It runs once beside `designScriptPaths` and again after the fills — the second call is what reaches an
@@ -155,4 +201,72 @@ test('an address a fill wrote is reached, and the design\'s own are not touched 
   assert.match(out, /href="\/cite\/"/);
   assert.match(out, /href="\/publications\/"/);
   assert.doesNotMatch(out, /href="[a-z0-9-]+\.html/);
+});
+
+test('the retired academy host is rewritten in the design, which cannot be edited to stop naming it', () => {
+  /*
+   * THE OWNER'S INSTRUCTION, AS AN ASSERTION: *"everything about learn.ozituma.com should be removed entire.
+   * we have a new academy coming up which is academy.ozikoro.com, which will replace learn.ozituma.com."*
+   *
+   * The design deliverable under `public/design/` is INVIOLABLE — byte-identical to
+   * `design/calm-comfort-construct/public/design` — and seventeen of its fifty-two screens name the retiring
+   * host. So the rewrite has to happen at serve time, and this is the test that says it does.
+   *
+   * THE THREE SHAPES ARE ASSERTED ONE AT A TIME, because they need three different answers and collapsing
+   * them into one would get two of them wrong:
+   *
+   *   * an ADDRESS becomes `/academy/` — a page this archive serves, not a host with no record in its zone
+   *   * the platform bar's LABEL stops naming the host, because "academy.ozikoro.com — Learn Igbo" would
+   *     name a place the link does not go
+   *   * a bare HOST in prose becomes `academy.ozikoro.com` — the announced replacement, named but not
+   *     linked, which cannot 404
+   */
+  const fixture = [
+    '<html><head><meta name="description" content="taught at learn.ozituma.com"></head><body>',
+    '<li><a href="https://learn.ozituma.com/" class="here">learn.ozituma.com — Learn Igbo</a></li>',
+    '<li><a href="https://ozituma.com/">ozituma.com — dictionary</a></li>',
+    '<div><a href="https://learn.ozituma.com/">Learn Igbo</a></div>',
+    '<tr><th scope="row">learn.ozituma.com</th><td>Courses</td></tr>',
+    '<span>ozikoro.com · ozituma.com · learn.ozituma.com</span>',
+    '</body></html>',
+  ].join('');
+
+  const out = designScreenLinks(fixture);
+
+  assert.doesNotMatch(out, /href="https:\/\/learn\.ozituma\.com/, 'an address still sends a reader to the retiring host');
+  assert.match(out, /<a href="\/academy\/" class="here">Academy — Learn Igbo<\/a>/,
+    'the platform bar label must stop naming the host and must point at the page that answers');
+  assert.match(out, /<a href="\/academy\/">Learn Igbo<\/a>/, 'the footer link still leaves the site');
+  assert.match(out, /taught at academy\.ozikoro\.com/, 'the meta description still names the retiring host');
+  assert.match(out, /<th scope="row">academy\.ozikoro\.com<\/th>/, 'the comparison table still names the retiring host');
+  assert.match(out, /ozikoro\.com · ozituma\.com · academy\.ozikoro\.com/, 'the footer domain list still names the retiring host');
+  // `ozituma.com` is untouched: this rule is about one host, not about absolute addresses in general.
+  assert.match(out, /href="https:\/\/ozituma\.com\/"/, 'the rule reached a host it does not own');
+  // Idempotent, because the route calls this twice in a request.
+  assert.equal(designScreenLinks(out), out);
+});
+
+test('no design screen names the retiring host once it has been served', () => {
+  /*
+   * AND THE SAME CLAIM OVER THE REAL DELIVERABLE RATHER THAN A FIXTURE.
+   *
+   * A fixture asserts the rule; this asserts the FILES. Seventeen of the fifty-two screens named the host
+   * when this was written, so a count of zero after the rewrite is the whole of the claim — and if a future
+   * design handoff adds an eighteenth screen naming it, this test is where that is noticed rather than on
+   * the served page.
+   */
+  const screens = join(here, '..', '..', '..', 'apps', 'ozikoro', 'public', 'design', 'screens');
+  const files = readdirSync(screens).filter((f: string) => f.endsWith('.html'));
+  assert.ok(files.length >= 52, `expected the deliverable's screens; found ${files.length} files`);
+
+  const before: string[] = [];
+  const after: string[] = [];
+  for (const file of files) {
+    const raw = readFileSync(join(screens, file), 'utf8');
+    if (raw.includes('learn.ozituma.com')) before.push(file);
+    if (designScreenLinks(raw).includes('learn.ozituma.com')) after.push(file);
+  }
+
+  assert.ok(before.length > 0, 'no design screen names learn.ozituma.com — this test has stopped testing anything');
+  assert.deepEqual(after, [], `these screens still name the retiring host after the rewrite: ${after.join(', ')}`);
 });
