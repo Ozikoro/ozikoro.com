@@ -1439,7 +1439,25 @@ export function fillTopics(html: string, entries: RealAzEntry[]): string {
   let out = dropExampleFlag(html);
   const byLetter = new Map<string, RealAzEntry[]>();
   for (const e of entries) {
-    const first = (e.name.trim()[0] ?? '#').toUpperCase();
+    /*
+     * THE LETTER COMES FROM THE FIRST CHARACTER A READER CAN SEE, NOT THE FIRST ONE STORED.
+     *
+     * One archive topic is stored as "U+2060 WORD JOINER + Religion and Spirituality". U+2060 is
+     * Unicode category Cf — a format character, invisible in every renderer — and **String.trim()
+     * removes whitespace only, so it survives**. Taking the first stored character therefore read
+     * U+2060, which is not [A-Z], and filed a topic the reader looks for under R beneath `<h2>#</h2>`
+     * in `id="num"` — a section whose own jump link the nav cannot offer, because `#num` is not a
+     * letter. The page answered 200 and the topic was spelled correctly on screen; it was simply in
+     * the wrong place, decided by a character nobody can see.
+     *
+     * So the leading run of format and control characters is stripped before the first character is
+     * read. **This is a rule rather than a patch for one string**: a topic beginning with a
+     * zero-width space (U+200B), a left-to-right mark (U+200E) or a byte-order mark (U+FEFF) is
+     * filed under its first visible letter too. Whitespace is stripped as well, so the rule holds
+     * even if trim() is ever removed. **Digits and symbols are deliberately NOT skipped** — an entry
+     * genuinely beginning with a numeral belongs under `#`, and that behaviour is unchanged.
+     */
+    const first = (e.name.trim().replace(/^[\p{Cf}\p{Cc}\s]+/u, '')[0] ?? '#').toUpperCase();
     const letter = /[A-Z]/.test(first) ? first : '#';
     if (!byLetter.has(letter)) byLetter.set(letter, []);
     byLetter.get(letter)!.push(e);
