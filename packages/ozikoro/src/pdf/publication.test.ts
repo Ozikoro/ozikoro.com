@@ -164,6 +164,28 @@ test('page numbers are the page\'s own number, and the cover is page one', { ski
   assert.ok(!text.includes(encoded(doc, 'sans', 'OZIKORO.COM  ·  01')), 'the second page is numbered 01');
 });
 
+test('the running head and the page number end at the measure, not at the page edge', { skip: !have && 'the DejaVu faces are not present' }, () => {
+  const { doc } = build();
+  doc.render();
+  const face = doc.face('sans');
+  assert.ok(face);
+  /** Where a right-aligned run must start: its right edge on the measure. */
+  const startsAt = (text: string, size: number) => {
+    let units = 0;
+    for (const ch of text) units += face.advance(face.glyph(ch.codePointAt(0) as number));
+    return Number((541.4173 - (units / 1000) * size).toFixed(2));
+  };
+  const ops = doc.pages[1]?.ops.join('\n') ?? '';
+  for (const [text, size] of [['OZIKORO.COM  ·  02', 5.2], ['02', 5.3]] as [string, number][]) {
+    const hex = encoded(doc, 'sans', text);
+    const found = new RegExp(`([\\d.]+) ([\\d.]+) Td\\n<${hex}> Tj`).exec(ops);
+    assert.ok(found, `the run ${JSON.stringify(text)} is not on page two`);
+    const x = Number(found[1]);
+    assert.equal(x, startsAt(text, size), `the run ${JSON.stringify(text)} does not end at the measure`);
+    assert.ok(x + (541.4173 - x) <= 541.42, 'the run extends past the measure');
+  }
+});
+
 test('a section heading is never the last thing on a page', { skip: !have && 'the DejaVu faces are not present' }, () => {
   // A heading, then enough prose to force several pages, then another heading at a page foot.
   const filler = 'Ọmụmụ ihe na-aga n’ihu. '.repeat(6);

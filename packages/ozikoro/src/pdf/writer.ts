@@ -233,8 +233,17 @@ export class PdfPage {
     const tracking = opts.tracking ?? 0;
     const width = this.doc.widthOf(value, font, size, tracking);
     let tx = x;
-    if (opts.align && opts.maxWidth) {
-      tx = opts.align === 'center' ? x + (opts.maxWidth - width) / 2 : opts.align === 'right' ? x + opts.maxWidth - width : x;
+    /*
+     * **`align` decides on its own, and `maxWidth` only says how wide the box is.** This used to test
+     * `opts.align && opts.maxWidth`, and every caller passes `maxWidth: 0` for a run that needs no box —
+     * which is falsy, so the branch never ran and `align: 'right'` silently behaved as `left`. The running
+     * head then *began* at the right margin instead of ending there, and the page number sat off the edge
+     * of the paper. **A right-aligned run with no box means "put my right edge here"**, which is what the
+     * reference's head and foot both do.
+     */
+    if (opts.align) {
+      const box = opts.maxWidth ?? 0;
+      tx = opts.align === 'center' ? x + (box - width) / 2 : opts.align === 'right' ? x + box - width : x;
     }
     const face = this.doc.face(font);
     this.ops.push('BT', `${rgb[0]} ${rgb[1]} ${rgb[2]} rg`);
