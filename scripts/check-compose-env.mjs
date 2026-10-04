@@ -30,6 +30,12 @@
  *     typo waiting to be the next OZITUMA_SMTP_PASS: the value arrives, the code asks for a
  *     different name, and the symptom is an authentication failure rather than a missing setting.
  *  4. `depends_on` names only services that exist.
+ *  5. **For the services whose configuration is a shell `entrypoint:` rather than TypeScript**
+ *     (`backup`, `backup-upload`, `healthwatch`), every name the shell expands is named in that
+ *     service's environment block, and vice versa. This was added in round 352 with `backup-upload`,
+ *     which reads eight settings out of its environment and would otherwise have printed "no source
+ *     mapping" — a line that looks like coverage and is the opposite, on the one service where a
+ *     missing name is a silent no-op rather than a startup error.
  *
  * It never prints a value. Compose interpolations are reported by name and default only.
  *
@@ -38,6 +44,11 @@
  *  - The compose parser is purpose-built for this file's shape: two-space indentation, a mapping
  *    `environment:` block (not the `- KEY=value` list form), and `depends_on` as a list. It
  *    verifies under those assumptions and says so if the file stops matching them.
+ *  - The shell route is a second, narrower reader over the same file. It finds `entrypoint:` and
+ *    takes the lines below it while they stay indented; it does not check the shell's syntax, and
+ *    it cannot see a variable reached only through `eval` or a sourced file. That is why the one
+ *    `eval` in `backup-upload` — the loop that tests five names for emptiness — is also written as
+ *    five explicit names, so the reader does not depend on the check understanding `eval`.
  *  - It does not resolve `/opt/ozituma/.env`. It proves the NAME is plumbed, not that a value
  *    exists on the host. A named variable with no value is still a container without it.
  *  - Only `docker/docker-compose.prod.yml` and `docker/Caddyfile` are read.
@@ -69,6 +80,52 @@ const SERVICE_SOURCES = {
   web: ['apps/web/app', 'apps/web/lib', 'apps/web/components', 'apps/web/middleware.ts', 'apps/web/next.config.ts', 'packages/core/src', 'packages/db/src'],
   ozikoro: ['apps/ozikoro', 'packages/ozikoro/src', 'packages/db/src', 'packages/core/src'],
 };
+
+/*
+ * Services whose configuration is read by a shell `entrypoint:` in the compose file rather than by
+ * TypeScript, and which therefore need a second reading route.
+ *
+ * **`backup-upload` WAS ADDED HERE IN ROUND 352, AND IT IS THE REASON THIS ROUTE EXISTS.** That
+ * service is an `amazon/aws-cli` image running a `sh -c` loop; it reads `S3_ACCESS_KEY_ID`,
+ * `S3_SECRET_ACCESS_KEY`, `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `BACKUP_UPLOAD_PREFIX` and two
+ * retention numbers, and it reads every one of them out of the environment. Without this route the
+ * check would print "no source mapping" for it — a line that reads like coverage and is the
+ * opposite, because it is exactly the service where a name added to `/opt/ozituma/.env` and not to
+ * the service block would produce a silent no-op. A backup uploader that starts cleanly and uploads
+ * nothing is the fault this whole file was written to catch.
+ *
+ * The shell body is extracted from the compose file, `$$` is unescaped to `$` (that is the compose
+ * escape for a literal dollar, so `$$S3_BUCKET` in the file *is* an expansion of `S3_BUCKET` at run
+ * time), and every `${NAME}`, `${NAME:-default}` and `$NAME` is recorded.
+ */
+const SERVICE_SHELL_ENTRYPOINTS = new Set(['backup', 'backup-upload', 'healthwatch']);
+
+/*
+ * Names a service must carry for a *program* in its image, which no file this check reads ever
+ * mentions. `PGPASSWORD` is the case here and it is the founder of the category: `pg_dump` and
+ * `pg_restore` read it from the environment themselves, so it is named by compose, read by nothing
+ * in the repository, and completely necessary. Reporting it as a name nothing asks for would be
+ * wrong, and would teach the reader to ignore that warning.
+ */
+const SHELL_PROGRAM_READS = new Map([
+  ['PGPASSWORD', 'libpq — pg_dump and pg_restore read it directly from the environment'],
+]);
+
+/*
+ * Names a POSIX shell expands from its own state, never from a service's `environment:` block.
+ * Naming any of these in compose would be wrong rather than missing: `PATH` is the image's, and
+ * `$#` and `$$` are the shell's own.
+ *
+ * This list is deliberately separate from `KNOWN_OMISSIONS` above, because "the shell provides it"
+ * is a different claim from "the runtime provides it", and merging the two would hide which one was
+ * being appealed to.
+ */
+const SHELL_OWN_NAMES = new Set([
+  'PATH', 'HOME', 'PWD', 'OLDPWD', 'SHELL', 'USER', 'LOGNAME', 'HOSTNAME', 'TERM', 'SHLVL',
+  'IFS', 'LANG', 'LC_ALL', 'TZ', 'PPID', 'PS1', 'PS2',
+  // A name the entrypoint itself supplies a default for and never expects from compose.
+  'BACKUP_DIR',
+]);
 
 /*
  * Variables a service does not have to name, each with the reason.
@@ -167,6 +224,101 @@ function parseCompose(text) {
   }
 
   return services;
+}
+
+/*
+ * The shell text of a service's `entrypoint:` block, taken from a literal block scalar (`|`).
+ *
+ * The compose parser above is line-oriented and does not model block scalars, so this is a second,
+ * narrow reader over the same file: find the service's `entrypoint:` key at indent 4, then take
+ * every following line indented at least **six** columns until a line drops back to indent 4, which
+ * is the next key of the service. Six rather than eight because the list form puts its own items at
+ * indent 6 (`- sh`, `- -c`, `- |`) and the block scalar's body at 8, and the shell text is the
+ * scalar's body — the list items are ignored by the name scan, which only keeps uppercase names.
+ *
+ * It returns null rather than guessing when the key is absent, and the caller reports that as "not
+ * checked", which is the honest answer.
+ */
+function readEntrypointShell(text, service) {
+  const lines = text.split('\n');
+
+  let serviceLine = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (lines[i].startsWith(`  ${service}:`)) {
+      serviceLine = i;
+      break;
+    }
+  }
+  if (serviceLine === -1) return null;
+
+  let start = -1;
+  for (let j = serviceLine + 1; j < lines.length; j += 1) {
+    if (/^  \S/.test(lines[j])) break; // the next service
+    if (/^    entrypoint:/.test(lines[j])) {
+      start = j + 1;
+      break;
+    }
+  }
+  if (start === -1) return null;
+
+  const body = [];
+  for (let k = start; k < lines.length; k += 1) {
+    const line = lines[k];
+    if (/^    \S/.test(line)) break; // a sibling key of the same service: the entrypoint is done
+    if (line.trim() !== '' && line.length - line.trimStart().length < 6) break;
+    body.push(line);
+  }
+  return body.length > 0 ? body.join('\n') : null;
+}
+
+/**
+ * Environment names a shell entrypoint expands: `${NAME}`, `${NAME:-default}` and `$NAME`.
+ *
+ * `$$` is unescaped to `$` first, because that is what compose does with it — `$$S3_BUCKET` in the
+ * file is an expansion of `S3_BUCKET` at run time, and reading it as the name `$$S3_BUCKET` would
+ * miss every real variable in the block.
+ *
+ * Returns both the names READ and the names the block ASSIGNS for itself. The second set matters:
+ * `PREFIX="$${BACKUP_UPLOAD_PREFIX:-backups/ozituma}"` both assigns `PREFIX` and reads
+ * `BACKUP_UPLOAD_PREFIX`, and only the second is a question for the compose file. Without this the
+ * check would demand that compose name every loop variable in the script, which is the kind of
+ * false positive that gets a real finding skimmed past.
+ */
+function readShellEnvNames(shellText) {
+  const names = new Map(); // READ name -> Set of line numbers
+  const assigned = new Set();
+  const lines = shellText.split('\n');
+
+  lines.forEach((raw, index) => {
+    const line = raw.replace(/\$\$/g, '$').replace(/^\s*#.*$/, '');
+
+    // `NAME=…` at the start of a line or a command, and the loop variables of `for NAME in …`.
+    for (const re of [
+      /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=/g,
+      /[;&|(]\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=/g,
+      // `… ) export NAME=… ;;` — an assignment as the body of a `case` arm.
+      /\)\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=/g,
+      /^\s*(?:do\s+)?for\s+([A-Za-z_][A-Za-z0-9_]*)\s+in\b/g,
+    ]) {
+      let m;
+      while ((m = re.exec(line)) !== null) {
+        const name = m[1];
+        if (/^[A-Z][A-Z0-9_]*$/.test(name)) assigned.add(name);
+      }
+    }
+
+    for (const re of [/\$\{([A-Za-z_][A-Za-z0-9_]*)/g, /\$([A-Za-z_][A-Za-z0-9_]*)/g]) {
+      let match;
+      while ((match = re.exec(line)) !== null) {
+        const name = match[1];
+        if (!/^[A-Z][A-Z0-9_]*$/.test(name)) continue; // the repository's convention: uppercase only
+        if (!names.has(name)) names.set(name, new Set());
+        names.get(name).add(`entrypoint:${index + 1}`);
+      }
+    }
+  });
+
+  return { names, assigned };
 }
 
 /** Every `{$VAR}` and `{$VAR:-default}` the Caddyfile interpolates, with where it appears. */
@@ -365,24 +517,52 @@ function main() {
   for (const [name, service] of services) {
     if (only && name !== only) continue;
     const roots = SERVICE_SOURCES[name];
-    if (!roots) {
+    const shellText = SERVICE_SHELL_ENTRYPOINTS.has(name) ? readEntrypointShell(composeText, name) : null;
+    if (!roots && !shellText) {
       console.log(`\n  ${name}: no source mapping (${[...service.environment.keys()].length} variables named, not checked)`);
       continue;
     }
 
-    const read = readEnvNames(roots);
+    /*
+     * The names this service reads, from both routes.
+     *
+     * `rootLabels` is what the warning text names as the place a read was found, so the two routes
+     * can be told apart in a report without the reader having to guess which tree was walked.
+     */
+    const read = roots ? readEnvNames(roots) : new Map();
+    const rootLabels = roots ? [...roots] : [];
+    if (shellText) {
+      const shell = readShellEnvNames(shellText);
+      for (const [key, where] of shell.names) {
+        // A name the script both assigns and reads is its own variable, not a setting.
+        if (shell.assigned.has(key)) continue;
+        if (!read.has(key)) read.set(key, new Set());
+        for (const w of where) read.get(key).add(w);
+      }
+      rootLabels.push(`the ${name} entrypoint in docker/docker-compose.prod.yml`);
+    }
     console.log(`\n  ${name}`);
 
     // 3. named by compose, read by nothing in this service's trees.
+    //
+    //    A name can be absent from both routes and still be right, when it is read by a *program*
+    //    inside the container rather than by the code being walked. Those are listed, one reason
+    //    each, rather than silently tolerated — a suppressed warning nobody can account for is how
+    //    the next real one gets ignored.
     const dead = [];
     for (const key of service.environment.keys()) {
-      if (!read.has(key)) dead.push(key);
+      if (read.has(key)) continue;
+      if (SHELL_PROGRAM_READS.has(key)) {
+        console.log(`    named and read by a program in the image, not by the script: ${key}`);
+        continue;
+      }
+      dead.push(key);
     }
     if (dead.length > 0) {
       console.log(`    named but not read here: ${dead.join(', ')}`);
       for (const key of dead) {
         warnings.push(
-          `${name} names ${key}, which nothing in ${roots.join(', ')} reads. ` +
+          `${name} names ${key}, which nothing in ${rootLabels.join(', ')} reads. ` +
             'A name the code does not ask for is the OZITUMA_SMTP_PASS fault: the value arrives ' +
             'under a name nobody queries, and the symptom is a failure that does not mention it.'
         );
@@ -400,6 +580,7 @@ function main() {
       if (service.environment.has(key)) continue;
       if (KNOWN_OMISSIONS._runtime.has(key)) continue;
       if (KNOWN_OMISSIONS._local_only.has(key)) continue;
+      if (SHELL_OWN_NAMES.has(key)) continue;
       missing.push({ key, where: [...where].slice(0, 2).join(', ') });
     }
     if (missing.length === 0) {

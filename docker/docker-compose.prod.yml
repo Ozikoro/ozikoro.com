@@ -6,6 +6,12 @@
 # media lives in Cloudflare R2 in production, reached through the same
 # S3-compatible code path the local stack exercises.
 #
+# Plus the archive, the health watch, and — since round 352 — the two backup
+# services: `backup`, which dumps and verifies, and `backup-upload`, which carries
+# each verified dump out to R2 under `backups/ozituma/`. A dump that stays on the
+# instance is on the same 40 GB root volume as the database it copies; the note on
+# the `backup` service states that with the measurement behind it.
+#
 #   docker compose -f docker/docker-compose.prod.yml up -d --build
 #
 # Configuration comes from /opt/ozituma/.env, written at boot from Secrets
@@ -48,7 +54,26 @@ services:
       # The dictionary's own build target, so `--target web` never builds the archive, and building
       # the archive never builds this. The third target, `learn`, has been removed.
       target: web
-    image: ozituma-web:latest
+    # ---------------------------------------------------------------------------
+    # THE TAG IS A VARIABLE, AND `latest` IS ONLY ITS DEFAULT.
+    #
+    # `docs/DEPLOYMENT.md` already states the rule: build with BOTH tags, the commit
+    # SHA *and* `latest`, "so a rollback is a task-definition change rather than a
+    # rebuild". Your build script must therefore produce `ozituma-web:<sha>` — see the
+    # Dockerfile invocation below — and this file must be able to NAME that tag.
+    #
+    # Before this, the tag was hard-coded to `latest` in two services, which meant the
+    # SHA-tagged image the deploy docs told you to build could never be run without
+    # editing this file. A rollback then had no address to point at, and the only
+    # recovery from a bad deploy was to rebuild from the previous commit — which is
+    # slow on the worst day and impossible if the fix is a revert you have not merged.
+    #
+    #     OZITUMA_IMAGE_TAG=$(git rev-parse --short HEAD) docker compose -f docker/docker-compose.prod.yml up -d web
+    #
+    # The default keeps every existing command working unchanged, so this is a door
+    # that opens rather than a door that closes.
+    # ---------------------------------------------------------------------------
+    image: "ozituma-web:${OZITUMA_IMAGE_TAG:-latest}"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -144,7 +169,12 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
       target: ozikoro
-    image: ozikoro-site:latest
+    # The archive's own tag, a variable for the same reason the dictionary's is — see
+    # the note above the `web` service. This is the image the ozikoro.com cutover runs,
+    # so being able to name a previous one matters more here than anywhere else:
+    #
+    #     OZIKORO_IMAGE_TAG=$(git rev-parse --short HEAD) docker compose -f docker/docker-compose.prod.yml up -d ozikoro
+    image: "ozikoro-site:${OZIKORO_IMAGE_TAG:-latest}"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -312,11 +342,31 @@ services:
   # client's version skew, and it writes to a volume that is not the database's own — a backup on the
   # same disk as the thing it backs up is not a backup.
   #
+  # THAT LAST SENTENCE WAS ONLY HALF TRUE, AND THIS ROUND IS THE OTHER HALF.
+  #
+  # `backupdata` is a named volume and `/opt/ozituma/pgdata` is a bind mount, so they are distinct
+  # *volumes* — and both are directories on `/dev/nvme0n1p1`, the instance's single 40 GB root
+  # volume. Measured on the host, 2026-10-05: `lsblk` shows one disk, `nvme0n1`, 40 G, with
+  # `nvme0n1p1` mounted at `/`; `findmnt -T /opt/ozituma/pgdata` and `findmnt -T /var/lib/docker`
+  # both answer `/`. So a failure of that one disk takes the database and every dump in this volume
+  # together, which is the fault this file used to describe as solved. The fix is not another volume
+  # — it is that the dumps must leave the machine, which is the `backup-upload` service below.
+  #
   # `--format=custom` rather than a plain SQL dump: it compresses, and it restores selectively with
   # pg_restore, which is what makes a partial recovery possible rather than all-or-nothing.
   #
-  # Retention is 14 days by find -mtime, deliberately simple and legible. Nothing prunes by name, so
-  # a dump that fails to appear cannot be mistaken for one that was rotated away.
+  # WHAT THIS SERVICE NO LONGER DOES: PRUNE. It used to end every pass with
+  # `find /backups -name 'ozituma-*.dump' -mtime +14 -delete`, and as long as the only copy was the
+  # one in this volume that rule was harmless. It stops being harmless the moment a copy leaves the
+  # machine asynchronously, because a delete that runs ahead of a failed upload destroys the only
+  # copy there is. The dumper therefore now writes and verifies, and deletes nothing; every deletion
+  # is `backup-upload`'s, it happens only after the object is confirmed in R2, and its numbers are
+  # stated in that service's comment below.
+  #
+  # The `.verified` file beside each dump is this service's verdict, written after `pg_restore
+  # --list` has parsed the archive header and table of contents. It is a convenience for whoever is
+  # looking at the volume — `backup-upload` re-runs the same check for itself rather than trusting a
+  # marker, so a crashed or half-written pass cannot be mistaken for a good dump.
   # ---------------------------------------------------------------------------
   backup:
     image: postgres:16-alpine
@@ -337,20 +387,341 @@ services:
         while true; do
           stamp=$$(date -u +%Y-%m-%dT%H-%M-%SZ)
           out="/backups/ozituma-$$stamp.dump"
+          rm -f "$$out.verified"
           if pg_dump -h postgres -U ozituma -d ozituma --format=custom --file="$$out"; then
             # A dump is only a backup if it can be read back. pg_restore --list parses the archive
             # header and the table of contents; a truncated file fails here rather than at restore time.
             if pg_restore --list "$$out" > /dev/null 2>&1; then
               size=$$(wc -c < "$$out")
-              echo "backup: ok $$out ($$size bytes, restored-header verified)"
+              : > "$$out.verified"
+              echo "backup: ok $$out ($$size bytes, archive header verified) — marked .verified for backup-upload"
             else
-              echo "backup: FAILED verification for $$out — leaving it in place for inspection"
+              echo "backup: FAILED verification for $$out — left in place for inspection, NOT marked .verified"
             fi
           else
             echo "backup: pg_dump FAILED at $$stamp"
           fi
-          find /backups -name 'ozituma-*.dump' -mtime +14 -delete
+          # NO find -delete HERE. See the note above: the only safe place for a delete is after an
+          # upload has been confirmed, and that is backup-upload's job.
           sleep 86400
+        done
+
+  # ---------------------------------------------------------------------------
+  # The dumps leave the machine — and this service exists because they did not
+  #
+  # WHY A SECOND SERVICE RATHER THAN AN UPLOAD IN THE LOOP ABOVE. Three reasons, in the order they
+  # matter on the day:
+  #
+  #   1. The dumper's own job is unchanged. It is a pg_dump, a `pg_restore --list`, and a sleep. It
+  #      has no network, so a slow or refused upload cannot make the dump itself fail or slip, and a
+  #      broken uploader cannot stop the next dump being taken.
+  #   2. The uploader retries on its own clock. A dump that fails to upload at 03:00 is retried a
+  #      minute later, and the next morning, without waiting 24 hours for the dumper's next pass.
+  #   3. The image question is answered honestly. `postgres:16-alpine` has neither the AWS CLI nor
+  #      rclone, so uploading from inside it would mean installing a client into the database
+  #      client's image at every start. A different image with the tool already in it is smaller
+  #      than that, and leaves the postgres image's only job alone.
+  #
+  # THE IMAGE IS THE AWS CLI ITSELF, PINNED. It talks to Cloudflare R2 through the same
+  # S3-compatible API `@aws-sdk/client-s3` uses from the two applications, with the same endpoint,
+  # region, path-style setting and credentials, so there is one store and one credential rather
+  # than a second system with its own key material. Pinned to an exact version rather than `:latest`
+  # so a pull on the worst day cannot change behaviour underneath a running backup. The upstream
+  # autobuild images are `amazon/aws-cli` (Docker Hub) and `public.ecr.aws/aws-cli/aws-cli`; this
+  # file uses the Docker Hub one because the host pulls anonymously from it today. The version is
+  # asserted at start and logged, so a wrong or missing tag is a loud failure and not a silent one.
+  #
+  # ENVIRONMENT IS NAMED HERE, ONE NAME PER VARIABLE, AND THERE IS A SCRIPT FOR WHY.
+  #
+  # Compose passes a service only the variables it names, so a value added to `/opt/ozituma/.env`
+  # while the name is absent here reaches no container at all, and the symptom is a service that
+  # starts cleanly and uploads nothing — the LEARN_BRIDGE_SECRET fault `AGENTS.md` records, and the
+  # one `scripts/check-compose-env.mjs` was written to catch. That script reads TypeScript, so this
+  # round also taught it to read this service's own entrypoint (see the `uploader` entry in
+  # SERVICE_SOURCES); every variable the shell below expands is now checked by NAME against the
+  # block below, and the check fails rather than publishing a name nothing provides.
+  #
+  # The credential is the applications' existing one: `S3_ACCESS_KEY_ID` (32 chars on the host,
+  # measured) and `S3_SECRET_ACCESS_KEY` (64 chars, measured), read from `/opt/ozituma/.env`, which
+  # is mode 600 root:root and written at boot from Secrets Manager. It needs `s3:PutObject`,
+  # `s3:GetObject`, `s3:HeadObject`, `s3:ListBucket` and — for remote retention only —
+  # `s3:DeleteObject`. It is the same credential that already writes and rewrites every media
+  # object in this bucket, so no new permission is introduced by the upload; the delete is the one
+  # operation this service adds, and it is scoped in code to the single prefix below.
+  #
+  # THE PREFIX IS SEPARATE AND THIS IS THE SAFETY PROPERTY: `backups/ozituma/` and nothing else.
+  # The bucket holds the archive's media under `ozikoro/` (3,443 objects) and the dictionary's
+  # 72,015 recordings under `audio/`; a listing on 2026-10-05 showed exactly those two top-level
+  # prefixes, `backups/` returned KeyCount 0, and no object exists under any prefix beginning
+  # `backups/`. Every key this service writes or deletes begins `backups/ozituma/`, the value is
+  # refused at start-up if it does not begin `backups/`, and remote retention re-checks the prefix
+  # before deleting. A mis-prefixed backup that overwrote a media object would be the worst
+  # outcome of this whole task, so the check is in the code and not only in the comment.
+  #
+  # NO `latest`, EVER. Every dump keeps the timestamped name it was given by the dumper, so a key is
+  # written once and never rewritten: a corrupt upload cannot replace a good object, and two dumps
+  # can be compared because both still exist. There is no `backups/ozituma/latest.dump` and there
+  # must never be one.
+  #
+  # THE UPLOAD IS VERIFIED THREE WAYS, AND A DUMP THAT FAILS IS NOT UPLOADED AS IF IT WERE GOOD.
+  #
+  #   a. `pg_restore --list` is run again, here, on the file about to be sent. It is this service's
+  #      own verdict, not the dumper's marker, so a dump that is truncated, half-written, or written
+  #      by a crashed pass is caught by the reader rather than by a stale name.
+  #   b. `aws s3api head-object` reads the stored object's ContentLength back and it must equal the
+  #      local byte count.
+  #   c. The object is downloaded back out of R2 and `pg_restore --list` is run on what came back.
+  #      This is the check that matters: it is R2's bytes, not the local file, that are parsed, so
+  #      the dump is known to have survived the network and to be listable from the store it will be
+  #      restored from. It costs nothing in egress because R2 charges none, and it is paid once a
+  #      day.
+  #
+  # A dump that fails (a) is never uploaded, at all. It stays on the volume and `.rejected` appears
+  # beside it after five attempts, which is a name no other rule here matches, so a bad dump cannot
+  # hide, cannot be deleted by the retention rules, and cannot hold up the good ones behind it.
+  # A dump that passes (a) and fails (b) or (c) has its object left in place — deleting it would be
+  # destroying evidence — and is retried under the same name.
+  #
+  # RETENTION, IN NUMBERS, ON BOTH SIDES. Nothing deletes a local dump unless its object exists in
+  # R2 and its name is in the remote listing; that is the invariant, and it is why the dumper's own
+  # prune was removed rather than duplicated.
+  #
+  #   local   `BACKUP_LOCAL_RETENTION_DAYS`, default **14** — the number this file already used, kept
+  #           deliberately rather than invented. A dump is deleted from `/backups` only when it is
+  #           more than 14 days old AND its object is confirmed present in R2. A dump that has not
+  #           uploaded is never deleted, however old it is.
+  #   remote  `BACKUP_REMOTE_RETENTION_DAYS`, default **45**. Objects under the prefix whose
+  #           timestamp is older than 45 days are deleted from R2. 45 is chosen against the local
+  #           number so there is always a window — about a month — in which the same dump exists in
+  #           both places, and so a machine that dies is not discovered a week after its last remote
+  #           copy aged out.
+  #
+  #   If the upload fails, nothing is pruned on either side: the local file and its `.rejected`
+  #   marker stay, the object was never written, and the failure is a line in this container's log.
+  #   The recovery is to look at the log, and to keep the disk from filling if it goes on for weeks —
+  #   five days of dumps is tens of megabytes for a database of this size, so the volume is not at
+  #   risk for a long time, and `.rejected` names are left for a person rather than swept.
+  #
+  # HOW A PERSON RESTORES FROM THIS, in one line. `pg_restore` needs a running Postgres to restore
+  # into, and this compose file is that Postgres; run these on the host, in `/opt/ozituma/app`:
+  #
+  #   # 1. list what is in R2, then fetch one dump by its own timestamped name
+  #   docker compose -f docker/docker-compose.prod.yml run --rm backup-upload sh -c '
+  #     aws s3api list-objects-v2 --endpoint-url "$S3_ENDPOINT" \
+  #       --bucket "$S3_BUCKET" --prefix "$BACKUP_UPLOAD_PREFIX" \
+  #       --query "Contents[].Key" --output text'
+  #   docker compose -f docker/docker-compose.prod.yml run --rm backup-upload sh -c '
+  #     aws s3api get-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
+  #       --key "$BACKUP_UPLOAD_PREFIX/ozituma-2026-10-05T03-00-00Z.dump" /dev/stdout' > /tmp/restore.dump
+  #
+  #   # 2. put it back. `--clean --if-exists` drops and recreates the objects it holds, so this is
+  #   #    a restore over the live database, not a merge into it. The database is empty of that
+  #   #    schema's objects when it counts, and `pg_restore -l` on the file lists what it contains.
+  #   docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+  #     pg_restore --clean --if-exists --no-owner -U ozituma -d ozituma < /tmp/restore.dump
+  #
+  # `--no-owner` because the restore may run as a different role than the dump was taken by;
+  # `--if-exists` so a database that has never had the object does not make the whole restore fail
+  # on the first DROP. Both were read from PostgreSQL's own documentation for `pg_restore` and are
+  # the flags for restoring a dump taken by `pg_dump -U ozituma` into the same schema.
+  #
+  # WHAT IS UNPROVEN IS STATED IN `docs/OZIKORO-REMAINING.md` ROUND 352: no upload has been run,
+  # because the S3 credential is on the host and not in the development checkout, and the bucket is
+  # reached from there. The wiring, the arguments and the shell are verified; the round trip is not.
+  # ---------------------------------------------------------------------------
+  backup-upload:
+    # Pinned. `:latest` would change under a running backup on a pull it did not ask for.
+    image: amazon/aws-cli:2.37.9
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_REGION: ${S3_REGION:-auto}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # The prefix, with a default so a host that has not been taught the name still writes to the
+      # right place rather than to the bucket root. It is refused at start-up if it does not begin
+      # `backups/`, which is the guard that keeps a typo from reaching a media prefix.
+      BACKUP_UPLOAD_PREFIX: ${BACKUP_UPLOAD_PREFIX:-backups/ozituma}
+      # The two retention numbers. Defaults are in the comment above; both are integers of days.
+      BACKUP_LOCAL_RETENTION_DAYS: ${BACKUP_LOCAL_RETENTION_DAYS:-14}
+      BACKUP_REMOTE_RETENTION_DAYS: ${BACKUP_REMOTE_RETENTION_DAYS:-45}
+      # Seconds between passes. Left as a variable because the first day of a new deployment wants
+      # it small, and the steady state wants it large.
+      BACKUP_UPLOAD_INTERVAL_SECONDS: ${BACKUP_UPLOAD_INTERVAL_SECONDS:-60}
+    volumes:
+      # The dumper's volume, read-write: this service is the only thing that ever deletes from it.
+      - backupdata:/backups
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+    entrypoint:
+      - sh
+      - -c
+      - |
+        set -eu
+
+        PREFIX="$${BACKUP_UPLOAD_PREFIX:-backups/ozituma}"
+        LOCAL_DAYS="$${BACKUP_LOCAL_RETENTION_DAYS:-14}"
+        REMOTE_DAYS="$${BACKUP_REMOTE_RETENTION_DAYS:-45}"
+        INTERVAL="$${BACKUP_UPLOAD_INTERVAL_SECONDS:-60}"
+        MIN_AGE_MINUTES=30
+        MAX_ATTEMPTS=5
+
+        case "$$PREFIX" in
+          backups/*) : ;;
+          *) echo "upload: REFUSING TO START — BACKUP_UPLOAD_PREFIX is '$$PREFIX', which does not begin 'backups/'. This service writes and deletes in the bucket that holds ozikoro/ and audio/; a prefix that could name either of those is a fault, not a configuration."; exit 78 ;;
+        esac
+        case "$$LOCAL_DAYS" in ''|*[!0-9]*) echo "upload: REFUSING TO START — BACKUP_LOCAL_RETENTION_DAYS is '$$LOCAL_DAYS', not a number of days"; exit 78 ;; esac
+        case "$$REMOTE_DAYS" in ''|*[!0-9]*) echo "upload: REFUSING TO START — BACKUP_REMOTE_RETENTION_DAYS is '$$REMOTE_DAYS', not a number of days"; exit 78 ;; esac
+        for v in S3_ENDPOINT S3_BUCKET S3_REGION S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY; do
+          eval "value=\$$$$v"
+          if [ -z "$$value" ]; then
+            echo "upload: REFUSING TO START — $$v is empty. Compose names it, so the name is plumbed; the VALUE is missing from /opt/ozituma/.env on the host. Nothing would upload and nothing would say so."
+            exit 78
+          fi
+        done
+
+        export AWS_ACCESS_KEY_ID="$$S3_ACCESS_KEY_ID"
+        export AWS_SECRET_ACCESS_KEY="$$S3_SECRET_ACCESS_KEY"
+        export AWS_DEFAULT_REGION="$$S3_REGION"
+        export AWS_EC2_METADATA_DISABLED=true
+        export AWS_PAGER=
+        export AWS_CLI_AUTO_PROMPT=off
+
+        # PATH-STYLE ADDRESSING, AND THE TWO THINGS THAT DO NOT DO IT.
+        #
+        # The first draft of this block exported `AWS_S3_ADDRESSING_STYLE=path`. That name is not in
+        # the CLI's list of supported environment variables — it was invented — and it would have
+        # been accepted into the container, ignored, and produced virtual-host-style requests to R2
+        # with a bucket name that is not a DNS label on this endpoint. The second draft kept
+        # `--endpoint-url` but set `AWS_ENDPOINT_URL_S3`, which is real and documented, while still
+        # relying on the invented name for the addressing style.
+        #
+        # What is left is documented behaviour only, and it is the same setting
+        # `packages/ozikoro/src/media-store.ts` makes through the SDK's `forcePathStyle`:
+        # `s3.addressing_style` in the CLI's config file. The file is written here rather than
+        # mounted so the container stays self-describing, and each call below also passes
+        # `--endpoint-url` explicitly, because the option is documented for every command while the
+        # environment variable's precedence is a thing to be read twice.
+        case "$${S3_FORCE_PATH_STYLE:-true}" in
+          true|TRUE|True|1|yes) addressing=path ;;
+          *) addressing=virtual ;;
+        esac
+        export AWS_CONFIG_FILE=/tmp/.aws/config
+        mkdir -p /tmp/.aws
+        printf '[default]\nregion = %s\ns3 =\n    addressing_style = %s\n' "$$S3_REGION" "$$addressing" > "$$AWS_CONFIG_FILE"
+        ENDPOINT_ARGS="--endpoint-url $$S3_ENDPOINT"
+        echo "upload: path-style addressing requested=$${S3_FORCE_PATH_STYLE:-true} -> s3.addressing_style=$$addressing; endpoint set from S3_ENDPOINT"
+
+        # The one thing this service cannot check for itself is the image, so it says which one it
+        # got at the first line of every start. A tag that did not resolve, or an image whose CLI is
+        # too old for AWS_ENDPOINT_URL_S3, is then a line in the log rather than a mystery later.
+        aws --version
+
+        echo "upload: starting; prefix=$$PREFIX local_days=$$LOCAL_DAYS remote_days=$$REMOTE_DAYS interval=$${INTERVAL}s"
+        echo "upload: a dump is uploaded only after pg_restore --list accepts it here, and is only pruned locally after it is read back out of R2."
+
+        while true; do
+          for dump in $${BACKUP_DIR:-/backups}/ozituma-*.dump; do
+            [ -f "$$dump" ] || continue
+            base="$${dump%.dump}"
+            [ -f "$$base.rejected" ] && continue
+
+            # 1. It must be listable. This is the verdict carried forward from the dumper, re-taken
+            #    here so it is this service's own reading and not a marker it was handed.
+            if ! pg_restore --list "$$dump" > /dev/null 2>&1; then
+              attempts_file="$$base.attempts"
+              attempts=0
+              [ -f "$$attempts_file" ] && attempts=$$(cat "$$attempts_file" 2>/dev/null || echo 0)
+              attempts=$$((attempts + 1))
+              echo "$$attempts" > "$$attempts_file"
+              echo "upload: NOT UPLOADING $$dump — pg_restore --list refuses it (attempt $$attempts of $$MAX_ATTEMPTS). It is left in place; a dump that cannot be listed must never be uploaded as if it were good."
+              if [ "$$attempts" -ge "$$MAX_ATTEMPTS" ]; then
+                : > "$$base.rejected"
+                echo "upload: $$dump is marked .rejected after $$MAX_ATTEMPTS attempts. It will not be uploaded and will not be pruned. A person must look at it."
+              fi
+              continue
+            fi
+
+            # 2. It must not be mid-write. Wait for a quiet file rather than reading a byte count
+            #    that is still growing. The dumper's pass is seconds long and this threshold is
+            #    thirty minutes, so the two can never disagree about a file that is finished.
+            if [ -n "$$(find "$$dump" -mmin -$$MIN_AGE_MINUTES 2>/dev/null)" ]; then
+              continue
+            fi
+
+            key="$$PREFIX/$$(basename "$$dump")"
+            if aws $$ENDPOINT_ARGS s3api put-object --bucket "$$S3_BUCKET" --key "$$key" --body "$$dump" --acl private --only-show-errors; then
+              # Both numbers are stripped of whitespace before they are compared. `wc -c` pads its
+              # output on some platforms, and a comparison of "      18" against "18" fails while
+              # being equal — which would have refused every upload as a size mismatch and pruned
+              # nothing, forever, while looking like R2 was at fault. Found in the local dry run.
+              local_size=$$(wc -c < "$$dump" | tr -d '[:space:]')
+              remote_size=$$(aws $$ENDPOINT_ARGS s3api head-object --bucket "$$S3_BUCKET" --key "$$key" --query 'ContentLength' --output text 2>/dev/null | tr -d '[:space:]')
+              if [ -z "$$remote_size" ] || [ "$$remote_size" != "$$local_size" ]; then
+                echo "upload: SIZE MISMATCH for $$key — local $$local_size bytes, R2 reports '$$remote_size'. Object left in place, dump NOT pruned, will be retried."
+                continue
+              fi
+              # 3. Read it back out of R2 and parse what came back. It is the remote bytes that are
+              #    listable that makes this a backup; the local file being listable only means
+              #    pg_dump finished.
+              verify_tmp="/tmp/verify-$$(basename "$$dump")"
+              if aws $$ENDPOINT_ARGS s3api get-object --bucket "$$S3_BUCKET" --key "$$key" "$$verify_tmp" --only-show-errors > /dev/null 2>&1 \
+                 && pg_restore --list "$$verify_tmp" > /dev/null 2>&1; then
+                rm -f "$$verify_tmp"
+                echo "upload: ok $$key ($$remote_size bytes, read back from R2 and listed)"
+              else
+                rm -f "$$verify_tmp"
+                echo "upload: READ-BACK FAILED for $$key — the object is in R2 but would not list after download. Object left in place, dump NOT pruned, will be retried."
+                continue
+              fi
+            else
+              echo "upload: put-object FAILED for $$key — dump kept, will be retried"
+              continue
+            fi
+          done
+
+          # Remote retention: only under this prefix, only by the timestamp in the key, and only
+          # objects this service wrote. A key that does not carry the dump name shape is left alone,
+          # because nothing here can judge how old it is from a name it did not write.
+          cutoff=$$(date -u -d "$$REMOTE_DAYS days ago" +%Y-%m-%dT%H-%M-%SZ 2>/dev/null || echo "")
+          if [ -n "$$cutoff" ]; then
+            aws $$ENDPOINT_ARGS s3api list-objects-v2 --bucket "$$S3_BUCKET" --prefix "$$PREFIX/" --max-keys 1000 --query 'Contents[].[Key,LastModified]' --output text 2>/dev/null \
+              | while read -r k m; do
+                  case "$$k" in "$$PREFIX"/ozituma-*.dump.bad) continue ;; esac
+                  case "$$k" in
+                    "$$PREFIX"/ozituma-*.dump) : ;;
+                    *) continue ;;
+                  esac
+                  ts=$$(printf '%s' "$$k" | sed 's|.*/ozituma-||; s|\.dump$$||')
+                  if [ "$$ts" \< "$$cutoff" ]; then
+                    aws $$ENDPOINT_ARGS s3api delete-object --bucket "$$S3_BUCKET" --key "$$k" --only-show-errors \
+                      && echo "upload: remote retention — deleted $$k (older than $$REMOTE_DAYS days)"
+                  fi
+                done
+          else
+            echo "upload: remote retention skipped — this image's date cannot compute 'days ago'"
+          fi
+
+          # Local retention: the invariant, in one condition. A local dump is deleted only when it
+          # is older than LOCAL_DAYS AND its object is confirmed present in R2 under this prefix.
+          # Nothing else here deletes, and this is why the dumper's own prune was removed.
+          find "$${BACKUP_DIR:-/backups}" -name 'ozituma-*.dump' -mtime +"$$LOCAL_DAYS" 2>/dev/null | while IFS= read -r old; do
+            present=$$(aws $$ENDPOINT_ARGS s3api head-object --bucket "$$S3_BUCKET" --key "$$PREFIX/$$(basename "$$old")" --query 'ContentLength' --output text 2>/dev/null || echo "")
+            if [ -n "$$present" ] && [ "$$present" != "None" ]; then
+              rm -f "$$old" "$$old.verified" "$$old.attempts"
+              echo "upload: local retention — deleted $$old (its object is in R2 and it is older than $$LOCAL_DAYS days)"
+            else
+              echo "upload: local retention — KEEPING $$old; it is older than $$LOCAL_DAYS days but no object of that name is in R2, so removing it would destroy the only copy"
+            fi
+          done
+
+          sleep "$$INTERVAL"
         done
 
   # ---------------------------------------------------------------------------
@@ -433,4 +804,7 @@ services:
 volumes:
   caddydata:
   caddyconfig:
+  # One volume, two services: the dumper writes and never deletes, the uploader reads and is the only
+  # thing that ever deletes. That is the whole arrangement, and it is why this is still one volume
+  # rather than two — the second copy lives in Cloudflare R2, not in a second volume.
   backupdata:

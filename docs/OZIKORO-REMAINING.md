@@ -24112,3 +24112,283 @@ under either is in the commit.
 * **Chrome could only be driven with `--no-sandbox`** in this session; the sandboxed launch died with
   `sandbox initialization failed: Operation not permitted`. The scroll readings above are from the
   `--no-sandbox` run.
+
+---
+
+## ROUND 353 — THE BACKUP WAS ON THE SAME 40 GB DISK AS THE DATABASE, AND NOW EVERY VERIFIED DUMP LEAVES THE MACHINE FOR `backups/ozituma/` IN CLOUDFLARE R2
+
+### 1. THE GAP, RESTATED WITH THE MEASUREMENT
+
+The `backup` service in `docker/docker-compose.prod.yml` was sound in its reasoning and had one hole.
+Its own comment said *"it writes to a volume that is not the database's own — a backup on the same disk
+as the thing it backs up is not a backup."* The volume really is separate from the database's:
+
+```
+postgres  binds  /opt/ozituma/pgdata          -> /var/lib/postgresql/data
+backup    mounts named volume backupdata      -> /backups
+```
+
+**And both are directories on one disk.** Measured on the host over SSM, 2026-10-05:
+
+```
+$ lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
+NAME          SIZE TYPE MOUNTPOINT
+nvme0n1        40G disk
+├─nvme0n1p1    40G part /
+└─nvme0n1p128  10M part /boot/efi
+
+$ findmnt -T /opt/ozituma/pgdata
+TARGET SOURCE         FSTYPE
+/      /dev/nvme0n1p1 xfs
+
+$ findmnt -T /var/lib/docker
+TARGET SOURCE         FSTYPE
+/      /dev/nvme0n1p1 xfs
+```
+
+**One 40 GB disk, one filesystem, the database and every dump on it.** A failure of `nvme0n1` takes the
+`pgdata` bind mount and the `backupdata` named volume together, which is the fault the compose file had
+described as already solved.
+
+### 2. AND THE SERVICE HAS NEVER RUN, WHICH IS A SECOND FINDING
+
+The compose file in this repository is not the one running. The host is at
+`/opt/ozituma/app/docker/docker-compose.prod.yml` (7,864 bytes, mtime 2026-10-04 19:04 UTC), and it holds
+`postgres`, `web`, `caddy` and **`academy`** — an app that does not exist in this checkout, whose image
+`ozikoro-academy:latest` has been up 45 minutes. It holds **no `backup` service at all**:
+
+```
+$ grep -nE '^  (backup|uploader|ozikoro|academy|healthwatch):' /opt/ozituma/app/docker/docker-compose.prod.yml
+140:  academy:
+
+$ docker volume ls
+ozituma_caddyconfig  local
+ozituma_caddydata    local
+$ docker ps -a --format '{{.Names}}' | grep -i backup
+(no output)
+```
+
+**There is no `ozituma_backupdata` volume and there has never been a backup container.** So the answer to
+"how many dumps does the off-machine copy protect" is *none*: the dump loop this round fixes has not been
+running. Two consequences, stated plainly so they are not discovered later:
+
+* **The R2 uploader below protects dumps that begin existing when this compose file is deployed.** It cannot
+  upload history that was never written. If the owner wants a copy of the current database in R2 today, the
+  one-off in §7 is the way, and it has not been run.
+* **The deployed `academy` service and the deployed `ozikoro` absence are real and unfixable from here.**
+  `apps/ozikoro` is in this checkout and `ozikoro` is a service in this file; the host runs `academy`
+  instead. Reconciling the two is a separate task and nothing in this round touches it.
+
+### 3. WHAT WAS BUILT, AND WHY A SIDECAR
+
+**A second service, `backup-upload`, not an upload inside the dumper's loop.** Three reasons, in the order
+they matter on the day:
+
+1. **The dumper's job is unchanged.** It is a `pg_dump`, a `pg_restore --list` and a sleep, with no network
+   at all. A slow or refused upload cannot make a dump fail or slip, and a broken uploader cannot stop the
+   next dump being taken.
+2. **The uploader retries on its own clock.** A dump that fails at 03:00 is retried a minute later and next
+   morning, rather than waiting 24 hours for the dumper's next pass.
+3. **The image question is answered honestly.** `postgres:16-alpine` has neither the AWS CLI nor rclone, so
+   uploading from inside that image means installing a client into the database client's image at every
+   start. `amazon/aws-cli:2.37.9` has it already. The tag is **pinned and verified to exist**: Docker Hub
+   reports `2.37.9` pushed 2026-10-02, 277.8 MB, `amd64` and `arm64`.
+
+The sidecar talks to R2 through the same S3-compatible API the two applications use —
+`S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, path-style addressing, and **the same credential that already
+writes every media object**, so no new system and no new key material. It needs `PutObject`, `GetObject`,
+`HeadObject`, `ListBucket` and — for remote retention only — `DeleteObject`.
+
+**The dumper no longer prunes.** Its `find /backups -name 'ozituma-*.dump' -mtime +14 -delete` is gone.
+Every deletion is the uploader's, and it happens only after the object is confirmed in R2. That is the
+invariant the brief asked for, and it is why the rule was removed rather than duplicated: **a local prune
+that runs ahead of a failed upload destroys the only copy.**
+
+### 4. THE PREFIX — AND THE LISTING THAT PROVES IT IS NEW
+
+Write prefix: **`backups/ozituma/`**. Nothing else, ever.
+
+```
+$ aws s3api list-objects-v2 --bucket ozituma-media --delimiter / --max-keys 1000 \
+    --query 'CommonPrefixes[].Prefix'
+[
+    "audio/",
+    "ozikoro/"
+]
+
+$ aws s3api list-objects-v2 --bucket ozituma-media --prefix backups/ --query 'KeyCount'
+0
+
+$ aws s3api head-object --bucket ozituma-media --key backups/
+An error occurred (404) …
+```
+
+**The bucket's top level holds exactly two prefixes, and `backups/` holds zero objects.** The archive's
+media under `ozikoro/` and the dictionary's recordings under `audio/` are untouched by addition — nothing
+was written during this round at all — and the guard against touching them later is in code, not only in a
+comment:
+
+* `BACKUP_UPLOAD_PREFIX` is refused at start-up unless it begins `backups/` (`exit 78`);
+* uploads use `--key "$PREFIX/$(basename "$dump")"` with no other key construction anywhere;
+* remote retention re-checks `case "$k" in "$PREFIX"/ozituma-*.dump)` before it will delete anything, so a
+  key that is not a dump under this prefix — including every `ozikoro/` and `audio/` key — is skipped.
+
+**A mis-prefixed backup that overwrote a media object would be the worst outcome of this whole task**, so
+the property is enforced in three places and proven in the dry run of §6: the harness held
+`ozikoro/some-media.jpg` and `audio/ibo/corpus/x.mp3` throughout, and both survived every pass.
+
+### 5. RETENTION, AND WHAT HAPPENS WHEN AN UPLOAD FAILS
+
+Numbers, both sides:
+
+| | value | rule |
+|---|---|---|
+| local | **14 days** (`BACKUP_LOCAL_RETENTION_DAYS`, default 14) | a dump is deleted from `/backups` only when it is older than 14 days **and** its object is confirmed present in R2 under the prefix |
+| remote | **45 days** (`BACKUP_REMOTE_RETENTION_DAYS`, default 45) | objects under `backups/ozituma/` whose key timestamp is older than 45 days are deleted from R2 |
+| interval | **60 s** (`BACKUP_UPLOAD_INTERVAL_SECONDS`, default 60) | one pass per minute |
+| quiet window | **30 min**, fixed in the script | a dump must be unmodified for 30 minutes before it is read, so a half-written file is never uploaded |
+| attempts | **5**, fixed in the script | after five refusals a dump is renamed `.rejected` and skipped |
+
+14 is the number this file already used and is kept deliberately rather than invented. **45 is chosen
+against it so there is always a window — about a month — in which the same dump exists in both places**,
+so a machine that dies is not discovered a week after its last remote copy aged out.
+
+**Nothing is pruned on either side while an upload is failing.** The local file and its `.attempts` marker
+stay; no object was written; the failure is a line in the container's log. A dump that cannot pass
+`pg_restore --list` is **never uploaded — not under a `.bad` name, not at all.** It stays on the volume for
+inspection and gains a `.rejected` file after five attempts, which is a name no other rule matches, so it
+cannot hide, cannot be pruned, and cannot hold up the good dumps behind it.
+
+### 6. VERIFIED HERE, AND UNPROVEN HERE — STATED SEPARATELY
+
+**What was verified on this machine, with the evidence:**
+
+1. **The compose file is valid YAML and the services are as described.** Parsed with PyYAML 6.0.3:
+   services `postgres, web, ozikoro, backup, backup-upload, healthwatch, caddy`; volumes
+   `caddydata, caddyconfig, backupdata`; `backup-upload`'s `entrypoint` is
+   `['sh', '-c', <151-line scalar>]`.
+2. **`node scripts/check-compose-env.mjs` exits 0**, and after this round it checks the new service:
+   `backup-upload: every variable the code reads is named here`. The script gained a shell route
+   (`SERVICE_SHELL_ENTRYPOINTS`) so a `sh -c` entrypoint is read by name like a source tree, and it
+   immediately earned its place: **it reported `S3_FORCE_PATH_STYLE` as named but never read in the first
+   draft**, which was true and is now fixed.
+3. **Shell syntax.** All three entrypoints pass `sh -n` on exactly the scalar the YAML parser produces.
+4. **The whole loop was run against stubs** — no network, no credentials — with a `pg_restore` that refuses
+   any file whose name says `corrupt` and an `aws` that is a real key-value store on disk. It produced:
+   ```
+   upload: ok backups/ozituma/ozituma-2026-10-05T03-00-00Z.dump (5 bytes, read back from R2 and listed)
+   upload: NOT UPLOADING …/ozituma-2026-10-05T04-00-00Z-corrupt.dump — pg_restore --list refuses it (attempt 1 of 5). …
+   upload: local retention — KEEPING …/ozituma-2026-06-01T03-00-00Z.dump; it is older than 14 days but no object of that name is in R2, so removing it would destroy the only copy
+   upload: local retention — deleted …/ozituma-2026-09-15T03-00-00Z.dump (its object is in R2 and it is older than 14 days)
+   ```
+   The corrupt dump was never uploaded under any name; five passes produced `.rejected` and the sixth pass
+   skipped it entirely; a dump that was old and absent from R2 was **kept**, and one that was old and
+   present was deleted. The remote-retention cutoff was proven in isolation on the same stub: with the
+   cutoff at `2026-08-21T00-00-00Z` it deleted the three older dumps, kept the two newer ones, and skipped
+   `ozikoro/media.jpg` and `audio/rec.mp3` with `skip (not a dump key)`.
+5. **`npm run typecheck` from the repository root exits 0.**
+6. **The design parity is unchanged:** `identical 63 differing 0 missing 0`.
+
+**What is NOT proven, with the exact reason:**
+
+* **No dump has been sent to R2 and none has been fetched back.** The `S3_*` credential is on the EC2 host
+  (`/opt/ozituma/.env`, mode 600 root:root, `S3_ACCESS_KEY_ID` 32 chars, `S3_SECRET_ACCESS_KEY` 64 chars,
+  both measured over SSM) and is in no file in this checkout. So the four claims that need the network —
+  that `amazon/aws-cli:2.37.9` authenticates against this endpoint, that `--acl private` is accepted, that
+  `head-object`'s `ContentLength` matches on a real dump, and that a downloaded dump lists — are **wiring
+  claims, not measurements**. The commands are right by their documentation; the round trip has not
+  happened. It cannot be completed from this machine.
+* **The container's `date -u -d "45 days ago"` was not executed.** GNU date is in that image and not on this
+  host; the cutoff arithmetic was isolated and proven with a supplied cutoff, but the `date` call that
+  produces it is untested here. The script treats an empty result as "skip remote retention" and says so in
+  the log, so the failure mode is a skipped prune rather than a wrong deletion.
+* **The deployed compose file does not contain any of this** (§2). `docker compose -f
+  docker/docker-compose.prod.yml up -d` on the host would be reconciling a file the host is not running.
+
+### 7. HOW A PERSON RESTORES FROM IT
+
+One command per step, on the host, in `/opt/ozituma/app`; `pg_restore` needs a running Postgres to restore
+into and this compose file is that Postgres:
+
+```bash
+# 1. what is in R2
+docker compose -f docker/docker-compose.prod.yml run --rm backup-upload sh -c '
+  aws s3api list-objects-v2 --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
+    --prefix "$BACKUP_UPLOAD_PREFIX" --query "Contents[].Key" --output text'
+
+# 2. fetch one dump by its own timestamped name
+docker compose -f docker/docker-compose.prod.yml run --rm backup-upload sh -c '
+  aws s3api get-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
+    --key "$BACKUP_UPLOAD_PREFIX/ozituma-2026-10-05T03-00-00Z.dump" /dev/stdout' > /tmp/restore.dump
+
+# 3. put it back — --clean --if-exists drops and recreates the objects the dump holds
+docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+  pg_restore --clean --if-exists --no-owner -U ozituma -d ozituma < /tmp/restore.dump
+```
+
+**Not run.** No dump has ever reached R2, so step 2 has nothing to fetch. `--no-owner` is there because the
+restore may run as a different role than the dump was taken by; `--if-exists` so a database that never had
+an object does not fail the whole restore on the first `DROP`. Both were read from PostgreSQL's own
+`pg_restore` documentation.
+
+### 8. THE ENCRYPTION QUESTION, ANSWERED WITH THE MEASUREMENT — AND IT IS NOT A CLEAN NO
+
+The brief said: *if the bucket is private, say so with the evidence; if it is not, say that instead.*
+**The bucket is not public, and it is not private either. The bucket is private in front of one door and
+open behind another, and a dump uploaded to it would be readable by URL.**
+
+Measured on 2026-10-05, anonymously, with no credentials:
+
+```
+GET https://ea4b95012b9f4252ff61c9393a87287f.r2.cloudflarestorage.com/ozituma-media/ozikoro/10007-…-1.jpg
+  -> 400        (the door without credentials is shut)
+GET https://ea4b95012b9f4252ff61c9393a87287f.r2.cloudflarestorage.com/ozituma-media?list-type=2
+  -> 400        (and listing is shut with it)
+GET https://media.ozituma.com/ozikoro/10007-…-1.jpg
+  -> 200  content-type=image/jpeg    (the public front door answers that same object)
+```
+
+* `get-bucket-acl` returns a single grant, `FULL_CONTROL` to the owner, canonical user
+  `ea4b95012b9f4252ff61c9393a87287f`. There is no `AllUsers` grant. (`get-bucket-policy` and
+  `get-public-access-block` both answer `NotImplemented` — R2 does not implement them, so neither is
+  evidence either way.)
+* `MEDIA_PUBLIC_BASE_URL` is `https://media.ozituma.com`, and `docs/DEPLOYMENT.md` records the DNS as
+  `CNAME media.ozituma.com → public.r2.dev, proxied`. **That host serves objects from this bucket
+  anonymously.**
+
+**So the honest statement is: the object store's own endpoint is private, and everything in the bucket is
+readable through `media.ozituma.com` to anyone who knows the key.** The keys are long and not listed
+anywhere, so this is not an open directory — but `backups/ozituma/ozituma-<timestamp>.dump` is a
+*guessable* key, and **a dump contains every account row and every session in it.** That is worth naming
+loudly, exactly as the brief asked. Three ways out, none of them taken here:
+
+1. **Point `backups/` at a second, private bucket** with no custom domain — the clean answer, and it needs
+   a second bucket and a second credential.
+2. **Use a separate R2 bucket-scoped token limited to `backups/ozituma/`**, which does not stop the public
+   domain reading it, because the domain is a property of the bucket.
+3. **Encrypt the dump before upload** — `pg_dump | age -r … > out`, or `gpg --symmetric` — and keep the key
+   where the operator keeps the Postgres password. This is the one that would make the public front door
+   harmless, and **it is the recommended follow-up.** It needs a key in `/opt/ozituma/.env` and a decision
+   about where its offline copy lives, which is a decision for the owner and not for a compose file.
+
+**What was done about it in this round is only the smallest correct thing:** `put-object` passes
+`--acl private`, so the object carries a private ACL rather than inheriting whatever default the bucket
+has. **That is not a fix, and it is not claimed as one** — under a custom domain, R2 serves objects through
+the domain's own access path, so an object ACL is not a promise about `media.ozituma.com`. The bucket
+boundary is the real control, and changing it is item 1 above.
+
+### 9. WHAT DOES NOT WORK
+
+* **The upload itself.** Unproven from here for want of credentials; see §6. The first real evidence will be
+  one line in `docker compose logs backup-upload`: `upload: ok backups/ozituma/ozituma-… .dump (… bytes,
+  read back from R2 and listed)`.
+* **The deployed host does not run this file.** It runs four services — `postgres`, `web`, `caddy`,
+  `academy` — with no backup service and no `backupdata` volume (§2). Deploying this compose file to that
+  host is a reconciliation, not a restart, and it has not been done.
+* **`docs/DEPLOYMENT.md` has not been updated** with the two new service names, the five names a host must
+  add to `/opt/ozituma/.env` (`BACKUP_UPLOAD_PREFIX`, `BACKUP_LOCAL_RETENTION_DAYS`,
+  `BACKUP_REMOTE_RETENTION_DAYS`, `BACKUP_UPLOAD_INTERVAL_SECONDS`, and nothing else — the rest already
+  exist), or the restore procedure. The procedure is in the compose file's own comment and in §7 here.
+* **`amazon/aws-cli` is a 278 MB image**, against `postgres:16-alpine`'s 90 MB or so, added purely to run
+  `aws`. An rclone or a minimal-aws-cli image would be smaller; the AWS CLI was chosen because it is
+  first-party, pinned, and uses the same variable names as the applications.
