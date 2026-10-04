@@ -12,7 +12,7 @@
  * text of an unreviewed render — which is the review gate's whole purpose.
  */
 import { getDb } from '@ozituma/db/client';
-import { playableEpisodeSql } from '@ozikoro/platform';
+import { episodeTranscriptHeader, playableEpisodeSql } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,14 +56,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
    * is one this archive did not make and cannot check: the text below is the article's, but whether the
    * recording says it has no answer here at all. So a third branch says exactly that rather than borrowing the
    * synthetic one's confidence.
+   *
+   * AND THE SENTENCES MOVED, BECAUSE A SECOND ADDRESS NOW SERVES THIS TEXT. `/podcast/<slug>/transcript/` is
+   * the page a reader reads and it carries this same header under the title; the branches live in
+   * `episodeTranscriptHeader` in `@ozikoro/platform`, which both addresses call, so the file and the page
+   * cannot end up describing the same text two different ways. The words themselves are unchanged.
    */
-  const header = row.external_url
-    ? 'The article’s own words. The audio linked from the article is held elsewhere and was not made by this ' +
-      'archive; this text has not been checked against it.'
-    : row.narrator_kind === 'human'
-      ? 'The article’s own words, prepared for reading. The audio beside this text is the author’s own ' +
-        'recording; this text is the article’s spoken form and has not been checked word for word against it.'
-      : 'Transcript of the spoken record. The words are the article’s own.';
+  const header = episodeTranscriptHeader(row);
 
   // A plain-text header, so a reader arriving from the feed knows what they are holding.
   const body = [`${row.title}`, '', header, '', row.transcript, ''].join('\n');

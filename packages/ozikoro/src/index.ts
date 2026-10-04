@@ -47,6 +47,7 @@ export * from './members.ts';
 export * from './roles.ts';
 export * from './users.ts';
 export * from './editorial.ts';
+export * from './trash.ts';
 export * from './entity-graph.ts';
 export * from './audit.ts';
 export * from './publications.ts';
@@ -84,6 +85,15 @@ export * from './design-override-store.ts';
 export * from './seo-head.ts';
 export * from './spoken.ts';
 export * from './narration.ts';
+/*
+ * THE TRANSCRIPT'S OWN PAGE, FILLED FROM THE DESIGN'S ARTICLE READING FRAME.
+ *
+ * It is its own module rather than another fill in `design-fill.ts` because it is the one reader-facing page
+ * built on a screen the design drew for something else, and the reasoning for that — which screen draws a
+ * transcript, and which does not — belongs beside the code rather than in a file of fifty fills. See
+ * `transcript-page.ts`.
+ */
+export * from './transcript-page.ts';
 /*
  * WHERE THE AUDIO LIVES WHEN IT IS NOT HELD HERE.
  *

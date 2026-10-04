@@ -118,6 +118,44 @@ export function playableEpisodeAudioSql(alias = ''): string {
   return `${playableEpisodeSql(alias)} and coalesce(${p}external_url, ${p}storage_key) is not null`;
 }
 
+/**
+ * WHAT KIND OF TEXT A TRANSCRIPT IS, IN ONE SENTENCE — AND WHY IT IS A FUNCTION RATHER THAN A SENTENCE.
+ *
+ * A transcript is a timed, speaker-attributed record of something that was said. **The text an episode's
+ * `transcript` column holds is not always that**, and the rule is that the header says which kind of text the
+ * reader is holding rather than borrowing the most confident sentence for all three cases:
+ *
+ *   * a SYNTHETIC episode speaks the article, prepared by `toSpokenScript` and rendered from exactly this
+ *     text, so "transcript of the spoken record" is true here and the second half is what makes the first
+ *     checkable;
+ *   * the owner's own HUMAN recording was never transcribed — the text was re-derived from the article body
+ *     by `scripts/restore-episodes.ts` and there is no transcriber in this repository — so calling it a
+ *     transcript of the recording would be a false statement about the record;
+ *   * an EXTERNAL recording (held on Spotify) is one this archive did not make and cannot check, so neither
+ *     sentence is available, and the third branch says exactly that instead of borrowing the synthetic one's
+ *     confidence.
+ *
+ * **IT LIVES HERE BECAUSE TWO ADDRESSES SERVE THE SAME TEXT.** `/podcast/<slug>/transcript.txt` writes this
+ * sentence into the plain-text header and `/podcast/<slug>/transcript/` writes it under the title, and a
+ * sentence copied between them is the drift this repository has recorded four times (the media resolver, the
+ * design script paths, the two share controls). **Two addresses that cannot both be right about what the
+ * reader is holding is exactly the fault this page was built to remove**, so they ask one function.
+ */
+export function episodeTranscriptHeader(row: {
+  external_url: string | null;
+  narrator_kind: string | null;
+}): string {
+  if (row.external_url) {
+    return 'The article’s own words. The audio linked from the article is held elsewhere and was not made by ' +
+      'this archive; this text has not been checked against it.';
+  }
+  if (row.narrator_kind === 'human') {
+    return 'The article’s own words, prepared for reading. The audio beside this text is the author’s own ' +
+      'recording; this text is the article’s spoken form and has not been checked word for word against it.';
+  }
+  return 'Transcript of the spoken record. The words are the article’s own.';
+}
+
 
 /**
  * THE RATE THE ESTIMATE USES.
