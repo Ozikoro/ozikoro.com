@@ -983,3 +983,190 @@ export async function getArticleHistory(
     createdAt: new Date(String(r.created_at)).toISOString(),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// The revision history of a record — what it said before it said this
+// ---------------------------------------------------------------------------
+
+/**
+ * ONE REVISION, AS A LIST NEEDS IT — the body is NOT included.
+ *
+ * The versions are whole-document snapshots imported from WordPress and 4,266 of them hold 36.6 MiB,
+ * so a list that selected `body_html` would pull that much text to render forty rows of metadata.
+ * `getArticleRevision` reads one body at a time, which is the operation a reader actually performs.
+ */
+export interface ArticleRevisionSummary {
+  id: number;
+  wpRevisionId: number | null;
+  wpParentPostId: number | null;
+  title: string | null;
+  revisedAt: string | null;
+  wordCount: number;
+  author: string | null;
+  /** True when this revision is the one carrying text that survives in no other record. */
+  carriesUniqueText: boolean;
+  /** The stored size of the body, so a list can show how much text a revision holds without loading it. */
+  bodyBytes: number;
+  /** What the revision opens with, for a list that has to be readable at a glance. */
+  opening: string | null;
+}
+
+/** The history of a record, newest first — the order an editor reads it in. */
+export async function listArticleRevisions(
+  db: Db,
+  articleId: number,
+  options: { limit?: number; offset?: number; uniqueOnly?: boolean } = {}
+): Promise<ArticleRevisionSummary[]> {
+  const limit = Math.min(Math.max(options.limit ?? 25, 1), 200);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const conditions = ['r.article_id = $1'];
+  const params: unknown[] = [articleId];
+  if (options.uniqueOnly) conditions.push('r.carries_unique_text');
+  params.push(limit, offset);
+
+  const rows = await db.rows<Record<string, unknown>>(
+    `select r.id, r.wp_revision_id, r.wp_parent_post_id, r.title, r.revised_at, r.word_count,
+            r.carries_unique_text, c.display_name as author,
+            coalesce(octet_length(r.body_html), 0)::int as body_bytes,
+            left(regexp_replace(coalesce(r.body_html, ''), '<[^>]*>', ' ', 'g'), 180) as opening
+       from ozikoro_article_revision r
+       left join ozikoro_contributor c on c.id = r.author_id
+      where ${conditions.join(' and ')}
+      order by r.revised_at desc nulls last, r.id desc
+      limit $${params.length - 1} offset $${params.length}`,
+    params
+  );
+  return rows.map(rowToRevisionSummary);
+}
+
+function rowToRevisionSummary(r: Record<string, unknown>): ArticleRevisionSummary {
+  return {
+    id: Number(r.id),
+    wpRevisionId: r.wp_revision_id === null || r.wp_revision_id === undefined ? null : Number(r.wp_revision_id),
+    wpParentPostId: r.wp_parent_post_id === null || r.wp_parent_post_id === undefined ? null : Number(r.wp_parent_post_id),
+    title: r.title ? String(r.title) : null,
+    revisedAt: r.revised_at ? new Date(String(r.revised_at)).toISOString() : null,
+    wordCount: Number(r.word_count ?? 0),
+    author: r.author ? String(r.author) : null,
+    carriesUniqueText: Boolean(r.carries_unique_text),
+    bodyBytes: Number(r.body_bytes ?? 0),
+    opening: r.opening ? String(r.opening).replace(/\s+/g, ' ').trim() : null,
+  };
+}
+
+/** How many revisions a record holds, and how many of them carry text held nowhere else. */
+export async function countArticleRevisions(
+  db: Db,
+  articleId: number
+): Promise<{ total: number; carryingUniqueText: number; bodyBytes: number }> {
+  const row = await db.one<{ total: number; carriers: number; bytes: string }>(
+    `select count(*)::int as total,
+            count(*) filter (where carries_unique_text)::int as carriers,
+            coalesce(sum(octet_length(body_html)), 0)::bigint as bytes
+       from ozikoro_article_revision where article_id = $1`,
+    [articleId]
+  );
+  return {
+    total: Number(row?.total ?? 0),
+    carryingUniqueText: Number(row?.carriers ?? 0),
+    bodyBytes: Number(row?.bytes ?? 0),
+  };
+}
+
+/** One revision, with its body. `articleId` is checked so a record cannot be shown another's history. */
+export async function getArticleRevision(
+  db: Db,
+  revisionId: number,
+  articleId?: number
+): Promise<(ArticleRevisionSummary & { bodyHtml: string | null }) | null> {
+  const row = await db.one<Record<string, unknown>>(
+    `select r.id, r.wp_revision_id, r.wp_parent_post_id, r.title, r.revised_at, r.word_count,
+            r.carries_unique_text, r.body_html, c.display_name as author,
+            coalesce(octet_length(r.body_html), 0)::int as body_bytes,
+            left(regexp_replace(coalesce(r.body_html, ''), '<[^>]*>', ' ', 'g'), 180) as opening
+       from ozikoro_article_revision r
+       left join ozikoro_contributor c on c.id = r.author_id
+      where r.id = $1 and ($2::bigint is null or r.article_id = $2::bigint)`,
+    [revisionId, articleId ?? null]
+  );
+  if (!row) return null;
+  return { ...rowToRevisionSummary(row), bodyHtml: row.body_html === null ? null : String(row.body_html) };
+}
+
+/**
+ * The revisions whose parent post this archive does not hold, grouped by that parent.
+ *
+ * There is no article to open them from, so **without this list the 74 revisions would be a table
+ * nobody could reach** — which is the fault the brief names: a backfill that satisfies a count and
+ * nothing else. They belong to WordPress posts this archive deliberately did not import.
+ */
+export interface OrphanRevisionGroup {
+  wpParentPostId: number;
+  revisions: number;
+  bodyBytes: number;
+  carryingUniqueText: number;
+  titles: string[];
+}
+
+export async function listOrphanRevisionGroups(db: Db): Promise<OrphanRevisionGroup[]> {
+  const rows = await db.rows<Record<string, unknown>>(
+    `select wp_parent_post_id,
+            count(*)::int as revisions,
+            coalesce(sum(octet_length(body_html)), 0)::bigint as body_bytes,
+            count(*) filter (where carries_unique_text)::int as carriers,
+            (array_agg(distinct nullif(title, '')))[1:3] as titles
+       from ozikoro_article_revision
+      where article_id is null
+      group by wp_parent_post_id
+      order by wp_parent_post_id`
+  );
+  return rows.map((r) => ({
+    wpParentPostId: Number(r.wp_parent_post_id),
+    revisions: Number(r.revisions),
+    bodyBytes: Number(r.body_bytes),
+    carryingUniqueText: Number(r.carriers),
+    titles: Array.isArray(r.titles) ? (r.titles as unknown[]).map(String) : [],
+  }));
+}
+
+/** The orphan revisions of one WordPress parent, newest first. */
+export async function listOrphanRevisions(
+  db: Db,
+  wpParentPostId: number,
+  limit = 200
+): Promise<ArticleRevisionSummary[]> {
+  const rows = await db.rows<Record<string, unknown>>(
+    `select r.id, r.wp_revision_id, r.wp_parent_post_id, r.title, r.revised_at, r.word_count,
+            r.carries_unique_text, c.display_name as author,
+            coalesce(octet_length(r.body_html), 0)::int as body_bytes,
+            left(regexp_replace(coalesce(r.body_html, ''), '<[^>]*>', ' ', 'g'), 180) as opening
+       from ozikoro_article_revision r
+       left join ozikoro_contributor c on c.id = r.author_id
+      where r.article_id is null and r.wp_parent_post_id = $1
+      order by r.revised_at desc nulls last, r.id desc
+      limit $2`,
+    [wpParentPostId, Math.min(Math.max(limit, 1), 500)]
+  );
+  return rows.map(rowToRevisionSummary);
+}
+
+/** The whole import, as one figure, for the admin's own index. */
+export async function revisionArchiveTotals(
+  db: Db
+): Promise<{ revisions: number; records: number; carriers: number; bodyBytes: number; orphans: number }> {
+  const row = await db.one<Record<string, unknown>>(
+    `select count(*)::int as revisions,
+            count(distinct article_id)::int as records,
+            count(*) filter (where carries_unique_text)::int as carriers,
+            coalesce(sum(octet_length(body_html)), 0)::bigint as bytes,
+            count(*) filter (where article_id is null)::int as orphans
+       from ozikoro_article_revision`
+  );
+  return {
+    revisions: Number(row?.revisions ?? 0),
+    records: Number(row?.records ?? 0),
+    carriers: Number(row?.carriers ?? 0),
+    bodyBytes: Number(row?.bytes ?? 0),
+    orphans: Number(row?.orphans ?? 0),
+  };
+}

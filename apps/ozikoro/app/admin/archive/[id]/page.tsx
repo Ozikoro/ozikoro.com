@@ -297,6 +297,26 @@ export default async function EditRecord({
           overwritten silently.
         </p>
       </Card>
+
+      {/*
+        THE EARLIER WORDING OF THIS RECORD, WHICH IS A DIFFERENT THING FROM WHO CHANGED IT.
+        The card above is `ozikoro_audit` — this archive's own record of its own edits. This link leads
+        to the WordPress versions of the same article, imported in round 341 because the archive had no
+        table for them and the superseded editorial text of the histories was being lost. They are two
+        cards because they answer two questions: "who changed this?" and "what did it say before?"
+      */}
+      <Card title="What this record said before">
+        <p className="help">
+          WordPress kept every version of this article as its editors worked, and those versions are now
+          held in the archive. The revisions carrying text that appears in no other record are marked in
+          the list.
+        </p>
+        <p>
+          <Link className="btn btn--sm" href={`/admin/archive/${articleId}/revisions`}>
+            Read the revision history
+          </Link>
+        </p>
+      </Card>
     </>
   );
 }

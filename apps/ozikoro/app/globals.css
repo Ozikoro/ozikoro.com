@@ -539,6 +539,44 @@ code {
   overflow-wrap: anywhere;
 }
 
+/*
+ * AN ARCHIVED REVISION'S BODY, READ IN THE ADMIN.
+ *
+ * The text is WordPress HTML from 2019-2026 kept verbatim, so it carries its own `<p>`, `<h3>`,
+ * `<ul>`, `<img>` and inline `style` attributes. It arrives through `sanitiseArchiveHtml`, which
+ * strips scripts and event handlers but deliberately keeps the structure, and this is a reading
+ * column — a record of what a page said is not improved by restyling it, and a table or a caption
+ * that was part of the record has to stay legible.
+ *
+ * Only two things are constrained: nothing may be wider than the column (a 2048px screenshot in a
+ * revision must not make the admin scroll sideways), and the measure is bounded so the text can be
+ * read. Nothing here changes what the text says.
+ */
+.revision-body {
+  max-width: var(--measure);
+  line-height: 1.6;
+}
+
+.revision-body img,
+.revision-body table,
+.revision-body figure,
+.revision-body iframe {
+  max-width: 100%;
+  height: auto;
+}
+
+.revision-body blockquote {
+  border-left: 3px solid var(--rule);
+  margin-left: 0;
+  padding-left: 1rem;
+  color: var(--ink-faint);
+}
+
+.revision-body pre {
+  overflow-x: auto;
+}
+
+
 .mono {
   font-family: var(--font-mono);
   font-size: 0.85rem;

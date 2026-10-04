@@ -22020,27 +22020,93 @@ all gated by `requireCapabilityOrRedirect('edit_entity', …)`, all reading thro
 
 ---
 
-### 5. WHAT WAS VERIFIED, AND HOW
+### 5. WHAT WAS VERIFIED ON THE SERVER, AND HOW
 
-- **`/contact/` fetched and read**, not sampled by status. The route matches the row, returns 200, prints the
-  two addresses from the row's own body, and carries `noindex`.
-- **The six images: the served media URL's status and content type were checked as well as the page.** An
-  `img` that 404s and an `img` that is absent look identical in the HTML, so each `/media/…` address was
-  fetched for its bytes — 194,344 / 43,216 / 20,129 / 925,750 / 48,075 / 12,097 bytes with the extension's
-  content type — and the bytes' digest matched the file that was stored.
-- **The revisions figures above were read back out of the table**, not from the import's own counters.
-- **The audit rows** for all three backfills: 6 media rows, 1 article row, 1,108 revision rows.
+**Everything below was read from `http://127.0.0.1:3110` after the three backfills were applied to the live
+cluster — not from the copy.** The live cluster now holds `ozikoro_article` **2679** (the Contact Us draft,
+`status = review`, `published_at` NULL, 3,452 UTF-8 bytes from 3,451 characters, the shortcode present and
+both addresses present) and `ozikoro_media` **6977-6982**, with **4,266** revision rows.
+
+- **`/contact/` fetched and read**, not sampled by status:
+
+```
+HTTP/1.1 200 OK
+cache-control: no-store
+content-type: text/html; charset=utf-8
+<meta name="robots" content="noindex, nofollow">
+
+Contact — Ozikoro
+ Contact · Contact Us
+ This page is not open yet. The record behind it is held in the archive as an
+unpublished draft — it was never live on ozikoro.com — and it is shown here so that the address
+readers were sent to answers rather than 404s. The contact form is not set up: the
+draft used a WordPress plugin this platform does not have, and no form has been invented in its place.
+ The addresses below are the ones the record itself states.
+ Email
+ contact@ozikoro.com  stories@ozikoro.com  oziikoro@gmail.com
+ Elsewhere
+ facebook.com  youtube.com
+ Record OZ-PAGE-2679 · held in the archive as "Contact Us" · WordPress page 3591 · state review · last edited 2026-08-20.
+```
+
+  **The third address and the two hosts were not typed by this round.** `oziikoro@gmail.com` is the record's
+  own Pinterest line, held as plain text in the body, and the two links are the two anchors the body carries
+  (Facebook and YouTube).
+
+- **The six images: the served media URL's status and content type were checked as well as the page**, because
+  an `img` that 404s and an `img` that is absent look identical in the HTML:
+
+| article | page | self-hosted image in the body | served | bytes vs stored |
+|---|---:|---|---:|---|
+| `the-power-of-culture-…-postpartum-care` | 200 | `3625-WhatsApp-Image-2025-06-10-at-03.11.02.jpeg` | 200 `image/jpeg` | 194,344 = 194,344 |
+| `ugbo-a-living-archive-…` | 200 | `3701-sddefault.jpg` | 200 `image/jpeg` | 43,216 = 43,216 |
+| `how-sunday-became-known-as-uka-…` | 200 | `3734-rev-taylor.jpg` | 200 `image/jpeg` | 20,129 = 20,129 |
+| `the-influence-of-nri-leadership-…` | 200 | `3779-IMG_9629.jpeg` | 200 `image/jpeg` | 925,750 = 925,750 |
+| `ichi-mark-the-igbo-scarification` | 200 | `3780-…Northcote-300x148.png` | 200 `image/png` | 48,075 = 48,075 |
+| `umuada-women-leadership-…` | 200 | `3801-Onitsha-Women-…-300x221.jpg` | 200 `image/jpeg` | 12,097 = 12,097 |
+
+  The stored object's own content type is `application/octet-stream` (the local storage driver reports that
+  for an image, as it reports it for anything it did not sniff), and **the media route's extension fallback is
+  what turns that into `image/jpeg` and `image/png` on the wire** — which is the branch added for exactly this
+  case in `apps/ozikoro/app/media/[...key]/route.ts`. The served content types above are the route's answers,
+  not the store's.
+
+- **The admin read-back routes exist and refuse a stranger.** All three answer `307` to
+  `/signin?error=…&next=…` with the address preserved, which is `requireCapabilityOrRedirect` working; the
+  queries behind them were then run directly against the live cluster, with the server stopped: 4,266
+  revisions, 1,093 records, **525 carriers**, 74 orphans, 36.59 MiB of text, one body read whole
+  (`wp_revision_id 7044`, 60,613 bytes, sanitised for display) and the 15 orphan parents listed with their
+  WordPress titles (`Header - Style 1`, `Footer - Style 1`, `Header - Style 4`, `Default Kit`, …).
+- **The audit rows for all three backfills, read from the live cluster**:
+  `backfill_unresolved_image` **6**, `backfill_contact_draft` **1**, `backfill_article_revisions` **1,108**
+  (1,093 on records + 15 on parents the archive does not hold). **Every one has `actor_id` NULL and names
+  "DSH Agent (round 341)" in its note** — a scripted migration is not a decision the owner made, and the
+  audit read-back is written to surface an unattributed change rather than hide it.
+- **The backup was verified by opening it**, not by its size: `.data/backups/pg-2026-10-04T17-43-09-pre-r343`
+  read back 1,621 articles, 1,057 published, 3,488 media rows, 536 audit rows and 55 applied migrations with
+  no missing checksum, **before** the first write.
 - **The design parity command**, verbatim:
 
 ```
 identical 63 differing 0 missing 0
 ```
 
-- **`npm -w @ozikoro/site run typecheck` exits 0**, and `npm -w @ozikoro/platform run typecheck` exits 0.
-  `npm run typecheck` from the root exits 2 on **151 errors that are not this round's**: 144 in
-  `packages/db/src/test-*.ts` from the `learn` retirement deleting `learn.ts`, `learn-exercises.ts`,
-  `learn-review.ts` and their siblings while their tests remain, and the rest TS6053 in the stale
-  `.next-next/types` tree. **None names a file this round wrote.**
+- **`npm run typecheck` from the repo root exits 0**, and `npm -w @ozikoro/site` and `npm -w @ozikoro/platform`
+  each exit 0 on their own. **This was not true when the round began**: the first run exited 2 on 151 errors
+  that were not this round's — 144 in `packages/db/src/test-*.ts` left behind by the `learn` retirement
+  deleting `learn.ts`, `learn-exercises.ts`, `learn-review.ts` and their siblings, and the rest TS6053 in the
+  stale `.next-next/types` tree. **None ever named a file this round wrote**, and another agent's work closed
+  them while this round ran; the final run above is the state now.
+
+**One fault of this round's own, recorded because the type checker caught it and a reader would not.**
+The five new admin pages each import `Card` and `Head` from the admin's `ui.tsx`, and four of the five were
+written with a relative climb that was **one level short** — `[parent]` is itself a directory, so the path from
+it is three levels to `app/admin`, not two. `tsc` reported it immediately, and every one was resolved **against
+the filesystem rather than counted** before it was changed. **They now import through the `@/app/admin/ui`
+alias**, which is depth-independent and cannot be got wrong from a page that has moved. A relative specifier
+that is one `../` short is a module-not-found at build time and a silently wrong import at none.
+
+### 5b. THE WRITE NEEDED THE REVIEW SERVER STOPPED, AND THE LOCK IS WHY NOTHING BROKE
 
 ### 6. WHAT DOES NOT WORK, AND WHAT WAS NOT DONE
 
@@ -22055,7 +22121,7 @@ identical 63 differing 0 missing 0
   are the ones measured against the published rendering path. Widening the fix to all 404 without that
   measurement would be inventing a second, larger claim.
 - **The four published page addresses still answer 404 — `/authors/`, `/privacy-policy/`, `/nze/` and
-  `/construction/`** — measured on the review server before the last rebuild. `/about/` and `/home/` are 200.
+  `/construction/`** — measured on the running review server on the current build. `/about/` and `/home/` are 200.
   **They are not this round's work and were deliberately not touched**: they are the links-and-menus sweep's,
   and the brief was explicit that a change another agent may be making is placed rather than duplicated.
 - **`ozikoro_media_rights` still holds 61 rows and a person has still checked 0 of them.** Round 337's
