@@ -16,6 +16,7 @@
 import type { Db } from '@ozituma/db/client';
 import {
   ALL_SCREENS,
+  applyDesignOverrides,
   checkOverrideValue,
   type DesignOverride,
   type DesignOverrideKind,
@@ -283,4 +284,48 @@ export async function resetDesignOverrides(
     });
   }
   return rows.length;
+}
+
+/**
+ * Apply the overrides in force to one served page, loaded here so BOTH design routes share one rule.
+ *
+ * WHY THIS LIVES HERE AND NOT IN EITHER ROUTE
+ *
+ * A text, image, link or hide edit made through `/admin/design/` worked on the design screens and did
+ * **nothing** on an article, because `design-screen/[screen]/route.ts` applied the overrides and
+ * `[slug]/route.ts` did not — while `/design-theme.css` was linked by both, so a *colour* edit reached the
+ * article and an *element* edit did not. The same omission had already left four dead controls on 1,051
+ * articles once (`reader.js`), and the fix then was to move the shared rule into `design-paths.ts` and call
+ * it from both routes. **This is that fix again, for the same fault, so the ordering rule lives in one
+ * function rather than two copies that drift.**
+ *
+ * THE ORDERING IS THE WHOLE CORRECTNESS. Stored edits are applied first and the pending preview last, so a
+ * value being previewed beats the one it is replacing, and both run AFTER the fills — an override applied
+ * before the fills would be overwritten by the pass that rewrites a heading's words.
+ *
+ * A FAILURE HERE DEGRADES TO THE DESIGN. A page that cannot read its overrides is the deliverable's page; a
+ * thrown error would be a 404 for a whole record, which is worse than a heading that did not change.
+ *
+ * `asDesign` is the owner's own off switch (`?oznooverride=1`), which his save path needs because a saved
+ * edit must be PROVED by rendering the page without it and comparing. **The caller decides that**, because
+ * the test for it — is this viewer allowed to see the site without its edits — is an account question, and
+ * this module has no accounts.
+ */
+export async function withStoredDesignOverrides(
+  db: Db,
+  html: string,
+  screen: string,
+  options: { preview?: DesignOverride[]; asDesign?: boolean; label?: string } = {}
+): Promise<string> {
+  if (options.asDesign) return html;
+  try {
+    const stored = await listDesignOverrides(db, screen);
+    let out = stored.length > 0 ? applyDesignOverrides(html, stored) : html;
+    const preview = options.preview ?? [];
+    if (preview.length > 0) out = applyDesignOverrides(out, preview, { inlineTokens: true });
+    return out;
+  } catch (error) {
+    console.error(`${options.label ?? 'design-override'}: could not apply the design overrides to ${screen}`, error);
+    return html;
+  }
 }

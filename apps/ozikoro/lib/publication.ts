@@ -136,29 +136,77 @@ function toJpeg(path: string, name: string): Buffer | null {
   }
 }
 
-/** One image, ready for the layout: **JPEG or PNG, with its real pixel dimensions.** */
+/**
+ * One image, ready for the layout: **JPEG or PNG, with its real pixel dimensions.**
+ *
+ * WHY EVERY DROP IS NAMED IN THE LOG, AND WHY THAT IS THE FIX RATHER THAN A COURTESY
+ *
+ * This function returning `null` is the whole mechanism by which a figure disappears from a publication,
+ * and it used to do it **without a word**. The measured cost of that silence: a PNG with transparency was
+ * shelled out to `sips` to become a JPEG, `sips` exists on macOS and not on the Linux host the archive
+ * deploys to, and **on that host every PNG figure vanished from the PDF while the build reported success**
+ * — 438 figures, no error, nothing in any log. The PNG half of that is fixed in-process
+ * (`decodePng`, `packages/ozikoro/src/pdf/png.ts`), and this comment is the record of why.
+ *
+ * THE WEBP HALF IS NOT FIXED, AND IT IS STILL SILENT WITHOUT THIS. There is no WebP decoder in this
+ * repository: the format needs the container parsed and a VP8/VP8L/VP8X frame decoded, which is a codec
+ * rather than an afternoon, and **pretending otherwise is how a WebP's bytes end up in an image object that
+ * claims to be a JPEG.** The archive holds 229 WebP figures. So the honest state is: WebP is dropped, and
+ * now it is dropped BY NAME, with the reason and the file, instead of not at all.
+ *
+ * A dropped figure is not a fault the reader can report, because the reader never sees it — the page looks
+ * finished and one photograph is simply absent. **This log line is therefore the only place the fault is
+ * observable, and it is written at warn level with a greppable prefix so an operator can count it across a
+ * build:**
+ *
+ *     grep -c 'publication: dropped figure' <log>
+ */
 function imageOf(reference: string | null | undefined): Raster | null {
   if (!reference) return null;
   const name = storedName(reference);
-  if (!name) return null;
+  if (!name) {
+    console.error(`publication: dropped figure — no stored file matches ${reference}`);
+    return null;
+  }
   const path = join(MEDIA_ROOT, name);
-  if (!existsSync(path)) return null;
-  let data: Buffer = readFileSync(path);
+  if (!existsSync(path)) {
+    console.error(`publication: dropped figure — ${name} is not in the media root`);
+    return null;
+  }
+  const data: Buffer = readFileSync(path);
   if (isPng(data)) {
     try {
       const png = decodePng(data);
       return { data, width: png.width, height: png.height };
-    } catch {
+    } catch (error) {
+      /*
+       * A named refusal rather than a half-decoded picture: a PNG decoded wrongly looks like a photograph
+       * of noise, which nobody reports as a bug. The decoder refuses bit depths other than 8 and Adam7
+       * interlacing by name.
+       */
+      console.error(`publication: dropped figure — ${name} could not be decoded as PNG: ${String(error)}`);
       return null;
     }
   }
   if (!isJpeg(data)) {
     const converted = toJpeg(path, name);
-    if (!converted) return null;
-    data = converted;
+    if (!converted) {
+      console.error(
+        `publication: dropped figure — ${name} is neither JPEG nor PNG and could not be converted. ` +
+          'WebP needs a decoder this repository does not have (the PNG decoder is in-process; WebP is not), ' +
+          'and `sips` is macOS-only. The figure is absent from the PDF; the page shows it normally.'
+      );
+      return null;
+    }
+    const size = jpegSize(converted);
+    return size ? { data: converted, ...size } : null;
   }
   const size = jpegSize(data);
-  return size ? { data, ...size } : null;
+  if (!size) {
+    console.error(`publication: dropped figure — ${name} is a JPEG whose dimensions could not be read`);
+    return null;
+  }
+  return { data, ...size };
 }
 
 /**

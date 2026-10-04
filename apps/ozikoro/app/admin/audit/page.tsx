@@ -40,18 +40,78 @@ export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 25;
 
+/*
+ * THE RECORDED CHANGE, IN WORDS A PERSON READS RATHER THAN THE COLUMN'S OWN NAME.
+ *
+ * **THE MAP HAD DRIFTED, AND THE DRIFT WAS VISIBLE ON THE SCREEN THE OWNER OPENS TO ASK WHAT CHANGED.**
+ * It labelled eleven actions, of which five — `suspend_account`, `reactivate_account`, `set_password`,
+ * `save_rights`, `restrict_media` — are not written by any code path any more (the account and rights
+ * writers were renamed), while the actions that ARE written fell through to `?? action`. So the filter
+ * listed `reassign_byline`, `merge_contributor`, `set`, `update`, `reset`, `set_account_status`,
+ * `record_rights`, `attach_source`, `follow_researcher` and a dozen more as raw identifiers.
+ *
+ * Every entry below was taken from the string the writing code actually passes (`grep "action: '"` across
+ * `packages/ozikoro/src` and `apps/ozikoro`, plus the two SQL-literal writers in
+ * `packages/ozikoro/src/ops/merge-contributor.ts` and the `design_override` writer in
+ * `packages/ozikoro/src/design-override-store.ts`). **The five that nothing writes are kept rather than
+ * deleted**, because historical `ozikoro_audit` rows carrying them are real records and removing the label
+ * would turn a sentence back into a column value in the history it describes.
+ *
+ * THE RAW NAME IS STILL PRINTED, in `.history__when.mono` beneath the label in the table. So this is a
+ * translation layer and not a replacement: an action nobody has labelled yet shows its own name rather than
+ * an empty cell, and somebody checking the table against the database can still read the identifier.
+ */
 const ACTION_LABEL: Record<string, string> = {
+  // Byline claims
   approve_claim: 'Byline claim approved',
   reject_claim: 'Byline claim declined',
+  // Roles and accounts
   grant_role: 'Role granted',
   revoke_role: 'Role revoked',
-  update_facets: 'Record changed',
+  set_account_status: 'Account status changed',
   suspend_account: 'Account suspended',
   reactivate_account: 'Account reactivated',
   set_password: 'Password set',
+  update_profile: 'Profile changed',
+  // The archive records
+  create: 'Record created',
+  set_status: 'Status changed',
+  update_facets: 'Record changed',
+  attach_entity: 'Linked to a clan, town or person',
+  detach_entity: 'Link to a clan, town or person removed',
+  link_entity_from_title: 'Linked to an entity by its title',
+  build_from_dictionary: 'Entity built from the dictionary',
+  create_from_dictionary: 'Entity created from the dictionary',
+  attach_source: 'Source attached',
+  detach_source: 'Source detached',
+  attach_file: 'Manuscript attached',
+  // Rights
+  record_rights: 'Rights recorded',
+  update_rights: 'Rights changed',
   save_rights: 'Rights recorded',
+  restrict: 'Restriction applied',
   restrict_media: 'Media restricted',
   lift_restriction: 'Restriction lifted',
+  // Following
+  follow_researcher: 'Researcher followed',
+  unfollow_researcher: 'Researcher unfollowed',
+  follow_topic: 'Subject followed',
+  unfollow_topic: 'Subject unfollowed',
+  follow_institution: 'Institution followed',
+  unfollow_institution: 'Institution unfollowed',
+  // Pronunciation
+  record_pronunciation: 'Pronunciation recorded',
+  approve_pronunciation: 'Pronunciation approved',
+  reject_pronunciation: 'Pronunciation declined',
+  waive_pronunciation_gaps: 'Missing pronunciations waived',
+  // A contributor merged into another, and the bylines it moved
+  merge_contributor: 'Contributor merged',
+  reassign_byline: 'Byline reassigned',
+  // The design overrides. The subject column reads "Design edit", which is what makes these three
+  // readable: alone, `set` and `update` would say nothing about what was set.
+  set: 'Design edit made',
+  update: 'Design edit changed',
+  reset: 'Design edit reset',
 };
 
 /** `3 Oct 2026, 14:05 UTC`, or the raw value when it will not parse. */
@@ -69,15 +129,33 @@ function when(iso: string): string {
   })} UTC`;
 }
 
-/** `ozikoro_contributor_claim` reads as `Byline claim`, so the subject is legible without a lookup. */
+/**
+ * `ozikoro_contributor_claim` reads as `Byline claim`, so the subject is legible without a lookup.
+ *
+ * THE FALLBACK IS HONEST BUT IT IS NOT READABLE, and the map was missing nine of the entity types the
+ * writers actually use, so the subject column read `entity graph`, `media rights`, `publication file`,
+ * `pronunciation` and `follow` — a slug with its underscores straightened. Every key below is a value a
+ * writer passes; the fallback is kept for the next one, because showing the column's own value is better
+ * than showing nothing.
+ */
 function subjectName(entityType: string): string {
   const map: Record<string, string> = {
     ozikoro_contributor_claim: 'Byline claim',
     ozikoro_article: 'Record',
     ozikoro_media: 'Media item',
+    ozikoro_media_rights: 'Media rights',
     ozikoro_member: 'Member',
     ozikoro_member_role: 'Member role',
     ozikoro_publication: 'Publication',
+    ozikoro_publication_file: 'Manuscript',
+    ozikoro_entity: 'Entity',
+    ozikoro_entity_graph: 'Entity graph',
+    ozikoro_source: 'Source',
+    ozikoro_contributor: 'Contributor',
+    ozikoro_pronunciation: 'Pronunciation',
+    ozikoro_follow: 'Follow',
+    // The design overrides record under a bare name rather than an `ozikoro_`-prefixed one.
+    design_override: 'Design edit',
     account: 'Account',
   };
   return map[entityType] ?? entityType.replace(/^ozikoro_/, '').replace(/_/g, ' ');

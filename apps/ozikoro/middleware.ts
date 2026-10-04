@@ -323,9 +323,38 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // `css` is deliberately NOT in the extension skip: the deliverable's relative links ask for its
-  // stylesheets as `/styles/…`, and a `.css` exclusion would swallow them before the middleware could
-  // rewrite them. Every other static extension is still skipped, and the middleware passes non-`/styles/`
-  // requests straight through, so the cost is one comparison.
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|styles/|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico|js|woff2?|xml|txt)$).*)'],
+  /*
+   * `css` IS IN THE EXTENSION SKIP, AND IT WAS ABSENT FOR A REASON THAT NO LONGER HOLDS.
+   *
+   * The note here used to say: "`css` is deliberately NOT in the extension skip: the deliverable's relative
+   * links ask for its stylesheets as `/styles/…`, and a `.css` exclusion would swallow them before the
+   * middleware could rewrite them."
+   *
+   * The first half is still true — the design screens do ask for `/styles/…` — but the protection they need
+   * is the literal `styles/` alternative in this same matcher, which is earlier in the pattern and matches
+   * them whether or not `.css` is excluded. So the exclusion cost nothing and was never needed for that.
+   *
+   * WHAT IT COST IS MEASURED, AND IT WAS NOT SMALL. `/a11y.css` is a ROOT-LEVEL stylesheet — the
+   * application's own accessibility corrections, linked from EVERY page by `seoHead` and by the article
+   * route — and it is one segment, so it reached the middleware, and `needsSlash` below rewrote it to
+   * `/a11y.css/`. Measured on the production build:
+   *
+   *     GET /a11y.css     -> 500 Internal Server Error   (the address every page links)
+   *     GET /a11y.css/    -> 200, 5253 bytes             (an address nothing links)
+   *
+   * **So the corrections have never applied in a browser**, on any page, while every check that measured
+   * them measured the FILE rather than the painted page — the exact fault this project keeps finding, and
+   * the reason `--ink-faint`'s contrast fix reads as "verified" in the record and does nothing on the site.
+   * A 500 on a stylesheet is invisible in the HTML, in a status of the page itself, and in any check that
+   * fetches the page rather than its assets.
+   *
+   * `js` is already skipped here, and a root-level `.js` file (`/account-auth.js`) is served correctly at
+   * 200 through the same public handler, which is the evidence that an extension skip is what this needs
+   * rather than a route. **The rule to carry: a static file is not a page, and the slash-less rewrite is a
+   * rule about pages.**
+   *
+   * The other static extensions remain skipped, and the middleware still passes every non-`/styles/`
+   * request through, so the cost of the extra alternative is one comparison.
+   */
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|styles/|.*\\.(?:svg|png|jpg|jpeg|webp|gif|ico|js|css|woff2?|xml|txt)$).*)'],
 };

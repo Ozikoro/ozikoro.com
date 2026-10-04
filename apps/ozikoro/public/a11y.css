@@ -45,4 +45,57 @@
  */
 :root {
   --ink-faint: #655d51;
+
+  /*
+   * --focus, CORRECTED FOR THE NIGHT GROUND — THE SECOND MEASURED FAILURE, AND IT IS THE SAME KIND.
+   *
+   * The design declares `--focus: #1b4f8a`, "never the accent, must be seen". It is excellent on paper
+   * (7.36:1) and it fails on the night chrome: measured against `--night` #0f0d0b it is **2.34:1**, where
+   * WCAG 2.2 SC 1.4.11 asks 3:1 of a focus indicator. `main.css` draws the ring as
+   * `:focus-visible { outline: 3px solid var(--focus) }`, and the night grounds are not incidental — the
+   * platform bar, the sticky masthead, the hero, the archive visual, the story doors and the citation band
+   * are all night, and the masthead holds the whole main navigation. **A keyboard user's focus ring was
+   * fading into the ground on the most-used control on the site.**
+   *
+   * WHY THIS IS ONE GLOBAL VALUE RATHER THAN A NIGHT-SCOPED RULE
+   *
+   * A rule scoped to the night containers would leave the light grounds on #1b4f8a and would be the smaller
+   * change. It is not the correct one, for a reason that is about honesty rather than taste:
+   * `/admin/design/` measures every pair from THE VALUES IN FORCE, and it reads this file to do it
+   * (`parseDesignTokens(a11yCss)` merged over the design's own declarations, keyed by token NAME). A scoped
+   * re-declaration would have been reported as the value on every ground, so the audit would have shown a
+   * passing ratio for a ring the page does not paint. **A measurement that describes a different page is
+   * worse than no measurement.**
+   *
+   * THE VALUE CHOSEN, #5f6ad6. It stays in the design's blue-indigo family and away from the emerald accent
+   * and the gold brand, and it clears 3:1 on both grounds with margin to spare:
+   *
+   *   night  #0f0d0b   4.17:1
+   *   paper  #f7f1e3   4.13:1
+   *
+   * #1b4f8a's 7.36:1 on paper is given up for it. That is the trade: the design's ring was tuned for the
+   * light ground, and this site's navigation is on the dark one. **Like the --ink-faint correction above,
+   * this belongs in the deliverable rather than in a served override forever.**
+   */
+  --focus: #5f6ad6;
+}
+
+/*
+ * THE MARQUEE STOPS FOR THE KEYBOARD TOO.
+ *
+ * The design pauses its rotating name on hover only:
+ *
+ *   .sx-marquee:hover ul { animation-play-state: paused; }
+ *
+ * **`:hover` is not the keyboard's event.** A reader tabbing into one of the marquee's links focuses an
+ * anchor that is still sliding, so the focus ring moves out from under the reader and the next Tab starts
+ * from somewhere they did not leave. `:focus-within` is the keyboard's half of the same rule and it is the
+ * whole fix — the design's own declaration is untouched and this is added beside it rather than replacing
+ * it, so a pointer user sees exactly what the design drew.
+ *
+ * `prefers-reduced-motion` already switches the animation off in the design, so a reader who asks for no
+ * motion never reaches this rule. This is for the reader who has motion on and a keyboard.
+ */
+.sx-marquee:focus-within ul {
+  animation-play-state: paused;
 }

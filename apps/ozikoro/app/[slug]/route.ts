@@ -23,13 +23,14 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
-import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, mediaUrlResolver, seoHead, withSeoHead, designScriptPaths, can, withStoredDesignOverrides, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { getCurrentAccount } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
 const SCREEN = join(process.cwd(), 'public', 'design', 'screens', 'article.html');
 
-export async function GET(_request: Request, { params }: { params: Promise<{ slug: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const clean = slug.replace(/\/$/, '');
 
@@ -284,6 +285,35 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
       )
     );
+
+    /*
+     * THE OWNER'S EDITS REACH THE ARTICLES.
+     *
+     * `/design-theme.css` is linked above, so a COLOUR edit made through `/admin/design/` always reached an
+     * article. A text, image, link or hide edit did not: this route never called the override layer, so the
+     * row was written, the audit line was written, the page was re-rendered — and the heading was unchanged.
+     * **The editor's own save path proved the opposite for the design screens and could not prove it here.**
+     *
+     * The rule is `withStoredDesignOverrides`, the same function `design-screen/[screen]/route.ts` calls, so
+     * the two cannot drift. It runs after the fills and after the head, because an override applied before
+     * them would be overwritten by the pass that rewrites a heading's words.
+     *
+     * THE SCREEN NAME IS `article`: the deliverable's file is `public/design/screens/article.html`, the screen
+     * list at `/admin/design/` is discovered from those filenames, and an edit saved against the article is
+     * keyed `article`. The article screen is the one screen with no route of its own in
+     * `design-screen/[screen]/`, because its fill and this route are the same code path.
+     *
+     * `?oznooverride=1` is honoured here for the same reason it is honoured there: a saved edit is proved by
+     * fetching the page without it, and that only works if both routes understand the switch.
+     */
+    const dbForOverrides = await getDb();
+    let asDesign = false;
+    const url = new URL(request.url);
+    if (url.searchParams.has('oznooverride')) {
+      const viewer = await getCurrentAccount().catch(() => null);
+      asDesign = Boolean(viewer && (await can(dbForOverrides, viewer.account.id, 'manage_design')));
+    }
+    html = await withStoredDesignOverrides(dbForOverrides, html, 'article', { asDesign, label: 'article' });
   } catch (error) {
     console.error('article fill failed:', error);
     return new Response('Not found', { status: 404 });

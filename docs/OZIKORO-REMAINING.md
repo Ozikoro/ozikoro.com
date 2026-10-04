@@ -17567,3 +17567,162 @@ everything it does change is about attribution: **a shared checkout where four p
 produces commits whose messages describe somebody else's files, and the only defence is to name the file, the
 commit and the reason in the record.** The rule this round should have followed, and the rule worth carrying:
 stage by path, commit by path, and check `git show --stat HEAD` before believing your own message.
+
+---
+
+## ROUND 322 — THE AUDIT BECAME A FIX PASS: THE ACCESSIBILITY STYLESHEET WAS A 500, AND THE OWNER'S EDITS NEVER REACHED AN ARTICLE
+
+This round began as a measured gap analysis against the two design briefs and became a fix pass on the
+owner's instruction (*"you can fix anything you want, but never touch the design"*). Everything below was
+found by checking a claim that had already been accepted.
+
+### 1. THE SIXTH `href`-SHAPED FAULT, AND THE LARGEST: `/a11y.css` RETURNED 500
+
+**Measured on the production build, before anything was changed:**
+
+    GET /a11y.css     -> 500 Internal Server Error   21 bytes
+    GET /a11y.css/    -> 200  text/css               5253 bytes   (an address nothing links)
+
+`/a11y.css` is the application's accessibility corrections, linked from **every page** by `seoHead` and by
+the article route. It is a root-level file and ONE segment, so it reached the middleware, and `needsSlash`
+rewrote it to `/a11y.css/` — which routes to nothing servable and answers 500. The matcher at the bottom of
+`middleware.ts` skipped every static extension **except `css`**, and its own comment said why: the design's
+relative `/styles/…` links had to pass through. **That protection is the literal `styles/` alternative in the
+same matcher**, which is earlier in the pattern and matches them with or without `.css` excluded — so the
+exclusion bought nothing and cost this.
+
+**The consequence is the one this project keeps finding: the corrections have never applied in a browser, on
+any page.** Every check that "verified" them measured the FILE. `--ink-faint`'s contrast fix has read as
+verified since the round that made it and has done nothing on the site. A 500 on a stylesheet leaf is
+invisible in the page's own status, in its HTML, and in any check that fetches the page rather than its
+assets.
+
+**Fix:** `css` added to the extension skip in `apps/ozikoro/middleware.ts`, with the measurement and the rule
+in the comment (*a static file is not a page, and the slash-less rewrite is a rule about pages*). Verified
+after a rebuild:
+
+    GET /a11y.css   -> 200  text/css; charset=UTF-8  5253 bytes   (byte-identical to the source file)
+    GET /account-auth.js -> 200  9531 bytes      (unchanged — the control that proves the mechanism)
+
+### 2. THE OWNER'S ELEMENT EDITS DID NOT REACH THE 1,051 ARTICLES; COLOURS DID
+
+`apps/ozikoro/app/[slug]/route.ts` linked `/design-theme.css` and **never called the override layer**, so a
+text, image, link or hide edit made through `/admin/design/` was written, audited, re-rendered — and changed
+nothing. The same omission (`reader.js`) had already left four dead controls on every article once, and the
+fix then was to move the shared rule and call it from both routes.
+
+**Fix:** the application rule — stored first, preview last, never a 404 when a row cannot be read — is now
+`withStoredDesignOverrides` in `packages/ozikoro/src/design-override-store.ts`, called by **both** routes.
+`?oznooverride=1` is honoured by both, because a saved edit is proved by rendering the page without it and
+that only works if both doors understand the switch. The account question (may this viewer see the page as
+the design leaves it) stays in the app, because the package has no accounts.
+
+**How it was verified, and what was NOT:** `npm run typecheck` exit 0, `npm run build:standalone` exit 0, and
+`oznooverride` present in the compiled `apps/ozikoro/.next/server/app/[slug]/route.js`. **The end-to-end
+render was NOT observed**: proving it needs an override row written while no process holds the cluster, then
+a server restart to fetch the article — the row-writing sequence this file warns about — and the shared tree
+was being rebuilt by another pass throughout. That is the one thing in this round left unproven.
+
+### 3. THE MARQUEE PAUSED ON HOVER AND NOT ON FOCUS
+
+The design has `.sx-marquee:hover ul { animation-play-state: paused }` and no `:focus-within` anywhere, so a
+keyboard reader tabbed into a link sliding out from under the focus ring. `.sx-marquee:focus-within ul` is
+added in `apps/ozikoro/public/a11y.css` — the design's own declaration is untouched, so a pointer user sees
+exactly what was drawn. **Verified as present in the served stylesheet; the computed `animation-play-state`
+under real Tab keys was NOT observed** (no browser driver in this environment).
+
+### 4. `--focus` ON `--night` WAS 2.34:1, AND THE RING IS ON THE NAVIGATION
+
+`:focus-visible { outline: 3px solid var(--focus) }` with `--focus: #1b4f8a` measures 7.36:1 on paper and
+**2.34:1 on `--night`**, where WCAG 2.2 SC 1.4.11 asks 3:1 — and the night grounds hold the platform bar, the
+sticky masthead and the whole main navigation. Corrected in `a11y.css` to **`#5f6ad6`**, with the reasoning
+for one global value rather than a night-scoped rule written down: `/admin/design/` measures every pair from
+the values in force and reads `a11y.css` by token NAME, so a scoped re-declaration would have been reported
+as the value on every ground — **a measurement describing a different page, which is worse than none.**
+
+Re-measured with the editor's own function `contrastReport` over the design's declarations plus `a11y.css`:
+
+    focus on cream  = 4.13 (needs 3)  PASS
+    focus on night  = 4.17 (needs 3)  PASS
+    --- pairs failing: 0 of 16 ---
+
+### 5. THE TWO EPISODES WITH PREDICTED DURATIONS
+
+Measured from the files with `packages/ozikoro/src/mp3.ts` and corrected in the row, with the exact value and
+the file recorded beside it (`voice_settings.duration_source = 'measured'`), matching the convention of the
+Ute-Okpu row corrected this morning (665.966 s -> 666, so round):
+
+    how-tortoise  254 -> 144   (file measures 144.379 s, sha256 2724a298ae6c1b9b…)
+    folklore      848 -> 534   (file measures 533.812 s, sha256 15b49dab662bbcf0…)
+    ute-okpu      666 unchanged (human recording, 665.966 s)
+
+Read back from the table after the write; **2 rows changed**; the audio files are byte-identical before and
+after (digests above), because this was a measurement and not a re-render.
+
+**Reported and NOT fixed: the folklore file holds 533.812 s of speech and plays 407.771 s.** A second whole
+MP3 was concatenated onto the first with its own `Xing`/`Info` frame, so a reader that stops at the first
+embedded tag stops 126.041 s early. The fix is a frame-level remux — strip the second segment's ID3v2 tag and
+index frame, append its audio frames, correct the first segment's frame count — which changes no audio sample
+but does change the file, and **narration is paused and the episode is already in the published feed**, so the
+enclosure address changes and Spotify re-fetches. That is a decision, not an afternoon.
+
+### 6. THE AUDIT FILTER'S RAW ACTION NAMES
+
+`/admin/audit` labelled eleven actions, five of which no code path writes any more, while the actions that
+ARE written fell through to `?? action` — so the filter read `reassign_byline`, `merge_contributor`, `set`,
+`update`, `reset`, `set_account_status`, `record_rights`, `follow_researcher` and a dozen more as raw
+identifiers. Every entry is now taken from the string the writing code passes, the five no-longer-written
+labels are KEPT because historical rows carrying them are real records, and the raw name still prints in mono
+beside the label so nothing is hidden. `subjectName` gained the nine entity types that fell through to a
+slug with its underscores straightened, including `design_override` (no `ozikoro_` prefix).
+
+### 7. THE macOS-ONLY PATHS
+
+The known one is real and remains: **a WebP article figure is dropped from the PDF with no error**, because
+there is no WebP decoder in this repository and `sips` is macOS-only (PNG no longer depends on it — the
+in-process decoder fixed that half). 229 WebP figures are affected. **Fixed what could be fixed: the drop is
+now named.** `imageOf` in `apps/ozikoro/lib/publication.ts` logs each dropped figure with its file and the
+reason, at a greppable prefix (`grep -c 'publication: dropped figure'`), because a reader never sees the
+missing figure — the page looks finished. Adding a WebP codec is a dependency decision, not a patch.
+
+### 8. THE PARITY CHECKER'S VERDICT WAS FROZEN ABOVE THE LOOP THAT CHANGES IT
+
+`scripts/check-design-parity.mjs` computed `const ok = …` one line BEFORE the `CONDITIONAL` loop that exists
+to resolve a conditional section — so it could print `ok` for a section and still count the route as failed.
+The findings are now collected first and the verdict derived from what survived the loop. `/archive`'s
+`.grid-4` is additionally **declared with its removal criterion** rather than left looking like a defect: the
+app dropped it on purpose and documented why at `apps/ozikoro/app/archive/page.tsx:479` (`grid-4` is the
+design's FOOTER class; `.entry` is a vertical list and four across truncated `--measure` mid-sentence).
+
+    after: /archive PASSES, the waiver prints, 3 ROUTE(S) DO NOT MATCH THEIR DESIGN
+           (/cultural-calendar, /cite, /projects)      declared omissions 1
+
+`/cite` is a real gap and is NOT a checker artefact: the design draws five citation blocks — Ozikoro article,
+Archive record, Photograph, Oral recording, Research publication — and the served page renders one worked
+example and leaves the other four as the design's guidance. Wiring them needs a real record behind each
+(`ozikoro_publication` holds 0 rows, so the publication block would be an honest empty state). **Not started;
+half a day.**
+
+### 9. WHAT WAS DELIBERATELY NOT TOUCHED, AND WHY
+
+Media rights (0 of 3,488 items has a licence — a legal and editorial decision, and no code invents one) ·
+`media.ozikoro.com` (no public ingress; the DNS calls are written in `apps/media/DNS.md` and unrun) · the
+dead YouTube film on `/watch/` (content, not code) · the two Igbo coverage figures that disagree (1,751 vs
+2,368 — unresolved, and not to be resolved by picking one) · deployment (nothing deployed, nothing pushed) ·
+the folklore remux · and `apps/ozikoro/public/design/` — **never edited**:
+
+    identical 63 differing 0 missing 0
+
+### 10. THE GATE
+
+`npm run typecheck` **exit 0** read from its own exit code, from the repository root. `npm run build:standalone`
+**exit 0**, `static files copied: 126`, **52** design screens in the standalone tree, artefact complete.
+
+**One file is left uncommitted on purpose:** `apps/ozikoro/app/design-screen/[screen]/route.ts` carries this
+round's override refactor AND another in-flight pass's `PLACE_NAMES_SQL` change, which references a symbol
+that is not in the committed `design-fill.ts`. Staging the file would commit half of somebody else's feature
+and break the build for everyone, so it stays in the tree and is named here instead.
+
+**And the fault in this round worth carrying: the accessibility corrections were "verified" for many rounds by
+measuring a file that no browser ever received.** A 500 on a stylesheet leaf is invisible to every check that
+asks the PAGE whether it is well.

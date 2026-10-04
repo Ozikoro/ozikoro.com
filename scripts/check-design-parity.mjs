@@ -141,7 +141,27 @@ const PLACEHOLDER = /(sample record|string games photograph|ikoro drum photograp
  * removed rather than kept for the next case, and the lesson is recorded: if something has to be declared
  * absent, record WHY and what would make it present, so the condition can be tested rather than trusted.
  */
-const EXPECTED_OMISSIONS = {};
+const EXPECTED_OMISSIONS = {
+  /*
+   * `/archive` — `.grid-4`, and the page is right rather than the checker.
+   *
+   * `archive-index.html` carries `class="grid-4"` at its FOOTER and nowhere near the records; the design's
+   * four example cards sit in a plain `<div>` and `.entry` does the layout
+   * (`padding-block: var(--s-5); border-bottom: 1px solid var(--rule)` — a list, not a grid). The archive
+   * was built as a React route that first flowed the records four-across in `grid-4`, and that was corrected
+   * on purpose and is documented at `apps/ozikoro/app/archive/page.tsx:479`: four across squashed `--measure`
+   * mid-sentence and the row hairlines did not line up.
+   *
+   * **REMOVAL CRITERION, stated because an omission declaration is a promise to revisit it** (see the note
+   * above about the homepage's watch section, and the project's rule — waive in code, print the waiver, state
+   * what removes it): remove this entry when either the design moves `grid-4` onto the records container, or
+   * the archive's record list genuinely becomes a four-across grid. The waiver prints on every run.
+   */
+  '/archive': {
+    'grid-4':
+      "the design uses grid-4 at its footer; the record list is a vertical stack by .entry — see apps/ozikoro/app/archive/page.tsx:479",
+  },
+};
 
 /*
  * HEADINGS THAT BELONG TO A DECLARED-ABSENT SECTION.
@@ -289,10 +309,29 @@ for (const [route, screen] of ROUTES) {
   const placeholders = design.headings
     .filter((h) => !headingMatches(h.text, pageText) && PLACEHOLDER.test(h.text));
 
-  const ok = undeclared.length === 0 && missedHeadings.length === 0;
-  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${route.padEnd(22)} ${design.sections.length} design sections, ${design.headings.length} headings`);
+  /*
+   * THE VERDICT IS COMPUTED AFTER THE EVIDENCE IS GATHERED, NOT BEFORE IT.
+   *
+   * This block used to be:
+   *
+   *     const ok = undeclared.length === 0 && missedHeadings.length === 0;
+   *     console.log(`  ${ok ? 'ok' : 'FAIL'} ...`);
+   *     for (const s of missing) { ... if (present at trigger) { console.log('ok'); continue; } ... }
+   *     if (!ok) failures += 1;
+   *
+   * **`ok` was frozen one line above the loop that exists to change it.** The `CONDITIONAL` branch below
+   * renders a state that should contain the section and, finding it, prints `ok` for that section — but it
+   * cannot unfreeze the verdict, so a route whose only gap was a conditional section that IS present at its
+   * trigger was still counted as a failure. That is the same fault the mechanism was written to remove,
+   * one level up and in the other direction: a check that can print `ok` twelve times and still fail.
+   *
+   * So the findings are collected first and the verdict is derived from what SURVIVED the loop. `unresolved`
+   * starts as the undeclared sections and loses one each time a conditional state proves it present.
+   */
+  const unresolved = [...undeclared];
+  const detail = [];
   for (const s of missing) {
-    if (s in declared) { console.log(`         omitted  .${s}  — ${declared[s]}`); omissions += 1; continue; }
+    if (s in declared) { detail.push(`         omitted  .${s}  — ${declared[s]}`); omissions += 1; continue; }
 
     // Conditional structure: produce the state and look for it there rather than exempting it.
     const trigger = CONDITIONAL[route]?.[s];
@@ -305,22 +344,28 @@ for (const [route, screen] of ROUTES) {
         triggered = null;
       }
       if (triggered && new RegExp(`class="[^"]*\\b${s.replace('.', '')}\\b`).test(triggered)) {
-        console.log(`         ok       .${s.replace('.', '')}  — present at ${trigger}`);
+        detail.push(`         ok       .${s.replace('.', '')}  — present at ${trigger}`);
+        const at = unresolved.indexOf(s);
+        if (at >= 0) unresolved.splice(at, 1);
         continue;
       }
-      console.log(`         MISSING  .${s.replace('.', '')}  — absent even at ${trigger}, which should render it`);
-      undeclared.push(s);
+      detail.push(`         MISSING  .${s.replace('.', '')}  — absent even at ${trigger}, which should render it`);
+      if (!unresolved.includes(s)) unresolved.push(s);
       continue;
     }
 
-    console.log(`         MISSING  .${s}`);
+    detail.push(`         MISSING  .${s}`);
   }
   for (const h of missedHeadings) {
-    console.log(`         MISSING  h${h.level}: "${h.text.slice(0, 68)}"`);
+    detail.push(`         MISSING  h${h.level}: "${h.text.slice(0, 68)}"`);
   }
   for (const h of placeholders) {
-    console.log(`         earned   h${h.level}: "${h.text.slice(0, 60)}" — design placeholder, absent correctly`);
+    detail.push(`         earned   h${h.level}: "${h.text.slice(0, 60)}" — design placeholder, absent correctly`);
   }
+
+  const ok = unresolved.length === 0 && missedHeadings.length === 0;
+  console.log(`  ${ok ? 'ok  ' : 'FAIL'} ${route.padEnd(22)} ${design.sections.length} design sections, ${design.headings.length} headings`);
+  for (const line of detail) console.log(line);
   if (!ok) failures += 1;
 }
 
