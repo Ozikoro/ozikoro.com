@@ -259,30 +259,40 @@ export async function learningSummary(accountId: number): Promise<{
   attempts: Attempt[];
 }> {
   return transaction(async (client) => {
-    const [enrolmentResult, progressResult, attemptResult] = await Promise.all([
-      client.query(
-        `select course_slug, status, enrolled_at, completed_at
-           from academy_enrolment
-          where account_id = $1 and status <> 'withdrawn'
-          order by enrolled_at desc`,
-        [accountId]
-      ),
-      client.query(
-        `select course_slug, lesson_slug, state, position, updated_at
-           from academy_progress
-          where account_id = $1
-          order by updated_at desc`,
-        [accountId]
-      ),
-      client.query(
-        `select id, course_slug, activity_slug, kind, score, max_score, created_at
-           from academy_attempt
-          where account_id = $1
-          order by created_at desc
-          limit 50`,
-        [accountId]
-      ),
-    ]);
+    // THE THREE QUERIES RUN IN SEQUENCE, NOT IN PARALLEL, AND THAT IS THE FIX RATHER THAN A
+    // PREFERENCE.
+    //
+    // The first version awaited them with `Promise.all` on this one client. A `PoolClient` is a
+    // single Postgres connection and cannot execute two statements at once, so node-postgres queues
+    // them and warns "Calling client.query() when the client is already executing a query is
+    // deprecated and will be removed in pg@9.0" — which is what the production log filled with,
+    // alongside the 500s that followed. They are inside one transaction either way, so the
+    // consistent view this function wants is preserved; running them one after another is what makes
+    // that view reachable without relying on a deprecated queue.
+    const enrolmentResult = await client.query(
+      `select course_slug, status, enrolled_at, completed_at
+         from academy_enrolment
+        where account_id = $1 and status <> 'withdrawn'
+        order by enrolled_at desc`,
+      [accountId]
+    );
+
+    const progressResult = await client.query(
+      `select course_slug, lesson_slug, state, position, updated_at
+         from academy_progress
+        where account_id = $1
+        order by updated_at desc`,
+      [accountId]
+    );
+
+    const attemptResult = await client.query(
+      `select id, course_slug, activity_slug, kind, score, max_score, created_at
+         from academy_attempt
+        where account_id = $1
+        order by created_at desc
+        limit 50`,
+      [accountId]
+    );
 
     return {
       enrolments: enrolmentResult.rows.map(toEnrolment),

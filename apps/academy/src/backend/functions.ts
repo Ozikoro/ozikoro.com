@@ -108,6 +108,24 @@ function failure(error: unknown): { ok: false; code: string; message: string } {
   return { ok: false, code: "internal", message: "Something went wrong. Please try again." };
 }
 
+/**
+ * A required identifier, or a refusal.
+ *
+ * Server functions are a public boundary: anything that can reach the endpoint can send any shape.
+ * Without this, a payload missing `activitySlug` reached the insert and came back as
+ * `null value in column "activity_slug" violates not-null constraint` — a 500 whose cause is a
+ * database detail, logged as an internal error rather than a bad request.
+ */
+function requireSlug(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new AccountError("invalid_request", `${field} is required.`);
+  }
+  if (value.length > 200) {
+    throw new AccountError("invalid_request", `${field} is too long.`);
+  }
+  return value.trim();
+}
+
 // ---------------------------------------------------------------------------
 // Accounts
 // ---------------------------------------------------------------------------
@@ -170,7 +188,7 @@ export const enrolInCourse = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<ActionResult<Enrolment>> => {
     try {
       const account = await requireAccount();
-      return { ok: true, data: await enrol(account.id, data.courseSlug) };
+      return { ok: true, data: await enrol(account.id, requireSlug(data.courseSlug, "courseSlug")) };
     } catch (error) {
       return failure(error);
     }
@@ -181,7 +199,7 @@ export const leaveCourse = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<ActionResult<{ withdrawn: boolean }>> => {
     try {
       const account = await requireAccount();
-      return { ok: true, data: { withdrawn: await withdraw(account.id, data.courseSlug) } };
+      return { ok: true, data: { withdrawn: await withdraw(account.id, requireSlug(data.courseSlug, "courseSlug")) } };
     } catch (error) {
       return failure(error);
     }
@@ -203,8 +221,8 @@ export const saveProgress = createServerFn({ method: "POST" })
         ok: true,
         data: await setProgress(
           account.id,
-          data.courseSlug,
-          data.lessonSlug,
+          requireSlug(data.courseSlug, "courseSlug"),
+          requireSlug(data.lessonSlug, "lessonSlug"),
           data.state,
           data.position ?? (data.state === "completed" ? 1 : 0)
         ),
@@ -228,7 +246,14 @@ export const submitAttempt = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<ActionResult<Attempt>> => {
     try {
       const account = await requireAccount();
-      return { ok: true, data: await recordAttempt(account.id, data) };
+      return {
+        ok: true,
+        data: await recordAttempt(account.id, {
+          ...data,
+          courseSlug: requireSlug(data.courseSlug, "courseSlug"),
+          activitySlug: requireSlug(data.activitySlug, "activitySlug"),
+        }),
+      };
     } catch (error) {
       return failure(error);
     }
@@ -254,7 +279,7 @@ export const courseProgress = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<ActionResult<LessonProgress[]>> => {
     try {
       const account = await requireAccount();
-      return { ok: true, data: await listProgress(account.id, data.courseSlug) };
+      return { ok: true, data: await listProgress(account.id, requireSlug(data.courseSlug, "courseSlug")) };
     } catch (error) {
       // Signed out is not a failure for a course page: it renders the public syllabus and an enrol
       // button instead of a progress bar.
