@@ -15616,3 +15616,275 @@ must move together.
   `design-paths.test.ts` (3), pass; `npm run typecheck` exits 0 from the repository root.
 - **`afinfo` cannot be trusted as the reference for a concatenated episode.** Recorded above because it cost a
   wrong number to find out.
+
+## ROUND 313 — THE NOISE BED IN THE SPOKEN RECORDS, MEASURED, AND THE `voice_settings` THAT IS NOT A RENDER RECORD
+
+The owner's second report about the narration:
+
+> *"also, the voice records on the articles is still fast, and it has background noise, which the lat audio i
+> fed you didnt"*
+
+Two faults. **They are not the same fault and they do not have the same answer.** He supplied `Ute Okpu 2.mp3`
+(10,672,389 bytes, copied to `work/audio-forensics/owner-reference.mp3`, SHA-256
+`78cefb7fe022b2d36d35c1fa8e3663ef7f84550d876228d1f1eff8208da08f9a`) as the standard, and it is clean.
+
+**No setting was changed. Nothing was re-rendered. No credit was spent.** What follows is measurement, the
+tools that produced it, and what each number does and does not prove.
+
+### 1. WHAT MEASURED THE AUDIO, AND WHAT COULD NOT
+
+There is **no `ffmpeg`, `ffprobe`, `sox`, `mediainfo` or `avconv` on this machine**, and no PyAV in any
+interpreter in this tree — `command -v` finds only `/usr/bin/afinfo`. `afinfo` reports container facts and a
+duration and nothing else, so it cannot see a noise floor.
+
+The way in was the repository's own Python environment for the self-hosted engine, `.tools/tts-venv`
+(Python 3.11.16): **numpy 1.26.4, scipy 1.17.1, soundfile 0.14.0 (libsndfile), librosa 0.11.0, torch 2.2.2.**
+libsndfile decodes MPEG Layer III directly, so every figure below is computed from decoded PCM at the file's
+own 44.1 kHz, mono, with no resampling:
+
+```bash
+.tools/tts-venv/bin/python -c "import soundfile as sf; print(sf.info('...mp3'))"
+```
+
+**What could not be measured:** the **original `.m4a` recordings** cannot be decoded here — they are 48 kHz AAC
+and libsndfile refuses them (`LibsndfileError: Format not recognised`), and there is no AAC decoder without
+ffmpeg. Their noise floor is therefore reported from the **24 kHz WAV conversions** in
+`data/voice-samples/wav/`, which are what the clone pipeline actually prepared. And nothing here transcribes
+audio, so **whether the spoken words match the stored scripts could not be checked** — that limit matters in
+§3.
+
+### 2. FAULT (b): THE NOISE IS REAL, IT IS CONTINUOUS, AND IT IS 47 dB
+
+Method, stated so it can be repeated: decode to mono float32; frame the signal at **50 ms window, 25 ms hop**;
+frame level = RMS in dBFS; **noise floor = the 10th percentile of frame levels over the whole file**, speech
+level = the 90th percentile. Script: `work/audio-forensics/analyse.py`.
+
+| file | noise floor (10th pct) | speech (90th pct) | **SNR** | quiet-frame RMS |
+|---|---|---|---|---|
+| **owner's own recording** | **−84.99 dBFS** | −20.34 | **64.65 dB** | −89.46 dBFS |
+| generated `ute-okpu` | **−37.74 dBFS** | −21.94 | **15.80 dB** | −42.60 dBFS |
+| generated `how-tortoise` | −33.43 dBFS | −13.06 | 20.37 dB | −39.95 dBFS |
+| generated `folklore` | −32.94 dBFS | −11.74 | 21.20 dB | −40.08 dBFS |
+
+**The owner's recording has a floor 47.25 dB below the episode's.** That is the whole of his complaint, in one
+number, and it is not a subtle difference: his pauses are digital silence and the episode's pauses are a
+signal.
+
+**It is not the codec.** The control is exact — all four files are 44.1 kHz mono, 128 kbps CBR MPEG-1 Layer
+III, written by the same encoder (`TSSE: Lavf60.16.101`), decoded by the same library, and analysed by the same
+code. 128 kbps MP3 does not produce a −38 dBFS floor; the owner's file proves it.
+
+**It is continuous, not a seam.** The floor was measured in every 60-second window of each generated file and
+is between −31 and −39 dBFS in **all** of them; there is no window without it. A chunk seam is a single 45-byte
+tag at one byte offset. It cannot put a bed under every second of a nine-minute file.
+
+**And it is not only the seams — but the seams are a separate, real defect.** See §4.
+
+What the bed *sounds* like, from the spectra of the 200 quietest frames of each file (share of 20 Hz–16 kHz
+energy, `work/audio-forensics/`): the generated bed puts **−11.9 dB** of its energy below 80 Hz against the
+owner's **−40.3 dB** — i.e. it is **low-frequency-weighted** (a room rumble) rather than a high hiss — and it
+carries **18–22 dB less** of its energy above 8 kHz. Spectrograms at `work/audio-forensics/spectrograms.png`
+show it the other way: a continuous horizontal band across every pause, where the owner's file is black.
+
+**The source, and the leading hypothesis.** The 13 recordings the clone was trained from **are on disk** and
+**are not clean**:
+
+| source | sample rate | noise floor | SNR |
+|---|---|---|---|
+| `data/voice-samples/wav/*.wav` (13 files) | **24 000 Hz** | **−38.44 to −51.60 dBFS** | **22.4 – 33.4 dB** |
+| the owner's new reference | 44 100 Hz | −84.99 dBFS | 64.65 dB |
+
+So the clone was trained on material **30–40 dB noisier** than the standard he now measures it against, and
+**ElevenLabs' `use_speaker_boost` is documented as "boosts the similarity to the original speaker"** — the
+setting whose whole job is to reproduce the reference more faithfully, room tone included. The generated bed
+(16–21 dB SNR) is 0–18 dB worse than the samples it was trained on (22–33 dB SNR), which is the direction
+speaker boost and synthesis move it. **This is the leading explanation and it fits every measurement, but it
+is a hypothesis: only a fresh render settles it (§7).**
+
+The 13 sample files were also identified exactly: ElevenLabs' own `hash` field for each of the clone's 13
+samples is the **MD5 of the local `.m4a` file of the same name** (`md5 -q`, all 13 match) — so the clone's
+reference audio is `data/voice-samples/*.m4a`, **uploaded under `.mp3` filenames** while being AAC in an m4a
+container. The clone is voice `wmiayHyRqbZKEoeIfhVK` ("Idenze Ezeme"), and there is a second, unused clone
+(`dTxIBNClKG27NEhUeO6T`, "Nze", 1 sample).
+
+### 3. FAULT (a): THE STORED `speed` — AND WHY THE STORED ROW IS NOT EVIDENCE
+
+**Reported as asked: the three existing recordings were made before `speed` existed, so they play at the API
+default of 1.0, and the next render through `speak()` will use 0.75.**
+
+But it has to be said plainly that **the stored column does not establish this, and was never able to.** Read
+from the live cluster:
+
+| `id` | slug | `voice_settings` | `duration_seconds` |
+|---|---|---|---|
+| 1 | `ute-okpu-…` | `{"style":0.1,"stability":0.7,"similarity_boost":0.8,"use_speaker_boost":true}` | **636** |
+| 2 | `how-tortoise-…` | identical | **254** |
+| 3 | `igbo-folklore-…` | identical | **848** |
+
+**No `speed` key, and no `duration_source` key.** And **`scripts/restore-episodes.ts` is where that JSON came
+from**: lines 145 and 163 hard-code `{ stability: 0.7, similarity_boost: 0.8, style: 0.1, use_speaker_boost:
+true }`, and lines 51/55/59 hard-code the three durations. The transition rows say so in words: *"Restored
+after the database restore lost the episode row… NOT re-rendered and no API credit was spent."*
+
+**So the absence of `speed` is a property of the restore script, not a record of the render.** It is also the
+**third copy** of the settings object, and the only one still drifted: `apps/ozikoro/lib/elevenlabs.ts:91` and
+`packages/ozikoro/src/narration.ts:415` both carry `speed: 0.75`, and round 312 fixed the second of those
+after finding it "had already drifted, missing `speed` entirely". **The third copy was not noticed, which is
+the argument for it importing the one object rather than restating it a third time.**
+
+The durations are the same class of fault, still live: **636 = 1,538 ÷ 145 × 60**, 254 = 615 ÷ 145 × 60, 848 =
+2,050 ÷ 145 × 60 — the 145 wpm *estimate* sitting in a column that reads as a measurement. `mp3.ts` and
+`render-episode.ts` were fixed to measure (round 312); the restore script was not, and the article page reads
+`duration_seconds` straight onto the player (`apps/ozikoro/app/[slug]/route.ts:148–166`). **The owner is still
+being shown 10m 36s for a file that plays 8m 22s.**
+
+**What does establish the pace**, and what the 0.75 was decided from, is a duration ratio needing no word
+count at all:
+
+| | duration | how it was got |
+|---|---|---|
+| the episode | **501.812 s** | `mp3DurationSeconds` (the repo's own frame walk) and `afinfo` (19,210 packets) agree |
+| the owner's reading | **665.966 s** | same walker, 25,494 frames |
+
+**665.966 / 501.812 = 1.327.** The file is a third faster than the person whose voice it imitates. As words per
+minute: the stored script is 1,538 words → **183.9 wpm** for the episode and **138.6 wpm** for the owner. The
+exact reciprocal is 0.7535 and 0.75 is the nearest the setting comes.
+
+**The page serves the stored file and cannot be affected by a setting.** Confirmed by reading it rather than
+assuming: `apps/ozikoro/app/[slug]/route.ts:160` emits `url: episode.external_url ?? /media/${storage_key}`,
+and `apps/ozikoro/app/media/[...key]/route.ts` reads object storage — which with no `S3_BUCKET` is
+`.data/media` (`packages/db/src/storage.ts:38`). The served bytes are
+`.data/media/ozikoro/episodes/<slug>.mp3`, SHA-256 `28cbb333…` for `ute-okpu`. The copy in
+`data/media/ozikoro-wp/episodes/` is byte-identical but is **not** storage and is not served. **No setting
+change can reach an existing episode; a file outlives the setting that made it.**
+
+### 4. THE SEAM, AND THE QUARTER OF A RENDER NOBODY HAS EVER HEARD
+
+Round 312 found `speak()` concatenates whole MP3s so a multi-chunk episode carries an `ID3v2` tag mid-file, and
+that PyAV refuses the folklore file. Both are confirmed, and the second is worse than "cosmetic":
+
+| file | internal `ID3` tag at | the file's own `Info` header declares | frames present | frames a decoder plays |
+|---|---|---|---|---|
+| `ute-okpu` | byte 600,898 (37.56 s) | 19,210 frames / 8,029,412 B | 19,210 | 19,210 |
+| `how-tortoise` | byte 534,340 (33.40 s) | 5,527 frames / 2,310,477 B | 5,527 | 5,527 |
+| `folklore` | byte **6,524,804** | **15,610 frames / 6,524,759 B — the first chunk only** | **20,435** | **15,610** |
+
+**The folklore file contains 533.812 s of rendered speech and plays 407.771 s of it.** The `Info` frame at
+offset 66 declares 15,610 frames; the file continues for a further 2,017,070 bytes, which is a second whole
+MP3 (its own `ID3` at 6,524,804 and `Info` at 6,524,870). Decoded on its own that region is **125.99 s of
+speech-level audio** — floor −33.66 dBFS, speech −15.21 dBFS, peak 0.904 — and **no decoder reaches it**,
+because `afinfo` and libsndfile both stop at the declared frame count. `afinfo` reports 407.771 s and is wrong;
+the repository's own `mp3DurationSeconds` reports **533.812 s** and is right, which is the case round 312
+predicted it would win.
+
+**Could the noise be a seam artefact? No.** A seam can produce a click, a level step or a burst at one
+instant. The bed in §2 is present in every 60-second window of every generated file, and the join points carry
+**no click**: the largest sample-to-sample step within ±2 samples of each seam is 0.0092 / 0.0094 / 0.0119,
+against the files' own 99.999th percentile of 0.090 / 0.129 / 0.129, and the click count is **0** in all four
+files at a threshold of 8× that percentile (`analyse.py`). What the seams *do* carry is a level step, because
+they fall mid-word: at `ute-okpu`'s join the last 100 ms of chunk 1 fall from −18.0 dBFS to −37.6 dBFS and
+chunk 2 resumes at the floor — the "abrupt change in prosody from one chunk to another" that ElevenLabs' own
+request-stitching guide exists to prevent. **The seam is a real defect that must be fixed before the next
+multi-chunk render, and it is not the noise.**
+
+### 5. `scripts/restore-episodes.ts` REWROTE THE FILES, AND THAT EXPLAINS THE SHARED MTIME
+
+Round 312 recorded the three MP3s' mtime to the second (23:33:49–50) as unexplained and as evidence the files
+were "placed together rather than each written by its own render". **The mtime is explained, and it is not
+evidence of that.** `restore-episodes.ts` reads each file from `MEDIA_DIR = .data/media/ozikoro/episodes/` and
+then `getStorage().put()`s it — **to the same path**, because the local storage root *is* `.data/media`
+(`storage.ts:38`). Reading a file does not change its mtime; rewriting it does. **One script rewrote all three
+inside one run, at 23:33:49.960 / 23:33:50.049 / 23:33:50.186** — which is exactly the revision rows'
+`created_at`, and the transition notes' anchored mtime of 23:12:57 is what the files' mtime was *before* the
+rewrite.
+
+So the shared mtime proves a restore, not a placement. **What remains genuinely unexplained is the pace of two
+of the three**: `how-tortoise` at 615 stored words in 144.379 s is **255.6 wpm** and `folklore` at 2,050 stored
+words in 533.812 s is **230.4 wpm**, against `ute-okpu`'s 183.9 wpm. 256 wpm is not narration. The most likely
+explanation is the one the data cannot exclude: **`restore-episodes.ts` re-derived each `script` and
+`transcript` from the article body *at restore time*, so the stored script need not be the text that was
+spoken** — an article edited after its render would be measured against words it never had. That would also
+make the stored `char_count` a re-derivation rather than a charge record. Resolving it needs either the
+rendered text or a transcript, and this round could produce neither.
+
+### 6. OUR SETTINGS, WHOLE, AND WHAT EACH DOES TO NOISE
+
+`apps/ozikoro/lib/elevenlabs.ts:91` as it stands, against ElevenLabs' documented defaults
+(`GET /v1/voices/settings/default` returned `{"stability":0.5,"use_speaker_boost":true,"similarity_boost":0.75,"style":0.0,"speed":1.0}`;
+the clone `wmiayHyRqbZKEoeIfhVK` has never been tuned — its own saved settings are byte-for-byte the API
+defaults):
+
+| setting | ours | API default | what it does | effect on the noise |
+|---|---|---|---|---|
+| `stability` | **0.7** | 0.5 | "how stable the voice is and the randomness between each generation… higher values can result in a monotonous voice" | **higher stability pushes the model toward reproducing the reference more literally — including its room tone.** 0.7 is above the default, so it works *against* us here |
+| `similarity_boost` | **0.8** | 0.75 | "how closely the AI should adhere to the original voice" | **above the default, so it reproduces the reference's artefacts — its noise — more strongly** |
+| `style` | **0.1** | 0.0 | "style exaggeration… amplify the style of the original speaker" | non-zero on a clone adds expressiveness and artefact; it is only 0.1, so this is the least of it |
+| `use_speaker_boost` | **true** | true | **"boosts the similarity to the original speaker"** | **the single most likely setting to be lifting the reference's noise floor.** It is on, and it is the documented mechanism |
+| `speed` | **0.75** | 1.0 | "adjusts the speed of the voice" | none — but it is the fix for fault (a) |
+| `output_format` | **not sent → `mp3_44100_128`** | `mp3_44100_128` | bitrate/sample rate | **excluded.** The docs confirm the default, and `mp3_44100_192` / `wav_44100` require **Creator / Pro** — the account is **starter** (`GET /v1/user/subscription`), so 128 kbps is already the best available and a downgrade is not what happened. The owner's own file is the same 128 kbps and is clean |
+
+### 7. WHAT IS RECOMMENDED, WHAT IT WOULD COST, AND WHAT SETTLES IT
+
+**Change first: `use_speaker_boost: false`.** It is the one setting documented as "boosts the similarity to the
+original speaker", the clone was trained on 22–33 dB SNR material while the target is 65 dB, and it is the only
+lever that acts on the *reference's* room tone rather than on prosody. **Cost in naturalness:** speaker boost
+exists to raise intelligibility and similarity, so turning it off can make the voice slightly less like him and
+slightly less forward; that is a real trade and the owner should hear it before it is committed.
+
+**Then, together, because they move the same way:** `similarity_boost` **0.8 → 0.5–0.6** and `stability`
+**0.7 → 0.5** (the API default). Both are currently *above* default and both push the model to reproduce the
+reference more literally, its noise included. **Cost:** lower similarity means a slightly less faithful clone;
+lower stability means more variation between generations, which is also what round 312 wanted for naturalness.
+`style` **0.1 → 0.0** removes an artefact source and costs a little expressiveness.
+
+**What would settle it rather than argue it: one short render.** There is **no free sample endpoint** — every
+conversion bills characters, and the streaming endpoint
+(`/v1/text-to-speech/{id}/stream`) bills identically. `previous_text` / `next_text` / `previous_request_ids`
+are for prosody continuity across chunks, not for cheap previews. A three-sentence test — the project's own
+example line repeated to roughly **200 characters** — would cost **≈200 credits**, which is **0.9 %** of the
+remaining allowance, and would answer the question the whole of §2 is a hypothesis about: render the same 200
+characters twice, once with `use_speaker_boost: true` and once with `false`, and measure both with
+`analyse.py`. **That is a cost the owner should authorise rather than have spent for him, so it was not
+spent.**
+
+**The caveat that makes the test urgent rather than optional:** if the three files were not produced by this
+pipeline (§3, §5 — the settings on the rows are a restore script's reconstruction, the scripts may not be the
+spoken text, and `apps/media`'s F5-TTS zero-shot engine was created 16–38 minutes *after* the audio and cannot
+have made it), then **no change to `NARRATION_SETTINGS` can make the existing episodes quieter or slower.**
+The owner would hear "still fast, still noisy" a third time. **Fresh renders under the new settings are what
+replace them, and that is a decision with a character cost, not a setting change.**
+
+### 8. CHARACTER ALLOWANCE
+
+`GET /v1/user/subscription`, read live this round: `tier: starter`, **`character_count: 43,448`**,
+`character_limit: 65,000` → **21,552 credits remaining**. Round 312's brief recorded "roughly 51,164 of 65,000
+characters remaining", which does not match either figure and was not re-derivable; the live reading above is
+the one to plan from. Re-rendering all three episodes would cost 9,844 + 3,250 + 11,418 = **24,512 characters —
+more than the entire remaining allowance.** The folklore record alone (11,418) is 53 % of it.
+
+### 9. WHAT WAS NOT DONE, AND WHY
+
+- **Nothing was re-rendered and no credit was spent.** Narration is paused and the spend is the owner's call.
+- **No setting was changed.** The brief asks for a proposal; `NARRATION_SETTINGS` is untouched.
+- **`speak()` was not changed**, although the mid-file tag that makes folklore undecodable and drops its last
+  126 s is a one-line strip and round 312 already deferred it. It is **the one function in this repository that
+  spends money**, and the change cannot be proved without a live render. Recommended as the *first* code
+  change before the next multi-chunk render, not made unilaterally here.
+- **No database row was written.** Correcting `duration_seconds`/`voice_settings` on the three rows is a
+  content change, and for `folklore` it is genuinely ambiguous: the file contains 533.812 s and a listener
+  hears 407.771 s, so which number belongs under the player is the owner's decision, not a fix to be applied
+  quietly.
+- **`scripts/restore-episodes.ts` was left as it is**, for the same reason: making its settings literal match
+  `NARRATION_SETTINGS` would record `speed: 0.75` on audio that may have been rendered at 1.0, which is *more*
+  misleading than the absence of the key. The honest fix is for the restore path to record that the settings
+  are unknown, and for the three copies of the object to become one.
+
+### 10. ENVIRONMENT NOTE
+
+The review server was **not running** when this round began and is not running now: nothing listens on 3110,
+`.data/pg.lock` held a dead PID (76481) at first and had been released by the time the rows were read, so the
+cluster was taken and given back cleanly by the read-only queries. `.data/pg` — and therefore every command in
+this round that touched the database — was opened only while nothing held it. The standalone design screens are
+intact: **52 files** in both `apps/ozikoro/public/design/screens/` and
+`apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/`. No build was run, so no `next dev` was
+disturbed.
