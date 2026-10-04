@@ -32,6 +32,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillDashboardLinks } from './design-fill.ts';
+import { MARQUEE_PLACES, fillHome, fillMarquee } from './design-fill.ts';
 import {
   AFRICAN_COUNTRIES,
   AFRICAN_COUNTRY_COUNT,
@@ -969,4 +970,133 @@ test('the year grid’s months are made expandable, and the reckoning is untouch
   assert.match(once, /yearInput\?\.addEventListener\("change",renderYear\);renderYear\(\);/);
   // The design's own file on disk is unchanged: the extension is a transform in memory.
   assert.equal(readFileSync(SCRIPT, 'utf8'), base);
+});
+
+/*
+ * ================================================================================================
+ * THE ROTATING NAMES ON THE FRONT PAGE.
+ * ================================================================================================
+ *
+ * `home.html`'s marquee is twelve town and clan names written twice, and every one of them was plain
+ * `<li>` text: **the front page held no link to any town or clan.** The fill makes them links, and the
+ * assertions here read the real screen rather than a fixture, for the reason the rest of this file does —
+ * a name typed differently in the design and in `MARQUEE_PLACES` does not throw, it silently leaves a
+ * name unlinked, and a reader cannot tell that from a name that has no record.
+ */
+const HOME = readFileSync(join(SCREENS, 'home.html'), 'utf8');
+
+/** The design's own marquee names, in order, read out of the real screen. */
+function designMarqueeNames(): string[] {
+  const start = HOME.indexOf('<div class="sx-marquee-track"');
+  const ulOpen = HOME.indexOf('<ul>', start);
+  const ulClose = HOME.indexOf('</ul>', ulOpen);
+  return [...HOME.slice(ulOpen, ulClose).matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1]!.trim());
+}
+
+/** Every resolved link, as the route would build it when all eleven records are published. */
+function allMarqueeLinks() {
+  return MARQUEE_PLACES.map((p) => ({ label: p.label, href: `/town/${p.slug}/` }));
+}
+
+/**
+ * The track's own `<ul>` out of a served or transformed screen.
+ *
+ * **Scoped deliberately**: the marquee also holds `a.sx-market-tab`, which is a real link to the Igbo market
+ * calendar and is not part of this transform. A page-wide count of anchors would count it and pass a
+ * transform that had added a tab stop to the wrong half.
+ */
+function marqueeList(html: string): string {
+  const start = html.indexOf('sx-marquee-track');
+  const ulOpen = html.indexOf('<ul', start);
+  const ulClose = html.indexOf('</ul>', ulOpen);
+  return html.slice(ulOpen, ulClose);
+}
+
+test('the marquee map covers the design as it stands, and Ubulu-Uku is the one name left out', () => {
+  const names = new Set(designMarqueeNames());
+  for (const place of MARQUEE_PLACES) {
+    assert.ok(names.has(place.label), `MARQUEE_PLACES names "${place.label}", which the design's marquee does not show`);
+  }
+  /*
+   * ONE NAME IS DELIBERATELY UNMAPPED, AND IT IS NAMED HERE.
+   *
+   * `Ubulu-Uku` has no published record in the register — as a name or as an alias — and `/town/ubulu-uku/`
+   * returns 404. **It is left as plain text rather than pointed at a guess.** Pinning it means a record
+   * appearing for it, or the design renaming an item, fails here and forces the decision rather than
+   * letting the list drift.
+   */
+  const unmapped = [...names].filter((n) => !MARQUEE_PLACES.some((p) => p.label === n));
+  assert.deepEqual(unmapped, ['Ubulu-Uku']);
+});
+
+test('the track stops being aria-hidden and the list gains a name, so the content is announced once', () => {
+  const out = fillMarquee(HOME, allMarqueeLinks());
+  assert.ok(!out.includes('<div class="sx-marquee-track" aria-hidden="true">'), 'the track is still aria-hidden');
+  assert.match(out, /<div class="sx-marquee-track"><ul aria-label="Communities in the archive">/);
+});
+
+test('the first half is reachable and the duplicate half is hidden — one reachable copy, not two', () => {
+  const out = fillMarquee(HOME, allMarqueeLinks());
+  const ulOpen = out.indexOf('<ul aria-label="Communities in the archive">');
+  const lis = [...out.slice(ulOpen, out.indexOf('</ul>', ulOpen)).matchAll(/<li([^>]*)>([\s\S]*?)<\/li>/g)];
+  assert.equal(lis.length, 24, 'the design writes the list twice and the loop needs both halves');
+
+  const hidden = lis.filter((m) => m[1]!.includes('aria-hidden="true"'));
+  assert.equal(hidden.length, 12, 'exactly the duplicate half is hidden');
+  // The hidden half is the SECOND half: the seam is `translateX(-50%)`, so the first copy is the real one.
+  assert.ok(!lis.slice(0, 12).some((m) => m[1]!.includes('aria-hidden')), 'the first half must stay announced');
+
+  /*
+   * AND NO TAB STOP SURVIVES INSIDE A HIDDEN HALF. **A focusable link inside `aria-hidden` is the bug this
+   * whole transform exists to avoid**: a screen reader is told to ignore the region while the keyboard still
+   * walks into it.
+   */
+  for (const m of hidden) {
+    const anchors = [...m[2]!.matchAll(/<a\b[^>]*>/g)].map((a) => a[0]);
+    for (const anchor of anchors) {
+      assert.ok(anchor.includes('tabindex="-1"'), `a link inside the hidden half is still a tab stop: ${anchor}`);
+    }
+  }
+});
+
+test('the keyboard reaches exactly one stop per real name, and none in the duplicate', () => {
+  const list = marqueeList(fillMarquee(HOME, allMarqueeLinks()));
+  const stops = [...list.matchAll(/<a\b[^>]*>/g)].map((m) => m[0]).filter((a) => !a.includes('tabindex="-1"'));
+  // Eleven: the design's twelve minus Ubulu-Uku, which has no record to reach.
+  assert.equal(stops.length, 11, `expected one reachable link per resolved name; got ${stops.length}`);
+  // Every stop is a real address, and none of them is a placeholder.
+  for (const a of stops) assert.match(a, /^<a href="\/town\/[a-z0-9-]+\/" style="color:inherit">$/);
+});
+
+test('the link carries inherit colour, because the design link colour is unreadable on this band', () => {
+  /*
+   * `--link` is `#0d5c45` and the marquee's band is `--emerald-deep`, `#062e22`: about 1.85:1, so a bare
+   * anchor here would render the names almost invisible. The design's own rule for a link on a dark band is
+   * `.sx-dark a { color: var(--gold-bright) }`, so these inherit the marquee's own colour instead.
+   */
+  const list = marqueeList(fillMarquee(HOME, allMarqueeLinks()));
+  // Twenty-two: eleven reachable in the first half, and the same eleven again in the hidden duplicate.
+  const rendered = [...list.matchAll(/<a href="\/town\/[^"]+"([^>]*)>/g)].map((m) => m[1]!);
+  assert.equal(rendered.length, 22, `expected a link on both halves of all eleven names; got ${rendered.length}`);
+  for (const attrs of rendered) assert.ok(attrs.includes('style="color:inherit"'), `no inherited colour: ${attrs}`);
+});
+
+test('a name with no record stays plain text rather than being pointed at a guess', () => {
+  const out = fillMarquee(HOME, allMarqueeLinks());
+  assert.ok(out.includes('<li>Ubulu-Uku</li>'), 'Ubulu-Uku must stay plain text in the first half');
+  assert.ok(!out.includes('/town/ubulu-uku/'), 'no link may be invented for a name with no record');
+});
+
+test('a marquee that resolves nothing is left exactly as the design has it', () => {
+  // The design's own markup, with its aria-hidden intact — the screen degrades to the design, not to a
+  // page that has lost a property it had.
+  assert.equal(fillMarquee(HOME, []), HOME);
+  assert.equal(fillMarquee(HOME, [{ label: 'A Town The Design Does Not Show', href: '/town/x/' }]), HOME);
+});
+
+test('the design screen on disk is untouched: the transform is in memory only', () => {
+  const before = readFileSync(join(SCREENS, 'home.html'), 'utf8');
+  fillMarquee(HOME, allMarqueeLinks());
+  fillHome(HOME, [{ title: 'A record', href: '/a-record/', topic: null }], allMarqueeLinks());
+  assert.equal(readFileSync(join(SCREENS, 'home.html'), 'utf8'), before);
 });

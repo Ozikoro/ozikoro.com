@@ -232,16 +232,174 @@ export function renderHomeEntry(index: number, e: { title: string; href: string;
 }
 
 /**
- * Fill `home.html`'s "Fresh from the archive" list.
+ * The rotating names on the front page, and the archive record each one actually reaches.
+ *
+ * WHAT THIS IS FOR
+ *
+ * `home.html` carries a marquee immediately under the hero: twelve town and clan names, written twice so the
+ * loop has no seam. **Every one of the twenty-four was plain `<li>` text, so the front page had no link to
+ * any town or clan at all.** The owner asked for the names to be clickable.
+ *
+ * WHY THE DESIGN'S TWELVE ARE KEPT, RATHER THAN REPLACED WITH THE REGISTER'S OWN
+ *
+ * The register holds 188 published entries and this list shows twelve, so the twelve are the designer's
+ * examples. **They are kept because the owner asked for the names that rotate to be clickable, not for the
+ * names to change** — and, measured against the register, they are far more real than "examples" implies.
+ * Eleven of the twelve reach a published record; the mapping from a display name to that record is below,
+ * entry by entry, because three of them are not the obvious slug and one of them reaches nothing at all.
+ *
+ * THE MAPPING IS NOT `slugify(name)`, AND THAT IS THE WHOLE POINT
+ *
+ * The archive folds a display name to a slug by `slugify` in `packages/db/src/import/clans.ts`
+ * (NFKD, lowercase, every run of non-alphanumerics to `-`). **Applying that here would have produced two
+ * wrong links and three 404s**, so each name is mapped to the record the register actually holds:
+ *
+ *   * `Ute-Okpu` → `ute-okpu`. The fold is right; the record's own name is `Ute Okpu`, with a space.
+ *   * `Igbodo` → `igbodo-northern-ika`, NOT `igbodo`. **The register holds two published entries named
+ *     Igbodo.** `igbodo` is a *section* in Enugu whose towns are Aku and Ukehe; `igbodo-northern-ika` is the
+ *     Ika town in Delta, Ika North East. The other eleven names in this marquee are Ika and Anioma towns
+ *     (Ute-Okpu, Umunede, Owa, Ogume, Amai, Akumazi, Abbi), so the Ika record is the one the design means.
+ *   * `Oko` and `Okwe` → `oko-okwe`. The register records them as **one entry for two neighbouring
+ *     communities**: "Oko and Okwe are two neighbouring Igbo communities of the western Niger in the Enuani
+ *     country, each with its own account of itself." Two names therefore reach one page.
+ *   * `Arondizuogu` → `ndizuogu`. **There is no `/town/arondizuogu/` — it 404s, because `getPlace` matches
+ *     `clan.slug` only and `Arondizuogu` is an ALIAS of Ndizuogu, not its slug.** The record's own opening
+ *     says "Ndizuogu — Arondizuogu, Ndi Izuogu, Izuogu na Iheme — is the largest of the Aro settlements
+ *     outside Arochukwu", so the archive itself states the equivalence.
+ *   * `Ubulu-Uku` → **nothing.** No published entry carries the name, as a name or as an alias, and
+ *     `/town/ubulu-uku/` returns 404. **It is left as plain text rather than pointed at a guess**, which is
+ *     the rule this file and the owner both hold to: a name with no record behind it must not become a link.
+ *
+ * WHY THE ROUTE STILL CHECKS THE SLUGS AGAINST THE DATABASE
+ *
+ * This map states the intent; it is not trusted as a fact. The route resolves every slug through
+ * `clan … where published` — the same visibility rule `getPlace` applies — and **only emits a link for a
+ * slug that came back published.** A record unpublished or renamed later leaves its name as plain text
+ * rather than becoming a 404, which is the failure this whole task is exposed to.
+ */
+export const MARQUEE_PLACES: ReadonlyArray<{ label: string; slug: string; note: string }> = [
+  { label: 'Ute-Okpu', slug: 'ute-okpu', note: 'the register writes the name "Ute Okpu"' },
+  { label: 'Umunede', slug: 'umunede', note: 'the fold is the slug' },
+  { label: 'Owa', slug: 'owa', note: 'the fold is the slug' },
+  { label: 'Ogume', slug: 'ogume', note: 'the fold is the slug' },
+  { label: 'Igbodo', slug: 'igbodo-northern-ika', note: 'the Ika town, not the Enugu section named igbodo' },
+  { label: 'Amai', slug: 'amai', note: 'the fold is the slug' },
+  { label: 'Akumazi', slug: 'akumazi', note: 'the fold is the slug' },
+  { label: 'Abbi', slug: 'abbi', note: 'the fold is the slug' },
+  { label: 'Oko', slug: 'oko-okwe', note: 'the register records Oko and Okwe as one entry' },
+  { label: 'Okwe', slug: 'oko-okwe', note: 'the register records Oko and Okwe as one entry' },
+  { label: 'Arondizuogu', slug: 'ndizuogu', note: 'Arondizuogu is an alias of Ndizuogu, not a slug' },
+];
+
+/** One resolved marquee link: the design's own display name, and the archive address behind it. */
+export type MarqueeLink = { label: string; href: string };
+
+/**
+ * The design's marquee track, exactly as it stands in `home.html`.
+ *
+ * The track carries `aria-hidden="true"` and the list is written twice inside it, so one match proves the
+ * screen is the one this fill was written for and gives the offset the rest of the transform works from.
+ */
+const MARQUEE_TRACK_OPEN = '<div class="sx-marquee-track" aria-hidden="true"><ul>';
+
+/**
+ * Make the rotating names links, so that the content is reachable ONCE and the loop still works.
+ *
+ * THE ACCESSIBILITY DECISION, AND WHY IT IS THIS ONE
+ *
+ * `aria-hidden="true"` sits on the track, and **a focusable link inside an `aria-hidden` region is a bug**:
+ * a screen reader is told to ignore the region while the keyboard still tabs into it, so a reader tabs
+ * through twenty-four stops that are announced as nothing. Of the three ways out:
+ *
+ *   (a) remove `aria-hidden` and name the list — **the twelve names are then announced twice**, because the
+ *       list is duplicated for the loop;
+ *   (b) **keep the duplicate half hidden and make the first half reachable and announced** — chosen here;
+ *   (c) keep `aria-hidden` and make every link `tabindex="-1"` — clickable by mouse, unreachable by keyboard,
+ *       which is worse than the plain text was.
+ *
+ * **(b) is done in the fill, and it needs no change to the design's markup structure.** The design has one
+ * `<ul>` holding twenty-four `<li>`, and the stylesheet animates that `<ul>` by `translateX(-50%)` — the
+ * seamlessness of the loop *is* the duplication, so the halves cannot be split into two lists without
+ * breaking it. So the single list is kept and the elements are marked in place: the opening
+ * `aria-hidden="true"` comes off the track, the `<ul>` gains an accessible name, each `<li>` in the
+ * duplicate half is marked `aria-hidden="true"`, and the anchors inside that half are given
+ * `tabindex="-1"` — **a `tabindex="-1"` link is still clickable but is out of the tab order, and an
+ * `aria-hidden` element that contains a tab stop is exactly the fault being fixed.**
+ *
+ * The duplicate half is identified rather than assumed: it is only treated as a duplicate when the track
+ * really does hold two identical halves. **A design that stopped duplicating its list would then hide
+ * nothing**, rather than silently hiding half of the real links.
+ *
+ * THE COLOUR ON EACH LINK IS `inherit`, AND THAT IS NOT DECORATION
+ *
+ * The design's global rule is `a { color: var(--link) }`, and `--link` is `#0d5c45` — a dark green. The
+ * marquee's band is `--emerald-deep`, `#062e22`. **That is a contrast ratio of about 1.85:1, well under the
+ * 4.5:1 a name has to clear to be read at all**, so a bare anchor here would have turned the twelve names
+ * almost invisible: worse than the plain text they replaced. The design's own statement about links on a
+ * dark band is `.sx-dark a { color: var(--gold-bright) }`, so these anchors inherit the marquee's own
+ * `--gold-bright` instead. The design's underline stays, and so does its 2px hover thickness, so the names
+ * still look like links. **No rule is added to any stylesheet** — the attribute is on the served element.
+ *
+ * A MARQUEE WITH NO LINKS IS LEFT ALONE. If nothing resolved, this returns the design's markup byte-for-byte
+ * with its `aria-hidden` intact, so a database that is down degrades to the design rather than to a page
+ * that has lost a property it had.
+ */
+export function fillMarquee(html: string, links: readonly MarqueeLink[]): string {
+  const start = html.indexOf(MARQUEE_TRACK_OPEN);
+  if (start === -1) return html;
+  const ulOpen = start + MARQUEE_TRACK_OPEN.length;
+  const ulClose = html.indexOf('</ul>', ulOpen);
+  if (ulClose === -1) return html;
+
+  const items = [...html.slice(ulOpen, ulClose).matchAll(/<li>([\s\S]*?)<\/li>/g)].map((m) => m[1]!.trim());
+  if (items.length === 0) return html;
+
+  const href = new Map(links.map((l) => [l.label, l.href]));
+  if (!items.some((name) => href.has(name))) return html;
+
+  /*
+   * The halves, and whether there really are two of them. `translateX(-50%)` in `@keyframes marquee` is what
+   * makes the repeat the seam, so only an exact repeat is treated as the duplicate half.
+   */
+  const half = items.length / 2;
+  const duplicated =
+    Number.isInteger(half) && half > 0 &&
+    items.slice(0, half).join('\u0000') === items.slice(half).join('\u0000');
+
+  const rendered = items
+    .map((name, index) => {
+      const repeat = duplicated && index >= half;
+      const target = href.get(name);
+      const inner = target
+        ? `<a href="${esc(target)}" style="color:inherit"${repeat ? ' tabindex="-1"' : ''}>${esc(name)}</a>`
+        : esc(name);
+      return `<li${repeat ? ' aria-hidden="true"' : ''}>${inner}</li>`;
+    })
+    .join('');
+
+  const track = `<div class="sx-marquee-track"><ul aria-label="Communities in the archive">`;
+  return html.slice(0, start) + track + rendered + '</ul>' + html.slice(ulClose + '</ul>'.length);
+}
+
+/**
+ * Fill `home.html`'s "Fresh from the archive" list, and make the rotating names links.
  *
  * The design's five entries link to `https://ozikoro.com/…`, which is the live WordPress site, and its credit
  * line says the story titles are taken from there. **This points them at the archive's own records instead**,
  * so a reader stays on the site being built rather than being sent to the one it will replace.
+ *
+ * `marquee` is optional so that a caller with no resolved places — or a test of the entries alone — still
+ * gets the list filled and the marquee left exactly as the design has it.
  */
-export function fillHome(html: string, entries: { title: string; href: string; topic: string | null }[]): string {
+export function fillHome(
+  html: string,
+  entries: { title: string; href: string; topic: string | null }[],
+  marquee: readonly MarqueeLink[] = []
+): string {
   let out = dropExampleFlag(html);
   const rendered = entries.map((e, i) => renderHomeEntry(i + 1, e)).join('\n        ');
   out = replaceContainer(out, '<div class="sx-archive-index"', rendered);
+  if (marquee.length > 0) out = fillMarquee(out, marquee);
   return out;
 }
 

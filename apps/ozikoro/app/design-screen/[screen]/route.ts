@@ -37,9 +37,10 @@ import {
   citationFor,
   fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
   fillCulturalEvent, fillDashboard, fillDocuments, fillDonate, fillFolklore, fillFolkloreReader, fillHome,
-  fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMaterialCulture, fillPhotographs,
+  fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMarquee, fillMaterialCulture, fillPhotographs,
   fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
   fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
+  MARQUEE_PLACES,
   MARKET_DAY_ANCHOR,
   type DashboardWho, type RealAzEntry, type RealCollection, type RealDocument, type RealEntry, type RealFilm,
   type RealPhotograph, type RealStory, type RealTown, type RealTrack,
@@ -768,8 +769,40 @@ export async function GET(
             where a.status = 'published' and a.is_page = false
             order by a.published_at desc nulls last, a.id desc limit 5`
         );
+        /*
+         * THE ROTATING NAMES, RESOLVED BEFORE THEY ARE LINKED.
+         *
+         * `MARQUEE_PLACES` says which record each of the design's twelve names means and why; **this query is
+         * what stops that map from being taken on trust.** Every slug it names is read back through
+         * `clan … where published`, which is the same visibility rule `getPlace` applies to `/town/<slug>/`,
+         * and **a link is emitted only for a slug that came back.** So a record renamed or unpublished later
+         * leaves its name as plain text instead of becoming a 404, which is the one failure that would make
+         * this worse than the text it replaced.
+         *
+         * The `slug` column is selected rather than assumed, so the address is built from the stored value
+         * and a change of case in the database cannot produce a link that misses.
+         */
+        const marquee: { label: string; href: string }[] = [];
+        const wanted = [...new Set(MARQUEE_PLACES.map((p) => p.slug))];
+        const found = await db.rows<{ slug: string }>(
+          `select slug from clan where published and lower(slug) = any($1::text[])`,
+          [wanted.map((s) => s.toLowerCase())]
+        );
+        const stored = new Map(found.map((r) => [r.slug.toLowerCase(), r.slug]));
+        for (const place of MARQUEE_PLACES) {
+          const slug = stored.get(place.slug.toLowerCase());
+          if (slug) marquee.push({ label: place.label, href: `/town/${slug}/` });
+        }
+
         if (rows.length > 0) {
-          html = fillHome(html, rows.map((r) => ({ title: r.title, href: `/${r.slug}/`, topic: r.topic })));
+          html = fillHome(
+            html,
+            rows.map((r) => ({ title: r.title, href: `/${r.slug}/`, topic: r.topic })),
+            marquee
+          );
+        } else if (marquee.length > 0) {
+          // No articles to show, but the names still reach their records.
+          html = fillMarquee(html, marquee);
         }
       }
     } catch (error) {

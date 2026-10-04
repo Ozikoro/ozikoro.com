@@ -16494,3 +16494,117 @@ free.
   `scripts/dsh-probe.tmp.ts`, an untracked scratch file belonging to another pass. It was announced, its
   scope was bounded (all 362 DSH session logs searched for the string; no hits, so unrecoverable), and it
   cost nothing. **A small mistake announced and bounded does not grow into a large one.**
+
+## ROUND 318 — THE FRONT PAGE'S ROTATING NAMES NOW REACH THEIR TOWNS, EXCEPT THE ONE THE ARCHIVE DOES NOT HOLD
+
+### 1. WHAT WAS ASKED, AND WHAT WAS THERE
+
+The owner: *"on the front page, the part where names of towns and clans is rotating, make them clickable."*
+The marquee under the hero held **twenty-four `<li>` of plain text** — the design's twelve names written
+twice so the loop has no seam — and `/` held **zero links to any town or clan**. The register holds 188
+published entries; not one of them was reachable from the front page.
+
+Everything below is serve-time, in `fillMarquee` and the `home` branch of the design-screen route. **Not one
+byte under `public/design/` changed.**
+
+### 2. THE TWELVE NAMES, MEASURED AGAINST THE REGISTER RATHER THAN FOLDED FROM THE DISPLAY STRING
+
+`slugify` in `packages/db/src/import/clans.ts` is the archive's folding rule, and **applying it to these
+twelve would have produced two wrong links and three 404s.** Each name was matched to the record the register
+actually holds:
+
+| the design's name | the record it reaches | why |
+|---|---|---|
+| Ute-Okpu | `/town/ute-okpu/` | the fold is right; the record's own name is `Ute Okpu` |
+| Umunede | `/town/umunede/` | the fold is the slug |
+| Owa | `/town/owa/` | the fold is the slug |
+| Ogume | `/town/ogume/` | the fold is the slug |
+| Igbodo | `/town/igbodo-northern-ika/` | **two published entries are named Igbodo.** `igbodo` is a *section* in Enugu whose towns are Aku and Ukehe; `igbodo-northern-ika` is the Ika town in Delta, Ika North East. The other eleven names here are Ika and Anioma towns, so the Ika record is the one the design means |
+| Amai · Akumazi · Abbi | `/town/amai/` · `/town/akumazi/` · `/town/abbi/` | the fold is the slug |
+| Oko · Okwe | `/town/oko-okwe/` | the register records them as **one entry for two neighbouring communities**: *"Oko and Okwe are two neighbouring Igbo communities of the western Niger in the Enuani country, each with its own account of itself."* Two names therefore reach one page |
+| Arondizuogu | `/town/ndizuogu/` | **`/town/arondizuogu/` is 404**, because `getPlace` matches `clan.slug` only and `Arondizuogu` is an **alias** of Ndizuogu. The record's own opening states the equivalence: *"Ndizuogu — Arondizuogu, Ndi Izuogu, Izuogu na Iheme — is the largest of the Aro settlements outside Arochukwu"* |
+| Ubulu-Uku | **nothing** | no published entry carries the name, as a name or as an alias, and `/town/ubulu-uku/` returns 404. **Left as plain text rather than pointed at a guess** |
+
+**The list is still the design's twelve.** The owner asked for the names that rotate to be clickable, not for
+the names to change, and eleven of the twelve do reach a record — so replacing the list with the register's
+own would have been a content change nobody asked for. The register's own order was measured as the
+alternative (Ndizuogu, Edda, Afikpo, Okpoha, …) and not taken, for that reason and because it would have
+changed the front page's visible words rather than only its links.
+
+### 3. THE ACCESSIBILITY DECISION: (b), AND IT NEEDED NO CHANGE TO THE DESIGN'S MARKUP
+
+`aria-hidden="true"` sat on `.sx-marquee-track`, and **a focusable link inside an `aria-hidden` region is a
+bug**: a screen reader is told to ignore the region while the keyboard still walks into it. Of the three ways
+out, **(b)** was taken — the duplicate half hidden, the first half reachable and announced. (a) would
+announce the twelve names twice, because the list is duplicated for the loop; (c) would make the names
+mouse-only, which is worse than the plain text was.
+
+The design holds **one `<ul>` of twenty-four `<li>`** and animates it with `translateX(-50%)` — the seam of
+the loop *is* the duplication — so the halves cannot be split into two lists without breaking the animation.
+The elements are therefore marked in place, in the fill:
+
+- `aria-hidden="true"` comes off the track;
+- the `<ul>` gains `aria-label="Communities in the archive"`, the accessible name the list had no way to have;
+- each `<li>` of the **duplicate half** is marked `aria-hidden="true"`, and the anchors inside it are given
+  `tabindex="-1"`, because an `aria-hidden` element containing a tab stop is exactly the fault being fixed.
+
+The duplicate half is **identified, not assumed**: it is treated as a duplicate only where the track really
+does hold two identical halves, so a design that stopped duplicating its list would hide nothing rather than
+hide half the real links. Measured in Chrome: **eleven reachable marquee stops**, the hidden half
+contributing none, and the tab order runs `… Share your town's story → Igbo Market Days → Ute-Okpu → … →
+Arondizuogu →` the next section.
+
+### 4. THE COLOUR, FOUND BY READING THE CASCADE RATHER THAN BY LOOKING AT THE PAGE
+
+The design's global rule is `a { color: var(--link) }`, and `--link` is `#0d5c45`. The marquee's band is
+`--emerald-deep`, `#062e22`. **That is 1.85:1 — a bare anchor here would have made the twelve names almost
+invisible, which is worse than the plain text they replaced.** The design's own statement about links on a
+dark band is `.sx-dark a { color: var(--gold-bright) }`, so each anchor carries `style="color:inherit"` and
+takes the marquee's own `--gold-bright`: measured in the browser as **9:1**, with the design's underline and
+its 2px hover thickness intact. **No stylesheet was touched** — the attribute is on the served element.
+
+### 5. THE ANIMATION PAUSES ON HOVER AND NOT ON FOCUS — REPORTED, NOT CHANGED
+
+Measured in headless Chrome, with the pointer verified to be over the band and the hover state read back:
+
+- at rest: `running`;
+- pointer over the band (`.sx-marquee:hover` matched): **`paused`** — the design's own rule works;
+- pointer moved away, link focused: **`running`** — there is no `:focus-within` rule anywhere in the design.
+
+So a **mouse** click is safe: the track stops under the pointer, and a real press-and-release was driven
+through the browser at the name `Amai` — `elementFromPoint` returned `A /town/amai/` and the click landed on
+`/town/amai/` with `<h1>Amai</h1>`. A **keyboard** user tabbing to a name gets a link that keeps moving: Enter
+still activates it, but the name slides out from under the focus ring. **Adding `:focus-within` would be a
+design change and was not made silently** — it is reported here instead, and it is one line in `showcase.css`
+on the day the owner wants it.
+
+### 6. VERIFIED
+
+- all **ten distinct links** added were fetched: **200**, and each page's `<h1>` names the town —
+  Ute Okpu · Umunede · Owa · Ogume · Igbodo · Amai · Akumazi · Abbi · Oko Okwe · Ndizuogu;
+- `/town/ubulu-uku/`: **404**, which is why that name stays text;
+- headless Chrome at 1440 px: the names render gold and underlined at 9:1, `Ubulu-Uku` renders **without** the
+  underline, and the click test above landed on the right page;
+- **eleven** marquee links in the tab order and **none** in the hidden half;
+- `npm run typecheck` from the repository root, read from its own exit code and not a pipe's: **exit 0**;
+- **parity: `identical 63 differing 0 missing 0`** — `apps/ozikoro/public/design/` is untouched, and
+  `git status` over both design trees is empty;
+- `apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/` holds **52** files;
+- `node --test packages/ozikoro/src/design-fill.test.ts`: **35 pass, 0 fail**, including eight new assertions
+  that read `home.html` itself — so a name retyped in the design, or a record renamed in the register, fails
+  there rather than becoming a link to nothing.
+
+### 7. WHAT WAS DELIBERATELY NOT DONE
+
+- **The list was not replaced with the register's own 188**, and the marquee was not lengthened. The count
+  stays twelve, which keeps the design's rhythm, its 40s loop and the tab-order cost exactly as drawn.
+- **No town was invented and no slug was guessed.** The route resolves every slug through
+  `clan … where published` — the same visibility rule `getPlace` applies — and emits a link **only** for a
+  slug that came back, so a record unpublished or renamed later leaves its name as plain text rather than a
+  404.
+- **No rule was added to any stylesheet**, and `:focus-within` was left to the owner.
+- **One shared-tree hazard, recorded because it cost two builds:** `npm run typecheck` and `next build` were
+  both failing on **another pass's untracked files** — first `packages/ozikoro/src/design-override.ts`, then
+  `apps/media/**`. `transpilePackages: ['@ozikoro/platform']` makes Next type-check the whole of that
+  package, so **any half-written file added under `packages/ozikoro/src/` breaks the build of every other
+  pass in the tree.** Both were fixed by their owners while this round ran; neither was touched here.
