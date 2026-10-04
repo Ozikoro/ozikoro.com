@@ -298,6 +298,56 @@ services:
   # this note used to state for the future.
   # ---------------------------------------------------------------------------
   # ---------------------------------------------------------------------------
+  # The Academy — academy.ozikoro.com
+  #
+  # The learning layer, and the successor to the retired learn.ozituma.com. It is the fourth site
+  # behind the one Caddy, and like the archive it shares nothing with the other two but the proxy.
+  #
+  # ITS OWN IMAGE, BUILT FROM ITS OWN DIRECTORY. This is the one service here whose source is not a
+  # Next.js workspace: the Academy is TanStack Start on Vite, so its build context is `apps/academy`
+  # and its dependencies come from that directory's own lockfile. See the header of
+  # apps/academy/Dockerfile for why folding it into the shared root `npm ci` was refused.
+  #
+  # IT IS ALSO THE ONE SERVICE THAT NEEDS NO DATABASE. Every page is served from the app's own data
+  # module — there is no connection string below, no `depends_on: postgres`, and that absence is
+  # accurate rather than an oversight. When the mastery engine and enrolment arrive, they come with
+  # the DATABASE_URL and the dependency, together.
+  # ---------------------------------------------------------------------------
+  academy:
+    build:
+      # The repository root is the wrong context here on purpose: see the Dockerfile's header.
+      context: ../apps/academy
+      dockerfile: Dockerfile
+    image: ozikoro-academy:latest
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      # The port Caddy proxies to. Named rather than defaulted, because the Dockerfile's EXPOSE and
+      # the Caddyfile's `reverse_proxy academy:3000` are three places that must agree.
+      PORT: '3000'
+      HOST: '0.0.0.0'
+    expose:
+      - '3000'
+    healthcheck:
+      # The Academy has no health route, so this asks `/`. A 200 there proves the SSR handler, the
+      # route tree and the static asset layer all loaded — a stronger statement than a handler that
+      # only proves the process is listening.
+      test:
+        - CMD
+        - wget
+        - -q
+        - -O
+        - /dev/null
+        - http://127.0.0.1:3000/
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+
+  # ---------------------------------------------------------------------------
   # Backups — the one service whose absence is discovered on the worst day
   #
   # THE LOCAL BACKUP TOOL CANNOT DO THIS JOB, BY ITS OWN DESIGN. `takeBackup` in
@@ -400,6 +450,9 @@ services:
       # Listed so the reverse proxy's target exists before Caddy starts. Without it the first
       # request to ozikoro.com can be proxied to a name that has not been created yet.
       - ozikoro
+      # The same reasoning, for the same fault, a third time: `{$ACADEMY_DOMAIN}` is interpolated in
+      # the Caddyfile, and a block whose address resolves to nothing stops Caddy loading entirely.
+      - academy
     ports:
       - '80:80'
       - '443:443'
@@ -426,6 +479,12 @@ services:
       # The second domain the Caddyfile interpolates. Without it Caddy will not load at all — see
       # the note on `depends_on` above.
       OZIKORO_DOMAIN: ${OZIKORO_DOMAIN:-ozikoro.com}
+      # The third. `ACADEMY_DOMAIN` is a hostname under the ozikoro.com zone rather than a zone of
+      # its own, so it is deliberately not derived from OZIKORO_DOMAIN: the Academy's address is a
+      # property of the Academy, and a `academy.${OZIKORO_DOMAIN}` expression would make it
+      # impossible to move one without moving the other. The default matches production, so an
+      # unset variable cannot reach the interpolation.
+      ACADEMY_DOMAIN: ${ACADEMY_DOMAIN:-academy.ozikoro.com}
     logging:
       driver: json-file
       options: { max-size: '10m', max-file: '3' }

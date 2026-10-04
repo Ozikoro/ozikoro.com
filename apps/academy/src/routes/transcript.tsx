@@ -1,0 +1,8 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { AcademyShell } from "@/components/academy-shell";
+import { PageIntro } from "@/components/academy-ui";
+import { meta } from "@/lib/meta";
+export const Route = createFileRoute("/transcript")({ head: () => meta("Learning transcript", "Your long-term record of courses, assessments, paths, research and certificates."), component: Page });
+const rec = [["Course progress", "IGB 101 · 4 of 24 lessons · 2 units completed"], ["Concept mastery", "1 mastered · 1 proficient · 1 familiar · 1 attempted"], ["Assessment history", "11 attempts · 9 passed · average 78%"], ["Learning paths", "Study Igbo History — started March 2026"], ["Research record", "3 saved sources · 1 reading list"], ["Certificates", "1 verified — IGB 101 Foundations"]];
+const hist = [["Sep 2026", "HIS 204 Unit 1 assessment", "82%"], ["Aug 2026", "IGB 101 Course challenge", "74%"], ["Jun 2026", "LIT 220 completed", "Certificate"]];
+function Page() { return <AcademyShell><PageIntro eyebrow="Learning transcript" title="Your academic record." description="A long-term history of study at Ozikoro Academy." /><section className="section-pad"><div className="site-wrap max-w-4xl"><dl className="source-meta">{rec.map(([a, b]) => <div key={a}><dt>{a}</dt><dd>{b}</dd></div>)}</dl><h2 className="mt-12 mb-4">History</h2><table className="compare-table"><thead><tr><th>Date</th><th>Activity</th><th>Result</th></tr></thead><tbody>{hist.map((h) => <tr key={h[1]}>{h.map((x) => <td key={x}>{x}</td>)}</tr>)}</tbody></table><Link className="text-link mt-8" to="/certificates">View certificates</Link></div></section></AcademyShell>; }

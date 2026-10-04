@@ -6,7 +6,9 @@
   "license": "SEE LICENSE IN LICENSE.md",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/web",
+    "apps/ozikoro",
+    "apps/media"
   ],
   "engines": {
     "node": ">=20.0.0"
