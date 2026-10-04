@@ -11,12 +11,27 @@
  * A route rather than a redirect, and deliberately: the address can be SERVED, which keeps it a 200 at
  * the URL WordPress published. Round 58 is the standing reminder of what rewriting archived addresses
  * to make a lookup work costs.
+ *
+ * ── THE PAGE SHOWED LESS ABOUT A WRITER THAN THE PAGE THE READER CAME FROM (round 338) ────────────────
+ *
+ * `/researchers/` listed the same eleven people with their portraits, their biographies, their record
+ * counts and their institutions, and linked each one here. **This page drew a bare heading, a record
+ * count and a grid**: it never read `ozikoro_contributor.avatar_url` or `.bio`, which the row already
+ * carried, and it used none of the design's own `.profile-head` / `.avatar` / `.stat-row` idiom — the
+ * idiom `/researchers/` and `/researchers/<id>/` both use. *The owner called it "not well designed".*
+ *
+ * So the head is the design's profile head: the author's OWN portrait where one has been supplied (the
+ * column is cleared of Gravatar's `d=mm` silhouette, which is a stock face and not a person), a monogram
+ * where none has, the biography the record holds, the counts, and — where a public research profile is
+ * joined to this byline by the record — the profile's own address. **Nothing here is inferred from a
+ * matching name**: `ozikoro_contributor.account_id` is set only by an approved claim, and a name is not
+ * proof, so a byline with no linked profile simply has none.
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { listArticles, countArticles } from '@ozikoro/platform';
+import { listArticles, countArticles, getBylineProfile } from '@ozikoro/platform';
 import { ArticleEntry } from '../../_components/article-entry';
 
 export const dynamic = 'force-dynamic';
@@ -36,13 +51,25 @@ async function authorArticles(slug: string, page: number) {
   return { articles, total };
 }
 
+/** `IE` from `Idenze Ezeme` — the same monogram `/about/` and `/researchers/` draw. */
+function initials(name: string): string {
+  return name.split(/[\s.@]+/).filter(Boolean).slice(0, 2).map((p) => p[0]!.toUpperCase()).join('');
+}
+
+/** `1051` -> `1,051`. The archive counts in en-GB, as the rest of the site does. */
+function n(value: number): string {
+  return value.toLocaleString('en-GB');
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const { articles, total } = await authorArticles(slug, 1);
+  const { total } = await authorArticles(slug, 1);
   if (total === 0) return { title: 'Not found' };
 
-  // The name comes from the records themselves rather than a second lookup: it is on every summary.
-  const name = articles[0]?.authorName ?? slug;
+  const db = await getDb();
+  const byline = await getBylineProfile(db, slug);
+  // The name comes from the contributor's own row, falling back to the byline printed on the records.
+  const name = byline?.name ?? slug;
   return {
     title: `${name} — records in the Ozikoro archive`,
     description: `${total} ${total === 1 ? 'record' : 'records'} by ${name} in the Ozikoro archive.`,
@@ -55,7 +82,20 @@ export default async function AuthorPage({ params }: PageProps) {
   const { articles, total } = await authorArticles(slug, 1);
   if (total === 0) notFound();
 
-  const name = articles[0]?.authorName ?? slug;
+  const db = await getDb();
+  const byline = await getBylineProfile(db, slug);
+  const name = byline?.name ?? articles[0]?.authorName ?? slug;
+
+  /*
+   * The role line reads the research profile where the record links one, and says what the archive holds
+   * otherwise — a byline is a contributor to the archive, and "Independent researcher" would be a claim
+   * about a person this page has no record for.
+   */
+  const role =
+    byline?.headline ??
+    (byline?.institution
+      ? `${byline.department ? `${byline.department}, ` : ''}${byline.institution}`
+      : 'Contributor to the archive');
 
   /*
    * `CollectionPage` with `about` a `Person`, not a `ProfilePage`: this is a list of records BY someone,
@@ -77,23 +117,95 @@ export default async function AuthorPage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <div className="wrap section">
-        <header>
-          <p className="eyebrow">Contributor</p>
-          <h1>{name}</h1>
-          <p className="small muted">
-            {total} {total === 1 ? 'record' : 'records'} in the archive
-            {' · '}
-            {/*
-              THE WAY BACK TO THE DIRECTORY, and the only honest link between the two pages.
-              `/researchers/<id>/` is a research profile and this is a byline; the archive does not
-              record that they are the same person unless a claim has been approved, so neither page
-              asserts the other. Both point at the directory, which lists the people who wrote the
-              archive and states plainly which profiles it cannot join to a byline. See round 310.
-            */}
-            <Link href="/researchers/">The people who wrote the archive</Link>
-          </p>
-        </header>
+        <div className="profile-head">
+          {byline?.avatarUrl ? (
+            /* The author's own portrait, from the archive's media store — never a Gravatar default. */
+            <img className="avatar" src={byline.avatarUrl} alt={`Portrait of ${name}`} />
+          ) : (
+            <p className="avatar" role="img" aria-label={`Monogram for ${name}: no portrait has been supplied`}>
+              {initials(name)}
+            </p>
+          )}
+          <div>
+            <p className="eyebrow">Contributor</p>
+            <h1 style={{ fontSize: 'var(--t-2xl)' }}>{name}</h1>
+            <p
+              className="lede"
+              style={{ marginTop: 'var(--s-2)', fontSize: 'var(--t-base)', fontFamily: 'var(--font-sans)' }}
+            >
+              {role}
+            </p>
+            <div className="chips" style={{ marginTop: 'var(--s-4)' }}>
+              <span className="chip chip-source">
+                {n(total)} {total === 1 ? 'record' : 'records'} in the archive
+              </span>
+              {byline?.researchInterests?.length ? (
+                <span className="chip">
+                  {byline.researchInterests.length}{' '}
+                  {byline.researchInterests.length === 1 ? 'research interest' : 'research interests'}
+                </span>
+              ) : null}
+            </div>
+            <div className="row" style={{ marginTop: 'var(--s-5)' }}>
+              {/*
+                THE RESEARCH PROFILE, WHERE THE RECORD LINKS ONE. `account_id` is set only when an editor
+                approves a claim, so this is a link the record supports rather than a join on a name — and
+                where there is no such link the page offers the claim instead of a profile that would be a
+                guess. `/researchers/` is the directory either way.
+              */}
+              {byline?.accountId ? (
+                <Link className="btn" href={`/researchers/${byline.accountId}/`}>
+                  Research profile
+                </Link>
+              ) : (
+                <Link className="btn btn-quiet" href="/claims/">
+                  Claim this byline
+                </Link>
+              )}
+              <Link className="btn btn-quiet" href="/researchers/">
+                All researchers
+              </Link>
+            </div>
+          </div>
+        </div>
 
+        {/*
+          THE STAT ROW IS THE DESIGN'S, WITH THE NUMBERS THIS RECORD HOLDS. The design draws four; a byline
+          has three facts here and the page prints three, because a stat that says nothing is worse than a
+          shorter row.
+        */}
+        <div
+          className="stat-row"
+          style={{ marginTop: 'var(--s-7)', paddingTop: 'var(--s-5)', borderTop: '1px solid var(--rule)' }}
+        >
+          <p className="stat">
+            <b>{n(total)}</b>
+            <span>{total === 1 ? 'Record in the archive' : 'Records in the archive'}</span>
+          </p>
+          <p className="stat">
+            <b>{byline?.bio ? 'Yes' : 'None'}</b>
+            <span>Biography supplied</span>
+          </p>
+          <p className="stat">
+            <b>{byline?.avatarUrl ? 'Yes' : 'Monogram'}</b>
+            <span>Portrait supplied</span>
+          </p>
+        </div>
+      </div>
+
+      {byline?.bio ? (
+        <div className="wrap section" style={{ paddingTop: 0 }}>
+          <section>
+            <p className="eyebrow">About</p>
+            <div className="prose">
+              <p>{byline.bio}</p>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      <div className="wrap section" style={{ paddingTop: 0 }}>
+        <p className="eyebrow">Records</p>
         <div className="grid cards">
           {articles.map((a) => (
             <ArticleEntry key={a.id} article={a} />

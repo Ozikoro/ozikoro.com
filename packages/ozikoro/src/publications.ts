@@ -1493,3 +1493,73 @@ export async function getProfileForEditing(db: Db, accountId: number): Promise<{
   if (!row) return null;
   return { isPublic: row.is_public, bio: row.bio ?? null, website: row.website ?? null };
 }
+
+/**
+ * One byline, as `/author/<slug>/` needs it: the record's own portrait and biography, and the
+ * published research profile the record links to it — or none.
+ *
+ * WHY THIS IS A QUERY RATHER THAN TWO FIELDS ALREADY IN HAND
+ *
+ * `/author/<slug>/` listed a person's records and read the person's name off the first summary. **It read
+ * neither `avatar_url` nor `bio`, so it showed LESS about a writer than `/about/` did** — the page a reader
+ * arrived from named the same person with the same portrait and the same biography. The columns were in the
+ * row the whole time; nothing asked for them.
+ *
+ * The fields and the joins are the ones `listResearchDirectory` already uses, so the byline page and the
+ * directory cannot come to disagree about the same person: the portrait is the contributor's own upload (or
+ * null, which the page draws as a monogram), the biography is the WordPress `description`, and the profile
+ * fields appear only where a public, active member profile is joined to the byline by the record — never by
+ * a matching name, because a name is not proof.
+ */
+export interface BylineProfile {
+  slug: string;
+  name: string;
+  bio: string | null;
+  avatarUrl: string | null;
+  /** Published, non-page records under this byline. */
+  records: number;
+  /** The account behind the byline, once a claim has been approved. Null while it has not. */
+  accountId: number | null;
+  headline: string | null;
+  institution: string | null;
+  department: string | null;
+  researchInterests: string[];
+}
+
+export async function getBylineProfile(db: Db, slug: string): Promise<BylineProfile | null> {
+  const row = await db.one<Record<string, unknown>>(
+    `select c.slug, c.display_name as name, c.bio, c.avatar_url, c.account_id,
+            count(a.id)::int as records,
+            m.headline, m.institution, m.department, m.research_interests
+       from ozikoro_contributor c
+       left join ozikoro_article a
+              on a.author_id = c.id and a.status = 'published' and a.is_page = false
+       left join ozikoro_member m
+              on m.account_id = c.account_id and m.is_public = true and m.status = 'active'
+      where c.slug = $1
+      group by c.id, c.slug, c.display_name, c.bio, c.avatar_url, c.account_id,
+               m.headline, m.institution, m.department, m.research_interests`,
+    [slug]
+  );
+  if (!row) return null;
+  return {
+    slug: String(row.slug),
+    name: String(row.name),
+    bio: row.bio ? String(row.bio) : null,
+    /*
+     * A PORTRAIT IS THE AUTHOR'S OWN UPLOAD OR IT IS NOTHING.
+     *
+     * The archive's import once filled this column with Gravatar's `d=mm` fallback — one grey silhouette
+     * served for everybody who has no account there — and the honest value for that is null, so the page
+     * draws a monogram. The backfill cleared those rows; this guard is what keeps a row that arrives with
+     * one from putting a stock face on a real person's page.
+     */
+    avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
+    records: Number(row.records ?? 0),
+    accountId: row.account_id === null || row.account_id === undefined ? null : Number(row.account_id),
+    headline: row.headline ? String(row.headline) : null,
+    institution: row.institution ? String(row.institution) : null,
+    department: row.department ? String(row.department) : null,
+    researchInterests: Array.isArray(row.research_interests) ? row.research_interests.map(String) : [],
+  };
+}

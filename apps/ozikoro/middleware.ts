@@ -265,6 +265,50 @@ export function middleware(request: NextRequest) {
     }
   }
 
+  /*
+   * ── AND THE ADDRESS A SERVED SCREEN'S OWN RELATIVE LINK USED TO PRODUCE ────────────────────────────
+   *
+   * THE OWNER'S REPORT: `/collections/about.html` "stopped working". **It answers 404, and the site is
+   * correct not to serve it — nothing on the site links there any more.** Measured on the served pages: 26
+   * screens name `about.html`, and every one of them carries `/about/` absolute and not one relative
+   * `about.html`. So the address came from a bookmark, a history entry or a cached page, and it is exactly
+   * the shape the relative-link fault produced: `/about/listen.html`, `/folklore/listen.html`,
+   * `/cultural-event/article.html`.
+   *
+   * THAT FAULT WAS FIXED AND THE ADDRESSES IT PRODUCED WERE NOT. `designScreenLinks` makes the links
+   * absolute going forward; a reader who followed one *before* the fix has it in their history, and a 404
+   * is what they get. **The archive has already answered this question twice today** — `/listen.html`
+   * redirects to `/listen/`, and every `/<name>.html` redirects to `/<name>/`, both with the same
+   * reasoning, written at the top of that block: *"an address once reachable keeps working — it does not
+   * say it keeps working as the wrong thing."* This is the third spelling of the same address, and the
+   * rule is applied rather than re-argued.
+   *
+   * ── WHY BOTH SEGMENTS MUST BE DESIGN FILES, WHICH IS WHAT MAKES IT SAFE ──────────────────────────
+   *
+   * The pattern is `<screen>/<sibling>.html`, and the address it produces is `/<sibling>/`. **The
+   * narrowing is the safety**: a relative link could only ever have named a file that sits beside the
+   * screens, so a first segment that is not one of the deliverable's screens is not this address and is
+   * left alone. That is what stops the rule shadowing a real two-segment route — `/documents/<slug>/`,
+   * `/town/<slug>/`, `/author/<slug>/` — whose first segment need not be a design file at all, and it is
+   * also why the destination must itself be a design file: this cannot invent a page.
+   *
+   * **AND IT CANNOT UNDO THE `towns`/`account` SEPARATION.** Neither name is in `DESIGN_SCREENS`, so
+   * neither is *rewritten* to a screen — but both ARE in `DESIGN_FILES`, because both are files the
+   * deliverable ships and `/towns.html` and `/account.html` are their names. This rule only ever turns a
+   * file's name into the address of the page, which is the same treatment the one-segment rule above
+   * already gives them, and it cannot reach the rewrite.
+   *
+   * IT SITS BEFORE THE ATTACHMENT FALLBACK, deliberately: that fallback rewrites an unknown two-segment
+   * path to `/attachment/<slug>/`, so a rule placed after it would never see these addresses at all.
+   */
+  const staleSibling = /^\/([a-z0-9-]+)\/([a-z0-9-]+)\.html$/.exec(pathname);
+  if (staleSibling && DESIGN_FILES.has(staleSibling[1]!) && DESIGN_FILES.has(staleSibling[2]!)) {
+    const sibling = staleSibling[2]!;
+    const to = new URL(sibling === 'home' ? '/' : `/${sibling}/`, request.url);
+    to.search = search;
+    return NextResponse.redirect(to, 301);
+  }
+
   const headers = new Headers(request.headers);
   headers.set('x-pathname', pathname);
   headers.set('x-host', request.headers.get('host') ?? '');

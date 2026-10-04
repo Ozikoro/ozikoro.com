@@ -288,8 +288,17 @@ export function renderFilmCard(f: RealFilm): string {
   const meta = `${category}${held} · Plays on this page`;
   const provenance = f.records > 1
     ? `Held in ${f.records} Ozikoro archive records · publisher not recorded`
-    : 'Held in the Ozikoro archive · publisher not recorded';
-  return `<button type="button" class="sx-video-card" data-video-id="${id}" data-video-title="${title}" data-video-meta="${meta}" aria-pressed="false"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="Thumbnail for ${title}"><span class="sx-video-play" aria-hidden="true">▶</span></span><span class="sx-video-meta">${category} · Plays on this page</span><h3>${title}</h3><p>${provenance}</p></button>`;
+    : `Held in the Ozikoro archive · publisher not recorded`;
+  /*
+   * AND THE FILM'S OWN PAGE, AS AN ATTRIBUTE RATHER THAN AS A LINK.
+   *
+   * The card is a `<button>` — the design's own element, and `button.sx-video-card` is how it is laid out — so
+   * a link cannot live inside it. The address travels on the card and `watch.js` is extended to put it on the
+   * inline player's control when the film is opened. **Only the archive's cards carry it**: the design's six
+   * cards are films the archive does not hold, `/watch-video/?v=<their id>` is a 404, and the extended script
+   * hides the control for them rather than offering a page that does not exist.
+   */
+  return `<button type="button" class="sx-video-card" data-video-id="${id}" data-video-title="${title}" data-video-meta="${meta}" data-video-page="/watch-video/?v=${id}" aria-pressed="false"><span class="sx-video-thumb"><img src="https://i.ytimg.com/vi/${id}/hqdefault.jpg" alt="Thumbnail for ${title}"><span class="sx-video-play" aria-hidden="true">▶</span></span><span class="sx-video-meta">${category} · Plays on this page</span><h3>${title}</h3><p>${provenance}</p></button>`;
 }
 
 /**
@@ -590,7 +599,7 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
    */
   rebuilt = rebuilt.replace(
     /(<div class="sx-inline-player-actions">)/,
-    '$1<a class="btn btn-ghost" id="inline-player-page" href="/watch-video/">This film’s page</a>'
+    '$1<a class="btn btn-ghost" id="inline-player-page" href="/watch-video/" hidden>This film’s page</a>'
   );
   return rebuilt;
 }
@@ -639,7 +648,11 @@ export function extendWatchScript(script: string): string {
    */
   const line =
     '\n    var pageEl = document.getElementById("' + MARKER + '");' +
-    '\n    if (pageEl) pageEl.href = "/watch-video/?v=" + encodeURIComponent(id);';
+    '\n    if (pageEl) {' +
+    '\n      var pageHref = card.getAttribute("data-video-page");' +
+    '\n      if (pageHref) { pageEl.href = pageHref; pageEl.hidden = false; }' +
+    '\n      else { pageEl.hidden = true; }' +
+    '\n    }';
   return script.replace(ANCHOR, () => `${ANCHOR}${line}`);
 }
 

@@ -26,7 +26,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { extendMarketDaysScript } from '@ozikoro/platform';
+import { extendMarketDaysScript, extendWatchScript } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +42,38 @@ const SCRIPT_DIR = join(process.cwd(), 'public', 'design');
  */
 const EXTENDED = new Map<string, (script: string) => string>([
   ['market-days.js', extendMarketDaysScript],
+  /*
+   * ── `mobile-nav.js`, UNCHANGED, AND THE REASON IT HAS TO BE SERVED HERE AT ALL ─────────────────
+   *
+   * `market-days.js` ENDS BY LOADING ITS OWN SIBLING:
+   *
+   *     const mobileNav = document.createElement('script');
+   *     mobileNav.src = new URL('mobile-nav.js', document.currentScript?.src || window.location.href).href;
+   *
+   * **It resolves `mobile-nav.js` against its own address.** On the seventeen screens that load it from
+   * `/design/market-days.js` that is `/design/mobile-nav.js` and it answers. On `/igbo-calendar/` and
+   * `/market-days/` the route serves the EXTENDED copy at `/design-screen-assets/market-days.js`, so the
+   * sibling became `/design-screen-assets/mobile-nav.js` — **an address nothing serves, measured 404 in a
+   * browser on both screens.**
+   *
+   * AND THE COST IS NOT A CONSOLE LINE. `showcase.css` hides the whole primary menu below 40rem —
+   * `.masthead .nav,.sx-reader-header nav{display:none!important}` — and the one control that opens it is the
+   * `.mobile-menu-button` that `mobile-nav.js` injects and wires. So on those two screens **the menu is not
+   * degraded on a phone; it is unreachable**, and the market-day date bar is missing with it. A page that
+   * answers 200, renders correctly at 1440px, and has no navigation at all on the device most readers use.
+   *
+   * It is an identity pass-through rather than an extension, and it is in this map rather than left alone
+   * because the map is the allow-list: a name served from here is a name a caller cannot choose. **The file's
+   * own bytes are what a browser gets**, so nothing about the design's behaviour changes — only which address
+   * serves it.
+   */
+  ['mobile-nav.js', (script: string) => script],
+  /*
+   * `watch.js`, EXTENDED BY ONE LINE so the inline player can name the film's own page. See
+   * `extendWatchScript`: the line is spliced after the one that already writes the YouTube address, and a file
+   * whose anchor is missing is served as the design wrote it rather than half-extended.
+   */
+  ['watch.js', extendWatchScript],
 ]);
 
 export async function GET(

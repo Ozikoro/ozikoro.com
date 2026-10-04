@@ -22158,8 +22158,8 @@ report an omission — the fault `check-screen-coverage.mjs` records in its own 
 | the route files under `apps/ozikoro/app/`, walked rather than listed | 107 |
 | every address a link, form, `src`, `srcset` candidate or meta refresh on those pages points at | — |
 | **seed addresses** (the three above, plus one instance of each dynamic family from `/sitemap.xml`) | **112 pages fetched** |
-| target references extracted from all 112 | **2,048** |
-| distinct addresses among them | **796**, each fetched once |
+| target references extracted from all 112 | **3,178** |
+| distinct addresses among them | **879**, each fetched once |
 
 **Relative addresses are resolved the way a browser resolves them, not the way a string join would.** The
 document's own `<base>` is read first and `new URL(raw, base.href ?? documentUrl)` is what resolves, so the two
@@ -22172,10 +22172,14 @@ cases that got an earlier probe wrong are both handled:
 
 ### 2. EVERY BROKEN LINK FOUND — BEFORE AND AFTER
 
-**The 316 relative anchors of round 336 are fixed and this round re-measured them: zero broken.** Of 1,889
-same-origin target references followed, **every one that a signed-out reader can reach answers 200**, and the
-only non-200s are the addresses that are *supposed* to refuse (below). No `href` in any served page is
-relative any more, and no form posts to an address that does not resolve.
+**The 316 relative anchors of round 336 are fixed and this round re-measured them: zero broken.** Of 2,984
+same-origin target references followed, **2,983 answered 200 and one answered 403 — a link into a gated
+dashboard, which is the gate working.** **Not one address failed to respond.** No `href` in any served page is
+relative any more, and no form posts to an address that does not resolve. (An earlier run of the same probe
+recorded 111 no-response addresses — `/author/<slug>/` and `/archive/?category=…`, the two heaviest queries on
+the site — and every one of them answered 200 with the right `<h1>` when requested individually. *That is what
+made the probe gentler rather than what made the site wrong*, and it is recorded because a measurement that was
+once an artifact is worth knowing about.)
 
 The one genuine broken **address** is the class the owner met as `/collections/about.html`:
 
@@ -22260,6 +22264,11 @@ of the archive's (`Publisher: not recorded`). An id the archive does not hold is
 fallback. And the film's page is reachable: `fillWatch` adds one control to the inline player — the one place
 the reader has already named a film — and `watch.js` is extended by one line and served from
 `/design-screen-assets/watch.js` to point it at that film.
+**Only the archive's twenty-four cards carry the address**, and that distinction is load-bearing rather than
+tidy: the design's own six cards are films the archive does not hold, measured — `/watch-video/?v=E3UBv8pmLxE`,
+`…?v=NBj1CvaDgbM`, `…?v=0_MvyVVGcxE`, `…?v=3NnklFf2rXA`, `…?v=g1z_-5jqPG0` and `…?v=TwFgd11nvEg` **all 404**
+— so the control is hidden for them and shown for a card that carries `data-video-page`. *A control that
+leads to a 404 for six of the page's films would have been this round's own fault, one card over.*
 
 **4. `app/listen/page.tsx` — unreachable, and its sentence was false.** It said *"the archive holds no audio
 yet, so the library is empty"*, which was true of the `audio` table and false of the archive: `/listen/` is
@@ -22308,11 +22317,35 @@ reader**; the four that are not gated (`/dashboard-account/`, `/dashboard-states
   `https://learn.ozituma.com/` — **now retired and rewritten to `/academy/`** — YouTube addresses and the
   Google Fonts hosts. `ozituma.com` was confirmed 200 out of band.
 
-### 7. THE PARITY OUTPUT, VERBATIM
+### 7. WHAT WAS VERIFIED, AND WITH WHAT
 
-```
-identical 63 differing 0 missing 0
-```
+- **The design is untouched.** The parity command prints, verbatim:
+
+      identical 63 differing 0 missing 0
+
+- **`npm run typecheck` from the repo root: exit 0**, read from its own exit code.
+- **`node --test packages/ozikoro/src/design-fill.test.ts`: 70 pass, 0 fail**, including four added this round —
+  the fragment rule and its idempotence, `extendWatchScript` and the file it leaves alone, the film page filled
+  from a record and stripped of the design's publisher, and the inline player's film-page control.
+  `node --test packages/ozikoro/src/design-paths.test.ts`: 9 pass, 0 fail.
+- **`scripts/check-screen-coverage.mjs`: `routed 23 · design-screen 19 · aliased 10 · deliberately absent 0 ·
+  MISSING 0`, exit 0** — where it previously reported `NO ROUTE` for twenty screens on every commit. The
+  nineteen are verified against `middleware.ts`'s own `DESIGN_SCREENS` set rather than asserted.
+- **The crawl: `PROBLEMS: 0`** against a build carrying every change in this round.
+- **The browser sweep: 64 pages navigated in headless Chrome, every response captured.** After the two
+  corrections the probe made to itself (a gated page's own 403 is not a broken asset, and a script-injected
+  relative anchor is judged by where it resolves), **the only faults are the ones this round fixed**: no page
+  asks for a resource that 4xxes, and no page's menu is dead.
+- **One relative anchor survives in the DOM and it is correct**: the design's own `mobile-nav.js` injects
+  `<a href="igbo-calendar.html">` into the market-day date bar at run time, no rewrite can reach it, and the
+  `<base href="/">` resolves it — measured in the browser at `/igbo-calendar.html` → 301 → `/igbo-calendar/`,
+  200. **That is the mechanism working, and it is why the base was not removed.**
+- **The stale addresses**: `/collections/about.html` → 301 `/about/`, `/about/listen.html` → 301 `/listen/`,
+  `/folklore/listen.html` → 301 `/listen/`, `/cultural-event/article.html` → 301 `/article/`,
+  `/watch/home.html` → 301 `/`. **And the two that must NOT be caught**: `/town/ndizuogu.html` → 404 (a real
+  two-segment route, not shadowed), `/media/about.html` → 404, `/author/about.html` → 404, `/admin/about.html`
+  → 404. `/towns.html` → 301 `/towns/` and `/account.html` → 301 `/account/` — the `DESIGN_FILES` /
+  `DESIGN_SCREENS` separation is intact.
 
 ### 8. WHAT DOES NOT WORK
 

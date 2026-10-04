@@ -2053,7 +2053,14 @@ test('watch.js is extended by one line, and a file without the anchor is left al
   const once = extendWatchScript(base);
   assert.notEqual(once, base, 'the film-page line was not spliced in, so the link would never follow the player');
   assert.match(once, /inline-player-page/, 'the link this line exists for is not named');
-  assert.match(once, /\/watch-video\/\?v=/, 'the film page address the link is pointed at is not written');
+  /*
+   * AND IT READS THE ADDRESS OFF THE CARD RATHER THAN BUILDING ONE FOR EVERY FILM. The design's six cards are
+   * films the archive does not hold, so `/watch-video/?v=<their id>` is a 404 — the line hides the control for
+   * them and shows it for a card that carries `data-video-page`. **A control that leads to a 404 for six of the
+   * page's films is the fault this round removed, one card over.**
+   */
+  assert.match(once, /data-video-page/, 'the extended script does not read the address the card carries');
+  assert.match(once, /pageEl\.hidden = true/, 'a film the archive does not hold would still be offered a page');
   /* It parses, rather than merely reading correctly: a script that does not parse takes the player with it. */
   assert.doesNotThrow(() => new Function(once), 'the extended script does not parse');
   // Idempotent, because the route reads the file on every request.
@@ -2122,5 +2129,7 @@ test('the inline player carries the way to the film’s own page', () => {
   const out = fillWatch(screen, extractArchiveFilms([
     { slug: 'x', title: 'X', topic: null, body_html: '<iframe src="https://www.youtube.com/embed/LL8YX0pXzdI"></iframe>' },
   ]));
-  assert.match(out, /id="inline-player-page" href="\/watch-video\/"/, 'the player has no way to a film’s page');
+  assert.match(out, /id="inline-player-page" href="\/watch-video\/"[^>]*hidden/, 'the player has no way to a film’s page');
+  /* The archive's cards carry the address; the design's do not, and the script hides the control for those. */
+  assert.match(out, /data-video-page="\/watch-video\/\?v=LL8YX0pXzdI"/, 'an archive film’s card carries no page address');
 });
