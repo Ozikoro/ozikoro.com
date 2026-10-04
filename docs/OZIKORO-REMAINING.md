@@ -15407,3 +15407,127 @@ hand-picked category.
    design directories and the `design-screen` route are unmodified in this working tree — so these are
    pre-existing or another round's, and **this round did not verify which**. The inviolability check this work
    was told to run, the file-hash comparison, prints exactly `identical 63 differing 0 missing 0`.
+
+## ROUND 309 — THE PANEL LOGIN MINTS `cpsess`, AND THE WHOLE-DATABASE REQUEST CANNOT FINISH
+
+*(Written concurrently with round 308, which is another agent's work in the same tree; nothing here touches it.)*
+
+**Round 307 ended with the sentence that unlocks everything: one cPanel panel login mints `cpsess`, and no amount of
+API-token work substitutes for it.** This round used it. The database is now on disk as a real `.sql` dump.
+
+### The login, and the path that reached phpMyAdmin
+
+```bash
+curl -sk -c jar --data-urlencode "user=$CPANEL_USER" --data-urlencode "pass=$CPANEL_PASSWORD" \
+  "https://business193.web-hosting.com:2083/login/?login_only=1"
+# 200 {"redirect":"/cpsess0520852417/frontend/jupiter/index.html?login=1&post_login=…",
+#      "security_token":"/cpsess0520852417","status":1,"notices":[]}
+```
+
+`business193.web-hosting.com` is the host's own hostname and answers; `ozikoro.com:2083` returns 401 for the login
+page. **The `cpsess` prefix changes with every session** — five different values were seen in one afternoon
+(`0520852417`, `1858560715`, `6029474679`, `3867598073`, `5802253430`) — so it is read from the login JSON and never
+hard-coded.
+
+| path | answer |
+|---|---|
+| `/{cpsess}/3rdparty/phpMyAdmin/index.php` | **200, `phpMyAdmin 5.2.3`, already authenticated** — no second login |
+| `/{cpsess}/3rdparty/phpMyAdmin/index.php?route=/database/export&db=ozikbfpe_ozikoro` | 200, the export form, all 111 tables listed with size and an approximate row count |
+| `/{cpsess}/3rdparty/phpMyAdmin/index.php?route=/export` | the dump form's action; this is what performs the export |
+| UAPI `Mysql/get_phpmyadmin_sso` with the panel session | **HTTP 000, curl exit 28, "Connection timed out after 25003 milliseconds"** — still unusable |
+
+**403 with the API token, 200 with a panel login: the token was never the problem, the session was.** The earlier
+403 on `/3rdparty/phpMyAdmin/index.php` was a fact about the token, not about the path, and the path was right all
+along.
+
+**"Save on server" exists in the form and is disabled.** The checkbox and its label are rendered, with
+`<span class="disabled-notice">Disabled</span>` beside them, because `$cfg['SaveDir']` is unset. There is therefore no
+server-side file for Fileman to download, and the export has to come back in the HTTP response — which is what makes
+the next section matter.
+
+### The whole-database request cannot finish, and the failure is at the end of the file
+
+Asking for all 111 tables in one request returns **200 with `content-type: application/x-gzip`**, and 12,829,431
+bytes of valid gzip arrive in 94 seconds. It is not a dump:
+
+- the gzip is intact for its first **104,997,742 bytes** — 55 `CREATE TABLE` statements, 20 tables carrying data —
+- and then the stream continues with HTML: `<code>#2006 - MySQL server has gone away</code>`,
+- leaving `wpc9_posts` truncated at **7,896 of its 9,144 rows**.
+
+`gzip -t` reports *"trailing garbage ignored"* and `gzip -dc` decompresses every byte before the error perfectly.
+**The corruption is at the very end, so every cheap check passes and only the last table is wrong** — the same shape
+as the 200-carrying-an-HTML-login-page failure, one layer further in. The rule that catches it is to read the *tail*
+of the response, not its status.
+
+### One request per table, then concatenate
+
+111 requests, each exporting a single table, then the parts are verified and concatenated into one file. Two tables —
+`wpc9_give_sequential_ordering` and `wpc9_woocommerce_attribute_taxonomies` — died with a bare `curl exit 28`
+(connection dropped, no response) on the first pass and came down on the second; the script keeps parts that verify
+and retries the rest, so a pass that dies at table 60 resumes rather than starting over.
+
+**`data/ozikoro-wp/dbdump/sql/ozikbfpe_ozikoro.sql`**
+
+| | |
+|---|---:|
+| bytes | **121,468,815** (115.8 MiB) |
+| `ozikbfpe_ozikoro.sql.gz` | 13,327,554 bytes — same content, md5 `f8a525217dc3503979633a461b416e70` |
+| `CREATE TABLE` | **111** |
+| `ALTER TABLE` | 205 |
+| `INSERT INTO` statements | 2,615 |
+| `DROP TABLE` / `TRUNCATE` / `CREATE DATABASE` | 0 / 0 / 0 |
+| first line | `-- phpMyAdmin SQL Dump` |
+
+`scripts/export-wp-db.sh` reproduces it and `scripts/verify-wp-dump.py` checks it: gzip integrity, the SQL header, the
+`CREATE TABLE` count, `INSERT` tuple counts per table, and `wpc9_posts` by `post_type` and `post_status`.
+`data/ozikoro-wp/dbdump/sql/ozikbfpe_ozikoro.rowcounts.txt` is that checker's output.
+
+### What was never reachable before, and what the counts say
+
+**The database holds 111 tables. Ten are WordPress core; the other 101 are plugin tables, and the archive's own
+numbers described only the ten.** 41 tables hold rows and 70 are empty.
+
+| table | in the dump | known before | why it differs |
+|---|---:|---:|---|
+| `wpc9_posts` | **9,144** | 9,091 "by construction" | +53: 26 rows of `oembed_cache` (24) and `customize_changeset` (2) that round 307 named as invisible to every read API, 11 more revisions written since, and 16 rows of types the earlier WXR and REST passes did not carry |
+| `wpc9_postmeta` | **27,996** | 25,634 | +2,362 — the postmeta belonging to revisions and auto-drafts |
+| `wpc9_users` | **15** | 15 | exact |
+| `wpc9_comments` | **51** | 47 approved | 47 plus the 4 spam that WordPress omits from an export |
+| `wpc9_commentmeta` | **248** | 228 | +20, the spam comments' meta |
+| `wpc9_terms` | **11,150** | 11,116 | +34 |
+| `wpc9_term_taxonomy` | **11,150** | 11,116 | +34 |
+| `wpc9_term_relationships` | **21,137** | 20,673 (derived) | +464 — the derived figure counted WXR assignments only |
+| `wpc9_options` | **1,472** | — | the whole table, salts and licence keys included |
+| `wpc9_usermeta` | **724** | 15 (roles only) | the whole table |
+
+**`wpc9_posts` by `post_type`: 4,266 `revision`, 3,583 `attachment`, 1,092 `post`, 33 `nav_menu_item`, 33
+`wp_font_face`, 32 `cpt_layouts`, 29 `googlesitekit_email`, 24 `oembed_cache`, 12 `wp_font_family`, 11
+`elementor_library`, 7 `page`, 6 `ppma_boxes`, 5 `ppmacf_field`, 2 each `customize_changeset`, `custom_css`, `wpcode`,
+and one each `wp_global_styles`, `mc4wp-form`, `wpcf7_contact_form`, `give_forms`, `campaign`.** Attachments
+(3,583), nav menu items (33) and pages (7) all match the earlier counts exactly; the plugin post types are new,
+because no read API named them.
+
+**`wpc9_posts` by `post_status`: 7,848 `inherit`, 1,221 `publish`, 43 `draft`, 27 `email_failed`, 2 `email_sent`,
+2 `auto-draft`, 1 `private`.** Of the `post` type specifically: **1,051 `publish`, 39 `draft`, 2 `auto-draft`** — the
+1,051 published posts and the 39 drafts both reconcile exactly with the WXR figures recorded in round 307, which is
+the check that says the dump is the archive and not a subset of it.
+
+**A checker that got the number right and the breakdown wrong is worth recording.** The first run of
+`verify-wp-dump.py` counted 9,144 `wpc9_posts` tuples and reported post types summing to 26. Two faults, both in the
+checker rather than the dump: `str.splitlines()` also breaks on the `\x0b`, `\x0c`, `\x85` and `\u2028` that sit
+inside post content, cutting five rows in half; and `Counter(t for t, _ in counter)` iterates a `Counter`'s **keys**,
+so each distinct type was counted once. Both are fixed, and the exact reconciliation above is the evidence that the
+fixes are real rather than plausible.
+
+**Read-only, and it stays read-only.** Every request against the host was phpMyAdmin's export, which is a `SELECT`.
+No query tab, no SQL editor, no "empty" or "drop" was touched, and `sql_drop_table` and `sql_truncate` were
+deliberately left out of the POST — so the dump carries no statement that could destroy anything if it were replayed.
+
+**The credential never entered a tracked file.** It is read from `staging/.env.local` at runtime and referenced as
+`$CPANEL_PASSWORD`, never echoed. Verified rather than believed: `.env.local` is gitignored (`.gitignore:15`) and
+`git log --all -- .env.local` is empty, so it has never been committed; and
+`git grep --untracked -F -e "$CPANEL_PASSWORD" -e "$CPANEL_API_TOKEN" -- .` returns **zero files**, which covers both
+tracked files and untracked files that are not ignored. The dump and the session scratch live under
+`data/ozikoro-wp/` (`.gitignore:72`) and `.scratch/` (`.gitignore:92`), neither of which is tracked — which is also
+why the dump, carrying `wpc9_users.user_pass` hashes and the salts in `wpc9_options`, is data and must never be
+committed.
