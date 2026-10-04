@@ -3025,40 +3025,405 @@ export function fillMaterialCulture(html: string, counts: { objects: number; pho
  * ---------------------------------------------------------------------------------------------- */
 
 /**
+ * THE COUNTRIES OF AFRICA, GROUPED BY THE REGION THE DESIGN'S OWN REGION FILTER USES.
+ *
+ * WHY THIS TYPE EXISTS, AND WHAT IT REPLACES
+ *
+ * The design draws a Country selector holding `All countries · Nigeria · Ghana · Kenya` beside a Region
+ * selector that offers **All African regions, West Africa, East Africa, Central Africa, North Africa and
+ * Southern Africa.** The screen's own model is continental and its country list said three — the owner's
+ * words were "the countries of all africa is not complete there", and he is right: a filter named
+ * "All countries" over three countries is a filter that cannot answer its own question.
+ *
+ * THE LIST, AND WHERE IT COMES FROM
+ *
+ * **The 54 sovereign states that are members of the African Union** — the whole of the continent's recognised
+ * statehood, in the AU's own regional groupings, which are the five the design's Region control names. The
+ * collection and its regional assignment were read, not recalled: AU member states, and the AU's regions from
+ * its own handbook. **No dependency, no dataset and no build step** — the list is a constant in this file,
+ * which is what makes it servable on a screen the archive fills at request time.
+ *
+ * WHAT IS DELIBERATELY NOT IN IT
+ *
+ *   Western Sahara (SADR)   An AU member, but its sovereignty is disputed and Morocco administers most of the
+ *                           territory. **Putting it in would be taking a side on a live dispute**, and the
+ *                           archive takes no side. Excluded, named, and named again here.
+ *   Réunion, Mayotte,       Non-sovereign. French and Spanish territory, and the overseas territories of
+ *   Saint Helena,           African states. **A "Country" control that lists them is answering a different
+ *   Canary Islands,         question from the one its label asks.** Excluded.
+ *   Madeira, Melilla,
+ *   Ceuta
+ *   Somaliland              A self-declared state that no AU member recognises as sovereign and that the AU
+ *                           treats as part of Somalia. Excluded, like Western Sahara, because listing it
+ *                           would be a claim about statehood rather than a country.
+ *
+ * NO ORDER IN THIS LIST IS A RANKING. It is grouped by region, and **alphabetical within each region** — the
+ * one ordering a reader cannot read as preference, size or importance. `All countries` stays first, because
+ * it is the empty choice rather than a country.
+ */
+export type RegionCountries = { region: string; countries: string[] };
+
+/** The 54 AU member states, alphabetically within the region the design's own Region control names. */
+export const AFRICAN_COUNTRIES: RegionCountries[] = [
+  {
+    region: 'North Africa',
+    countries: ['Algeria', 'Egypt', 'Libya', 'Morocco', 'Sudan', 'Tunisia'],
+  },
+  {
+    region: 'West Africa',
+    countries: [
+      'Benin', 'Burkina Faso', 'Cabo Verde', 'Côte d’Ivoire', 'Gambia', 'Ghana', 'Guinea',
+      'Guinea-Bissau', 'Liberia', 'Mali', 'Mauritania', 'Niger', 'Nigeria', 'Senegal',
+      'Sierra Leone', 'Togo',
+    ],
+  },
+  {
+    region: 'Central Africa',
+    countries: [
+      'Cameroon', 'Central African Republic', 'Chad', 'Democratic Republic of the Congo',
+      'Equatorial Guinea', 'Gabon', 'Republic of the Congo', 'São Tomé and Príncipe',
+    ],
+  },
+  {
+    region: 'East Africa',
+    countries: [
+      'Burundi', 'Comoros', 'Djibouti', 'Eritrea', 'Ethiopia', 'Kenya', 'Madagascar', 'Malawi',
+      'Mauritius', 'Mozambique', 'Rwanda', 'Seychelles', 'Somalia', 'South Sudan', 'Tanzania',
+      'Uganda', 'Zambia', 'Zimbabwe',
+    ],
+  },
+  {
+    region: 'Southern Africa',
+    countries: ['Angola', 'Botswana', 'Eswatini', 'Lesotho', 'Namibia', 'South Africa'],
+  },
+];
+
+/** How many states `AFRICAN_COUNTRIES` holds. Derived, so a list edited by hand cannot disagree with its own total. */
+export const AFRICAN_COUNTRY_COUNT = AFRICAN_COUNTRIES.reduce((total, r) => total + r.countries.length, 0);
+
+/**
+ * THE ONE MARKET-DAY ANCHOR IN THIS REPOSITORY, IN THE WORDS A READER READS.
+ *
+ * The arithmetic is the design's own: `apps/ozikoro/public/design/market-days.js` sets
+ * `Date.UTC(2026, 0, 1)` to index 1 of `["Eke", "Orie", "Afọ", "Nkwọ"]` — **1 January 2026 is Orie** — and
+ * repeats the four-day cycle from there. **Nothing here computes a second time**; this constant is only the
+ * basis sentence, and it is exported so that `/igbo-calendar/`, `/market-days/` and the cultural calendar's
+ * compact stamp all state the same anchor. A copied sentence is a second place to be wrong.
+ *
+ * It is a DEMONSTRATION, and the words say so: the anchor is this archive's, not a universal one, and a town
+ * that keeps a different anchor keeps a different market day.
+ */
+export const MARKET_DAY_ANCHOR = '1 January 2026 taken as Orie, repeating the four-day cycle';
+
+/**
+ * The Country selector's options, in the design's own markup.
+ *
+ * `<optgroup>` is the correct element for a grouped `<select>` and it is not a change of substance: **the
+ * groups are the same five regions the Region control beside it offers, so the two controls now describe one
+ * continent rather than two different ones.**
+ */
+export function countryOptions(): string {
+  const groups = AFRICAN_COUNTRIES.map(
+    (r) =>
+      `<optgroup label="${esc(r.region)}">` +
+      r.countries.map((c) => `<option>${esc(c)}</option>`).join('') +
+      `</optgroup>`
+  ).join('');
+  return `<option>All countries</option>${groups}`;
+}
+
+/**
+ * The Country selector in place, found by the design's own `<span>Country</span>` label.
+ *
+ * **Anchored to the label rather than to "the second `<select>`"**, because a filter added to the design
+ * would otherwise move the country list onto the wrong control — and a wrong list is worse than none, since
+ * it looks like an answer.
+ */
+function fillCountryOptions(html: string): string {
+  const pattern =
+    /(<label>\s*<span>Country<\/span>\s*<select[^>]*>)[\s\S]*?(<\/select>\s*<\/label>)/;
+  if (!pattern.test(html)) return html;
+  return html.replace(pattern, `$1${countryOptions()}$2`);
+}
+
+/**
  * `/cultural-calendar/` and `/cultural-event/` — the African cultural calendar.
  *
  * **There is no event table.** The only `%event%` tables in the schema are `learn_xp_event` and
  * `spotify_event`, which belong to the Academy and to Spotify, so the archive holds no event, no organiser and
  * no verification status. Measured: 0.
  *
- * The design's own grid says "Gold dates have events. Plain dates are not clickable" and heads itself
- * "October 2026 · demonstration month". **With no event recorded, every date is a plain date** — which is the
- * design's own non-interactive state rather than a degraded one, and the month is the real current month rather
- * than the design's example.
- *
  * A wrong date in a calendar is a reader travelling on the wrong day, so nothing is invented here of all places.
+ *
+ * ============================================================================================
+ * THE FILL THAT DELETED THE SCREEN, AND WHAT IT DELETED
+ * ============================================================================================
+ *
+ * The first version of this function ended with:
+ *
+ *     fillContainer(out, /<div class="sx-event-layout"[^>]*>/, '<p class="small muted">The archive holds 0 events…</p>')
+ *
+ * `fillContainer` replaces a container's WHOLE CONTENTS, matched by depth. `.sx-event-layout` is the container
+ * **that holds the calendar grid AND the selected-date panel** — the whole interactive body of the screen. So
+ * the fill that was written to say "the archive holds 0 events" also deleted:
+ *
+ *   `.sx-cultural-grid`     the month grid, its weekdays and its 28 day cells
+ *   `.sx-event-day-panel`   the panel the design's own script fills, with `data-event-*` hooks the script
+ *                           looks for and gives up on when they are absent
+ *   the panel's three       "Read event story", "Submit an event", "Suggest a correction" — the screen's
+ *   affordances             ACTUAL affordances, deleted with the demonstration event they sat beside
+ *
+ * **That is why four strings the design draws were missing from the served page while the served page's size
+ * fell by 1,572 bytes.** It was not the banner removal: `clearExampleMaterial` takes the design's
+ * `example-flag` paragraph and nothing else. The banner and the affordances went in the same pass because one
+ * `fillContainer` call took a region rather than a value.
+ *
+ * WHAT REPLACES IT
+ *
+ * The container stays, the frame stays, and **only the contents that were the design's example become the
+ * archive's real state**:
+ *
+ *   the grid        rebuilt as plain day cells for the real current month — blanks for the days before the
+ *                   1st so the columns still line up under `Mon`–`Sun`, then one numbered cell per day. **No
+ *                   `has-event`, no `data-event-*`, no `small` count**: with 0 events there is no date to
+ *                   highlight and nothing to click, which is the design's own non-interactive state.
+ *   the panel       keeps every `data-event-*` hook the script needs, and says in HTML — not only after the
+ *                   script runs — that no event is recorded. A reader without JavaScript must not be shown
+ *                   "Choose a highlighted date".
+ *   the affordances "Read event story" stays a link and is pointed at `/cultural-event/`, which is a real
+ *                   page that states there is no event. **"Submit an event" and "Suggest a correction" cannot
+ *                   honestly work** — the archive has no submission route (`/submit/` is a signed-in
+ *                   publication deposit that redirects an anonymous reader to sign in, and no account has
+ *                   ever been created), so they are kept, made inert, and say so, exactly as `/donate/` and
+ *                   `/sponsors/` keep an unbuilt form and disable it instead of deleting it.
+ *   the note        "Only dates with event entries are interactive." is kept as the RULE and not replaced by a
+ *                   statement about today, because it is the sentence that explains the calendar's whole
+ *                   interaction model to a reader who arrives in a month that has events.
+ *   the selector    the countries of Africa, all 54, grouped by the region the Region control beside it uses.
  */
-export function fillCulturalCalendar(html: string, month: { label: string; year: number; events: number }): string {
+export function fillCulturalCalendar(
+  html: string,
+  month: {
+    label: string;
+    year: number;
+    /** The month as 1–12, so the grid is drawn for the month the page NAMES rather than for the wall clock. */
+    monthIndex: number;
+    events: number;
+    /**
+     * The market-day reckoning this page states, in the same words `/igbo-calendar/` uses.
+     *
+     * **PASSED IN SO THAT THE TWO SCREENS CANNOT STATE DIFFERENT ANCHORS.** The cycle is computed by the
+     * design's own `market-days.js` — this string is only the basis sentence beside it, and a second copy of
+     * the wording here would be a second place to be wrong.
+     */
+    anchor: string;
+  }
+): string {
   let out = clearExampleMaterial(html);
+
+  /* ------------------------------------------------------------------ the month, stated honestly. */
+  const monthLine = `${esc(month.label)} ${month.year} · ${month.events === 0 ? 'no verified event' : `${n(month.events)} verified ${month.events === 1 ? 'event' : 'events'}`}`;
+  out = out.replace(/October 2026 · demonstration month/, monthLine);
+  /* The panel's own `<time>`, which the design heads with the example month. Left alone it would tell a
+     reader that the selected date is October 2026 while the grid above it draws this month. */
+  out = out.replace(/(<aside class="sx-event-day-panel"[\s\S]*?<time>)[\s\S]*?(<\/time>)/, `$1${monthLine}$2`);
+
+  /* ------------------------------------------------------------------ the grid: plain days, no event. */
+  /*
+   * THE GRID IS DRAWN FOR THE MONTH THE HEADING NAMES, WHICH IS WHY `monthIndex` IS PASSED RATHER THAN READ.
+   *
+   * The first version of this grid took the month from the wall clock while the heading took it from the
+   * route's own argument. **They are the same value today and would drift the moment either changed** — a page
+   * headed "October 2026" over a grid of November's days, where the 31st falls on a different weekday and a
+   * reader planning around it is a day out. One argument now draws both.
+   */
+  const firstOfMonth = new Date(Date.UTC(month.year, month.monthIndex - 1, 1));
+  const daysInMonth = new Date(Date.UTC(month.year, month.monthIndex, 0)).getUTCDate();
+  // The design's week runs `Mon`…`Sun`, so the blank count is the weekday index with Monday as 0.
+  const mondayIndex = (firstOfMonth.getUTCDay() + 6) % 7;
+  const blanks = Array.from({ length: mondayIndex }, () => '<div class="sx-cultural-day is-empty" aria-hidden="true"></div>');
+  const days = Array.from({ length: daysInMonth }, (_, i) => `<div class="sx-cultural-day"><span>${i + 1}</span></div>`);
+  /*
+   * THE GRID'S OWN `aria-label` IS RE-DATED TOO. The design writes `aria-label="October 2026 cultural events
+   * calendar"`; left alone over another month it is an accessible name that contradicts the grid it names.
+   */
+  out = out.replace(/(<div class="sx-cultural-grid"[^>]*aria-label=")[^"]*(")/, `$1${esc(month.label)} ${month.year} cultural events calendar$2`);
+  out = fillContainer(out, /<div class="sx-cultural-grid"[^>]*>/, [...blanks, ...days].join(''));
+
+  /* ------------------------------------------------------------------ the panel, filled in HTML. */
+  /*
+   * EVERY `data-event-*` HOOK STAYS. `cultural-calendar.js` looks for `data-event-title`, `data-event-status`,
+   * `data-event-meta`, `data-event-description` and `data-event-story`, and returns early when any of the first
+   * four is absent — **so deleting the panel would have left the script with nothing to find, and keeping the
+   * hooks is what lets the same markup start working the day an event exists.**
+   */
+  if (month.events === 0) {
+    out = out.replace(
+      /(<h2 data-event-title>)[\s\S]*?(<\/h2>)/,
+      '$1No event is recorded$2'
+    );
+    out = out.replace(
+      /(<span class="sx-event-badge" data-event-status>)[\s\S]*?(<\/span>)/,
+      '$1No date has an event$2'
+    );
+    out = out.replace(
+      /(<p class="sx-event-meta" data-event-meta>)[\s\S]*?(<\/p>)/,
+      '$1No organiser, place or verification date is recorded for any date this month$2'
+    );
+    out = out.replace(
+      /(<p data-event-description>)[\s\S]*?(<\/p>)/,
+      '$1The archive holds no event record, so no date is interactive and none can be selected. Nothing has been invented to fill the calendar, and an event appears only once its organiser, place and source are recorded and verified.$2'
+    );
+  } else {
+    out = out.replace(
+      /(<p data-event-description>)[\s\S]*?(<\/p>)/,
+      '$1Choose a highlighted date to see its organiser, place and verification status.$2'
+    );
+  }
+
+  /* ------------------------------------------------------------------ the three affordances. */
+  /*
+   * "READ EVENT STORY" IS POINTED AT THE PAGE THAT ANSWERS IT, AND STAYS A LINK.
+   *
+   * `cultural-event.html` becomes `/cultural-event/`, which is served and states plainly that no event is
+   * recorded. **The screen keeps its promise and the destination keeps its honesty.**
+   */
   out = out.replace(
-    /October 2026 · demonstration month/,
-    `${esc(month.label)} ${month.year} · ${month.events === 0 ? 'no verified event' : `${n(month.events)} verified ${month.events === 1 ? 'event' : 'events'}`}`
+    /<a class="btn btn-gold" data-event-story href="cultural-event\.html">Read event story<\/a>/,
+    '<a class="btn btn-gold" data-event-story href="/cultural-event/">Read event story</a>'
+  );
+  /*
+   * "SUBMIT AN EVENT" AND "SUGGEST A CORRECTION" CANNOT HONESTLY WORK, SO THEY SAY SO.
+   *
+   * Neither has a route behind it: the design points both at `upload.html`, which is the publication-deposit
+   * screen, and `/submit/` — the application's own submit route — **redirects an anonymous reader to sign in
+   * and no account has ever been created.** Removing the two controls would take the design's structure with
+   * it and leave a reader unable to see what the screen is for; leaving them as links would send them to a
+   * page that cannot do what its label promised. So they are kept, made inert with `aria-disabled` and a
+   * title saying why, **exactly as `/donate/` keeps its form and disables it rather than deleting it** — and
+   * the note below them says the same thing in the page's own words, for the reader who does not hover.
+   */
+  out = out.replace(
+    /<a class="btn" href="upload\.html">Submit an event<\/a>/,
+    '<a class="btn" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8" title="Not built yet — no route on this site accepts an event submission">Submit an event</a>'
   );
   out = out.replace(
-    /Event details will appear here\./,
-    month.events === 0
-      ? 'No event is recorded for any date in this month, so no date is interactive. An event appears once its organiser, place and source are recorded and verified.'
-      : 'Choose a highlighted date to see its organiser, place and verification status.'
+    /<a class="btn btn-quiet" href="upload\.html">Suggest a correction<\/a>/,
+    '<a class="btn btn-quiet" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8" title="Not built yet — no route on this site accepts a correction">Suggest a correction</a>'
   );
+  /*
+   * THE COLOUR IS SET BECAUSE LOSING THE `href` TOOK THE CONTRAST WITH IT.
+   *
+   * `Suggest a correction` carries `btn btn-quiet`, and the panel's own rule colours a quiet button's text
+   * with the page's DARK ink — legible over the gold or cream it was drawn on. On this panel the background is
+   * dark green, and **measured in the browser the label rendered `rgb(29,26,22)` on a dark panel: a contrast
+   * ratio of 1.13:1, which is text nobody can read.** It was invisible in the screenshot, which is how it was
+   * found.
+   *
+   * `var(--on-night-muted)` is the design's own token for exactly this surface — the same colour its
+   * `.sx-source-note` uses on the same panel — and it measures 6.7:1 against it. `opacity: .8` is what makes
+   * the control read as unavailable rather than as an ordinary button; the label stays above the 4.5:1
+   * minimum that way. **The design's stylesheet is not touched: this is an inline corner of the served page.**
+   */
+  /*
+   * AND WHAT WOULD MAKE THEM WORK, IN THE PANEL RATHER THAN IN A TOOLTIP.
+   *
+   * A `title` is invisible to a touch reader, and this archive's audience is largely on a phone. **The two
+   * controls keep their design classes and lose only their `href`, and the sentence beside them carries the
+   * whole state**: no submission route exists, and a submission is a publication workflow rather than an
+   * anonymous listing — which is what the archive's own `/submit/` screen is for, and it is gated.
+   */
+  if (month.events === 0) {
+    out = out.replace(
+      /(<div class="row"><a class="btn btn-gold" data-event-story[^>]*>Read event story<\/a><a class="btn" aria-disabled="true"[^>]*>Submit an event<\/a><a class="btn btn-quiet" aria-disabled="true"[^>]*>Suggest a correction<\/a>)<\/div>/,
+      `$1</div><p class="small muted" style="margin-top:var(--s-3)">An event reaches this calendar only through an editor: it is submitted with its organiser, place, date and source, and published once that source has been checked. <strong>No submission route exists on this site yet</strong>, so the two controls beside &ldquo;Read event story&rdquo; do nothing and say so. Nothing here is a place to send a claim about a date.</p>`
+    );
+  }
+
+  /* ------------------------------------------------------------------ the interaction rule, kept. */
+  /*
+   * THE SENTENCE THAT EXPLAINS THE SCREEN, AND THE ONE THING THE OLD FILL GOT RIGHT TO REWRITE.
+   *
+   * It is a RULE — "only dates with event entries are interactive" — and a rule is true in every month. The
+   * old fill replaced it with a statement about today, which was honest and still worth having, so both are
+   * kept: the rule first, then what it means for the month on screen.
+   */
   out = out.replace(
     /Only dates with event entries are interactive\./,
-    'Every date above is a plain date, because the archive records no event. Only dates with event entries become interactive — and there are none.'
+    month.events === 0
+      ? 'Only dates with event entries are interactive. No date in this month has an entry, so every date above is a plain date.'
+      : 'Only dates with event entries are interactive.'
   );
-  out = fillContainer(
-    out,
-    /<div class="sx-event-layout"[^>]*>/,
-    `<p class="small muted">The archive holds <strong>0 events</strong>. There is no organiser, place or verification date to show, and none is invented. To offer an event, use <a href="upload.html">Contribute</a>; it will appear here once its organiser and source are recorded.</p>`
-  );
+
+  /* ------------------------------------------------------------------ the country list. */
+  out = fillCountryOptions(out);
+
+  /* ------------------------------------------------------------------ today's market day, small. */
+  /*
+   * THE OWNER ASKED FOR THE IGBO MARKET DAY ON THE CALENDARS, AND SMALL.
+   *
+   * His words: *"can you add igbo market day on the calendars? i mean, make it smaller at the top, or anywhere
+   * that will make it fit into the design of the event calendar"*. So it goes after the hero and before "Events
+   * by date" — **context for the month rather than a competitor to it** — and it uses the design's own pieces:
+   * `spread` for the baseline row, `sx-source-note` for the quiet note, and `small muted` for the type.
+   *
+   * ============================================================================================
+   * THE RECKONING IS NOT COMPUTED HERE, AND THAT IS THE POINT
+   * ============================================================================================
+   *
+   * `market-days.js` already computes it, and the two elements below carry the hooks it looks for:
+   *
+   *     document.querySelectorAll("[data-market-day]").forEach(el => el.textContent = marketDay(today));
+   *     document.querySelectorAll("[data-modern-date]").forEach(el => el.textContent = fmt.format(today));
+   *
+   * **A second implementation in TypeScript would be a second reckoning of one cycle**, and two reckonings
+   * drift — the page states its anchor in one place, so the number must come from the one place too.
+   *
+   * WHAT IS ADDED IS THE SCRIPT TAG, BECAUSE THE DESIGN'S CULTURAL CALENDAR DOES NOT LOAD IT. Measured:
+   * `cultural-calendar.html` loads `../cultural-calendar.js` and `../mobile-nav.js` and **not**
+   * `../market-days.js`, so without this line the two spans would render empty and a reader would see the
+   * label and no day. The route rewrites a `src="../name.js"` to `/design/name.js`, the same pass that fixed
+   * every other screen's scripts.
+   *
+   * WHAT IT SAYS ABOUT ITSELF, IN ONE BREATH
+   *
+   * A stamp reading "Nkwọ" over today's date reads as a fact about the reader's own town, and it is not one:
+   * **it is one archive's demonstration from a fixed anchor, and a community keeping a different anchor keeps
+   * a different market day.** `fillIgboCalendar` already states that for `/igbo-calendar/`, and the sentence
+   * is carried here rather than dropped for space — because the space is the reason not to drop it.
+   */
+  const marketDay = `
+      <aside class="wrap" style="margin-top:var(--s-6)">
+        <div class="spread" style="gap:var(--s-3)">
+          <p class="eyebrow" style="margin:0">Today&rsquo;s Igbo market day</p>
+          <p style="margin:0"><strong data-market-day>Market day</strong><span class="small muted"> · <time data-modern-date>Today</time></span></p>
+        </div>
+        <p class="sx-source-note small" style="margin-top:var(--s-3)">A demonstration reckoning from a fixed anchor — ${esc(month.anchor)} — not a claim that every Igbo community uses the same one. <a href="/igbo-calendar/">The Igbo calendar</a> states the basis in full.</p>
+      </aside>`;
+  /*
+   * INSERTED AFTER THE HERO, FOUND BY ITS OWN CLASS. A page without the hero is left alone rather than
+   * guessed at, and the block is never inserted twice.
+   */
+  if (!out.includes('data-market-day')) {
+    out = out.replace(/(<\/section>\s*<section class="wrap section" id="calendar">)/, `$1${marketDay}`);
+  }
+  /*
+   * AND THE SCRIPT THAT FILLS IT, AT THE ADDRESS THE SITE ACTUALLY SERVES IT FROM.
+   *
+   * **THE PATH IS ABSOLUTE, AND THAT IS THE WHOLE POINT OF THIS COMMENT.** The route rewrites
+   * `src="../name.js"` to `/design/name.js` — but it does so **before** this fill runs, so a tag inserted
+   * here keeps its relative form. With the design's `<head>` replaced by the SEO head there is no
+   * `<base href="/">` either, so `../market-days.js` on a page served at `/cultural-calendar/` resolves to
+   * `/market-days.js` and 404s. **The first version of this insertion did exactly that**, and the browser
+   * check is what caught it: the stamp rendered "Market day · Today" — the placeholders — while every byte
+   * of the markup and the script tag was present. The file lives at `/design/market-days.js`, and the site
+   * serves it there, measured 200.
+   *
+   * **Inserted once**: a page that already loads `market-days.js` keeps its own tag.
+   */
+  if (!/src="[^"]*market-days\.js"/.test(out)) {
+    out = out.replace(/(<script src="[^"]*cultural-calendar\.js" defer><\/script>)/, `<script src="/design/market-days.js" defer></script>$1`);
+  }
   return out;
 }
 
@@ -3094,8 +3459,643 @@ export function fillCulturalEvent(html: string): string {
   return out;
 }
 
+/*
+ * ================================================================================================
+ * THE CALENDAR ACCOUNT ON THE IGBO CALENDAR PAGE, AND WHERE IT CAME FROM
+ * ================================================================================================
+ *
+ * WHY THIS IS DATA RATHER THAN PROSE IN A TEMPLATE
+ *
+ * The owner sent the full text of Wikipedia's "Igbo calendar" article and asked for it on this page:
+ * *"you should also at the igbo calendar page itself and update more information there … find a way to put
+ * these things below there."* **It is a tertiary source describing a real cultural system, and this archive
+ * never presents a source's account as its own description.** So every claim below carries the reference the
+ * article itself cites for it, and the tables are built from these constants rather than typed into markup —
+ * a month whose Gregorian range and whose cited reference belong together is one value, not two places to
+ * drift apart.
+ *
+ * WHAT THE `note` FIELD IS, AND WHY IT IS NOT DECORATION
+ *
+ * **`note` is the article's own description of the month, and it is edited for length only.** Where the
+ * article's sentence is substantially longer the shortened form stays close to its wording on purpose: a
+ * paraphrase of a tertiary source is a second layer of interpretation over it, and the page's provenance
+ * statement is worth less if the reader cannot see whose words they are reading. The full text of each is at
+ * the article, which the sources section links to.
+ *
+ * THE NRI PATTERN, WHICH KEEPS THIS MATERIAL FROM BECOMING "THE IGBO CALENDAR"
+ *
+ * The article's "Months and meanings" section opens by saying it describes **the Nri-Igbo calendar of the Nri
+ * kingdom, "which may differ from other Igbo calendars in terms of naming, rituals, and ceremonies
+ * surrounding the months."** That sentence is built into the data as `nri` rather than trusted to be carried
+ * by the surrounding markup, and the table states the scope again in a caption, because a heading can be
+ * scrolled past and a caption is read with the table.
+ */
+type CalendarMonth = {
+  /**
+   * The article's "Months and meanings" section, which the article says is the Nri-Igbo calendar of the Nri
+   * kingdom. **The name and Gregorian range are the article's system table, which cites Onwuejeogwu (1981);
+   * the meaning is Nri's.** Keeping the two apart is the difference between "the Igbo calendar has 13 months
+   * called these" and "Nri calls its months these, and the names in the system table are Onwuejeogwu's".
+   */
+  nri: true;
+  /** A one-line statement of where the meaning comes from, printed beside it. */
+  src: string;
+  name: string;
+  dates: string;
+  /** The article's own description of the month, shortened. */
+  note: string;
+};
+
+const CALENDAR_MONTHS: CalendarMonth[] = [
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Mbụ',
+    dates: 'February–March',
+    note: 'The first month starts from the third week of February, making it the Igbo new year. The article records that the Nri-Igbo year corresponding to 2012 was initially slated to begin with the Ịgụ Arọ festival on 18 February, an Nkwọ day, and that in the event the festival was held in March.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Abụọ',
+    dates: 'March–April',
+    note: 'Dedicated to cleaning and farming.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Ife Eke',
+    dates: 'April–May',
+    note: 'Described as the fasting period, usually known as “Ugani”, meaning “hunger period”. The article says all must fast in sacrificial harmony to the goddess Ani of the Earth, and that many communities host competitive wrestling events in this month.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Anọ',
+    dates: 'May–June',
+    note: 'When the planting of seed yams begins. The article adds that in many communities this is the month of the Ekeleke dance festival, which it describes as emphasising optimism through hardship.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Agwụ',
+    dates: 'June–July',
+    note: 'The article says Ịgọchi na mmanwụ, adult masquerades, come out in this month, and that Ọnwa Agwụ is the traditional start of the year. The Alusi Agwu, after whom the month is named, is venerated by the Dibia in this month.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Ifejiọkụ',
+    dates: 'July–August',
+    note: 'Dedicated to the yam deity Ifejiọkụ and to Njoku Ji, with yam rituals performed for the New Yam Festival.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Alọm Chi',
+    dates: 'August–early September',
+    note: 'The harvesting of the yam. The article also describes it as a time of prayer and meditation for women, dedicated to reconnecting with the ancestors by breaking kola, and to venerating mothers and motherhood. The Alọm Chi is a shrine or memorial a woman builds in honour of her ancestors.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Ilọ Mmụọ',
+    dates: 'late September',
+    note: 'A festival the article calls Önwa Asatọ, the Eighth Month, is held in this month.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Ana',
+    dates: 'October',
+    note: 'Ana, or Ala, is the Igbo earth goddess, and the article says rituals for her commence in this month; the month is named after her.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Okike',
+    dates: 'early November',
+    note: 'The Okike ritual takes place in this month.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Ajana',
+    dates: 'late November',
+    note: 'The Okike ritual also takes place in Ọnwa Ajana, according to the article.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Ede Ajana',
+    dates: 'late November–December',
+    note: 'The article’s entry for this month is two words: ritual ends.',
+  },
+  {
+    nri: true,
+    src: 'Wikipedia, Months and meanings',
+    name: 'Ọnwa Ụzọ Alụsị',
+    dates: 'January–early February',
+    note: 'The last month sees the offering to the Alusi.',
+  },
+];
+
 /**
- * `/igbo-calendar/` and `/market-days/` — the four-day market week.
+ * THE SOURCES, AS THEY STAND, WITH WHAT EACH IS CITED FOR.
+ *
+ * Every entry below is a reference the article itself cites, and each was read from the article's own
+ * reference list rather than inferred from a citation marker — **a reference number mapped to the wrong work
+ * is a false attribution, and it is the one fault this page cannot afford.** The first two are marked because
+ * they matter most: Onwuejeogwu (1981) is the work the article names for the month names and their Gregorian
+ * ranges, and Udeani (2007) is the one it names for the timekeepers and for birth-day naming.
+ *
+ * WHAT IS NOT CLAIMED
+ *
+ * **The archive holds none of these works.** They are not in `ozikoro_article`, `ozikoro_publication` or any
+ * media record, so nothing here has been read at source by this archive — which is why the page says so
+ * beside the claims rather than in a footnote. What a reader gets is a faithful description of what one
+ * tertiary source says and who it says it after, which is the most this archive can honestly offer for a
+ * system it holds no verified community calendar for.
+ */
+const CALENDAR_SOURCES: Array<{ key?: boolean; citation: string; cited: string }> = [
+  {
+    key: true,
+    citation: 'Onwuejeogwu, M. Angulu (1981). <i>An Igbo civilization: Nri kingdom &amp; hegemony</i>. Ethnographica. ISBN 978-123-105-X.',
+    cited: 'The work the article names for the thirteen month names, their Gregorian equivalents, and the intercalary day at the end of the year. Cited at references 2 and 13 of “Igbo calendar” (Wikipedia, revision 1370565297, 18 February 2026).',
+  },
+  {
+    key: true,
+    citation: 'Udeani, Chibueze C. (2007). <i>Inculturation as dialogue: Igbo culture and the message of Christ</i>. Rodopi, pp. 28–29. ISBN 978-90-420-2229-4.',
+    cited: 'The article’s source for the priests or Dibia as the traditional timekeepers, and for naming children after the day of birth. Cited at reference 4, and again at reference 8 alongside the naming-practice reference.',
+  },
+  {
+    citation: 'Isichei, Elizabeth Allo (1997). <i>A History of African Societies to 1870</i>. Cambridge University Press, p. 247. ISBN 0-521-45599-5.',
+    cited: 'Cited at reference 5, alone, for the correspondence between the four days and the four cardinal points.',
+  },
+  {
+    citation: '<i>Aṅụ Magazine</i>. Aṅụ Journal, no. 1, 1979, Cultural Division, Ministry of Education and Information, pp. 79 and 104. LCCN 88659506, ISSN 0331-1937.',
+    cited: 'Cited at reference 6, alone, for the four days alternating in “major” and “minor” phases to give a longer eight-day cycle. A single citation with no page-level quotation is the whole of the support this page can report for that claim.',
+  },
+  {
+    citation: 'Onuigbo, Sylvanus Nnamdi (2001). <i>The history of Ntuegbe Nese: A Five-town Clan</i>. Afro-Orbus Publishing Company. ISBN 9789783525368.',
+    cited: 'Cited at reference 7 for the article’s most important sentence: that the calendar is “not something written down and followed … rather it is observed in the mind of the people.”',
+  },
+  {
+    citation: 'Ụkaegbu, Jọn Ọfọegbu (1991). <i>Igbo Identity and Personality Vis-à-vis Igbo Cultural Symbols</i>. Universidad Pontificia de Salamanca, Facultad de Filosofia.',
+    cited: 'Cited at reference 3 for the attempts to adjust the thirteen-month calendar to twelve, in line with the Gregorian calendar, and for the article’s statement that it has not been easy.',
+  },
+  {
+    citation: 'Akubue, Godwin Boswell (2013). <i>Cow Without Tail, Book 1</i>. Dorrance Publishing. ISBN 9781434915399.',
+    cited: 'Cited at reference 12 for the two festivals: Ịgụ Arọ, due around 18 February, and Emume Ọnwa-asatọ in the eighth month.',
+  },
+  {
+    citation: 'Anizoba, Emmanuel Kaanene (2010). <i>Ngü Arö Öka: The Öka Lunar Calendar, 2010–2021</i>. Demercury Bright Printing &amp; Publishing.',
+    cited: 'Cited at reference 13 for Imöka being celebrated on the 20th day of the second month.',
+  },
+  {
+    citation: 'Aguwa, Jude C. U. (1995). <i>The Agwu deity in Igbo religion</i>. Fourth Dimension Publishing, p. 29. ISBN 978-156-399-0; and Hammer, Jill (2006). <i>The Jewish book of days: a companion for all seasons</i>. Jewish Publication Society, p. 224. ISBN 0-8276-0831-4.',
+    cited: 'Cited jointly at reference 10 for Ọnwa Agwụ being the traditional start of the year.',
+  },
+  {
+    citation: '“Day MASSOB Took Over Nri Kingdom”, <i>The Nigerian Voice</i>, 21 March 2012.',
+    cited: 'Cited at reference 9 for the 2012 Ịgụ Arọ and for the article’s report of the 1,013th recorded year of the Nri calendar. A news report of one year’s festival, which is what the article uses it for.',
+  },
+  {
+    citation: '“Izu Igbo Calendar”, izuigbocalendar.com. Retrieved 21 August 2026.',
+    cited: 'Cited at reference 1 for the name Ọ̀gụ́àfọ̀ Ị̀gbò. A commercial calendar site, and the article’s only support for that name.',
+  },
+  {
+    citation: '“Naming practice guide UK 2006”, March 2006.',
+    cited: 'Cited at reference 8, with Udeani, for the naming practice. A guidance document rather than a study of Igbo naming; the article cites it for the practice as it stood in 2006.',
+  },
+  {
+    citation: 'H.R.H. Silver Ibenye-Ugbala, <i>Igbo Calendar from A.D. 0001 to A.D. 8064: With a Comparative Examination of Gregorian and Other World Calendars</i>.',
+    cited: 'The article’s own “General references” list holds this title and nothing further — no publisher, no date and no citation marker anywhere in the text. **This page does not use it, and lists it only because the article carries it and a reader checking the article will meet it.**',
+  },
+];
+
+/** What the article states, and the article's own section it is stated in, so a claim can be found. */
+const CALENDAR_CLAIM_SOURCE: Array<{ claim: string; where: string }> = [
+  { claim: 'The names and the Gregorian ranges of the thirteen months', where: 'System — reference 2, Onwuejeogwu (1981)' },
+  { claim: 'The intercalary day at the end of the year, in the last month', where: 'System — reference 2' },
+  { claim: 'The priests or Dibia as the traditional timekeepers', where: 'System — reference 4, Udeani (2007)' },
+  { claim: 'Afọ north, Nkwọ south, Eke east, Orie west', where: 'System — reference 5, Isichei (1997)' },
+  { claim: 'Four days alternating in major and minor phases, giving an eight-day cycle', where: 'System — reference 6' },
+  { claim: 'The calendar is neither universal nor synchronized', where: 'Lead and Use — reference 7' },
+  { claim: '“Not something written down and followed … observed in the mind of the people”', where: 'Use — reference 7, quoted by the article' },
+  { claim: 'Naming children after the day of birth: Mgbeke, Mgborie, and the male forms', where: 'Naming after dates — references 4 and 8' },
+  { claim: 'The Nri-Igbo calendar of the Nri kingdom, which may differ from other Igbo calendars', where: 'Months and meanings — the article’s own framing' },
+  { claim: 'The meaning and ritual of each of the thirteen months', where: 'Months and meanings — each month’s own subsection' },
+  { claim: 'Ịgụ Arọ around 18 February, and Emume Ọnwa-asatọ in the eighth month', where: 'Festivals — reference 12' },
+  { claim: 'Imöka on the 20th day of the second month', where: 'Festivals — reference 13' },
+  { claim: 'The 1,013th recorded year of the Nri calendar, and the 2012 dates', where: 'Festivals and Ọnwa Mbụ — reference 9, a news report of one year' },
+  { claim: 'That the day-spirits were fishmongers, created by Chineke to establish a social system', where: 'System — this sentence carries no reference in the article' },
+];
+
+/** The same claims, each with the outcome of putting it to the archive's own records. */
+const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> = [
+  {
+    claim: 'That the market week runs Eke, Orie, Afọ, Nkwọ, in that order, with local spellings',
+    state: true,
+    note: 'The design’s own screen and the archive’s own catalogued record <i>Symbolism of the Four Market Days in Igbo Culture</i> both state the four days and the variants Oye, Afor and Nkwor.',
+  },
+  {
+    claim: 'That the four days are tied to the cardinal points, and that the four-day week is the base unit of the calendar',
+    state: true,
+    note: 'The archive’s own catalogued record <i>Traditional Igbo calendar and lunar/solar alignments</i> states Eke east, Orie west, Afọ north, Nkwọ south, and states that seven sets of four days (28 days) make one Igbo month.',
+  },
+  {
+    claim: 'That a month is 28 days and a year is thirteen months',
+    state: true,
+    note: 'The same two archive records state both figures, and the arithmetic is exact: 13 × 28 = 364.',
+  },
+  {
+    claim: 'That Ịgụ Arọ is an Nri year-counting festival tied to the year’s beginning',
+    state: true,
+    note: 'The archive’s own catalogued records include <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i> and <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, which describe the festival as the Eze Nri’s proclamation of the year.',
+  },
+  {
+    claim: 'That the month names are Onwuejeogwu’s, and that the meanings are the Nri kingdom’s',
+    state: false,
+    note: 'Onwuejeogwu (1981) is not held by this archive and has not been read here. The page reports what the article says the book says.',
+  },
+  {
+    claim: 'The Gregorian equivalents of the thirteen months',
+    state: false,
+    note: 'Given as ranges against a solar year, and the article states no reckoning that turns a Gregorian day into an Igbo day, month or year. **This page therefore prints no such conversion**, and the month view above remains this archive’s own four-day demonstration.',
+  },
+  {
+    claim: 'The rituals, shrines and festivals described under each of the thirteen months',
+    state: false,
+    note: 'None of this is in the archive. It is one tertiary source reporting the Nri-Igbo calendar, and the article’s own maintenance banner says the article needs more citations.',
+  },
+  {
+    claim: 'The eight-day major and minor cycle',
+    state: false,
+    note: 'Carried by a single 1979 magazine reference with no quotation, and nothing in the archive supports or contradicts it.',
+  },
+  {
+    claim: 'The date of Imöka, and Ịgụ Arọ as falling around 18 February',
+    state: false,
+    note: 'One citation each, and neither is checked here. The 18 February date is also reported for a single year, 2012, and a calendar that moves with the moon does not fix a festival to one Gregorian day.',
+  },
+  {
+    claim: 'That the day-spirits were fishmongers created by Chineke to establish a social system',
+    state: false,
+    note: 'This is a tradition about origins, and the article gives it no reference at all. **It is recorded here as the tradition it is, not as an event.**',
+  },
+  {
+    claim: 'The years of the Nri calendar — the article reports 2012 as its 1,013th year',
+    state: false,
+    note: 'The article reports this twice, from one news report of one year’s festival, and its own lead says the reckoning is not the same everywhere. The page does not repeat a year number as a fact.',
+  },
+];
+
+/** Every festival the article names, so a reader can see them as a set rather than scattered in prose. */
+const CALENDAR_FESTIVALS: Array<{ name: string; gregorian: string; what: string; src: string }> = [
+  {
+    name: 'Ịgụ Arọ',
+    gregorian: 'around 18 February',
+    what: 'The article calls this the Igbo new year festival and the year-counting festival of the Nri calendar: the planting season, when the king, the Eze Nri in the Nri area, tells the Igbo to go and sow their seed after the next rainfall.',
+    src: 'Wikipedia, Festivals and Ọnwa Mbụ — references 9 and 12',
+  },
+  {
+    name: 'Emume Ọnwa-asatọ',
+    gregorian: 'the eighth month',
+    what: 'The harvest festival, described in the article as one of the two major festivals of the calendar.',
+    src: 'Wikipedia, Festivals — reference 12',
+  },
+  {
+    name: 'Önwa Asatọ',
+    gregorian: 'the month Ọnwa Ilọ Mmụọ',
+    what: 'The article calls this the Eighth Month festival, held in the eighth month.',
+    src: 'Wikipedia, Months and meanings, Ọnwa Ilọ Mmụọ — no reference of its own',
+  },
+  {
+    name: 'Imöka',
+    gregorian: 'the 20th day of the second month',
+    what: 'Named in the article’s Festivals section, with that date and no further description.',
+    src: 'Wikipedia, Festivals — reference 13',
+  },
+];
+
+/**
+ * Build the material that sits below the design's own content on `/igbo-calendar/`.
+ *
+ * Kept out of the fill itself so the fill reads as the few edits it makes to the design's markup, and so this
+ * block — which is long, and is the part a reader of this file will want to check against the article — can
+ * be found and read on its own.
+ */
+function igboCalendarAddendum(basis: string): string {
+  const monthRows = CALENDAR_MONTHS.map((m, i) => {
+    const n = i + 1;
+    /*
+     * THE ROW IS THE CONTROL AND THE PANEL IS THE NEXT ROW.
+     *
+     * A `<details>` element cannot be a `<tr>`, and putting the control in one cell would leave the Igbo name
+     * — the thing a reader comes for — outside it. So the whole row carries the button, and the description
+     * is the next row, spanning the table. The button carries `aria-expanded` and `aria-controls` and **both
+     * states are written into the HTML rather than set by script, so the descriptions are readable with
+     * JavaScript switched off**; a reader without it must not be shown thirteen rows that do nothing.
+     */
+    return `            <tr id="igbo-month-${n}" class="sx-cal-row">
+              <th scope="row"><span class="sx-cal-no">${n}</span> <button type="button" class="sx-cal-month" data-igbo-month="${n}" aria-expanded="true" aria-controls="igbo-month-note-${n}">${esc(m.name)}</button></th>
+              <td class="sx-cal-dates">${esc(m.dates)}</td>
+              <td class="sx-cal-nri"><span class="sx-cal-tag">Nri-Igbo</span><br><span class="small muted">${m.src}</span></td>
+            </tr>
+            <tr id="igbo-month-note-${n}" class="sx-cal-note-row">
+              <td colspan="3"><p>${esc(m.note)}</p></td>
+            </tr>`;
+  }).join('\n');
+
+  const sources = CALENDAR_SOURCES.map(
+    (s) => `          <dt>${s.key ? '<span class="sx-cal-tag">Named for the month names</span> ' : ''}${s.citation}</dt>
+          <dd>${s.cited}</dd>`
+  ).join('\n');
+
+  const claimSource = CALENDAR_CLAIM_SOURCE.map(
+    (c) => `            <tr><th scope="row">${c.claim}</th><td>${c.where}</td></tr>`
+  ).join('\n');
+
+  const verification = CALENDAR_VERIFIED.map((v) => {
+    const label = v.state ? 'The archive can substantiate this' : 'Not verified here';
+    return `            <tr>
+              <th scope="row" class="${v.state ? 'sx-cal-yes' : 'sx-cal-no-state'}">${label}</th>
+              <td><p>${v.claim}</p><p class="small muted">${v.note}</p></td>
+            </tr>`;
+  }).join('\n');
+
+  const festivals = CALENDAR_FESTIVALS.map(
+    /*
+     * TWO COLUMNS, AND DELIBERATELY NOT FOUR. The Igbo names here run to two words with dotted vowels and tone
+     * marks, and a four-column table at 390 px leaves each of them about nine characters wide — so the names
+     * would wrap mid-word on the phone this page is read on most. A definition list keeps each name, its
+     * Gregorian placement and its source on lines a phone can hold, and lets the description wrap underneath.
+     */
+    (f) => `          <dt>${esc(f.name)}<span class="small muted"> · ${esc(f.gregorian)}</span></dt>
+          <dd><p>${esc(f.what)}</p><p class="small muted">${f.src}</p></dd>`
+  ).join('\n');
+
+  /*
+   * THE MONTH-ROW TOGGLE.
+   *
+   * Written as a script rather than left out because **the buttons carry `aria-expanded`, and a control that
+   * announces a state it does not have is worse than no control at all.** With the script absent the
+   * descriptions are all open, which is the honest state for a page whose script did not load; the script then
+   * closes them and makes each button work. So the fallback is "everything readable" rather than "nothing
+   * works", which is the direction a progressive enhancement has to fail in.
+   *
+   * It is inline and namespaced by class, so it touches nothing the design's own scripts look for. Its own
+   * element uses `type="button"`, so it cannot submit anything, and every listener is a click on a button —
+   * **which makes it work from the keyboard for free, because a button is activated by Enter and Space.**
+   */
+  const monthToggle = `<script>
+        (function () {
+          var buttons = document.querySelectorAll(".sx-cal-account .sx-cal-month");
+          Array.prototype.forEach.call(buttons, function (button) {
+            var panel = document.getElementById(button.getAttribute("aria-controls"));
+            if (!panel) return;
+            button.setAttribute("aria-expanded", "false");
+            panel.hidden = true;
+            button.addEventListener("click", function () {
+              var open = button.getAttribute("aria-expanded") === "true";
+              button.setAttribute("aria-expanded", open ? "false" : "true");
+              panel.hidden = open;
+            });
+          });
+        })();
+      </script>`;
+
+  return `      <section class="wrap section sx-cal-account">
+        <style>
+          /* THE ONE PIECE OF CSS THIS PAGE ADDS, AND WHY IT IS HERE RATHER THAN IN THE DESIGN.
+             Nothing under public/design/ may change, so a rule this block needs cannot be added to the
+             design's stylesheet. Every value below is one of the design's own tokens, so this follows the
+             design rather than departing from it. */
+          .sx-cal-account h2 { margin-top: var(--s-7); }
+          .sx-cal-account h2:first-of-type { margin-top: 0; }
+          .sx-cal-account > p { max-width: 74ch; }
+          .sx-cal-account .sx-table-wrap { margin-top: var(--s-4); }
+          .sx-cal-account .sx-ledger-table caption { padding: var(--s-3) var(--s-4); text-align: left; color: var(--text-muted); font-size: var(--t-sm); }
+          .sx-cal-account .sx-ledger-table td p + p { margin-top: var(--s-2); }
+          .sx-cal-account .sx-cal-month { padding: 0; border: 0; background: none; color: var(--accent, #0d5c45); font: 600 var(--t-lg) var(--font-serif); text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+          .sx-cal-account .sx-cal-month::after { content: " −"; color: var(--ochre, #8a5a2b); font-family: var(--font-sans); font-size: var(--t-base); }
+          .sx-cal-account .sx-cal-month[aria-expanded="false"]::after { content: " +"; }
+          .sx-cal-account .sx-cal-no { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--t-sm); }
+          .sx-cal-account .sx-cal-dates { white-space: nowrap; }
+          .sx-cal-account .sx-cal-tag { display: inline-block; padding: .1rem .45rem; border-radius: 999px; background: var(--accent-wash, #e2efe8); color: var(--accent, #0d5c45); font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: var(--ls-caps); }
+          .sx-cal-account .sx-cal-note-row td { background: var(--paper-sunk); }
+          .sx-cal-account .sx-cal-note-row[hidden] { display: none; }
+          .sx-cal-account .sx-cal-yes { color: var(--accent, #0d5c45); }
+          .sx-cal-account .sx-cal-no-state { color: var(--ochre, #8a5a2b); }
+          .sx-cal-account .sx-ledger-table th[scope="row"] { vertical-align: top; }
+          .sx-cal-account .sx-cal-account-key th[scope="row"], .sx-cal-account .sx-cal-account-key td { white-space: nowrap; }
+          .sx-cal-account dl { margin-top: var(--s-4); max-width: 74ch; }
+          .sx-cal-account dt { margin-top: var(--s-5); font-weight: 600; }
+          .sx-cal-account dd { margin: var(--s-2) 0 0; color: var(--text-muted); }
+          .sx-cal-account dd p + p { margin-top: var(--s-2); }
+          .sx-cal-account .sx-cal-legend { margin-top: var(--s-4); padding: var(--s-3) var(--s-4); border-left: 3px solid var(--gold, #c9a84c); background: var(--ochre-wash, #f3e6d3); font-size: var(--t-sm); }
+          .sx-cal-account .sx-cal-year-card { padding: var(--s-3) var(--s-4); border: 1px solid var(--rule-firm); background: var(--paper-raised); }
+          .sx-cal-account .sx-cal-year-card > summary { cursor: pointer; font-family: var(--font-serif); font-size: var(--t-lg); font-weight: 600; }
+          .sx-cal-account :is(a, button, summary):focus-visible { outline: 3px solid var(--focus, #1b4f8a); outline-offset: 2px; }
+        </style>
+
+        <p class="eyebrow">The Igbo calendar</p>
+        <h2>The system</h2>
+        <p>This part of the page sets out what one published account says about the Igbo calendar as a system: the shape of its week and its year, the names it gives to the days and the thirteen months, the festivals attached to them, and the naming tradition that follows the day of a child’s birth. It is a description of a system rather than a conversion, because it has to be.</p>
+        <p><strong>Everything in this part of the page comes from Wikipedia’s <a href="https://en.wikipedia.org/wiki/Igbo_calendar">“Igbo calendar” article</a>, in the revision of 18 February 2026.</strong> It is not this archive’s own description, and it is not a community’s. Where the article attributes a claim to a named work, this page names that work; where it does not, this page says so. Each section below names its own source, and the works are gathered in full at the end.</p>
+        <div class="sx-cal-legend">
+          <p><strong>The article’s own caveat on itself.</strong> Its talk of citations is not empty. The article carries a maintenance banner reading <em>“This article needs more citations. Please help improve this article by adding citations to reliable sources. Unsourced material may be challenged and removed”</em>, dated June 2015.</p>
+        </div>
+        <p>The article describes the system in these words: <em>“The calendar has 13 months in a year (Afọ), 7 weeks in a month (Ọnwa), and 4 days of Igbo market days (Eke, Orie, Afọ, and Nkwọ) in a week (Izu) plus an extra day at the end of the year, in the last month. The name of these months was reported by Onwuejeogwu (1981).”</em></p>
+        <p>Here is that structure in the article’s own terms. A week, <i>izu</i>, holds four days, <i>ubo chi</i>; seven weeks make a month, <i>ọnwa</i>; a month is 28 days; and a year, <i>afọ</i>, holds thirteen of them. In the last month an extra day is added, which is an intercalary day — a day put in outside the ordinary count so that a count of whole weeks can keep its place against the solar year. Thirteen months of 28 days come to 364 days, and the extra day brings the count to the 365 of a common solar year. The article names the traditional timekeepers of Igboland as the priests or <i>Dibia</i>, and gives Udeani (2007) for it.</p>
+        <p><strong>What follows is the most useful sentence in the article, and it agrees with what this page already said above it.</strong> The article states: <em>“The calendar is neither universal nor synchronized, so various groups will be at different stages of the week, or even year.”</em> It goes on to say that the four-and-eight-day cycle nonetheless serves to synchronise market days between villages, and that substantial parts of Igboland — the Kingdom of Nri among them — do share the same year-start. It also records that some Igbo communities have tried to adjust the thirteen-month calendar to twelve months, in line with the Gregorian calendar, and that it has not been easy.</p>
+        <p>That is the same position this page takes above. <strong>The reckoning above is one archive’s, from a fixed anchor; the article says the reckoning is not shared; and neither is a claim about what your own community keeps.</strong> A reader who takes either as universal has been misled, so both are said in plain words rather than left to be inferred.</p>
+
+        <h2>The days of the week</h2>
+        <p>The article says the four market days follow one another in this order, and that in various parts of Igboland each community has a market named after one of them — an Eke market, an Afọ market. The order is the sequence, not a set, and it is the sequence the reckoning above uses.</p>
+        <div class="sx-table-wrap">
+          <table class="sx-ledger-table">
+            <caption>Eke, Orie, Afọ and Nkwọ, in the order the article gives them, and where the article places each.</caption>
+            <thead><tr><th scope="col">No.</th><th scope="col">Day (ubo chi)</th><th scope="col">Where the article places it</th></tr></thead>
+            <tbody>
+              <tr><th scope="row">1</th><td>Eke</td><td>East. Isichei (1997) is cited for the cardinal correspondence.</td></tr>
+              <tr><th scope="row">2</th><td>Orie, also Oye</td><td>West. The article’s form is Orie; the screen above already lists Oye beside it.</td></tr>
+              <tr><th scope="row">3</th><td>Afọ, also Afor</td><td>North.</td></tr>
+              <tr><th scope="row">4</th><td>Nkwọ, also Nkwor</td><td>South.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="small muted">Reference 5, Isichei, <i>A History of African Societies to 1870</i> (1997), p. 247, is cited for the cardinal correspondence and for nothing else in the article. This page does not print the four directions in the day cards above, because those cards are the design’s and the correspondence is one source’s statement rather than a fact the archive holds.</p>
+        <p>The article also says the four days <em>“come in alternate cycles of ‘major’ and ‘minor’, giving a longer eight day cycle”</em>, citing a 1979 issue of <i>Aṅụ Magazine</i>. <strong>This page does not draw an eight-day cycle, because one magazine reference with no quotation behind it is not enough to draw one with.</strong> The reckoning above stays on the four days the design and the archive’s own records both set out, and the claim is recorded here rather than acted on.</p>
+        <p>One sentence in the article is a tradition about origins rather than a report of an event: that the day-spirits, whom it calls fishmongers, <em>“were created by Chineke (Faith and Destiny) in order to establish a social system throughout Igboland.”</em> <strong>It is set down here as the tradition it is.</strong> The article gives it no reference, the archive holds no support for it, and this page neither repeats it as settled nor rules on it.</p>
+
+        <h2>The thirteen months</h2>
+        <p>This is the centre of what the article adds. <strong>The names and the Gregorian ranges are the article’s system table, which attributes them to Onwuejeogwu (1981); the descriptions are the article’s “Months and meanings” section, which the article states is the Nri-Igbo calendar of the Nri kingdom.</strong> The two are kept apart in the table below because they carry different weight. <strong>What this page can say is that the article says Nri reckons the year in these thirteen months, and that Nri is not all of Igboland.</strong></p>
+        <p><strong>The Gregorian column is a range and not a date.</strong> February–March for the first month describes roughly where in the solar year it falls; it is not a rule that turns a Gregorian day into an Igbo one. The reckoning above works the other way round: it takes a Gregorian date and gives the market day under one stated anchor. The article supplies nothing that would join the two, so this page prints no such conversion, and the market-day view above remains a demonstration of four-day reckoning rather than a converter for the thirteen months.</p>
+        <p>Each month is a button. Press it, or press Enter on it, and the article’s description of that month opens in the row beneath. <strong>The descriptions are written into the page either way</strong>, so they are readable, findable and printable with JavaScript switched off.</p>
+        <div class="sx-table-wrap">
+          <table class="sx-ledger-table">
+            <caption>Thirteen months (ọnwa). Names and Gregorian equivalents: Onwuejeogwu (1981), as reported by the article. Descriptions: the article’s Nri-Igbo section, which it says may differ from other Igbo calendars in naming, rituals and ceremonies. Every row is Nri’s.</caption>
+            <thead><tr><th scope="col">No.</th><th scope="col">Month (ọnwa)</th><th scope="col">Gregorian equivalent</th><th scope="col">Whose calendar, and which source</th></tr></thead>
+            <tbody>
+${monthRows}
+            </tbody>
+          </table>
+        </div>
+        <p class="small muted">A note on the names: the article gives <i>Ọnwa Ilọ Mmụọ</i> for the eighth month, and the description it gives that month calls the festival held in it <i>Önwa Asatọ</i>, with the umlaut the article uses. Both spellings are the article’s and are left as the article has them.</p>
+
+        <h2>Festivals named in this account</h2>
+        <p>These are the festivals the article names, set out so a reader can see them as a set. <strong>They are the article’s, and the archive holds no event record for any of them.</strong> <a href="/cultural-calendar/">The cultural calendar</a> states that the archive holds no events, and nothing here changes that: no festival below has a date the archive can stand behind, a place, an organiser, or a record to look at.</p>
+        <dl>
+${festivals}
+        </dl>
+        <p class="small muted">Two annual dates in the article are worth reading with care. The 18 February given for Ịgụ Arọ is the date the article reports for 2012, alongside a note that in the event the festival was held in March — and the article’s own lead says the reckoning is not synchronised between groups. A festival reckoned from the moon does not sit on one Gregorian day, so this page prints the article’s date as the article’s rather than as a standing date.</p>
+
+        <h2>Naming after dates</h2>
+        <p>The article says newborn babies are sometimes named after the day they were born on, though it adds that this is no longer commonly used. It gives <i>Mgbeke</i> as a maiden born on the day of Eke, and <i>Mgborie</i> as a maiden born on the Orie day, and says that for males <i>Mgbo</i> is replaced by <i>Oko</i>, a male child, or <i>Nwa</i>, a child. Its example is Nwankwo Kanu, the footballer — <i>Nwa</i> and <i>Nkwọ</i>, a child born on the Nkwọ day.</p>
+        <p>Udeani (2007), which the article cites for this, is cited for it twice: at reference 4 and again at reference 8 alongside a 2006 British naming-practice guide. <strong>This is one of the few claims on this page the archive can partly substantiate from its own shelves</strong>: it holds a record on the name Mgbeke, its origin and its use, and the check below records what that record and the archive’s other calendar records say.</p>
+
+        <h2>What the archive can substantiate about this account</h2>
+        <p>This archive’s first rule about a source is that it does not repeat one as settled. So each substantial claim the article makes was put to the archive’s own records, and the result is below. <strong>“The archive can substantiate this” means one or more of the archive’s own catalogued records states it independently of the article.</strong> It does not mean the claim is settled: a record can be wrong, and both records named here are secondary accounts rather than a community’s own.</p>
+        <div class="sx-table-wrap">
+          <table class="sx-ledger-table sx-cal-account-key">
+            <caption>What the article claims, and what the archive holds for it.</caption>
+            <thead><tr><th scope="col">Outcome</th><th scope="col">Claim, and what the archive holds</th></tr></thead>
+            <tbody>
+${verification}
+            </tbody>
+          </table>
+        </div>
+        <p class="small muted">Where the check was made, so that it can be repeated. The archive holds five catalogued records that bear directly on this account: <i>Traditional Igbo calendar and lunar/solar alignments</i>, <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i>, <i>Symbolism of the Four Market Days in Igbo Culture</i>, and <i>Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture</i>. <strong>The check was made against the archive’s own catalogued article data for these five by name, and not against a live query.</strong> Their own pages carry their own provenance, which is where a claim about them should be checked.</p>
+
+        <h2>Sources and how to read them</h2>
+        <p>The source for this account is a Wikipedia article, and this archive says that plainly rather than dressing it up. It is cited below in full so that a reader can go to it, check the revision, and judge it. The article is itself a tertiary source: it gathers what other works say. Its own reference list is what makes it usable, and that list is reproduced with a note on what each reference is used for.</p>
+        <dl>
+          <dt>Wikipedia contributors. “Igbo calendar.” <i>Wikipedia, The Free Encyclopedia.</i> Revision 1370565297, 18 February 2026.</dt>
+          <dd>Read at <a href="https://en.wikipedia.org/wiki/Igbo_calendar">en.wikipedia.org/wiki/Igbo_calendar</a>. Every claim in this part of the page is taken from this revision. The article carries a “needs more citations” banner dated June 2015, which is reproduced above and is part of the assessment rather than a detail beside it.</dd>
+        </dl>
+        <h3>The works the article cites, and what each is cited for</h3>
+        <p>These are the article’s own references, with what the article uses each for. A marked reference is one of the two the article relies on for the parts of this page a reader is most likely to want to check.</p>
+        <dl>
+${sources}
+        </dl>
+        <h3>Which claim rests on which reference</h3>
+        <p>So that a reader can find a claim in the article rather than trusting this page’s summary of it, the section each claim comes from is given beside the reference the article attaches to it.</p>
+        <div class="sx-table-wrap">
+          <table class="sx-ledger-table sx-cal-account-key">
+            <caption>Claim, and the article’s section and reference for it.</caption>
+            <thead><tr><th scope="col">What the article states</th><th scope="col">Where, and on what</th></tr></thead>
+            <tbody>
+${claimSource}
+            </tbody>
+          </table>
+        </div>
+        <h3>What this page has not done</h3>
+        <p>It has not converted a Gregorian date into an Igbo day, month or year. It has not drawn the eight-day cycle. It has not given any festival a date of its own. It has not repeated the article’s year count for the Nri calendar as a fact. It has not put any of this into the market-day reckoning above, which remains this archive’s demonstration from the fixed anchor stated at <i>${esc(basis)}</i>. And it has not created an event record: <strong>the archive holds no event for any of these festivals</strong>, and <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself. Each of those is a thing the material could be made to say and the sources do not carry, which is why it is not said.</p>
+        ${monthToggle}
+      </section>`;
+}
+
+/**
+ * Make each month of the year grid open and close.
+ *
+ * WHAT THE DESIGN DOES, AND WHAT WAS MISSING
+ *
+ * `renderYear()` builds twelve `<article>` cards into the element the design gives the year grid, one card per
+ * Gregorian month, each holding a `<h3>` with the month's name and a `<div>` of day cells. The owner asked for
+ * a full-year calendar *"which you can easily click and it will expand"*, and **the grid is already where a
+ * year's worth of the cycle lives** — so rather than write a second year view, each card becomes a native
+ * `<details>` element. That brings the expansion, the keyboard behaviour and the open and closed state with
+ * it; none of the three needs script of its own.
+ *
+ * WHY THE BUILDER IS REPLACED RATHER THAN WRAPPED AFTERWARDS
+ *
+ * The obvious approach is to leave `renderYear()` alone and wrap its output in a second pass. `renderYear()` is
+ * written as ONE LINE though, and five attempts to splice a call into that line all put it in the wrong place:
+ * after the function's closing brace it runs before the grid exists, before the `for`'s brace it runs once per
+ * month, and a miscounted brace does not parse at all. **Every one of those left the served page's markup
+ * perfectly correct**, so only running the script or parsing it could tell — which the test now does.
+ *
+ * So the builder is reconstructed, exactly as the design wrote it — same anchor, same `Intl` format, same card,
+ * same day span with `data-market` — with the card append wrapped. **The reckoning is untouched:** `marketDay`,
+ * the anchor and the four-day cycle are the design's, and this function only changes what the card is made of.
+ *
+ * WHY IT IS IDEMPOTENT AND WHY IT REFUSES RATHER THAN GUESSES
+ *
+ * The route reads the design's file per request, so a second pass must not replace the builder again. And if
+ * the builder is not where this extension expects it, the function throws rather than returning a script that
+ * half works — the route catches that, serves the design's own script, and logs which screen it was.
+ */
+const YEAR_BUILDER = '  function renderYear(){if(!yearInput||!yearGrid)return;const year=Math.min(2100,Math.max(1900,Number(yearInput.value)||today.getFullYear()));yearInput.value=year;yearGrid.innerHTML="";for(let month=0;month<12;month++){const card=document.createElement("article"),name=new Intl.DateTimeFormat("en-NG",{month:"long"}).format(new Date(year,month,1)),count=new Date(year,month+1,0).getDate();card.innerHTML=`<h3>${name}</h3><div>${Array.from({length:count},(_,i)=>{const d=new Date(year,month,i+1);return `<span data-market="${marketDay(d)}"><b>${i+1}</b><small>${marketDay(d)}</small></span>`}).join("")}</div>`;yearGrid.appendChild(card)}}';
+
+const YEAR_BUILDER_REPLACEMENT = [
+  '  function renderYear(){ if(!yearInput||!yearGrid) return;',
+  '    const year = Math.min(2100, Math.max(1900, Number(yearInput.value) || today.getFullYear()));',
+  '    yearInput.value = year;',
+  '    yearGrid.innerHTML = "";',
+  '    for (let month = 0; month < 12; month += 1) {',
+  '      const card = document.createElement("article");',
+  '      const name = new Intl.DateTimeFormat("en-NG", {month:"long"}).format(new Date(year, month, 1));',
+  '      const count = new Date(year, month + 1, 0).getDate();',
+  '      const days = Array.from({length: count}, (_, i) => {',
+  '        const d = new Date(year, month, i + 1);',
+  '        return `<span data-market="${marketDay(d)}"><b>${i + 1}</b><small>${marketDay(d)}</small></span>`;',
+  '      }).join("");',
+  /* The card's own two elements are built before they are moved, so nothing is read from an innerHTML. */
+  '      card.innerHTML = `<h3>${name}</h3><div>${days}</div>`;',
+  /*
+   * THE MONTH, AS A NATIVE DISCLOSURE. Open, the card shows the month's day-by-day cycle; closed, it is the
+   * month's name. **The summary is the month's own `<h3>`, moved rather than copied**, so the heading the
+   * design drew is still a heading in the document outline and is still the thing a reader activates.
+   */
+  '      const panel = document.createElement("details");',
+  '      panel.className = "sx-cal-year-card";',
+  '      const head = document.createElement("summary");',
+  '      head.innerHTML = card.querySelector("h3").innerHTML;',
+  '      const body = document.createElement("div");',
+  '      body.innerHTML = card.querySelector("div").innerHTML;',
+  '      panel.appendChild(head);',
+  '      panel.appendChild(body);',
+  '      card.innerHTML = "";',
+  '      card.appendChild(panel);',
+  '      yearGrid.appendChild(card);',
+  '    }',
+  '  }',
+].join('\n');
+
+export function extendMarketDaysScript(script: string): string {
+  /*
+   * IDEMPOTENT, BECAUSE THE ROUTE READS THE FILE PER REQUEST. Without this the second request would replace the
+   * readable builder with itself and the third would leave two copies of it. The marker is the call the
+   * readable builder already has.
+   */
+  if (script.includes('sx-cal-year-card')) return script;
+  /*
+   * THE ANCHOR IS THE YEAR GRID BUILDER, FOUND BY ITS OWN DECLARATION RATHER THAN BY A LINE NUMBER.
+   *
+   * The pattern includes the two spaces and the `year` in `renderYear` so that it cannot match the four-day
+   * month view's `function render(){` — **a prefix match would have replaced the wrong builder**, which is the
+   * same class of fault as every other one this file records. Two builders exist on this screen and the day
+   * grid is the one a reader would notice going missing.
+   */
+  if (!script.includes('data-year-grid')) return script;
+  if (!script.includes(YEAR_BUILDER)) {
+    throw new Error('market-days.js: the year grid builder was not found, so the months cannot be made expandable');
+  }
+  if (script.split(YEAR_BUILDER).length !== 2) {
+    throw new Error('market-days.js: the year grid builder appears more than once, so the month wrapper cannot be placed safely');
+  }
+  /*
+   * THE FOUR-DAY RECKONING IS COPY, NOT A SECOND IMPLEMENTATION. All twelve day cells are still produced by the
+   * design's own `marketDay()`, and the calendar's anchor is still the design's two constants — this extension
+   * does not know the cycle, it only changes the shape of the card the cycle is drawn into.
+   */
+  return script.replace(YEAR_BUILDER, () => YEAR_BUILDER_REPLACEMENT);
+}
+
+/**
+ * `/igbo-calendar/` and `/market-days/` — the four-day market week, and the account behind it.
  *
  * THE ANCHOR IS A DEMONSTRATION AND THE DESIGN ALREADY SAYS SO
  *
@@ -3107,10 +4107,51 @@ export function fillCulturalEvent(html: string): string {
  * it is.** The one change is to the words that call the reader's own today's date an example: the date shown is
  * the real date, and the market day is this archive's demonstration reckoning of it, labelled as such before
  * the answer rather than after it.
+ *
+ * ============================================================================================
+ * AND THE ACCOUNT SITS BELOW IT, ATTRIBUTED, WHICH IS THE WHOLE OF THIS ROUND'S WORK
+ * ============================================================================================
+ *
+ * The owner asked for more information on **this page rather than scattered across the site**: *"you should
+ * also at the igbo calendar page itself and update more information there … find a way to put these things
+ * below there."* The material he sent is Wikipedia's "Igbo calendar" article, and the difficulty is that this
+ * archive never presents a source's account as its own.
+ *
+ * So the account is appended as one section below the design's own content, and nothing above it moves. Three
+ * things make it honest rather than merely present:
+ *
+ *   1. **the source is named at the point of use.** Every claim's material carries the article's section and
+ *      reference number, the works the article cites are listed with what each is cited for, and the revision
+ *      is given so a reader can fetch the exact text;
+ *   2. **the Nri account is marked as Nri's.** The months-and-meanings material is the Nri-Igbo calendar of the
+ *      Nri kingdom by the article's own statement, and the table says so in its caption, its column and every
+ *      row — presenting it as "the Igbo calendar" would be the universalising this page forbids;
+ *   3. **what the archive cannot substantiate is said, not omitted.** The table in "What the archive can
+ *      substantiate about this account" records each claim as substantiated or not, with the records behind
+ *      it and, for the rest, the reason it cannot be. **"The archive can substantiate this" means one of the
+ *      archive's own catalogued records states it independently of the article**, which is a weaker claim than
+ *      proof and is worded that way.
+ *
+ * **And the sentence that matters most in the article is the one that agrees with this page.** It says the
+ * calendar is *"neither universal nor synchronized, so various groups will be at different stages of the week,
+ * or even year."* That is what the paragraph above the new material already said, so the two are set beside
+ * each other as reinforcement rather than as a source correcting the page or the page correcting a source.
  */
-export function fillIgboCalendar(html: string, state: { basis: string }): string {
+export function fillIgboCalendar(html: string, state: { basis: string } = { basis: MARKET_DAY_ANCHOR }): string {
   let out = clearExampleMaterial(html);
   out = out.replace(/Selected demonstration basis/g, 'The basis this page uses');
+  /*
+   * THE HERO'S OWN DESCRIPTION OF WHAT THE PAGE HOLDS.
+   *
+   * It read "Check today, look up another date, or follow Eke, Orie, Afọ and Nkwọ across a month or full
+   * year." **That was the whole of the page when it was written and it is not the whole of it now** — this
+   * round adds the system, the thirteen months and their sources below. A hero that leaves them out is the
+   * page underselling itself at the one point every reader reads.
+   */
+  out = out.replace(
+    /Check today, look up another date, or follow Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor across a month or full year\./,
+    'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar, the system behind it: the thirteen months of the year, the festivals the account names, the naming tradition that follows the day of a child’s birth, and where all of it comes from.'
+  );
   out = out.replace(
     /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\./,
     `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. It is this archive's demonstration of one reckoning, not a claim that every Igbo community uses the same one.`
@@ -3119,6 +4160,80 @@ export function fillIgboCalendar(html: string, state: { basis: string }): string
     /A production result should always name its source\./,
     'This result names its source: the anchor above. A community that keeps a different anchor will keep a different market day, and this page cannot tell you which one your town uses.'
   );
+  /*
+   * THE SAME ANCHOR, STATED ON THE OTHER SCREEN THAT LOADS THIS SCRIPT.
+   *
+   * `/market-days.html` is a SEPARATE, OLDER SCREEN with its own basis note: *"The supplied helper sets 1
+   * January 2026 as Orie and repeats the four-day cycle. This is a design basis, not a claim that every Igbo
+   * community uses the same anchor."* — and **"the supplied helper" is the design talking about its own file
+   * rather than the page talking to a reader.** It states the same demonstration in different words, so it is
+   * given the same attribution this fill already gives `/igbo-calendar/`, and both screens then state the
+   * anchor in one form.
+   *
+   * Two sentences rather than one, because the two screens were written differently and **a replacement that
+   * silently matches nothing is the fault this file keeps recording** — each string below is read from the
+   * screen it belongs to, and the test asserts that both are replaced.
+   */
+  out = out.replace(
+    /The supplied helper sets 1 January 2026 as Orie and repeats the four-day cycle\. This is a design basis, not a claim that every Igbo community uses the same anchor\./,
+    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. It is this archive's demonstration of one reckoning, not a claim that every Igbo community uses the same one.`
+  );
+  out = out.replace(
+    /verify the anchor, community basis, timezone and whether the day changes at sundown\./,
+    'verify the anchor, the community basis, the timezone, the spellings and whether the day changes at sundown. A community that keeps a different anchor will keep a different market day, and this page cannot tell you which one your town uses.'
+  );
+
+  /*
+   * THE FULL YEAR, WHICH THE OWNER ASKED TO BE CLICKABLE, AND THE ONE THING THE FILL MAKES TRUE RATHER THAN
+   * LEAVES TO THE SCRIPT.
+   *
+   * The design already draws the year grid inside a `<details>`, so the control is native, keyboard-operable
+   * and works without JavaScript — but **the grid inside it is built by `market-days.js`, so with JavaScript
+   * off the element the owner asked to expand expands onto nothing.** The design's own quicklink lands on an
+   * empty panel. So the twelve months of the year are written into the markup as well: each states how many
+   * days it has and that every date in it falls on one of the four days under the anchor stated on the page.
+   * That is the shape of a year, not a day-by-day cycle — **computing the cycle in TypeScript would be a
+   * second reckoning of the one cycle this page already reckons once**, and two reckonings drift.
+   *
+   * The script replaces the container's contents when it runs, so a reader with JavaScript gets the full grid
+   * and the per-month expansion, and a reader without it gets the year's shape and the anchor it is reckoned
+   * from, which is more than an empty box and no less honest than the grid.
+   */
+  const yearCard = (name: string, days: number): string =>
+    `            <article class="sx-cal-year-card"><h3>${esc(name)}</h3><p class="small muted">${days} days. Every date in this month falls on one of Eke, Orie, Afọ and Nkwọ under the anchor stated above. The day-by-day grid for each month is drawn by this page’s own script.</p></article>`;
+  const yearNoScript =
+    `        <noscript>
+          <p class="small muted" style="margin-top:var(--s-4)">This page’s script is switched off, so the month-by-month grid cannot be drawn. What the year holds is still stated here, and the anchor it is reckoned from is stated above.</p>
+          <div style="display:grid;gap:var(--s-3);margin-top:var(--s-3)">
+${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, m, 1))), new Date(Date.UTC(2026, m + 1, 0)).getUTCDate())).join('\n')}
+          </div>
+        </noscript>`;
+  out = out.replace(/(<div class="sx-year-controls">[\s\S]*?<\/div>)/, `$1\n${yearNoScript}`);
+
+  /*
+   * THE NEW MATERIAL GOES BELOW EVERYTHING THE DESIGN DRAWS, AND THE ANCHOR IS THE PAGE'S OWN `</main>`.
+   *
+   * The design runs hero, day cards, lookup, month view, full-year grid, and its closing note, and then closes
+   * `<main>`. The owner's instruction was *"find a way to put these things below there"*, so the block goes
+   * between the design's last element and the end of `main` — after everything, above the footer, and inside
+   * the region a screen reader treats as the page.
+   *
+   * THE FIRST TWO ATTEMPTS ANCHORED ON THE CLOSING NOTE AND BOTH PUT THE BLOCK IN THE WRONG PLACE. One
+   * appended at the section's close, which is the note's position, so **the design's own closing statement
+   * ended up BELOW the new material**; the other searched for the note by class and found the addendum's own
+   * `<style>` block first, which put the page's content inside a CSS selector. Anchoring on `</main>` has
+   * neither problem: it is the page's structural end, it appears once, and nothing this function adds contains
+   * it.
+   *
+   * **AND IT IS GUARDED RATHER THAN MERELY FOUND.** If the marker is absent the page is returned unchanged
+   * rather than having the block appended somewhere arbitrary, and if the block is already present it is not
+   * added twice — because this function is called on the design's own file per request, and an insertion that
+   * doubles on a second pass is the kind of fault that only shows up in production.
+   */
+  if (!out.includes('sx-cal-account') && out.includes('</main>')) {
+    const at = out.indexOf('</main>');
+    out = `${out.slice(0, at)}\n${igboCalendarAddendum(state.basis)}\n    ${out.slice(at)}`;
+  }
   return out;
 }
 

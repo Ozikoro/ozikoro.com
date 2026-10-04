@@ -14582,7 +14582,7 @@ to directly): a WXR export plus the REST collections, every call a GET.
   3,583 attachments, 33 nav menu items, and **five post types the public archive never shows** — `custom_css`,
   `googlesitekit_email`, `wpcf7_contact_form`, `wp_font_face`, `wp_global_styles`.
 - **25,634 postmeta rows** — the material the REST API does not expose in any form.
-- **15 accounts, not 11**, with roles: 1 administrator, 3 editors, 10 authors, 1 contributor.
+- **15 accounts, not 11**, with roles: 1 administrator, 4 editors, 9 authors, 1 contributor.
 - 11,116 terms across five taxonomies, 47 approved comments (plus 4 spam, which WordPress omits from an export),
   228 commentmeta rows, 4,255 revision rows and 2 auto-drafts, counted one post at a time.
 - **`wpc9_posts` therefore holds 9,091 rows counted by construction** — and more, because `oembed_cache` and
@@ -14593,512 +14593,6 @@ reproduced on purpose), the whole of `wpc9_usermeta` except roles, postmeta on r
 on the 4 spam comments, and every plugin table. **One cPanel panel login unlocks all of it**: a panel session mints
 `cpsess`, phpMyAdmin then exports a true `.sql.gz`, and no amount of API-token work substitutes for it.
 
----
-
-## ROUND 308 — THE IGBO PRONUNCIATION PIPELINE AND THE NARRATION CREDIT PLANNER
-
-**What this round set out to do:** the owner's instruction, verbatim — *"any words that is Igbo, you go to
-ozituma.com … and pull out the record, but if it is not there, you can dissect the words to see if it can
-also be found in pieces, but if it can't, then it can go ahead to inform the admin, and editors, to upload
-or record the words listed in the article in the website, which now pushes it to elevenlabs, and approved
-before it produces any record, as to not waste credits."* Plus the planner half: *"how many credits it is in
-a month, and how many audiobook/record we can use it to produce in a month."*
-
-### A — THE MEASUREMENT THAT CHANGED THE SHAPE OF THE WORK, TAKEN BEFORE ANY CODE
-
-The instruction assumes ozituma already holds a record to pull out. **It does not.** Read from the cluster
-before a line was written:
-
-    word (published, ibo)                     8,728
-    word.pronunciation NOT NULL                   0
-    word.syllables    NOT NULL                    0
-    audio rows, any status                        0     ← every one of 0004_audio.sql's columns, empty
-    word_dialect rows                             0
-    word_form rows                              453     ← every one of them form_type 'variant'
-
-**The dictionary holds the SPELLING of 8,728 Igbo words and not one pronunciation of any kind.** A
-pronunciation is either recorded by a person or fabricated, and a fabricated one would be spoken aloud in the
-owner's own cloned voice and sound authoritative — so this could not be filled in, and the pipeline had to be
-built to work in the world that exists. `lookupPronunciation` therefore reads all four evidence classes the
-schema actually defines and returns a GRADE with each hit, because a recording, a respelling and a bare
-spelling are not the same answer:
-
-    audio.storage_key / external_url   a real speaker           grade 1–2   the best evidence there is
-    word.pronunciation                 "IPA or a practical respelling"  grade 3
-    word_dialect / word_form           the word is in the dictionary    grade 4   no sound at all
-    composed from parts                the parts are recorded           grade 5   lower than any real one
-
-`test-pronunciation.ts` asserts the zero counts, so **the day the dictionary gains a pronunciation the suite
-fails and the grades get re-checked** rather than the grades quietly becoming wrong.
-
-**A note for whoever reads this next:** `AGENTS.md` records that the Central-Igbo discriminator is
-`word_dialect`, with 3,814 dialect-tagged entries and 8,415 untagged. **That is the production Supabase
-instance; this cluster has zero `word_dialect` rows.** The difference is real and not a contradiction — but a
-count taken from one database and quoted about another is how a coverage figure becomes fiction.
-
-### B — THE PLANNER: THE ARITHMETIC IN CIRCULATION WAS WRONG BY 43.7%, AND IN THE SAFE DIRECTION
-
-The figure in use was *"1,051 articles at roughly 9,000 characters each is about 9,500,000 characters;
-Starter allows 65,000 a month, which is about seven articles a month and roughly twelve years."* **The
-conclusion is right and the character count is not.** Measured on the live cluster:
-
-    published records                     1,051
-    characters of body_html               9,794,392      ← what the old figure counted
-    characters of SPOKEN SCRIPT           5,514,389      ← what is actually sent and billed
-    markup that is never sent             4,280,003      (43.7% of the naive figure)
-    average per record                    5,247 spoken,  9,318 of HTML
-
-`body_html` is markup — `<p class="…">`, `<figure>`, anchors, entities, attributes — and none of it reaches
-the API. What is billed is `toSpokenScript(body_html)`, which removes what cannot be heard and changes no
-word. So the real figures are **12 records a month on Starter, not 7, and 87.6 months for the archive, not
-twelve years** — about 7.3 years. The planner counts the script and prints both numbers side by side, so a
-reader who has seen the old figure can see why this one moved. Nothing is cached: a cached average is wrong
-after the next publication and says nothing about when it was taken.
-
-**And the rate was never verified, which is now computable rather than remembered.** `CREDITS_PER_CHARACTER
-= 1` is labelled an estimate in `narration.ts`, and `renderProposedNarration` has always measured the real
-charge as the change in `character_count` — **and then written it into a transition NOTE. A charge recorded
-as prose cannot be summed, compared or audited.** Migration 0050 adds `measured_credits`,
-`measured_used_before/after` and `measured_at`, the render writes them, and `reconcileCharges` reports
-`verified: false` with the words *"no render has ever been measured"* when there is nothing to reconcile.
-`test-planner.ts` inserts a synthetic render measured at 1.08× its estimate and asserts the reconciliation
-notices — **because otherwise the "verified" branch would be dead code that nothing had ever executed.**
-
-### C — THE FINDER: THE DICTIONARY ALONE CALLS ORDINARY ENGLISH IGBO
-
-The instruction says the dictionary is the signal and that diacritics are a strong one. **Both are right and
-neither is sufficient, and the measurements are not close.** On one real record about afa divination:
-
-    token   times   what it actually is       Igbo headword?
-    a         23    the English article       YES
-    were       5    the English verb          YES
-    be         1    the English verb          YES
-    m          3    the English abbreviation  YES
-
-`a`, `be`, `were`, `cell`, `engine`, `chart`, `atom` are all published Igbo headwords — English loanwords the
-Igbo API imported as entries. A pipeline that trusted a hit would pronounce "they were" with Igbo phonology
-and open a queue entry asking a person to record the word "were". **165 of the 1,953 clean headwords are also
-ordinary English words**, and they are listed in `igbo-words.ts` with the script that reproduces the list.
-
-**And diacritics, the strong signal, fire almost never:** that same record contains ZERO diacritics in 6,738
-characters. Only 250 of 1,057 published records carry `ị ọ ụ ṅ` at all. A finder built on diacritics alone
-would have found nothing in the archive it was written for.
-
-So a token gets ONE evidence level, and the ORDER of the tests is the rule:
-
-    diacritic          carries a letter or tone mark                     certain
-    dictionary         a clean headword, and NOT an English word         strong
-    dictionary-english a headword that is ALSO an English word           AMBIGUOUS — not Igbo by default
-    phrase             a multi-word headword actually present in the text
-    compound           every piece is a known one, and >= 2 pieces
-    affix              a productive morpheme plus a known stem
-    unknown            nothing matched — NOT Igbo, and not guessed
-
-### D — WHAT THE OWNER'S OWN IDEA RESCUES, MEASURED RATHER THAN DESCRIBED
-
-DISSECTION was read before it was built: `word_form` models INFLECTION and DERIVATION — migration 0001 names
-its categories (infinitive, imperative, plural, agentive, variant…) — **it is not a table of constituents**,
-and in this data all 453 rows are `variant` spellings. `syllables` would have been exactly right and is empty
-on every row. So the segmentation is built from the headwords themselves, longest-match first, because that is
-the only division the dictionary supports.
-
-It works, and it is small: on the three records read by hand it rescues **3 words** — `Umuazu` = umu + azu,
-`Uchendu` = uche + ndu, `Uzochukwu` = uzo + chukwu — and every piece is a spelling with no sound, so each is a
-composition and is marked as one. **A word whose pieces are known does not block a render; a word with no
-pieces is queued.** A composed pronunciation is never presented as recorded.
-
-### E — THE FINDER'S PRECISION AND RECALL, ON WORDS READ BY EYE
-
-Three records were read in full and every Igbo word in them written down by hand — including names and place
-names, which the brief names explicitly as part of what must be found. 41 distinct ground-truth words. The
-lists are asserted in `test-pronunciation.ts`, so these numbers move or the suite fails:
-
-    conservative (the default)   precision 22/22 = 100.0%   recall 22/41 = 53.7%
-    permissive (includeAmbiguous) precision 25/32 =  78.1%   recall 25/41 = 61.0%
-
-**Zero false positives under the default, and what it costs is stated: of 41 words, 19 are missed and 15 of
-those are NAMES** — Nwedozie, Nise, Chinweizu, Owerri, Enugu, Mbari, Metuh, Onwuejeogwu, Umeh, Amadioha,
-Orie. The dictionary holds 8,728 Igbo lexemes from the Igbo API and almost no personal or place names, and the
-Igbo content of these articles is dominated by exactly that. **The honest remedy is additive data, not a
-looser rule:** a capitalisation heuristic would put `Stephen`, `Herbert`, `Nigeria` and `Trafford` into the
-queue beside them, and a false positive is what the owner asked to avoid.
-
-The permissive policy is offered and measured rather than hidden, because the trade is real: it gains `Eke`,
-`Ala` and `Ani` in the market-days record — **`Eke` is one of the four market days that record is about** —
-and loses precision to `were`, `be` and `mere`. The default stays conservative; every ambiguous word is
-reported either way.
-
-### F — THE QUEUE, THE NOTIFICATION, AND THE APPROVAL GATE AS THE CREDIT CONTROL
-
-`ozikoro_pronunciation` is one row per word per language, folded, and `ozikoro_pronunciation_occurrence` is
-which records need it and how many times — **because the owner's own test for whether a word is worth
-recording is "a word appearing in forty articles … one appearing in a single draft may not."** One table and
-not two, for migration 0046's reason: the queue entry and the pronunciation are one object at two points in
-one life, and the moment a word leaves the queue is the moment correctness matters most.
-
-`ozikoro_pronunciation_blocks(status, kind)` is the rule in SQL, so the page, the digest and the render gate
-cannot disagree about which words stop a render. Every state change writes an `ozikoro_audit` row naming the
-actor, and the actor is never read from a form field — the note `/admin/users` carries, applied here.
-
-**The digest was sent, for real**, and the transport's own answer is the evidence:
-
-    from        Ozikoro <hello@ozikoro.com>
-    to          idenzeme@gmail.com        (every active account holding "review audio", read from
-                                           ozikoro_capabilities rather than a list of role names)
-    subject     1 Igbo word needs a recording before it can be narrated
-    transport   resend
-    delivered   true, id 01a1040c-e008-79b2-9345-720ebb9a0724
-
-It lists the words that BLOCK a render, most-needed first, each with the records it appears in and a link to
-the queue; the composed ones are excluded, because asking a person to record words that can already be
-approximated would bury the ones that matter.
-
-**THE APPROVAL GATE IS THE CREDIT CONTROL, AND IT IS PROVEN WITHOUT SPENDING A CREDIT.** `approved before it
-produces any record` is enforced by `narrationPronunciationGate`, which `renderProposedNarration` calls
-before it touches the API and which returns `409 unpronounceable_words` naming the words. The test asserts the
-refusal, the waiver, and that the waiver is what lets the render proceed — **and it calls the DECISION
-directly rather than the render, because a mechanism whose only proof is a live render can only be tested by
-spending the money it exists to protect.** Approving a word with no recording and no respelling is refused
-outright: an approval with nothing behind it would tell the narration a word can be said when nothing says how.
-
-The rank rule is the database's: `mayApprovePronunciation` calls `ozikoro_role_may_grant` rather than
-reimplementing the ladder, and an approval of one's own recording is PERMITTED AND LABELLED, because the
-archive holds one account and 0046's rule is that admin must never be locked out of a decision.
-
-### G — ELEVEN MISTAKES MADE AND CAUGHT IN THIS ROUND, NAMED BECAUSE EACH LOOKED LIKE WORKING CODE
-
-1. **A duplicate `phrases` key in an object literal (TS1117).** JavaScript keeps the LAST duplicate silently,
-   so one of two phrase maps was being discarded at runtime with nothing saying which. It also took the whole
-   repository's typecheck down, because the file is inside the shared `@ozikoro/platform`.
-2. **A glob quoted inside a doc comment closed the comment.** `src/**/*.ts` contains the two characters that
-   terminate a block comment, so the header ended mid-sentence and the file became 25 syntax errors. **Same
-   class as the secrets-checker pattern this file already records: a description of a thing mistaken for the
-   thing itself.** Third occurrence in one session.
-3. **The phrase rule over-generalised.** It made every token appearing in ANY of 1,882 multi-word headwords
-   Igbo, so `be`, `or`, `one`, `from` and `do` were classified Igbo, went to the dictionary, were not found,
-   and landed in the queue as English words. **5 of the 12 "Igbo words" it found in one record were English.**
-   A phrase is evidence only when the phrase is actually in the text.
-4. **A wrong provenance.** `Ibu` was reported as "a variant form of «-tu ùbu»" — a claim about where a word
-   came from that is untrue, because the `word` row existed and the fallback was asked first. **A wrong
-   provenance is worse than no answer, because an editor reads it and believes it.** A direct hit now wins.
-5. **The hyphen made compounds unsegmentable.** The scan ran off `okwu` and hit a `-` in no piece set,
-   returning null — so `Okwu-Ekpo` and `Onu-eke` were lost. A hyphen is a separator.
-6. **Possessives were missed.** `Igbo’s` folds to `igbo's`, matches no headword, and the commonest Igbo word
-   in the archive was reported `unknown` every time an article said "Igbo's".
-7. **The test compared folded found-keys against accented hand-written ones**, so `afọ` and `nkwọ` counted as
-   misses and `afo`/`nkwo` as false positives. **All nine failures were the test's own bug and the 81.8%
-   precision it printed was a number about the test.** Both sides now fold with `toSearchForm`.
-8. **A ratio whose halves came from different runs**: the permissive recall divided its true positives by the
-   CONSERVATIVE false negatives, understating it by four points in the direction that made the default look
-   better.
-9. **A tautology**: `dissect`'s `complete` flag read `parts.every(p => p.headword !== null || p.grade <= 5)`,
-   and `grade <= 5` is true of everything not missing — so it reported "complete" for a segmentation built on
-   a guess. **A flag that is always true is worse than no flag, because a page prints it.**
-10. **The admin page asserted a fact it had not looked up.** The composed-words table printed "no — every
-    piece is a spelling with no sound recorded" as a fixed sentence. It is true today and would have gone on
-    being printed after the first recording was uploaded. It is computed now.
-11. **The digest subject read "1 Igbo word need a recording before they can be narrated"** — plural verb and
-    plural pronoun for a count of one, in the line a person reads before deciding whether to open it.
-
-Also carried from the two interruptions this round caused: **`npm run typecheck` must be run from the
-REPOSITORY ROOT, not per package.** Twice, per-package success hid a failure that stopped another agent's
-commit — a duplicate key in `@ozikoro/platform` and a test asserting on a type that did not describe its data.
-The second was instructive: **the test was right and the type was wrong.** `plan.words` was typed as the whole
-`PronunciationHit` union including the `found: false` arm, so `.audioUrl` did not typecheck even though every
-element is a found hit. The arms are now named (`FoundHit`, `MissingHit`) and the type says what the code
-already guaranteed.
-
-**Where the lexicon lives, and why: `@ozikoro/platform`, not the TTS service.** The finder, the lookup, the
-dissection and the queue are the ARCHIVE's pipeline — find Igbo words in an ozikoro.com article, look them up
-in the ozituma dictionary, queue them for the archive's editors, gate the archive's narration. The platform
-package already holds the narration pipeline and already reads dictionary tables, and `apps/media` already
-depends on it, so a second copy would be worse. Moving it into the service would invert the dependency and put
-an archive rule inside a speech engine.
-
-### HOW IT WAS VERIFIED, AND WHAT WAS NOT
-
-    npm run typecheck                                  exit 0, seven workspaces, from the REPOSITORY ROOT
-    design parity (the required check)                 identical 63 differing 0 missing 0
-    check:secrets                                      all passed, 51 variables in sync
-    test:pronunciation (on a cluster COPY)             ALL CHECKS PASSED · 1 skipped
-    test:planner (on a cluster COPY)                   ALL CHECKS PASSED
-    migration 0050                                     applies cleanly to a cluster that has never seen it
-    the digest                                         SENT — resend, delivered true, id 01a1040c-e008-79b2-…
-
-**NOT DONE, AND NOT CLAIMED:**
-
-1. **Migration 0050 is NOT applied to the live cluster.** Another agent's server holds `.data/pg` (pid 32924,
-   the standalone server on 3110) and the cluster guard refuses a second opener by design. **The guard was
-   read rather than removed**, and every database verification above ran against a copy at
-   `.data/scratch-r306/pg`, which takes its own lock by construction. Applying 0050 to the live cluster is the
-   first thing to do when the lock is released, followed by `npm run db:migrate` and a re-run of both suites.
-2. **`/admin/pronunciation` has not been fetched over HTTP.** It cannot be: the page reads
-   `ozikoro_pronunciation`, which does not exist on the live cluster yet, and `next build` must not run while
-   a server is serving. The page typechecks and its data functions are tested; **the rendered page is
-   unverified and is the one remaining gap.** `scripts/verify-round-305.sh` is the pattern to extend.
-3. **No ElevenLabs credit was spent, and the render path was not exercised end-to-end** — deliberately. The
-   gate's DECISION is proven directly instead, for the reason recorded above.
-4. **`check:design-parity` reports 4 route mismatches** (`/archive`, `/cultural-calendar`, `/cite`,
-   `/projects`). It fetches the RUNNING server on 3110, which is a stale build, and `design-fill.ts`, both
-   design directories and the `design-screen` route are unmodified in this working tree — so these are
-   pre-existing or another round's, and **this round did not verify which**. The inviolability check this work
-   was told to run, the file-hash comparison, prints exactly `identical 63 differing 0 missing 0`.
-
----
-
-## ROUND 308 — THE IGBO PRONUNCIATION PIPELINE AND THE NARRATION CREDIT PLANNER
-
-**What this round set out to do:** the owner's instruction, verbatim — *"any words that is Igbo, you go to
-ozituma.com … and pull out the record, but if it is not there, you can dissect the words to see if it can
-also be found in pieces, but if it can't, then it can go ahead to inform the admin, and editors, to upload
-or record the words listed in the article in the website, which now pushes it to elevenlabs, and approved
-before it produces any record, as to not waste credits."* Plus the planner half: *"how many credits it is in
-a month, and how many audiobook/record we can use it to produce in a month."*
-
-### A — THE MEASUREMENT THAT CHANGED THE SHAPE OF THE WORK, TAKEN BEFORE ANY CODE
-
-The instruction assumes ozituma already holds a record to pull out. **It does not.** Read from the cluster
-before a line was written:
-
-    word (published, ibo)                     8,728
-    word.pronunciation NOT NULL                   0
-    word.syllables    NOT NULL                    0
-    audio rows, any status                        0     ← every one of 0004_audio.sql's columns, empty
-    word_dialect rows                             0
-    word_form rows                              453     ← every one of them form_type 'variant'
-
-**The dictionary holds the SPELLING of 8,728 Igbo words and not one pronunciation of any kind.** A
-pronunciation is either recorded by a person or fabricated, and a fabricated one would be spoken aloud in the
-owner's own cloned voice and sound authoritative — so this could not be filled in, and the pipeline had to be
-built to work in the world that exists. `lookupPronunciation` therefore reads all four evidence classes the
-schema actually defines and returns a GRADE with each hit, because a recording, a respelling and a bare
-spelling are not the same answer:
-
-    audio.storage_key / external_url   a real speaker           grade 1–2   the best evidence there is
-    word.pronunciation                 "IPA or a practical respelling"  grade 3
-    word_dialect / word_form           the word is in the dictionary    grade 4   no sound at all
-    composed from parts                the parts are recorded           grade 5   lower than any real one
-
-`test-pronunciation.ts` asserts the zero counts, so **the day the dictionary gains a pronunciation the suite
-fails and the grades get re-checked** rather than the grades quietly becoming wrong.
-
-**A note for whoever reads this next:** `AGENTS.md` records that the Central-Igbo discriminator is
-`word_dialect`, with 3,814 dialect-tagged entries and 8,415 untagged. **That is the production Supabase
-instance; this cluster has zero `word_dialect` rows.** The difference is real and not a contradiction — but a
-count taken from one database and quoted about another is how a coverage figure becomes fiction.
-
-### B — THE PLANNER: THE ARITHMETIC IN CIRCULATION WAS WRONG BY 43.7%, AND IN THE SAFE DIRECTION
-
-The figure in use was *"1,051 articles at roughly 9,000 characters each is about 9,500,000 characters;
-Starter allows 65,000 a month, which is about seven articles a month and roughly twelve years."* **The
-conclusion is right and the character count is not.** Measured on the live cluster:
-
-    published records                     1,051
-    characters of body_html               9,794,392      ← what the old figure counted
-    characters of SPOKEN SCRIPT           5,514,389      ← what is actually sent and billed
-    markup that is never sent             4,280,003      (43.7% of the naive figure)
-    average per record                    5,247 spoken,  9,318 of HTML
-
-`body_html` is markup — `<p class="…">`, `<figure>`, anchors, entities, attributes — and none of it reaches
-the API. What is billed is `toSpokenScript(body_html)`, which removes what cannot be heard and changes no
-word. So the real figures are **12 records a month on Starter, not 7, and 87.6 months for the archive, not
-twelve years** — about 7.3 years. The planner counts the script and prints both numbers side by side, so a
-reader who has seen the old figure can see why this one moved. Nothing is cached: a cached average is wrong
-after the next publication and says nothing about when it was taken.
-
-**And the rate was never verified, which is now computable rather than remembered.** `CREDITS_PER_CHARACTER
-= 1` is labelled an estimate in `narration.ts`, and `renderProposedNarration` has always measured the real
-charge as the change in `character_count` — **and then written it into a transition NOTE. A charge recorded
-as prose cannot be summed, compared or audited.** Migration 0050 adds `measured_credits`,
-`measured_used_before/after` and `measured_at`, the render writes them, and `reconcileCharges` reports
-`verified: false` with the words *"no render has ever been measured"* when there is nothing to reconcile.
-`test-planner.ts` inserts a synthetic render measured at 1.08× its estimate and asserts the reconciliation
-notices — **because otherwise the "verified" branch would be dead code that nothing had ever executed.**
-
-### C — THE FINDER: THE DICTIONARY ALONE CALLS ORDINARY ENGLISH IGBO
-
-The instruction says the dictionary is the signal and that diacritics are a strong one. **Both are right and
-neither is sufficient, and the measurements are not close.** On one real record about afa divination:
-
-    token   times   what it actually is       Igbo headword?
-    a         23    the English article       YES
-    were       5    the English verb          YES
-    be         1    the English verb          YES
-    m          3    the English abbreviation  YES
-
-`a`, `be`, `were`, `cell`, `engine`, `chart`, `atom` are all published Igbo headwords — English loanwords the
-Igbo API imported as entries. A pipeline that trusted a hit would pronounce "they were" with Igbo phonology
-and open a queue entry asking a person to record the word "were". **165 of the 1,953 clean headwords are also
-ordinary English words**, and they are listed in `igbo-words.ts` with the script that reproduces the list.
-
-**And diacritics, the strong signal, fire almost never:** that same record contains ZERO diacritics in 6,738
-characters. Only 250 of 1,057 published records carry `ị ọ ụ ṅ` at all. A finder built on diacritics alone
-would have found nothing in the archive it was written for.
-
-So a token gets ONE evidence level, and the ORDER of the tests is the rule:
-
-    diacritic          carries a letter or tone mark                     certain
-    dictionary         a clean headword, and NOT an English word         strong
-    dictionary-english a headword that is ALSO an English word           AMBIGUOUS — not Igbo by default
-    phrase             a multi-word headword actually present in the text
-    compound           every piece is a known one, and >= 2 pieces
-    affix              a productive morpheme plus a known stem
-    unknown            nothing matched — NOT Igbo, and not guessed
-
-### D — WHAT THE OWNER'S OWN IDEA RESCUES, MEASURED RATHER THAN DESCRIBED
-
-DISSECTION was read before it was built: `word_form` models INFLECTION and DERIVATION — migration 0001 names
-its categories (infinitive, imperative, plural, agentive, variant…) — **it is not a table of constituents**,
-and in this data all 453 rows are `variant` spellings. `syllables` would have been exactly right and is empty
-on every row. So the segmentation is built from the headwords themselves, longest-match first, because that is
-the only division the dictionary supports.
-
-It works, and it is small: on the three records read by hand it rescues **3 words** — `Umuazu` = umu + azu,
-`Uchendu` = uche + ndu, `Uzochukwu` = uzo + chukwu — and every piece is a spelling with no sound, so each is a
-composition and is marked as one. **A word whose pieces are known does not block a render; a word with no
-pieces is queued.** A composed pronunciation is never presented as recorded.
-
-### E — THE FINDER'S PRECISION AND RECALL, ON WORDS READ BY EYE
-
-Three records were read in full and every Igbo word in them written down by hand — including names and place
-names, which the brief names explicitly as part of what must be found. 41 distinct ground-truth words. The
-lists are asserted in `test-pronunciation.ts`, so these numbers move or the suite fails:
-
-    conservative (the default)   precision 22/22 = 100.0%   recall 22/41 = 53.7%
-    permissive (includeAmbiguous) precision 25/32 =  78.1%   recall 25/41 = 61.0%
-
-**Zero false positives under the default, and what it costs is stated: of 41 words, 19 are missed and 15 of
-those are NAMES** — Nwedozie, Nise, Chinweizu, Owerri, Enugu, Mbari, Metuh, Onwuejeogwu, Umeh, Amadioha,
-Orie. The dictionary holds 8,728 Igbo lexemes from the Igbo API and almost no personal or place names, and the
-Igbo content of these articles is dominated by exactly that. **The honest remedy is additive data, not a
-looser rule:** a capitalisation heuristic would put `Stephen`, `Herbert`, `Nigeria` and `Trafford` into the
-queue beside them, and a false positive is what the owner asked to avoid.
-
-The permissive policy is offered and measured rather than hidden, because the trade is real: it gains `Eke`,
-`Ala` and `Ani` in the market-days record — **`Eke` is one of the four market days that record is about** —
-and loses precision to `were`, `be` and `mere`. The default stays conservative; every ambiguous word is
-reported either way.
-
-### F — THE QUEUE, THE NOTIFICATION, AND THE APPROVAL GATE AS THE CREDIT CONTROL
-
-`ozikoro_pronunciation` is one row per word per language, folded, and `ozikoro_pronunciation_occurrence` is
-which records need it and how many times — **because the owner's own test for whether a word is worth
-recording is "a word appearing in forty articles … one appearing in a single draft may not."** One table and
-not two, for migration 0046's reason: the queue entry and the pronunciation are one object at two points in
-one life, and the moment a word leaves the queue is the moment correctness matters most.
-
-`ozikoro_pronunciation_blocks(status, kind)` is the rule in SQL, so the page, the digest and the render gate
-cannot disagree about which words stop a render. Every state change writes an `ozikoro_audit` row naming the
-actor, and the actor is never read from a form field — the note `/admin/users` carries, applied here.
-
-**The digest was sent, for real**, and the transport's own answer is the evidence:
-
-    from        Ozikoro <hello@ozikoro.com>
-    to          idenzeme@gmail.com        (every active account holding "review audio", read from
-                                           ozikoro_capabilities rather than a list of role names)
-    subject     1 Igbo word needs a recording before it can be narrated
-    transport   resend
-    delivered   true, id 01a1040c-e008-79b2-9345-720ebb9a0724
-
-It lists the words that BLOCK a render, most-needed first, each with the records it appears in and a link to
-the queue; the composed ones are excluded, because asking a person to record words that can already be
-approximated would bury the ones that matter.
-
-**THE APPROVAL GATE IS THE CREDIT CONTROL, AND IT IS PROVEN WITHOUT SPENDING A CREDIT.** `approved before it
-produces any record` is enforced by `narrationPronunciationGate`, which `renderProposedNarration` calls
-before it touches the API and which returns `409 unpronounceable_words` naming the words. The test asserts the
-refusal, the waiver, and that the waiver is what lets the render proceed — **and it calls the DECISION
-directly rather than the render, because a mechanism whose only proof is a live render can only be tested by
-spending the money it exists to protect.** Approving a word with no recording and no respelling is refused
-outright: an approval with nothing behind it would tell the narration a word can be said when nothing says how.
-
-The rank rule is the database's: `mayApprovePronunciation` calls `ozikoro_role_may_grant` rather than
-reimplementing the ladder, and an approval of one's own recording is PERMITTED AND LABELLED, because the
-archive holds one account and 0046's rule is that admin must never be locked out of a decision.
-
-### G — ELEVEN MISTAKES MADE AND CAUGHT IN THIS ROUND, NAMED BECAUSE EACH LOOKED LIKE WORKING CODE
-
-1. **A duplicate `phrases` key in an object literal (TS1117).** JavaScript keeps the LAST duplicate silently,
-   so one of two phrase maps was being discarded at runtime with nothing saying which. It also took the whole
-   repository's typecheck down, because the file is inside the shared `@ozikoro/platform`.
-2. **A glob quoted inside a doc comment closed the comment.** `src/**/*.ts` contains the two characters that
-   terminate a block comment, so the header ended mid-sentence and the file became 25 syntax errors. **Same
-   class as the secrets-checker pattern this file already records: a description of a thing mistaken for the
-   thing itself.** Third occurrence in one session.
-3. **The phrase rule over-generalised.** It made every token appearing in ANY of 1,882 multi-word headwords
-   Igbo, so `be`, `or`, `one`, `from` and `do` were classified Igbo, went to the dictionary, were not found,
-   and landed in the queue as English words. **5 of the 12 "Igbo words" it found in one record were English.**
-   A phrase is evidence only when the phrase is actually in the text.
-4. **A wrong provenance.** `Ibu` was reported as "a variant form of «-tu ùbu»" — a claim about where a word
-   came from that is untrue, because the `word` row existed and the fallback was asked first. **A wrong
-   provenance is worse than no answer, because an editor reads it and believes it.** A direct hit now wins.
-5. **The hyphen made compounds unsegmentable.** The scan ran off `okwu` and hit a `-` in no piece set,
-   returning null — so `Okwu-Ekpo` and `Onu-eke` were lost. A hyphen is a separator.
-6. **Possessives were missed.** `Igbo’s` folds to `igbo's`, matches no headword, and the commonest Igbo word
-   in the archive was reported `unknown` every time an article said "Igbo's".
-7. **The test compared folded found-keys against accented hand-written ones**, so `afọ` and `nkwọ` counted as
-   misses and `afo`/`nkwo` as false positives. **All nine failures were the test's own bug and the 81.8%
-   precision it printed was a number about the test.** Both sides now fold with `toSearchForm`.
-8. **A ratio whose halves came from different runs**: the permissive recall divided its true positives by the
-   CONSERVATIVE false negatives, understating it by four points in the direction that made the default look
-   better.
-9. **A tautology**: `dissect`'s `complete` flag read `parts.every(p => p.headword !== null || p.grade <= 5)`,
-   and `grade <= 5` is true of everything not missing — so it reported "complete" for a segmentation built on
-   a guess. **A flag that is always true is worse than no flag, because a page prints it.**
-10. **The admin page asserted a fact it had not looked up.** The composed-words table printed "no — every
-    piece is a spelling with no sound recorded" as a fixed sentence. It is true today and would have gone on
-    being printed after the first recording was uploaded. It is computed now.
-11. **The digest subject read "1 Igbo word need a recording before they can be narrated"** — plural verb and
-    plural pronoun for a count of one, in the line a person reads before deciding whether to open it.
-
-Also carried from the two interruptions this round caused: **`npm run typecheck` must be run from the
-REPOSITORY ROOT, not per package.** Twice, per-package success hid a failure that stopped another agent's
-commit — a duplicate key in `@ozikoro/platform` and a test asserting on a type that did not describe its data.
-The second was instructive: **the test was right and the type was wrong.** `plan.words` was typed as the whole
-`PronunciationHit` union including the `found: false` arm, so `.audioUrl` did not typecheck even though every
-element is a found hit. The arms are now named (`FoundHit`, `MissingHit`) and the type says what the code
-already guaranteed.
-
-**Where the lexicon lives, and why: `@ozikoro/platform`, not the TTS service.** The finder, the lookup, the
-dissection and the queue are the ARCHIVE's pipeline — find Igbo words in an ozikoro.com article, look them up
-in the ozituma dictionary, queue them for the archive's editors, gate the archive's narration. The platform
-package already holds the narration pipeline and already reads dictionary tables, and `apps/media` already
-depends on it, so a second copy would be worse. Moving it into the service would invert the dependency and put
-an archive rule inside a speech engine.
-
-### HOW IT WAS VERIFIED, AND WHAT WAS NOT
-
-    npm run typecheck                                  exit 0, seven workspaces, from the REPOSITORY ROOT
-    design parity (the required check)                 identical 63 differing 0 missing 0
-    check:secrets                                      all passed, 51 variables in sync
-    test:pronunciation (on a cluster COPY)             ALL CHECKS PASSED · 1 skipped
-    test:planner (on a cluster COPY)                   ALL CHECKS PASSED
-    migration 0050                                     applies cleanly to a cluster that has never seen it
-    the digest                                         SENT — resend, delivered true, id 01a1040c-e008-79b2-…
-
-**NOT DONE, AND NOT CLAIMED:**
-
-1. **Migration 0050 is NOT applied to the live cluster.** Another agent's server holds `.data/pg` (pid 32924,
-   the standalone server on 3110) and the cluster guard refuses a second opener by design. **The guard was
-   read rather than removed**, and every database verification above ran against a copy at
-   `.data/scratch-r306/pg`, which takes its own lock by construction. Applying 0050 to the live cluster is the
-   first thing to do when the lock is released, followed by `npm run db:migrate` and a re-run of both suites.
-2. **`/admin/pronunciation` has not been fetched over HTTP.** It cannot be: the page reads
-   `ozikoro_pronunciation`, which does not exist on the live cluster yet, and `next build` must not run while
-   a server is serving. The page typechecks and its data functions are tested; **the rendered page is
-   unverified and is the one remaining gap.** `scripts/verify-round-308.sh` is written and ready, following
-   round 305's rule that every check prints what it READ rather than its status — and it currently reports
-   the page as `HTTP 404 — the running build predates this round's page`, which is the honest answer rather
-   than a green line. **It does not default the owner's password**, unlike its sibling: a working credential
-   in a tracked file is a credential committed, and `OWNER_PASSWORD` is read from the environment so the
-   signed-out half still runs without one.
-3. **No ElevenLabs credit was spent, and the render path was not exercised end-to-end** — deliberately. The
-   gate's DECISION is proven directly instead, for the reason recorded above.
-4. **`check:design-parity` reports 4 route mismatches** (`/archive`, `/cultural-calendar`, `/cite`,
-   `/projects`). It fetches the RUNNING server on 3110, which is a stale build, and `design-fill.ts`, both
-   design directories and the `design-screen` route are unmodified in this working tree — so these are
-   pre-existing or another round's, and **this round did not verify which**. The inviolability check this work
-   was told to run, the file-hash comparison, prints exactly `identical 63 differing 0 missing 0`.
 
 ---
 
@@ -15652,3 +15146,138 @@ restarted it on the same port.
    interests are empty in the record because the owner has supplied none, and the page says the profile
    is published rather than filling those fields in.
 
+
+## ROUND 309 — THE CALENDAR THAT ATE ITSELF, THE THREE COUNTRIES, AND THE MARKET DAY THE OWNER ASKED FOR
+
+The owner reported two faults on `/cultural-calendar/` and then added a third in the same pass: *"the events
+page (calendars), does not have the exact designs its demo has, and the countries of all africa is not
+complete there"*, and later *"can you add igbo market day on the calendars? i mean, make it smaller at the
+top, or anywhere that will make it fit into the design of the event calendar"*. All three are answered here,
+and **the design file is untouched: `identical 63 differing 0 missing 0`.**
+
+### A — WHICH FILL REMOVED THE FOUR STRINGS, AND WHY IT TOOK THE SCREEN WITH THEM
+
+Measured before any change: the design file is 7,575 bytes on disk and the served page was 6,020, and four
+strings the design draws were absent — `Read event story`, `Submit an event`, `Suggest a correction`, and
+`Only dates with event entries are interactive.`
+
+**It was not the banner removal.** `clearExampleMaterial` takes the design's `<p class="example-flag">`
+paragraph and nothing else, which is correct: the design's demonstration banner is true of the design and
+false of a page carrying real counts, so it goes.
+
+The cause was the last statement of `fillCulturalCalendar`:
+
+    fillContainer(out, /<div class="sx-event-layout"[^>]*>/, '<p class="small muted">The archive holds 0 events…</p>')
+
+`fillContainer` replaces a container's **whole contents**, matched by depth — and `.sx-event-layout` is the
+container holding **the month grid AND the selected-date panel**: the entire interactive body of the screen.
+So the pass written to say "the archive holds 0 events" also deleted `.sx-cultural-grid`, every day cell,
+`.sx-event-day-panel`, and the three controls inside it. **One `fillContainer` call took a region where a
+value was wanted, and four sentences a reader needs went with it silently** — the page stayed 200 and looked
+deliberate.
+
+What replaces it, with the container and the frame kept:
+
+* **the grid** is rebuilt as plain day cells for the month the heading names — blanks for the days before the
+  1st so the columns still line up under `Mon`–`Sun`, then one numbered cell per day. No `has-event`, no
+  `data-event-*`, no `small` count: with 0 events there is no date to highlight and nothing to click, which is
+  the design's own non-interactive state. `monthIndex` is now passed in beside `label` and `year`, because the
+  first version took the month from the wall clock while the heading took it from the route — the same value
+  today and a page headed "October 2026" over November's cells the moment either changed.
+* **the panel** keeps every `data-event-*` hook its own script looks for, and says in HTML — not only after the
+  script runs — that no event is recorded. A reader without JavaScript is no longer shown "Choose a highlighted
+  date" over a grid with nothing highlighted.
+* **the three affordances.** `Read event story` stays a link, pointed at `/cultural-event/`, which is a real
+  page that states there is no event. **`Submit an event` and `Suggest a correction` cannot honestly work** —
+  both pointed at `upload.html`, the publication-deposit screen, and `/submit/` redirects an anonymous reader
+  to sign in with no account in existence. They are kept, made inert with `aria-disabled`, and say so — the
+  same treatment `/donate/` and `/sponsors/` give an unbuilt form — with a plain sentence beside them for the
+  reader who never sees a tooltip. **No submission endpoint was invented.**
+* **the note** is kept as the rule it is, with the month's state added after it rather than replacing it.
+
+**A second fault found by measuring rather than by looking:** once `Suggest a correction` lost its `href`, the
+quiet-button rule coloured its label for the cream it was drawn on — measured in the browser as
+`rgb(29,26,22)` on the dark panel, **1.13:1, text nobody can read.** Both inert controls now carry the
+design's own `var(--on-night-muted)` (6.7:1 against that panel) with `opacity: .8`, which is what makes them
+read as unavailable rather than as ordinary buttons.
+
+### B — THE COUNTRIES OF AFRICA, AT SERVE TIME
+
+The Country selector held `All countries · Nigeria · Ghana · Kenya` beside a Region control offering five
+African regions. **The screen's own model was continental and its country list said three.**
+
+`AFRICAN_COUNTRIES` now holds **the 54 sovereign states that are members of the African Union**, grouped by
+the AU's five regions — the same five the Region control names — and **alphabetical within each region**, the
+one ordering a reader cannot read as a ranking. `All countries` stays first, outside the groups, because it is
+the empty choice rather than a country. Rendered as `<optgroup>`s, which is the correct element for a grouped
+`<select>`.
+
+**Named exclusions, not buried:** Western Sahara (SADR) is an AU member whose sovereignty is disputed and most
+of whose territory Morocco administers — including it would take a side on a live dispute, so the archive takes
+none. Somaliland is a self-declared state no AU member recognises as sovereign. Réunion, Mayotte, Saint Helena,
+the Canary Islands, Madeira, Melilla and Ceuta are non-sovereign, and a control labelled "Country" that lists
+them is answering a different question from the one its label asks.
+
+The list is added by transforming the served HTML, anchored to the design's own `<span>Country</span>` label
+rather than to "the second `<select>`" — **a filter added to the design would otherwise move the country list
+onto the wrong control, and a wrong list is worse than none because it looks like an answer.**
+
+### C — TODAY'S IGBO MARKET DAY, SMALL, AT THE TOP
+
+The owner asked for it and said where: smaller, at the top, fitting the event calendar's design. It sits after
+the hero and before "Events by date" — context for the month rather than a competitor to it — in the design's
+own pieces: `spread`, `sx-source-note`, `small muted`.
+
+**The day is not computed here.** `market-days.js` already does it, and the stamp carries the two hooks it
+fills: `<strong data-market-day>` and `<time data-modern-date>`. A second reckoning in TypeScript would be a
+second place for one cycle to be wrong.
+
+**And the script tag had to be added, because the design's cultural calendar does not load it** — measured:
+`cultural-calendar.html` loads `cultural-calendar.js` and `mobile-nav.js` and not `market-days.js`. Without it
+the spans render empty: the label with no day. **The path had to be absolute (`/design/market-days.js`),
+and that is the fault the browser pass caught:** the route rewrites `src="../name.js"` **before** the fills
+run, so a tag inserted by a fill never passes through that rewrite, and with the SEO head having replaced the
+design's `<head>` there is no `<base href="/">` to catch it either. The first version wrote `../market-days.js`
+and the stamp rendered "Market day · Today" — the placeholders — while every byte of markup was present and
+correct. The browser check read the DOM, which is the only thing that could have shown it.
+
+The stamp says what it is in one breath: *"A demonstration reckoning from a fixed anchor — 1 January 2026 taken
+as Orie, repeating the four-day cycle — not a claim that every Igbo community uses the same one"*, and links to
+the Igbo calendar for the basis in full. **The anchor string is one exported constant, passed to both screens,
+so `/igbo-calendar/` and the cultural calendar cannot drift apart.** No town's observance and no local anchor is
+invented.
+
+### HOW IT WAS VERIFIED, AND WHAT COULD NOT BE
+
+    npm run typecheck, from the repository root     exit 0, seven workspaces
+    design parity (the required check)             identical 63 differing 0 missing 0
+    design-fill tests (23 in the file)             ALL PASS, including six new calendar tests
+    the BROWSER pass, against the served page      ALL CHECKS PASSED, and its readings are the evidence:
+        55 rendered options                        "All countries" + 54, in five optgroups
+        the grid                                   34 cells: 31 numbered, 3 blanks — October 2026's 1st is a Thursday
+        cells claiming an event                    0;  event buttons: 0
+        the market-day stamp                       "Orie" · "Sun, 4 Oct 2026", read from the live DOM
+        the inert controls                         no href on either; both in --on-night-muted
+        "Read event story"                         /cultural-event/
+
+**What the browser pass could not be run against, and what it was run against instead.**
+`serve-review.sh` (port 3110) completed `next build` and copied the standalone output, and then its server
+**refused to open the database**: `REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT … holder pid
+59690 … /Users/nzeora/Projects/Ozikoro/node_modules/next/dist/server/lib/start-server.js`. Another agent's
+`next dev` on port 3100 holds `.data/pg`, and **the guard was respected rather than removed.** The standalone
+directory was afterwards overwritten by that same dev server, since `next build` and `next dev` share
+`apps/ozikoro/.next` — which this repository's own instructions forbid running together.
+
+**The browser pass was then run against port 3100**, which serves this same working tree and therefore these
+functions. It printed `ALL CHECKS PASSED` and read: **55 rendered options** in five optgroups; the grid at
+**31 numbered cells and 3 blanks**, with **0 cells claiming an event and 0 event buttons**; both inert controls
+at `rgb(185,173,148)` — the design's own on-night token, so the **1.13:1 contrast fault is fixed and measured**
+— `Read event story` at `/cultural-event/`; and the market-day stamp at **"Orie" · "Sun, 4 Oct 2026"**, read
+from the live DOM after `market-days.js` ran. `scripts/verify-round-309.mjs` re-runs that pass at any base
+(`PORT=3100 node scripts/verify-round-309.mjs`), and `scripts/verify-round-309-offline.mjs` runs the fill over
+the real design file and applies the route's own rewrites in the route's own order, so the country list, the
+grid and the `/design/market-days.js` URL are all checkable with no server at all.
+
+**One thing this round did not verify:** the production standalone build carrying the final contrast fix was
+never served, because the build output was overwritten before a server could hold it. What was verified is the
+same source through the dev server, which is the same fill and the same route.

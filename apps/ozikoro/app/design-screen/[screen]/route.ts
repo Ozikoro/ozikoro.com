@@ -39,6 +39,7 @@ import {
   fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMaterialCulture, fillPhotographs,
   fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
   fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
+  MARKET_DAY_ANCHOR,
   type DashboardWho, type RealAzEntry, type RealCollection, type RealDocument, type RealEntry, type RealFilm,
   type RealPhotograph, type RealStory, type RealTown, type RealTrack,
 } from '@ozikoro/platform';
@@ -1054,12 +1055,29 @@ export async function GET(
          * The design heads its grid "October 2026 · demonstration month". **There is no event table** — the only
          * `%event%` tables are `learn_xp_event` and `spotify_event` — so the count is 0 and every date is a
          * plain date, which is the design's own non-interactive state rather than a degraded one.
+         *
+         * `monthIndex` GOES WITH `label` AND `year`, AND IT IS NOT REDUNDANT.
+         *
+         * The fill draws the grid's day cells itself — the design's example grid holds four invented event
+         * dates — and **the grid must be drawn for the month the heading names.** The first version took the
+         * month from the wall clock while the heading took it from here: the same value today, and a page
+         * headed "October 2026" over November's days the moment either changed.
+         *
+         * THE MARKET-DAY ANCHOR COMES FROM THE CONSTANT BELOW, WHICH THE IGBO CALENDAR ALSO USES.
+         *
+         * The owner asked for today's Igbo market day on this screen, and **the reckoning is the design's own
+         * `market-days.js`, not a second implementation here.** What is passed is the basis sentence beside it,
+         * and passing the same constant to both screens is what stops the two from ever stating different
+         * anchors — the drift a copied string would eventually produce.
          */
         const now = new Date();
         html = fillCulturalCalendar(html, {
           label: now.toLocaleDateString('en-GB', { month: 'long', timeZone: 'UTC' }),
           year: now.getUTCFullYear(),
+          // `getUTCMonth()` is 0-based; the fill wants 1–12 because it does calendar arithmetic with it.
+          monthIndex: now.getUTCMonth() + 1,
           events: 0,
+          anchor: MARKET_DAY_ANCHOR,
         });
       }
 
@@ -1073,7 +1091,7 @@ export async function GET(
          * page already calls it a demonstration; the fill makes the wording name it as this archive's reckoning
          * rather than a universal one, which the brief requires.
          */
-        html = fillIgboCalendar(html, { basis: '1 January 2026 taken as Orie, repeating the four-day cycle' });
+        html = fillIgboCalendar(html, { basis: MARKET_DAY_ANCHOR });
       }
 
       if (name === 'watch-video') {
@@ -1162,6 +1180,34 @@ export async function GET(
   } catch (error) {
     // Degrade to the design rather than to an error page, and say so in the log.
     console.error(`design fill failed for ${name}:`, error);
+  }
+
+  /*
+   * THE ONE SCRIPT THE ARCHIVE EXTENDS IS POINTED AT THE EXTENDED COPY, AND IT RUNS HERE FOR A REASON.
+   *
+   * `market-days.js` draws the full-year grid, and the owner asked for those months to be clickable. The
+   * extension cannot be written into the deliverable, so it is applied at request time by
+   * `/design-screen-assets/[name]`, and the screens that load the script are pointed at that address.
+   *
+   * **THIS RAN EARLIER AND MISSED A SCREEN.** It sat beside the `../name.js` rewrite near the top, which is
+   * where the DESIGN's own script tags are made absolute — but `/cultural-calendar/` does not have that tag in
+   * its markup at all: **`fillCulturalCalendar` INSERTS it**, and the fill runs after this point. So the
+   * cultural calendar kept `/design/market-days.js` while the two calendar screens took the extended copy, and
+   * the served pages disagreed about which script they used with nothing in the markup to show it. Moving the
+   * rewrite after the fills covers both, because by then a tag is a tag whether the design wrote it or a fill
+   * did.
+   *
+   * **AND IT IS CHECKED RATHER THAN ASSUMED.** A screen that ends up with a script tag this pass did not
+   * rewrite would silently run the design's own version and its month expansion would be missing, so the
+   * count is taken and the route logs when a screen that should have the script does not.
+   */
+  if (name === 'igbo-calendar' || name === 'market-days' || name === 'cultural-calendar') {
+    const before = html;
+    html = html.replace(/src="\/design\/market-days\.js"/g, 'src="/design-screen-assets/market-days.js"');
+    const tags = (html.match(/market-days\.js/g) ?? []).length;
+    if (before === html || tags !== 1) {
+      console.error(`design-screen: ${name} did not take the extended market-days script (${tags} reference(s))`);
+    }
   }
 
   /*
