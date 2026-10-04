@@ -1879,6 +1879,7 @@ export type AboutData = {
   photographs: number;
   /** Media records of kind `document`. */
   documents: number;
+
   contributors: { slug: string; name: string; records: number; bio: string | null }[];
 };
 
@@ -1916,7 +1917,7 @@ function personCard(c: AboutData['contributors'][number]): string {
   <div class="sx-person-copy">
     <p class="eyebrow">${c.records === 1 ? '1 published history' : `${n(c.records)} published histories`}</p>
     <h3><a href="/author/${esc(c.slug)}/">${esc(c.name)}</a></h3>
-    <p class="small muted" style="margin-top:var(--s-2)">${bio ? esc(bio.slice(0, 240)) : 'No biography on file. Named here by the work alone.'}</p>
+    <p class="small muted" style="margin-top:var(--s-2)">${bio ? esc(decodeEntities(bio.slice(0, 240))) : 'No biography on file. Named here by the work alone.'}</p>
   </div>
 </article>`;
 }
@@ -1974,8 +1975,24 @@ export function fillAbout(html: string, d: AboutData): string {
    * 3. WHAT THE ARCHIVE PUBLISHES, COUNTED — the design's list is right about the kinds of thing and silent
    *    about how many of each there are, which is the one fact a reader on this page is looking for.
    */
+  /*
+   * THE PATTERN IS ANCHORED TO ITS OWN LIST, AND THAT IS NOT A DETAIL.
+   *
+   * It used to be `/(<ul[^>]*>)\s*<li><a href="archive-index\.html">Histories<\/a>[\s\S]*?(<\/ul>)/`, which
+   * matches the FIRST `<ul>` in the document whose opening item links to `archive-index.html` — and that is
+   * the MASTHEAD NAVIGATION, whose first item is also `Histories`. So the pass written to count what the
+   * archive publishes replaced the site's menu with eight sentences of prose styled as navigation, on every
+   * screen that runs it. The owner saw it and said the menu "looks scattered like it has bugs"; it was the
+   * menu's links that were gone.
+   *
+   * The section's own list is the one the design gives an inline grid to, so that marker is now required
+   * rather than assumed. **A bare `<ul>` is not an address: two lists can begin the same way, and the first
+   * one is usually chrome.** This is the same fault as the single-segment screen edits that changed nothing
+   * and the mutating function that was probed by calling it — a selector that describes a shape instead of
+   * naming the thing.
+   */
   out = out.replace(
-    /(<ul[^>]*>)\s*<li><a href="archive-index\.html">Histories<\/a>[\s\S]*?(<\/ul>)/,
+    /(<ul style="margin-top:var\(--s-4\);display:grid;gap:\.5rem">)\s*<li><a href="archive-index\.html">Histories<\/a>[\s\S]*?(<\/ul>)/,
     `$1
               <li><strong>Histories</strong> — ${n(d.published)} published records, ${n(d.sources)} of them stating their sources.</li>
               <li><strong>Folklores &amp; myths</strong> — ${n(d.folklores)} published records.</li>
@@ -2511,7 +2528,7 @@ export function fillLedger(html: string, d: {
     named
       .map(
         (c) =>
-          `<article><span class="tier">${c.records === 1 ? '1 published history' : `${n(c.records)} published histories`}</span><b><a href="/author/${esc(c.slug)}/">${esc(c.name)}</a></b><p>${c.bio?.trim() ? esc(c.bio.trim().slice(0, 120)) : 'No biography on file.'}</p></article>`
+          `<article><span class="tier">${c.records === 1 ? '1 published history' : `${n(c.records)} published histories`}</span><b><a href="/author/${esc(c.slug)}/">${esc(c.name)}</a></b><p>${c.bio?.trim() ? esc(decodeEntities(c.bio.trim().slice(0, 120))) : 'No biography on file.'}</p></article>`
       )
       .join('') ||
       `<article><span class="tier">Empty</span><b>No contributor recorded</b><p>The archive holds no published record by anyone.</p></article>`
