@@ -3670,7 +3670,7 @@ const CALENDAR_SOURCES: Array<{ key?: boolean; citation: string; cited: string }
   },
   {
     citation: 'H.R.H. Silver Ibenye-Ugbala, <i>Igbo Calendar from A.D. 0001 to A.D. 8064: With a Comparative Examination of Gregorian and Other World Calendars</i>.',
-    cited: 'The article’s own “General references” list holds this title and nothing further — no publisher, no date and no citation marker anywhere in the text. **This page does not use it, and lists it only because the article carries it and a reader checking the article will meet it.**',
+    cited: 'The article’s own “General references” list holds this title and nothing further — no publisher, no date and no citation marker anywhere in the text. <strong>This page does not use it, and lists it only because the article carries it and a reader checking the article will meet it.</strong>',
   },
 ];
 
@@ -3722,7 +3722,7 @@ const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> 
   {
     claim: 'The Gregorian equivalents of the thirteen months',
     state: false,
-    note: 'Given as ranges against a solar year, and the article states no reckoning that turns a Gregorian day into an Igbo day, month or year. **This page therefore prints no such conversion**, and the month view above remains this archive’s own four-day demonstration.',
+    note: 'Given as ranges against a solar year, and the article states no reckoning that turns a Gregorian day into an Igbo day, month or year. <strong>This page therefore prints no such conversion</strong>, and the market-day view above remains this archive’s own four-day demonstration.',
   },
   {
     claim: 'The rituals, shrines and festivals described under each of the thirteen months',
@@ -3742,7 +3742,7 @@ const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> 
   {
     claim: 'That the day-spirits were fishmongers created by Chineke to establish a social system',
     state: false,
-    note: 'This is a tradition about origins, and the article gives it no reference at all. **It is recorded here as the tradition it is, not as an event.**',
+    note: 'This is a tradition about origins, and the article gives it no reference at all. <strong>It is recorded here as the tradition it is, not as an event.</strong>',
   },
   {
     claim: 'The years of the Nri calendar — the article reports 2012 as its 1,013th year',

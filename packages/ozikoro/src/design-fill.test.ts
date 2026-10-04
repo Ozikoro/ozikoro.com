@@ -727,6 +727,22 @@ test('the other screen that loads this script states its anchor too', () => {
   assert.ok(!out.includes('data-year-grid'), 'market-days is not the screen with the full-year grid');
 });
 
+/**
+ * NO MARKDOWN ASTERISKS, WHICH THE SERVED PAGE SHOWED AS LITERAL TEXT.
+ *
+ * The description columns of the verification table are escaped plain text, and three of them were written with
+ * `**bold**` out of habit. **A test that only looked for the sentences passed while the page printed the
+ * asterisks**, which is why this reads the rendered output for the characters rather than for the words.
+ */
+test('no markdown syntax reaches the served page as literal text', () => {
+  const out = igbo();
+  assert.ok(!out.includes('**'), 'a markdown bold marker is being served as literal text');
+  assert.ok(!/\*\*[^*]+\*\*/.test(out), 'a markdown bold pair is being served as literal text');
+  // The emphasis that is meant to be there is HTML, and it is present where the design's own classes allow it.
+  assert.match(out, /<strong>This page therefore prints no such conversion<\/strong>/);
+  assert.match(out, /<strong>It is recorded here as the tradition it is, not as an event\.<\/strong>/);
+});
+
 test('the year grid’s months are made expandable, and the reckoning is untouched', () => {
   const base = readFileSync(SCRIPT, 'utf8');
   const once = extendMarketDaysScript(base);
