@@ -956,6 +956,109 @@ export function fillHome(
   return out;
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * THE FRONT PAGE'S SIX TOWN TILES, WHICH ALL WENT TO THE SAME PLACE
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * The six towns the design's strip draws, and the register row each one means.
+ *
+ * ── THE FAULT, MEASURED ON THE SERVED FRONT PAGE ────────────────────────────────────────────────
+ *
+ * `home.html` writes its "Explore by town" strip as six cards, each `<a href="town.html">` — a
+ * SIBLING FILENAME, which is correct in the deliverable and meaningless once the screen is served at
+ * `/`. `designScreenLinks` resolves that filename to the address the site answers the screen at, and
+ * the answer is `/town/`: **all six cards, naming six different towns, pointed at one address.** The
+ * owner's report is that click, in his own words: *"inside /town/, why is the homepage showing that
+ * when you click on igbodo, and then also show me links to other clans and towns, instead of showing
+ * me articles relating to the igbodo?"*
+ *
+ * He clicked the tile labelled **Igbodo**, under its photograph of the obi of Igbodo, and landed on
+ * `/town/` — the design's single-town screen, filled as the register, with its heading still reading
+ * *"Histories about Igbodo"* over twenty-four OTHER towns. Every part of that page was the fault he
+ * described, and none of it was in the design.
+ *
+ * ── WHY THE NAMES ARE RESOLVED RATHER THAN REPLACED ─────────────────────────────────────────────
+ *
+ * The tiles carry real Ozikoro material — six photographs the archive serves from its own media
+ * origin, each with the design's own `alt` — and the design's own `<small>` region and `<em>` call to
+ * action. Only the ADDRESS was wrong. So the names are kept and each one is resolved to the register
+ * row it means, which is the arrangement `MARQUEE_PLACES` already uses one element over on the same
+ * screen: **the design's names, and the archive's addresses behind them.**
+ *
+ * Two of the six are the traps that map already records, and they are copied here rather than
+ * re-derived: the register holds TWO published entries called Igbodo — a section in Enugu (`igbodo`)
+ * and the Ika town (`igbodo-northern-ika`) — and this tile's photograph is the obi of the IKA town,
+ * so `igbodo-northern-ika` is the row it means; and the design draws Oko and Okwe as one card because
+ * the register records them as one entry.
+ *
+ * The first label is the card's own `<strong>` text, exactly as the design writes it — `Oko & Okwe`,
+ * with the ampersand. `fillHomeTowns` decodes `&amp;` before it compares.
+ */
+export const HOME_STRIP_PLACES: ReadonlyArray<{ label: string; slug: string; note: string }> = [
+  { label: 'Igbodo', slug: 'igbodo-northern-ika', note: 'the Ika town, not the Enugu section named igbodo — and the photograph is its obi' },
+  { label: 'Amai', slug: 'amai', note: 'the fold is the slug' },
+  { label: 'Akumazi', slug: 'akumazi', note: 'the fold is the slug' },
+  { label: 'Abbi', slug: 'abbi', note: 'the fold is the slug' },
+  { label: 'Oko & Okwe', slug: 'oko-okwe', note: 'the register records Oko and Okwe as one entry, which is why the design draws them as one tile' },
+  { label: 'Arondizuogu', slug: 'ndizuogu', note: 'Arondizuogu is an alias of Ndizuogu, not a slug' },
+];
+
+/** The strip's own container, as `home.html` writes it. */
+const HOME_STRIP_OPEN = '<div class="sx-strip reveal">';
+
+/**
+ * Give each of the front page's town tiles its own address.
+ *
+ * ── WHAT IT DOES AND WHAT IT DELIBERATELY DOES NOT ─────────────────────────────────────────────
+ *
+ * It rewrites ONE attribute per card — the `<a>`'s `href` — and nothing else. The `<img>`, its `alt`,
+ * the `<small>` region, the `<i>` rule, the `<strong>` name and the `<em>` call to action are the
+ * design's and are left byte-for-byte as they were. **The design file is not read for writing and is
+ * not edited**; this runs on the served copy, in memory, like every other fill here.
+ *
+ * The card is identified by its own `<strong>`, which is the name a reader sees, rather than by its
+ * position — so a design that reorders or drops a tile cannot silently move a photograph onto the
+ * wrong town.
+ *
+ * ── AN UNRESOLVED NAME GOES TO THE REGISTER, NOT BACK TO THE SINGLE-TOWN SCREEN ──────────────────
+ *
+ * If a name is not in `links` — the row was renamed or unpublished since `MARQUEE_PLACES` was
+ * measured — the card is pointed at `/towns/`, which is the register and lists every entry the
+ * archive holds. **It is deliberately NOT left at `/town/`**, because that is the fault: a tile named
+ * after one town must not open a page that is about the register while claiming to be about that
+ * town.
+ *
+ * The tile is kept as a link rather than unwrapped because the design's own stylesheet draws it as
+ * one — `.sx-strip a` carries the gradient, the hover and the absolutely positioned caption — so an
+ * anchor stripped of its `href` renders as a box with its text in the wrong place. The marquee
+ * unwraps instead because a bare name in a list of names loses nothing; a photograph does.
+ */
+export function fillHomeTowns(html: string, links: readonly MarqueeLink[]): string {
+  const start = html.indexOf(HOME_STRIP_OPEN);
+  if (start === -1) return html;
+  const open = html.indexOf('>', start);
+  if (open === -1) return html;
+  const close = html.indexOf('</div>', open);
+  if (close === -1) return html;
+
+  const href = new Map(links.map((l) => [l.label, l.href]));
+  if (href.size === 0) return html;
+
+  const inner = html.slice(open + 1, close).replace(
+    /<a\b([^>]*?)href="([^"]*)"([^>]*)>([\s\S]*?)<\/a>/g,
+    (whole, before: string, _was: string, after: string, body: string) => {
+      const strong = /<strong>([\s\S]*?)<\/strong>/.exec(body);
+      if (!strong) return whole;
+      // The design writes `Oko &amp; Okwe`; the map's label is the name a reader sees.
+      const name = strong[1]!.replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim();
+      const target = href.get(name) ?? '/towns/';
+      return `<a${before}href="${esc(target)}"${after}>${body}</a>`;
+    }
+  );
+  return html.slice(0, open + 1) + inner + html.slice(close);
+}
+
 /** A photograph as the archive holds it. */
 export type RealPhotograph = {
   id: number;
@@ -6103,12 +6206,42 @@ export function fillFolkloreReader(html: string, s: RealStoryPage): string {
  * `/town/` — the town archive.
  *
  * **The design's town is `Igbodo`, with three example articles and a heading that reads "Town archive
- * demonstration".** This archive holds 188 published towns and clans, and **170 article-to-place links**, so a
- * town page has real material — but there is no way to know which town a reader wanted at `/town/` itself, so
- * the register is what this page carries.
+ * demonstration".** This archive holds 188 published towns and clans, and **197 of its 1,051 published
+ * records are linked to a place**, so a town page has real material — but there is no way to know which town
+ * a reader wanted at `/town/` itself, so the register is what this page carries.
  *
  * The three example histories are not carried over. What replaces them is the real thing the page is for: the
  * places the archive holds, each with the number of linked records, so a reader can choose one.
+ *
+ * ── THE SENTENCE THIS PAGE LEFT STANDING, AND WHY IT WAS THE FAULT THE OWNER REPORTED ───────────
+ *
+ * The hero, the lede and the `#records` section were all rewritten to say what this page is. **The heading
+ * over the list was not**, so the served page read:
+ *
+ *     Histories about Igbodo
+ *     Umunri · 16 linked records
+ *     Mbanasato · 12 linked records
+ *     Aro · 11 linked records
+ *     … twenty-four of them
+ *
+ * The owner's report is that page, reached by clicking the front page's Igbodo tile, and it is worth quoting
+ * because it names every part of the fault: *"why is the homepage showing that when you click on igbodo, and
+ * then also show me links to other clans and towns, instead of showing me articles relating to the igbodo?"*
+ * **The answer was a heading the fill had not reached, over a list drawn in the wrong shape.**
+ *
+ * ── AND THE LIST WAS IN THE WRONG SHAPE TOO ─────────────────────────────────────────────────────
+ *
+ * The design's `sx-town-articles` is a row of cards — `<a href><small>…</small><strong>…</strong>
+ * <span>…</span></a>` — and `showcase.css` styles exactly that (`a` as a grid, `small` as the gold caps
+ * line, `strong` as the serif name, `span` as the emerald call to action). The fill put
+ * `<article class="entry"><h3><a>…</a></h3><p>…</p></article>` inside it instead, and `.sx-town-articles a`
+ * is a DESCENDANT selector: every name inside every entry was drawn as a card row with its own padding and
+ * its own rule, on top of `.entry`'s own border. So the list was also not the design's list.
+ *
+ * Both are fixed here. The cards are the design's markup, and the heading says what the list is.
+ *
+ * The section's own `id` is kept as `histories`, because the aside's on-this-page nav points at it and an
+ * `id` is an address; only the words a reader sees change.
  */
 export function fillTown(html: string, d: { towns: { name: string; href: string; region: string | null; records: number }[]; total: number }): string {
   let out = clearExampleMaterial(html);
@@ -6131,12 +6264,30 @@ export function fillTown(html: string, d: { towns: { name: string; href: string;
     ? d.towns
         .map(
           (t) =>
-            `<article class="entry"><h3><a href="${esc(t.href)}">${esc(t.name)}</a></h3><p class="small muted">${esc(t.region ?? 'Region not recorded')} · ${t.records > 0 ? `${n(t.records)} linked ${t.records === 1 ? 'record' : 'records'}` : 'No record linked yet'}</p></article>`
+            `<a href="${esc(t.href)}"><small>${esc(t.region ?? 'Region not recorded')} · ${t.records > 0 ? `${n(t.records)} linked ${t.records === 1 ? 'record' : 'records'}` : 'No record linked yet'}</small><strong>${esc(t.name)}</strong><span>Open the place page <span aria-hidden="true">→</span></span></a>`
         )
         .join('\n          ')
     : `<p class="small muted">No town or clan is published in the register yet.</p>`;
 
-  out = fillContainer(out, /<div class="sx-town-articles"[^>]*>/, list);
+  /*
+   * THE HEADING WAS THE FAULT. It sat in the design's own `#histories` section and named the design's one
+   * example town, over a list of the archive's places — see the note above the function.
+   */
+  out = fillContainer(
+    out,
+    /<section id="histories"[^>]*>/,
+    `<div class="sx-head">
+          <div>
+            <p class="eyebrow">The register</p>
+            <h2>Places in the register</h2>
+          </div>
+        </div>
+        <div class="sx-town-articles">
+          ${list}
+        </div>`
+  );
+  // The aside's first entry names the same section, so it carries the same word rather than the old one.
+  out = out.replace('<a href="#histories">Histories</a>', '<a href="#histories">Places</a>');
   out = fillContainer(
     out,
     /<section class="section"[^>]*id="records"[^>]*>/,

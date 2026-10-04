@@ -58,11 +58,13 @@ import {
   citationFor,
   fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
   fillCulturalEvent, fillDashboard, fillDocuments, fillDonate, fillFolklore, fillFolkloreReader, fillHome,
+  fillHomeTowns,
   fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMarquee, fillMaterialCulture, fillPhotographs,
   fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
   fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
   extractArchiveFilms,
   COLLECTION_CAMERA_SIGN,
+  HOME_STRIP_PLACES,
   MARQUEE_PLACES,
   MARKET_DAY_ANCHOR,
   narratorPhrase,
@@ -1311,7 +1313,20 @@ export async function GET(
          * and a change of case in the database cannot produce a link that misses.
          */
         const marquee: { label: string; href: string }[] = [];
-        const wanted = [...new Set(MARQUEE_PLACES.map((p) => p.slug))];
+        /*
+         * THE FRONT PAGE'S SIX TOWN TILES ARE RESOLVED IN THE SAME READ.
+         *
+         * `HOME_STRIP_PLACES` records the fault and the mapping: all six tiles were written by the
+         * design as `<a href="town.html">`, which `designScreenLinks` resolves to `/town/` — one
+         * address for six towns — so the owner's click on the tile named Igbodo landed on the
+         * register while its heading still read "Histories about Igbodo". The strips' slugs are read
+         * back here with the marquee's, through the same `published` rule, because both are the
+         * design's own names and both must stop being links the moment the register stops holding
+         * them.
+         */
+        const wanted = [
+          ...new Set([...MARQUEE_PLACES.map((p) => p.slug), ...HOME_STRIP_PLACES.map((p) => p.slug)]),
+        ];
         const found = await db.rows<{ slug: string }>(
           `select slug from clan where published and lower(slug) = any($1::text[])`,
           [wanted.map((s) => s.toLowerCase())]
@@ -1321,6 +1336,12 @@ export async function GET(
           const slug = stored.get(place.slug.toLowerCase());
           if (slug) marquee.push({ label: place.label, href: `/town/${slug}/` });
         }
+        const strip: { label: string; href: string }[] = [];
+        for (const place of HOME_STRIP_PLACES) {
+          const slug = stored.get(place.slug.toLowerCase());
+          if (slug) strip.push({ label: place.label, href: `/town/${slug}/` });
+        }
+        if (strip.length > 0) html = fillHomeTowns(html, strip);
 
         if (rows.length > 0) {
           html = fillHome(

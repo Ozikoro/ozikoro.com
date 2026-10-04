@@ -22598,3 +22598,239 @@ four slots read back — so a fill that stops writing a hook fails the suite bef
 * **Three things beside the grid are the design's and do nothing.** The country and
   region selects filter nothing, "Go to date" does not move the grid, and the hero's lede promises events.
   None of these is a regression from this round and none is fixed here.
+
+---
+
+## ROUND 346 — SIX TOWN TILES POINTED AT ONE ADDRESS, AND `/town/` READ "HISTORIES ABOUT IGBODO" OVER TWENTY-FOUR OTHER TOWNS
+
+The owner's report, verbatim:
+
+> *"inside http://127.0.0.1:3110/town/, why is the homepage showing that when you click on igbodo, and
+> then also show me links to other clans and towns, instead of showing me articles relating to the
+> igbodo?"*
+>
+> *"also, why it not showing the details of igbodo, just the way the demo shows?
+> https://calm-comfort-construct.lovable.app/design/screens/town.html"*
+>
+> *"also, why is the towns and clans page not showing like the demo?
+> https://calm-comfort-construct.lovable.app/design/screens/towns.html"*
+>
+> *"i warned to never touch any design from the demo, and just add the functions and what i told you to
+> add"*
+
+### 1. THE DESIGN IS UNTOUCHED, MEASURED RATHER THAN ASSERTED
+
+```
+$ python3 -c "
+import hashlib,pathlib
+src=pathlib.Path('design/calm-comfort-construct/public/design'); dst=pathlib.Path('apps/ozikoro/public/design')
+s=d=m=0
+for f in src.rglob('*'):
+    if f.is_dir(): continue
+    x=dst/f.relative_to(src)
+    if not x.exists(): m+=1
+    elif hashlib.sha256(f.read_bytes()).hexdigest()==hashlib.sha256(x.read_bytes()).hexdigest(): s+=1
+    else: d+=1
+print(f'identical {s} differing {d} missing {m}')"
+
+identical 63 differing 0 missing 0
+```
+
+Not one byte of the deliverable was edited. **Every fault in this round is in the FILL and in a route**, and
+two of the three are one line of a fill each. The tests added for them assert the file on disk is
+byte-identical before and after the transform runs.
+
+### 2. WHAT THE OWNER CLICKED — THE TILE, NOT THE REGISTER
+
+The `towns.html` card is not the click. The **front page** is. `/` draws an "Explore by town" strip of six
+tiles, and `home.html` writes every one of them as:
+
+```html
+<a href="town.html">
+<img src="https://ozikoro.com/wp-content/uploads/2026/09/obi-of-igbodo.jpg" alt="View of Igbodo" loading="lazy">
+<span><small>Delta</small><i></i><strong>Igbodo</strong><em>Explore town →</em></span>
+</a>
+```
+
+`town.html` is the deliverable's own sibling-file grammar, and `designScreenLinks` resolves it to the address
+this site serves the design's single-town screen at — **`/town/`**. So six tiles naming six towns all opened
+one page. Measured on the served front page before the fix:
+
+```
+<a href="/town/"><img src="/media/ozikoro/11219-obi-of-igbodo.jpg" alt="View of Igbodo" …><strong>Igbodo</strong>…</a>
+<a href="/town/"><img src="/media/ozikoro/11216-amai.jpg" alt="View of Amai" …><strong>Amai</strong>…</a>
+<a href="/town/"><img src="/media/ozikoro/11201-Ika_People_of_Nigeria.jpg" …><strong>Akumazi</strong>…</a>
+<a href="/town/"><img src="/media/ozikoro/11217-abbi.jpeg" …><strong>Abbi</strong>…</a>
+<a href="/town/"><img src="/media/ozikoro/11094-ogah-oko.jpeg" …><strong>Oko &amp; Okwe</strong>…</a>
+<a href="/town/"><img src="/media/ozikoro/11196-izuogu-town.jpg" …><strong>Arondizuogu</strong>…</a>
+```
+
+He clicked the tile whose own `alt` says `View of Igbodo`, under the obi of Igbodo, and landed on `/town/`.
+**"The homepage showing that" was literal: that is the page the tile took him to.**
+
+### 3. AND WHAT `/town/` SAID WHEN HE GOT THERE
+
+`/town/` is the design's single-town screen, filled as the register, and the fill had rewritten the hero, the
+lede and the `#records` section — **but not the heading over the list**:
+
+```
+Histories about Igbodo
+Umunri · 16 linked records
+Mbanasato · 12 linked records
+Aro · 11 linked records
+… twenty-four of them
+```
+
+That is the owner's sentence, word for word: *"showing that when you click on igbodo, and then also show me
+links to other clans and towns, instead of showing me articles relating to the igbodo."* Two separate faults
+produced it, and both are fixed in `fillTown`:
+
+* **The heading was never rewritten.** It is now `<h2>Places in the register</h2>` under an eyebrow that
+  reads `The register`, and the aside's first entry says `Places` rather than `Histories`.
+* **The list was in the wrong shape.** `sx-town-articles` is the design's row of cards —
+  `<a href><small>…</small><strong>…</strong><span>…</span></a>` — and the fill put
+  `<article class="entry"><h3><a>` inside it. `showcase.css` styles `.sx-town-articles a` as a grid row with
+  its own padding and rule, and that is a **descendant** selector, so every name was drawn as a second card
+  row inside `.entry`'s own. The rows are now the design's markup.
+
+The section's `id="histories"` is kept, because an `id` is an address that the on-this-page nav points at;
+only the words a reader sees changed.
+
+### 4. THE ARTICLES WERE LINKED ALL ALONG — WHAT THE ROUTE QUERIED, AND WHAT IT QUERIES NOW
+
+`/town/<slug>/` said, in its own head comment, that *"the archive files articles under labels, and a community
+page can only attach writing by matching one"* — so it looked for an `ozikoro_label` row of the same slug,
+found none, and told the reader the archive held nothing for them. **The reasoning was sound and the premise
+was false.** The archive also links a record to a PLACE:
+
+```
+ozikoro_article_entity   232 link rows   across 197 of the archive's 1,051 published records
+```
+
+and `/town/<slug>/` is keyed to exactly that entity. The page now reads the link through
+`getEntityBySlug(db, clan.entitySlug)` — **not a new query**: `entities.ts` already reads
+`ozikoro_article_entity` for an entity with `a.status = 'published' and a.is_page = false`, which is the same
+pair every listing in `archive.ts` filters by, and the place page already holds the entity's slug because
+`getPlace` reads it for `entitySlug`. One read, not two that can drift.
+
+The cards are the design's own, in the design's own container:
+
+```html
+<section id="histories">
+  <div class="sx-head"><div><p class="eyebrow">Connected writing</p>
+    <h2>Histories about Igbodo</h2></div></div>
+  <div class="sx-town-articles">
+    <a href="/igbodo-a-community-formed-by-convergence/">
+      <small>clan · section record</small>
+      <strong>Igbodo: A Community Formed by Convergence</strong>
+      <span>Read article →</span>
+    </a>
+  </div>
+</section>
+```
+
+The `<small>` is the link's ROLE — `clan`, `town`, `ethnic_group`, `place` — because that is what the archive
+actually asserts, and it is the only thing that tells two entities of the same name apart. **The design's
+three "Sample placement" cards are still never reproduced**, and a community with no link keeps the honest
+sentence.
+
+**HOW MANY COMMUNITIES GAIN CARDS.** Every one of the register's 188 cards was followed and its page read:
+
+```
+cards on /towns/:                              188
+communities that gain article cards:            75
+article cards drawn in total:                  232
+communities with the honest empty state:       113
+pages that did not answer 200:                   0
+largest card list: 16   (Umunri)   second 12   third 11
+```
+
+**All 232 link rows are now reachable from the place they point at**, which is the whole of the relationship
+the archive holds.
+
+### 5. THE TWO IGBODOS, WHICH ARE TWO DIFFERENT PAGES
+
+The register holds **two published entries named Igbodo**, and neither is a mistake:
+
+| address | what the register records | `h1` | linked writing |
+|---|---|---|---|
+| `/town/igbodo/` | `kind = section`, region **Enugu**, division Northern Igbo, towns Aku and Ukehe | `Igbodo` | 1 card, role `clan` |
+| `/town/igbodo-northern-ika/` | `kind = town`, region **Delta**, LGA Ika North East, six villages | `Igbodo` | 1 card, role `town` |
+
+Both are linked to the same record, `igbodo-a-community-formed-by-convergence`, **as two different links** —
+`Clan Igbodo` and `Town Igbodo` — which is exactly why the card's `<small>` prints the role. Each page shows
+what **its own row** is linked to and borrows nothing from the other.
+
+The front page's Igbodo tile is the **Ika town**: its photograph is the obi of Igbodo, which is that town's.
+`HOME_STRIP_PLACES` records the mapping beside the reason — `Igbodo → igbodo-northern-ika, NOT igbodo` — which
+is the mapping `MARQUEE_PLACES` already carried for the rotating names.
+
+### 6. `/towns/` AGAINST THE DEMO, CLASS BY CLASS
+
+`towns.html` is 3,619 bytes and draws: a `sx-discovery-hero` with an eyebrow, an `h1`, a lede and a
+`form.search`; a `section.wrap.section` holding a `sx-town-grid` of six `<a href><img><span><small><strong>
+<em></span></a>` cards; and a closing `p.sx-source-note.sx-light-note`. Measured on the served page:
+
+| the design draws | served | verdict |
+|---|---|---|
+| `section.sx-discovery-hero` | present | present |
+| `p.eyebrow` "Places in the archive" | present | present |
+| `h1` "Towns & communities" | present | present |
+| `p.lede` | present, "town" → "community" | the one word, because a section and a confederation are not communities |
+| `form.search` (one input, `btn-gold`) | **replaced by `form#register-finder.sx-reg-finder`** | the owner's own instruction — *"it showed ethnicity selection, clan, town, etc"* |
+| `div.sx-town-grid` | present, 188 cards | 6 demonstration values → the register's 188 rows |
+| card `<img>` (photograph) | **was absent — now present on 75 of 188** | **fixed this round** |
+| card `<small>` region | present | present |
+| card `<strong>` name | present | present |
+| card `<em>` call to action | present, "View connected records →" | present |
+| `p.sx-source-note.sx-light-note` | present | present |
+| — | `.sx-reg-finder`, `.sx-reg-steps`, `.sx-reg-search`, `.sx-reg-levels` | **added**, the finder the owner asked for; `globals.css` records that these four classes are not in the delivered stylesheets because the screen they come from is a later build of the design |
+
+**The card was missing half of itself.** `.sx-town-grid > a` is `min-height:20rem; background: var(--night)`
+with an `::after` gradient written to sit over a picture, so 188 cards rendered as 188 near-black boxes: the
+design's markup, the design's words, and not the design's card. `PlaceSummary.imageKey` now carries the
+featured media of a published record linked to the entry — **read from the archive, not chosen** — and 75 of
+the 190 published entries have one. The other 115 are drawn exactly as they were, with no stand-in, which is
+the rule `renderTown` has followed on the design screen since it was written. The `alt` is the design's own
+empty string.
+
+### 7. HOW IT WAS VERIFIED
+
+```
+node scripts/verify-round-346.mjs                                   PROBLEMS: 0
+python3 -c "…parity…"                                               identical 63 differing 0 missing 0
+npm run typecheck            (from the repository root)             exit 0
+node --test packages/ozikoro/src/design-fill.test.ts                80 tests, 80 pass, 0 fail
+bash scripts/serve-review.sh                                        build 109s, READY on 3110
+```
+
+The verification follows every article card's link and **reads the destination's `h1`** rather than its
+status: a 200 is not a working link, and this repository has paid for that lesson three times. The 188-card
+sweep above is the same measurement at full width. `packages/ozikoro/src/knowledge.test.ts` fails in this
+checkout and has nothing to do with this round — PGlite is single-process and the review server on 3110 holds
+`.data/pg`; the suite's own guard prints *"REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT"*.
+
+### 8. WHAT DOES NOT WORK
+
+* **`/town/` is still a second, poorer register.** It draws the 24 places with the most linked records and
+  says so, while `/towns/` draws all 188 with the finder. It is honest now — the false heading is gone — but
+  the duplication is real and the owner may want one of the two addresses to go. Not decided here.
+* **Seven photographs are shown on fourteen cards, because a record can be linked to more than one place.**
+  Measured on the served page: `11196-izuogu-town.jpg` on Ndizuogu and Aro; `10234-…jpeg` on Edda, Abam and
+  Ohafia; `10435-…jpg` on Afikpo and Nkalu; `6605-…jpeg` on both Onichas; `5850-Okposi-Salt-Lake-1.webp` on
+  Okposi and both Uburus; `9143-…png` on Opi and Lejja; and **`11219-obi-of-igbodo.jpg` on both Igbodos** —
+  the obi of the Ika town, drawn on the Enugu section's card as well, because the one record is linked to
+  both entities. The link is the archive's own and the picture is that record's own featured image, so
+  nothing is borrowed; but a reader looking at the Enugu card sees the Ika town's obi. Narrowing the rule to
+  records linked to a single place would take the correct picture off the Ika town too, so it is reported
+  rather than guessed at.
+* **`/town/`'s `#records` section is still one sentence.** The design draws an `<h2>Archive records</h2>`, a
+  lede and an `Open collections` button there, and `fillTown` replaces all three. The application's own
+  `/town/<slug>/` keeps them. Not restored here, because the section was rewritten deliberately in an earlier
+  round and the words are that round's, not the design's.
+* **The two `/town/` and `/towns/` reads are not shared.** `/town/` orders by linked records and takes 24;
+  `/towns/` orders by division and position and takes all 190. Two questions, two orders, and no page that
+  answers both.
+* **`packages/ozikoro/src/places.ts` is not in HEAD.** The module the register's query layer lives in is
+  untracked in this checkout — several agents are working in it at once. `/towns/` now reads `imageKey` from
+  it, so that field is part of this round's change and the file is carried in the commit.

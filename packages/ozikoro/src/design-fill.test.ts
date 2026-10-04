@@ -33,6 +33,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillAbout, fillDashboardLinks } from './design-fill.ts';
 import { MARQUEE_PLACES, fillHome, fillMarquee } from './design-fill.ts';
+import { HOME_STRIP_PLACES, fillHomeTowns, fillTown } from './design-fill.ts';
 import { extractArchiveFilms, fillWatch, renderFilmCard } from './design-fill.ts';
 import { extendWatchScript, fillWatchVideo } from './design-fill.ts';
 import { COLLECTION_CAMERA_SIGN, renderCollection } from './design-fill.ts';
@@ -1401,6 +1402,125 @@ test('the design screen on disk is untouched: the transform is in memory only', 
   fillMarquee(HOME, allMarqueeLinks());
   fillHome(HOME, [{ title: 'A record', href: '/a-record/', topic: null }], allMarqueeLinks());
   assert.equal(readFileSync(join(SCREENS, 'home.html'), 'utf8'), before);
+});
+
+/*
+ * ==================================================================================================
+ * THE FRONT PAGE'S SIX TOWN TILES, WHICH ALL WENT TO ONE ADDRESS
+ * ==================================================================================================
+ *
+ * `home.html` writes every tile in its "Explore by town" strip as `<a href="town.html">` — a sibling
+ * filename, which is correct in the deliverable and means `/town/` once the screen is served. **So six
+ * tiles naming six towns all opened the same page**, which is the owner's own report: clicking the tile
+ * labelled Igbodo and landing on a page headed "Histories about Igbodo" over twenty-four other towns.
+ *
+ * These read the real screen, for the reason every test in this file does: a name typed differently in
+ * the design and in `HOME_STRIP_PLACES` does not throw — it silently leaves a tile pointing at the
+ * single-town screen again, and a reader cannot tell that from a record the register does not hold.
+ */
+/** The design's own tile names, in order, read out of the real strip. */
+function designStripNames(): string[] {
+  const start = HOME.indexOf('<div class="sx-strip reveal">');
+  const open = HOME.indexOf('>', start) + 1;
+  const close = HOME.indexOf('</div>', open);
+  return [...HOME.slice(open, close).matchAll(/<strong>([\s\S]*?)<\/strong>/g)].map((m) =>
+    m[1]!.replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ').trim()
+  );
+}
+
+/** The strip's own markup out of a screen, so a comparison cannot be fooled by the rest of the page. */
+function stripInner(html: string): string {
+  const start = html.indexOf('<div class="sx-strip reveal">');
+  const open = html.indexOf('>', start) + 1;
+  const close = html.indexOf('</div>', open);
+  return html.slice(open, close);
+}
+
+/** Every tile address the served strip carries, in the design's own order. */
+function stripHrefs(html: string): string[] {
+  return [...stripInner(html).matchAll(/<a\b[^>]*href="([^"]*)"/g)].map((m) => m[1]!);
+}
+
+const allStripLinks = () => HOME_STRIP_PLACES.map((p) => ({ label: p.label, href: `/town/${p.slug}/` }));
+
+test('the design draws six tiles and HOME_STRIP_PLACES names every one of them', () => {
+  const names = designStripNames();
+  assert.equal(names.length, 6, `the design draws six tiles; read ${names.length}`);
+  const mapped = new Set(HOME_STRIP_PLACES.map((p) => p.label));
+  for (const name of names) {
+    assert.ok(mapped.has(name), `the design's tile "${name}" is not in HOME_STRIP_PLACES`);
+  }
+});
+
+test('each tile gets its own town, and no two tiles share one address', () => {
+  const hrefs = stripHrefs(fillHomeTowns(HOME, allStripLinks()));
+  assert.equal(hrefs.length, 6);
+  assert.equal(new Set(hrefs).size, 6, `one address for six towns: ${hrefs.join(', ')}`);
+  assert.ok(!hrefs.includes('/town/'), 'no tile may be left at the design screen address');
+  assert.deepEqual(hrefs, HOME_STRIP_PLACES.map((p) => `/town/${p.slug}/`));
+  // The Ika town, not the Enugu section of the same name — the tile's photograph is that town's obi.
+  assert.equal(hrefs[0], '/town/igbodo-northern-ika/');
+});
+
+test('a tile whose record the register does not hold goes to the register, never back to the design screen', () => {
+  const hrefs = stripHrefs(fillHomeTowns(HOME, [{ label: 'Igbodo', href: '/town/igbodo-northern-ika/' }]));
+  assert.equal(hrefs[0], '/town/igbodo-northern-ika/');
+  for (const href of hrefs.slice(1)) assert.equal(href, '/towns/');
+  assert.ok(!hrefs.includes('/town/'), 'an unresolved name must not fall back to the single-town screen');
+});
+
+test('only the href changes: the photograph, its alt, the rule, the name and the call to action are the design’s', () => {
+  const out = fillHomeTowns(HOME, allStripLinks());
+  // Put the design's own address back and the strip must be byte-for-byte the file on disk.
+  const restored = stripInner(out).replace(/<a\b([^>]*?)href="[^"]*"([^>]*)>/g, '<a$1href="town.html"$2>');
+  assert.equal(restored, stripInner(HOME));
+  assert.ok(out.includes('alt="View of Igbodo"'), 'the design’s alt text was not preserved');
+  assert.ok(out.includes('Explore town →'), 'the design’s call to action was not preserved');
+  assert.equal(readFileSync(join(SCREENS, 'home.html'), 'utf8'), HOME, 'the design file must not be written');
+});
+
+test('a strip the fill cannot resolve is left exactly as the design has it', () => {
+  assert.equal(fillHomeTowns(HOME, []), HOME);
+});
+
+/*
+ * ==================================================================================================
+ * `/town/`: THE DESIGN’S EXAMPLE TOWN, OVER THE ARCHIVE’S LIST OF PLACES
+ * ==================================================================================================
+ *
+ * The hero, the lede and the `#records` section of this screen were all rewritten to say what `/town/`
+ * actually is. **The heading over the list was not**, so the served page read "Histories about Igbodo"
+ * over twenty-four towns that are not Igbodo — which is the fault the owner reported, and which the
+ * front page's tile delivered him to. The list was in the wrong shape as well: `.sx-town-articles` is
+ * the design's row of cards and the fill put `.entry` articles inside it, where `.sx-town-articles a`
+ * — a descendant selector — drew every name as a second card row inside the first.
+ */
+const TOWN_SCREEN = readFileSync(join(SCREENS, 'town.html'), 'utf8');
+
+test('/town/ no longer names the design’s example town over the register’s list', () => {
+  const out = fillTown(TOWN_SCREEN, {
+    towns: [{ name: 'Umunri', href: '/town/umunri/', region: 'Anambra', records: 16 }],
+    total: 188,
+  });
+  assert.ok(!out.includes('Histories about Igbodo'), 'the design’s example heading was left over the register');
+  assert.ok(!out.includes('Connected writing'), 'the design’s example eyebrow was left over the register');
+  assert.ok(out.includes('id="histories"'), 'the section id is an address and is kept');
+  assert.ok(out.includes('<a href="#histories">Places</a>'), 'the on-this-page label still names the old section');
+});
+
+test('/town/’s list is the design’s card markup, not .entry articles inside the design’s grid', () => {
+  const out = fillTown(TOWN_SCREEN, {
+    towns: [{ name: 'Umunri', href: '/town/umunri/', region: null, records: 0 }],
+    total: 188,
+  });
+  const start = out.indexOf('<div class="sx-town-articles">');
+  assert.ok(start !== -1, 'the design’s grid is gone');
+  const grid = out.slice(start, out.indexOf('</div>', start));
+  assert.ok(!grid.includes('<article class="entry">'), 'the design’s card grid is holding entry articles');
+  assert.ok(grid.includes('<a href="/town/umunri/">'));
+  assert.ok(grid.includes('<small>Region not recorded · No record linked yet</small>'));
+  assert.ok(grid.includes('<strong>Umunri</strong>'));
+  assert.equal(readFileSync(join(SCREENS, 'town.html'), 'utf8'), TOWN_SCREEN, 'the design file must not be written');
 });
 
 /*
