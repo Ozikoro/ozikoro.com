@@ -25446,3 +25446,243 @@ while a one-screen row changes exactly one, and the list walked past its first p
   filter. The refusal is a sentence, not a silent omission.
 - **A row filed under `*` is not removed by "put this page back".** It belongs to no single page, so it is
   undone from the list of edits in force or by "put every screen back". The editor says so beside the buttons.
+
+## ROUND 357 — THE RED GATE ON `/watch/` WAS TWO MEASUREMENTS IN ONE INSTRUMENT: THE SHAPE CHECK JUDGED A CROSS-PAGE ANCHOR AGAINST THE PAGE IT STOOD ON, AND ITS OWN FRAGMENT CHECK HAD THE RULE RIGHT
+
+Round 356 left `check-page-variants.mjs` red with a named reason rather than a preference:
+
+```
+PROBLEM  watch: fragmentsResolve differs between /watch/ and /watch/?page=2
+fragments=DEAD ["/watch/?page=1#series", "/watch/?page=1#series"]   (on /watch/?page=2)
+```
+
+The brief that carried it named two faults in opposite directions and forbade fixing either by turning the run
+green. **Measured, there is one fault in the instrument and none in the page**, and this round says so with the
+evidence rather than inventing a second fault to satisfy the shape of the brief.
+
+### 1. THE ELEMENT-BY-ELEMENT DIFF, MEASURED ON THE SERVED PAGES
+
+```
+GET /watch/           16190 B   26 ids   sections: #new(15 cards) #series(3 cards)
+GET /watch/?page=1    16218 B   26 ids   sections: #new(12)        #series(3)
+GET /watch/?page=2    12339 B   19 ids   sections: #new(9)
+```
+
+`/watch/` and `/watch/?page=1` carry the **same 26 ids in the same order** (`/watch/` is `?page=1` with a
+28-byte difference in the pager's own markup). `/watch/?page=2` differs by **3879 bytes**, and a skeleton diff
+of the two pages — tags, ids and classes, with card bodies and film ids normalised away — shows **exactly three
+differences and nothing else**:
+
+1. `#new` carries 15 cards on page 1 and 9 on page 2 (different films);
+2. the whole `<section id="series">` is absent from page 2;
+3. the pager moved up to sit under the first section left standing.
+
+**Every card is accounted for: 24 over 2 pages = 15 + 9**, being the design's own 6 (3 in `#new`, 3 in
+`#series`) plus the archive's 18 non-music films, each exactly once, with no duplicate. Paging was also checked
+at `?page=0`, `?page=abc` (both fall back to page 1), `?page=3` and `?page=4` (both answer "There is no page N"
+with the count and a link, and no cards).
+
+### 2. WHAT `#series` IS — DRAWN BY THE DESIGN, SO PAGE 1 IS RIGHT AND PAGE 2'S ABSENCE IS THE RULE WORKING
+
+`apps/ozikoro/public/design/screens/watch.html` draws **four** sections and carries these ids:
+
+```
+<section class="sx-watch-hero">                        id="videos", id="video-q"
+<section class="sx-inline-player" id="inline-player">  + five inline-player-* ids
+<section class="sx-watch-section" id="new">            "Selected films"   — 3 cards
+<section class="sx-watch-section" id="series">         "Unspoken Stories" — 3 cards
+```
+
+Its filter row writes **seven** controls — `#new · #short · #oral · #places · #conversations · #series · A–Z`
+— of which `#short`, `#oral`, `#places` and `#conversations` name **four sections the deliverable never drew**.
+**`#series` is not one of them: it is a real section with a heading and three real cards.** So page 1's
+`id="series"` is not the anomaly, and page 2 is not missing a section that should be there.
+
+**Why page 2 has no `#series` at all is the documented rule in `fillWatch`, not a drop.** `WATCH_PAGE_SIZE` is
+15; the ordered card list is the design's six (its two grids in document order, positions 1–6) followed by the
+archive's films appended to the first grid. `#series`'s only three cards are positions 4–6, so they fall on
+page 1 and never on page 2. `fillWatch` (`packages/ozikoro/src/design-fill.ts`) says outright:
+
+> *"A SECTION WITH NO CARDS ON THIS PAGE IS NOT DRAWN ON THIS PAGE. … So the whole `<section>` goes: no
+> heading, no empty grid, no note. … THE ANCHOR STILL RESOLVES, which is why removing the section is not the
+> whole of it. … **Every `href="#<id>"` whose section this page does not draw is rewritten to the page that
+> DOES draw it**, with the anchor kept on the end."*
+
+That is the branch the byte difference comes from, quoted in §3 below. **It is the desired state**: the same
+rule is what stopped the owner's *"why is the 'Unspoken Stories' now empty?"* — a heading over an empty grid.
+
+### 3. THE CAUSE OF THE 3879 BYTES — THE BRANCH, QUOTED, AND IT IS THE INTENDED OMISSION
+
+`fillWatch`, on the served page, per grid and **backwards** so that removing one section cannot move an
+earlier one's offsets:
+
+```ts
+const mine = beyond ? [] : list.slice((page - 1) * WATCH_PAGE_SIZE, page * WATCH_PAGE_SIZE)
+  .filter((s) => s.grid === gi).map((s) => s.html);
+if (mine.length === 0) {
+  const open = rebuilt.lastIndexOf('<section', g.open);
+  const close = open === -1 ? -1 : rebuilt.indexOf('</section>', g.close);
+  if (open !== -1 && close !== -1) {
+    const tag = rebuilt.slice(open, rebuilt.indexOf('>', open) + 1);
+    const id = /\bid="([^"]*)"/.exec(tag)?.[1];
+    const at = list.findIndex((s) => s.grid === gi);
+    if (id !== undefined && at !== -1) {
+      omitted.push({ id, page: Math.floor(at / WATCH_PAGE_SIZE) + 1 });
+    }
+    rebuilt = rebuilt.slice(0, open) + rebuilt.slice(close + '</section>'.length);
+  }
+  continue;
+}
+```
+
+and the carry that keeps the address alive on the page that does not draw it:
+
+```ts
+for (const section of omitted) {
+  const target = `${href(section.page)}#${section.id}`;
+  rebuilt = rebuilt.split(`href="#${section.id}"`).join(`href="${esc(target)}"`);
+}
+```
+
+**This is why page 2 prints `/watch/?page=1#series` twice** — the filter row's "Series" and the "Browse series
+↓" control in the first section's head — and why both of those links work. Nothing was added to the page and
+nothing was taken from it. `packages/ozikoro/src/design-fill.ts` was **not** edited by this round; it was read.
+`git status` was checked before reading: the file was not mid-edit, and the working-tree changes in it belong
+to the parallel rounds named in the brief.
+
+### 4. THE CHECKER'S FAULT, ISOLATED TO ONE FUNCTION, AND THE FIX
+
+The file held **two fragment rules that disagreed**:
+
+* `shapeOf()` (the family shape comparison) built a set of **the current page's** ids and tested every
+  `href` containing `#` against it. That is what set `fragmentsResolve`, and it is what failed the run.
+* `fragmentFaults()` — the section-2 check added in round 355 — resolves the href against **the page it
+  names** (`/about/#entrust` written in a footer is judged against `/about/`). It was already right.
+
+Replicated live, both rules against the same three addresses:
+
+```
+/watch/?page=2   RULE A (shapeOf, current page)  DEAD ["/watch/?page=1#series","/watch/?page=1#series"]
+                 RULE B (fragmentFaults, named)  DEAD []
+```
+
+**It is not the `?page=1`-versus-`/watch/` family-identity case the brief allowed for.** `/watch/` and
+`/watch/?page=1` are byte-different, carry different pagers and are distinct keys in the fetch cache; and
+`fragmentFaults`, which owns the cross-page rule, handles `/about/#entrust` correctly. The author's own
+either/or resolves to the first limb: **the checker judged a cross-page fragment against the page it was
+standing on.** It is the same fault as measuring the thing in front of the instrument instead of the thing the
+link is about.
+
+The fix replaces that half of `shapeOf` with a resolver that keeps **both** rules and loosens neither:
+
+```js
+const isOwnPage = resolved.pathname === own.pathname && (resolved.search || '') === (own.search || '');
+if (isOwnPage) {
+  if (!ownTargets.has(fragment)) dead.push(href);      // a bare #id is this document's own claim
+  continue;
+}
+const destination = resolved.pathname + (resolved.search || '');
+const dest = await get(destination);
+if (dest.status !== 200 || !targetsOf(dest.html).has(fragment)) dead.push(href);   // the named page must carry it
+```
+
+`shapeOf` is now `async` and takes the page's own path; its two call sites pass `family.bare` and
+`family.param`. It uses the file's existing `targetsOf`, so `id` and the pre-HTML5 `<a name>` both count.
+
+**PROOF IT DID NOT BECOME LOOSER — a positive control, because re-reading a rule is not testing it.** A mock
+server was built that serves the real `/watch/` and `?page=1` fixtures and injects one fault into `?page=2`:
+
+| injected fault | result |
+|---|---|
+| none | `EXIT=0`, `fragments=all resolve` on both |
+| page 1 served **without** `#series` while the href still names page 1 | `EXIT=1`, `fragments=DEAD ["/watch/?page=1#series", …]` |
+| the href names a page that **answers 404** | `EXIT=1`, `fragments=DEAD ["/does-not-exist/#series", …]` |
+| the href becomes a **bare** `#series`, absent from page 2 | `EXIT=1`, `fragments=DEAD ["#series", …]` |
+
+All three shapes of real fault are still caught, and each is caught **against the page the href resolves to**.
+
+### 5. THE HOLE THE ROUND-344 FINDING POINTED AT, MEASURED AND CLOSED
+
+`verify-round-344.mjs` printed `PROBLEMS: 0 — GATE PASSED` with the whole site down. **This file had the same
+hole, and it was measured before it was fixed.** With `BASE` pointed at a closed port:
+
+```
+OK: 0 problem(s), 0 declared fault(s) not fixed here, 17 request(s) made
+EXIT=0
+```
+
+Every check in the file is written `status === 200`, so a site that never answered skipped every one of them,
+the crawl found no links because it had no HTML to read, and the gate reported a working site. `get()` already
+recorded `{ status: 0, error }`; nothing read it.
+
+`reportUnansweredPages()` now runs immediately before the verdict and makes **an address that produced no HTTP
+answer at all** a problem in its own right, once per address:
+
+```
+PROBLEM  /watch/: no answer at all (TypeError: fetch failed) — this check cannot report on a page it did not read
+…
+FAILED: 17 problem(s), 0 declared fault(s) not fixed here, 17 request(s) made
+EXIT=1
+```
+
+**The scope is deliberately only `status === 0`.** A 404 or a 403 is a real answer from a real page, and this
+file declares some of those on purpose (`/podcast/` has no bare form; `?v=E3UBv8pmLxE` answers 404 because the
+archive holds no record for the design's own film). Making every non-200 fatal would report those decisions and
+the auth gate as faults, which is the noise that makes a red gate unreadable — the same reasoning
+`verify-round-344.mjs` records in its named `BY_DESIGN` exemptions.
+
+### 6. VERIFICATION
+
+```
+$ node scripts/check-page-variants.mjs --no-articles --crawl 40
+  watch
+      /watch/                                    200  h1="Watch history come closer."
+      /watch/?page=2                             200  h1="Watch history come closer."
+      bare   … relatedBlock=false controls=3 cards=15 fragments=all resolve
+      param  … relatedBlock=false controls=3 cards=9  fragments=all resolve
+      shape DIFFERS (allowed)  controls      (the pager differs by page, as recorded)
+      shape DIFFERS (allowed)  cardCount     (page 2's films are different films, as recorded)
+…
+OK: 0 problem(s), 0 declared fault(s) not fixed here, 108 request(s) made
+EXIT=0
+```
+
+**And the run may no longer be green for the wrong reason**: the same command against a port with nothing on it
+now prints 17 `no answer at all` problems and exits 1.
+
+The design keep-out was verified afterwards, verbatim:
+
+```
+$ python3 -c "…sha256 over design/calm-comfort-construct/public/design → apps/ozikoro/public/design…"
+identical 63 differing 0 missing 0
+```
+
+`npm run typecheck` exits 0 from the repo root. `npm -w @ozikoro/site run test` is 7/7.
+
+### 7. THE RUN WAS INTERRUPTED BY ANOTHER AGENT'S BUILD, AND THAT IS REPORTED RATHER THAN HIDDEN
+
+Mid-round the review server went from answering 200 to `nothing listening`. **This round did not stop it and did
+not start a build.** `apps/ozikoro/.next.lock` held `serve-review.sh --rebuild`, pid 29737, stage `serve` — a
+parallel round's build. It was waited out (~90 s, polled, no build started, no `rm -rf`, nothing killed) and the
+measurements above are from **after** that build, so they describe the artefact that is live now. This is also
+the first observation of the new fetch-failure rule doing its job in anger: the site was genuinely down and the
+old file would have reported it green.
+
+### 8. WHAT DOES NOT WORK, WITH THE EXACT REASON
+
+- **The brief's second fault does not exist on this tree, and it is reported as absent rather than manufactured.**
+  The brief expected page 2 to be "missing a section page 1 draws" and warned that fixing the checker alone would
+  hide it. The section is absent **by the design's own rule**, its three cards are on page 1, and its anchor is
+  carried to page 1 so the link works; the full 24-card accounting leaves nothing dropped. Adding
+  `id="series"` to page 2 would have been the invented section the brief forbade.
+- **`packages/ozikoro/src/knowledge.test.ts` fails inside the full suite while the review server holds the
+  PGlite cluster**, and passes when run alone (`node --test src/knowledge.test.ts` → 6/6, exit 0). Measured:
+  `npm -w @ozikoro/platform run test` → `287 tests, 286 pass, 1 fail`, and the server log shows the holder as
+  `…/packages/ozikoro/src/knowledge.test.ts` with the cluster lock. It is contention with the running site, it
+  predates this round, and no file this round touched is in it.
+- **This round did not run the eleven-minute full article sweep.** The article path checks fragments with
+  `fragmentFaults` (line 749) and the identity check with `identityCheck`; neither calls `shapeOf`, so the
+  async change cannot reach it. The claim is bounded to what was run: the exact command in the brief.
+- **`--crawl 40` is still a sample.** The `?page=` family is two addresses and both were checked, but the
+  coverage line still says `15 of the 108 fetched page(s) did not answer 200` — those are the declared 404s and
+  redirects the family list records, not new faults.
