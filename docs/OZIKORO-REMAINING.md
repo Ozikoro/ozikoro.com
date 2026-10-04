@@ -15952,3 +15952,127 @@ exit code, not `npm`'s. `/tmp/tc.log` and a bare `echo $?` say 1. That is precis
 hook's own header was written about in round 186 — "never read a checker's exit code after a pipe" — and it
 was reproduced here inside a round whose whole subject is numbers that describe the thing rather than the
 thing itself.
+
+## ROUND 314 — THE MARKET DAY ON EVERY DATE OF THE CULTURAL CALENDAR, AND THE HOOK THAT SILENCED THE STAMP BESIDE IT
+
+The owner, on `/cultural-calendar/`:
+
+> *"the events by date calendar doesn't have the igbo market days written on it."*
+
+The section headed **"Events by date"** is a month grid, and because the archive holds **0 events** every one
+of its 31 cells is a plain numbered date. **He wants each date to carry its market day — `Eke`, `Orie`, `Afọ` or
+`Nkwọ`** — which is the same four-day cycle `/igbo-calendar/` and `/market-days/` already show.
+
+### 1. THE CYCLE IS NOT COMPUTED IN TYPESCRIPT, AND THAT WAS THE CHOICE
+
+Two ways were available: reckon the day in `fillCulturalCalendar`, or leave a hook in each cell and let the
+design's own `market-days.js` answer it. **The second was taken, because the first is a second reckoning of one
+cycle.** `apps/ozikoro/public/design/market-days.js` holds the only implementation —
+`["Eke","Orie","Afọ","Nkwọ"]` indexed from `Date.UTC(2026, 0, 1)` at 1, which is the anchor the page states in
+words. **A copy in TypeScript would agree today and part from it the first time either the anchor or the cycle
+changed, and one date would then carry two different market days on two pages of the same site.**
+
+So the fill writes the **month** and nothing else:
+
+```html
+<div class="sx-cultural-grid" aria-label="October 2026 cultural events calendar" data-market-month="2026-10">
+  <div class="sx-cultural-day is-empty" aria-hidden="true"></div> ×3
+  <div class="sx-cultural-day" data-market-day-cell><span>1</span></div>  … ×31
+```
+
+and one line is spliced into the **served copy** of `market-days.js` — never the file — on the line after the
+design's own `marketDay` declaration:
+
+```js
+  const marketCells = document.querySelector("[data-market-month]");
+  const marketMarker = marketCells && /^(\d{4})-(\d{2})$/.exec(marketCells.getAttribute("data-market-month"));
+  if (marketMarker) { … marketLabel.textContent = marketDay(marketDate); … }
+```
+
+**Why the month is carried on the grid rather than read from the wall clock:** the page's heading and its grid
+are both drawn for the month the route passes, and the failure this file has already recorded once is exactly
+that pair drifting. The marker comes from the same `monthIndex` that draws the cells, so the cells' dates and
+the heading cannot disagree. The `k`th cell is dated `new Date(y, m - 1, k)` — **local parts, because the design's
+`marketDay()` reads `getFullYear()`/`getMonth()`/`getDate()` and then takes `Date.UTC` of them**, so a runtime
+that is not on UTC must build the date the same way the design does or the two disagree by a day. Construction
+and reading are the same convention, so the value is correct in any timezone; checked under
+`TZ=America/New_York` as well as UTC. No cell needs to carry its own date.
+
+**Why the code goes inside the design's own IIFE.** The first version appended a second IIFE *in front of* the
+design's, and a sibling scope cannot see `marketDay` — it is declared inside that closure. Measured in Node
+against the real file: `ReferenceError: marketDay is not defined`, thrown on load, **which would have left the
+cells blank and killed every handler registered after it** (the date lookup, the month arrows, the year grid).
+The marker is therefore a line the design wrote, and the test runs the result rather than reading it.
+
+### 2. THE FAULT THIS PASS NEARLY SHIPPED IN SILENCE
+
+The compact "Today's Igbo market day" stamp above the grid is inserted behind
+`if (!out.includes('data-market-day'))`. **`data-market-day-cell` CONTAINS `data-market-day`**, so the moment
+the cells gained their hook that guard became false and the stamp was never inserted again: the page lost the
+one sentence that states the anchor, while the markup around it still looked complete. The guard is now a
+count of the bare attribute (`/[\s"']data-market-day(?![\w-])/g`), and a test asserts it is present exactly
+once beside 31 cells.
+
+### 3. THE LABEL ITSELF: THE DESIGN'S TYPE SCALE, AND A SMALL BODY STYLE
+
+`<small class="muted sx-cal-market-day">` is appended to each cell by the script, so **the label is written by
+the same reckoning that writes every other market day on the site**, and the styling is the design's own
+`.muted` token.
+
+Measured in Chrome before the styling: the date and its market day both sat hard against the cell's left edge
+with nothing between them, because `.sx-cultural-day > span` is `display:block` and the cell's own
+`padding:.65rem` is written for the **button** the design puts inside an event date. `public/design/` may not
+change, so a four-rule style block is written into the served page **inside the grid, after `fillContainer`** —
+and **in the body, not the head**, because the route replaces the whole `<head>` with the generated SEO head
+after the fill returns. (Written into the head first, it would have been discarded before anyone saw it; the
+test now asserts it is not in the head.)
+
+After: number **15px**, label **11.7px** in the same `--text-muted` ink, cell padding **10.4px**, **5.82:1**
+contrast against `--paper-raised` (and 5.25:1 against `--cream`) — comfortably above 4.5:1. No link, no button,
+no `has-event`, no `data-event-*`: **the dates stay inert, and the page still says the archive holds none.**
+
+### 4. VERIFIED IN A REAL BROWSER, ON THE SERVED PAGE
+
+`curl` fetch of `/cultural-calendar/` with HTML comments stripped gives 31 cells and **no market day in the
+markup** — the label is written by script, which is why the browser check is the one that counts. Headless
+Chrome, `/design-screen-assets/market-days.js` served **200**, **no script exceptions**, and every cell holding
+a label (date = market day):
+
+```
+1=Afọ 2=Nkwọ 3=Eke 4=Orie 5=Afọ … 28=Orie 29=Afọ 30=Nkwọ 31=Eke
+```
+
+**Arithmetic checked by hand from the stated anchor** (1 January 2026 = Orie): 31 + 28 + 31 + 30 + 31 + 30 + 31
++ 31 + 30 = **273 whole days** from 1 January to 1 October 2026; `(1 + 273) mod 4 = 2` → `Afọ`, so **1 October
+2026 is Afọ** and the cycle runs Afọ, Nkwọ, Eke, Orie. The 31st is `(1 + 303) mod 4 = 0` → **Eke**. Both match
+the page, and the anchor itself is unit-tested in the fill's own test file.
+
+**Cross-screen agreement, read from `/igbo-calendar/` in the same browser session:** its month view is headed
+October 2026 and its cells read `1=Afọ 2=Nkwọ 3=Eke 4=Orie 5=Afọ … 28=Orie 29=Afọ 30=Nkwọ 31=Eke` — identical
+to the cultural calendar's. One date, one market day, two pages.
+
+**The empty state survives:** the intro still reads "October 2026 · no verified event", the panel still reads
+"No event is recorded" / "No date has an event", and the note still reads "Only dates with event entries are
+interactive. No date in this month has an entry, so every date above is a plain date."
+
+**Narrow viewport (390 px, emulated):** cell 53.2 × 62.4 px, padding 10.4 px, label 11.7 px, no clipping.
+
+### 5. WHAT WAS NOT TOUCHED
+
+- **Not one byte under `apps/ozikoro/public/design/`.** Parity re-run after the last build:
+  `identical 63 differing 0 missing 0`.
+- **`fillCulturalCalendar`'s four controls, the country selector and the panel's hooks** are as the previous
+  pass left them; the extension's year-grid splice is unchanged and still runs after the cell splice, so
+  `/igbo-calendar/` and `/market-days/` keep the expandable year they gained.
+- **`apps/ozikoro/.next/standalone/apps/ozikoro/public/design/screens/` holds 52 files** after the rebuild, as
+  it did before.
+
+### 6. THE GATE
+
+`npm run typecheck` from the repository root, read from its own exit code and not a pipe's: **exit 0**. The
+platform suite: **128 tests, 128 pass, 0 fail** — including new assertions that the hook is on every cell,
+that the marker is on the grid, that the style block is in the body, and the decisive one: **the served script
+is executed against a stub DOM and the 31 labels are compared with the arithmetic of the stated anchor.**
+
+`bash scripts/serve-review.sh` rebuilt and restarted the review server, left up under `nohup` on
+**http://127.0.0.1:3110**.

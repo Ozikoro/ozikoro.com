@@ -1204,6 +1204,13 @@ export async function GET(
    * rewrite after the fills covers both, because by then a tag is a tag whether the design wrote it or a fill
    * did.
    *
+   * **AND THE EXTENDED COPY IS NOW THE ONLY ONE THAT STAMPS THE MONTH GRID.** The three-way choice below is
+   * not a list of the screens that HAVE a market day on them: `/cultural-calendar/` is the screen whose grid
+   * the fill draws, and it takes the extended copy so that the cells the fill leaves empty carry `Eke`,
+   * `Orie`, `Afọ` and `Nkwọ` — from the design's own `marketDay()`, which is the one place in this repository
+   * that reckons the cycle. A screen served the unextended script would show numbered dates and no market day,
+   * which is the fault this whole pass exists to remove.
+   *
    * **AND IT IS CHECKED RATHER THAN ASSUMED.** A screen that ends up with a script tag this pass did not
    * rewrite would silently run the design's own version and its month expansion would be missing, so the
    * count is taken and the route logs when a screen that should have the script does not.

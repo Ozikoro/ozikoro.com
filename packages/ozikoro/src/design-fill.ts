@@ -3259,13 +3259,90 @@ export function fillCulturalCalendar(
   // The design's week runs `Mon`…`Sun`, so the blank count is the weekday index with Monday as 0.
   const mondayIndex = (firstOfMonth.getUTCDay() + 6) % 7;
   const blanks = Array.from({ length: mondayIndex }, () => '<div class="sx-cultural-day is-empty" aria-hidden="true"></div>');
-  const days = Array.from({ length: daysInMonth }, (_, i) => `<div class="sx-cultural-day"><span>${i + 1}</span></div>`);
+  /*
+   * ================================================================================================
+   * THE IGBO MARKET DAY ON EVERY DATE, AND WHY IT IS NOT COMPUTED HERE
+   * ================================================================================================
+   *
+   * The owner asked for it in the page's own terms: *"the events by date calendar doesn't have the igbo
+   * market days written on it."* The month grid is his "Events by date", every one of its cells is a plain
+   * date, and what he wants on each of them is `Eke`, `Orie`, `Afọ` or `Nkwọ`.
+   *
+   * **That cycle is not stated twice in this repository.** `public/design/market-days.js` holds the one
+   * reckoning — `["Eke","Orie","Afọ","Nkwọ"]`, anchored at `Date.UTC(2026, 0, 1)` with index 1, which is the
+   * sentence `MARKET_DAY_ANCHOR` puts on the page — and `/igbo-calendar/` and `/market-days/` show it because
+   * that script draws their cells. **A second reckoning in TypeScript would agree with it today and part from
+   * it the first time either the anchor or the cycle changed**, and the two pages would then give one date two
+   * different market days. So the fill states the MONTH and nothing else: each cell declares that it wants the
+   * day, and the design's own `marketDay()` is what fills it.
+   *
+   * THE MARKER IS THE MONTH BECAUSE THE CELLS ARE THE MONTH, IN ORDER. Three blanks line the 1st up under the
+   * `Mon`–`Sun` headings the design draws, so the cell's position IS its day number and no cell needs to carry
+   * its own date — `Date.UTC(2026, 9, 0)` is the 1st of October, `Date.UTC(2026, 9, 70)` is its 31st, and both
+   * fall out of the marker rather than out of any arithmetic here. **The marker is written on the grid by the
+   * same `monthIndex` that draws the cells**, which is what keeps rule 3 true: the month the heading names, the
+   * month the panel names and the month whose market days are stamped are one value read in three places.
+   *
+   * THE HOOK IS `data-market-day-cell`, AND IT IS NOT `data-market-day`. That shorter name is what the compact
+   * stamp above the grid uses, and `market-days.js` sets every `[data-market-day]` to TODAY — a grid of
+   * thirty-one cells all reading today's day is exactly the mismatch this avoids. `data-market-day-cell` is
+   * read by the one extension in `extendMarketDaysScript`, and by nothing else.
+   *
+   * **AND NOTHING HERE CLAIMS AN EVENT.** The cell keeps its design class, gains the hook, and gains no
+   * `has-event`, no `data-event-*`, no `button` and no `href` — the CSS reads those as "this day has something"
+   * and the archive holds 0 events, which the note below the grid still says in the page's own words.
+   */
+  const marketMonth = `${month.year}-${String(month.monthIndex).padStart(2, '0')}`;
+  const days = Array.from(
+    { length: daysInMonth },
+    (_, i) => `<div class="sx-cultural-day" data-market-day-cell><span>${i + 1}</span></div>`
+  );
+  /*
+   * ================================================================================================
+   * AND THE SMALL CORNER OF STYLE THAT MAKES THE LABEL READ AS CONTEXT RATHER THAN AS GRAFFITI
+   * ================================================================================================
+   *
+   * Measured in the browser before this existed: the date and its market day both sat hard against the cell's
+   * left edge with nothing between them, because `.sx-cultural-day > span` is `display:block` and the cell's
+   * own `padding:.65rem` is written for the BUTTON the design put inside an event date — a plain cell has no
+   * padding of its own. **The design's stylesheet is not the place to fix that** (it is inviolable), so this
+   * is a served-page style block, exactly as the inert controls' colour is an inline corner of the served page.
+   *
+   * IT TOUCHES NOTHING THAT HAS AN EVENT: the rule is scoped to `.sx-cultural-day[data-market-day-cell]`, the
+   * marker the fill puts only on its plain dates, and the button inside an event date is untouched. **The type
+   * scale is the design's own**: the date keeps the cell's inherited size, the market day is the page's `.small`
+   * step below it, and `.muted` is the same token the design uses for secondary text. Both are set with
+   * `font-size:inherit` on the number and `1em`-relative units on the label, so a change to the design's base
+   * size moves both rather than leaving the pair out of step.
+   */
+  const dayStyle = `<style>
+      .sx-cultural-day[data-market-day-cell]{padding:.65rem}
+      .sx-cultural-day[data-market-day-cell]>span,
+      .sx-cultural-day[data-market-day-cell]>.sx-cal-market-day{display:block;padding:0}
+      .sx-cultural-day[data-market-day-cell]>.sx-cal-market-day{margin-top:.35em;font-size:.78em;line-height:1.2}
+    </style>`;
   /*
    * THE GRID'S OWN `aria-label` IS RE-DATED TOO. The design writes `aria-label="October 2026 cultural events
    * calendar"`; left alone over another month it is an accessible name that contradicts the grid it names.
    */
   out = out.replace(/(<div class="sx-cultural-grid"[^>]*aria-label=")[^"]*(")/, `$1${esc(month.label)} ${month.year} cultural events calendar$2`);
+  /*
+   * THE MARKER GOES ON AFTER THE ARIA LABEL IS RE-DATED, SO THAT IT LANDS IN THE SAME TAG. It is read by the
+   * market-day extension and by nothing else; a screen whose grid carried no marker is left unmarked rather
+   * than guessed at, and the extension stamps nothing.
+   */
+  out = out.replace(
+    /(<div class="sx-cultural-grid"[^>]*)(>)/,
+    `$1 data-market-month="${marketMonth}"$2`
+  );
   out = fillContainer(out, /<div class="sx-cultural-grid"[^>]*>/, [...blanks, ...days].join(''));
+  /*
+   * THE STYLE GOES IN AFTER THE CELLS, AND THAT ORDER IS THE WHOLE OF ITS PLACEMENT. `fillContainer` replaces
+   * everything between the grid's opening tag and its close, so a block written into that container before the
+   * call is deleted by it — and the rule then styles a page whose cells have no spacing, which is the state
+   * this block exists to correct. Nearby, so the rule and the markup it is about are read together.
+   */
+  out = out.replace(/(<div class="sx-cultural-grid"[^>]*>)/, `$1${dayStyle}`);
 
   /* ------------------------------------------------------------------ the panel, filled in HTML. */
   /*
@@ -3420,8 +3497,16 @@ export function fillCulturalCalendar(
   /*
    * INSERTED AFTER THE HERO, FOUND BY ITS OWN CLASS. A page without the hero is left alone rather than
    * guessed at, and the block is never inserted twice.
+   *
+   * THE TEST IS FOR THE HOOK AND NOT FOR THE FIRST TWELVE CHARACTERS OF IT, WHICH IS A FAULT THIS PASS MADE.
+   * The guard used to be `!out.includes('data-market-day')`, and the month grid's own cells are
+   * `data-market-day-cell` — **so the day the cells gained their hook, this stamp stopped being inserted at
+   * all**, and the page lost the sentence that states the anchor. A prefix match on an attribute name is not a
+   * test for that attribute, so this one requires the name to end where an attribute name ends, and it counts
+   * the hook rather than asking whether the page mentions it.
    */
-  if (!out.includes('data-market-day')) {
+  const hookCount = (out.match(/[\s"']data-market-day(?![\w-])/g) ?? []).length;
+  if (hookCount === 0) {
     out = out.replace(/(<\/section>\s*<section class="wrap section" id="calendar">)/, `$1${marketDay}`);
   }
   /*
@@ -4046,6 +4131,79 @@ ${claimSource}
  */
 const YEAR_BUILDER = '  function renderYear(){if(!yearInput||!yearGrid)return;const year=Math.min(2100,Math.max(1900,Number(yearInput.value)||today.getFullYear()));yearInput.value=year;yearGrid.innerHTML="";for(let month=0;month<12;month++){const card=document.createElement("article"),name=new Intl.DateTimeFormat("en-NG",{month:"long"}).format(new Date(year,month,1)),count=new Date(year,month+1,0).getDate();card.innerHTML=`<h3>${name}</h3><div>${Array.from({length:count},(_,i)=>{const d=new Date(year,month,i+1);return `<span data-market="${marketDay(d)}"><b>${i+1}</b><small>${marketDay(d)}</small></span>`}).join("")}</div>`;yearGrid.appendChild(card)}}';
 
+/**
+ * The month grid on `/cultural-calendar/` carries the Igbo market day on every date, and this is the code that
+ * puts it there — **beside the design's own reckoning rather than instead of it.**
+ *
+ * WHAT THE FILL WRITES, AND WHAT IT DELIBERATELY DOES NOT
+ *
+ * `fillCulturalCalendar` emits one `<div class="sx-cultural-day" data-market-day-cell>` per day of the month and
+ * one `data-market-month="YYYY-MM"` on the grid, and it computes **neither the cycle nor any day of it.** Every
+ * string a reader sees — `Eke`, `Orie`, `Afọ`, `Nkwọ` — comes from `marketDay()` in
+ * `public/design/market-days.js`: the same function, anchored at the same `Date.UTC(2026, 0, 1)` = `Orie`, that
+ * `/igbo-calendar/` and `/market-days/` show. **The archive's rule is that a record states what happened, and
+ * the way to keep two screens from contradicting each other is to compute one cycle once.**
+ *
+ * WHY THE MONTH IS READ FROM THE MARKER RATHER THAN FROM THE WALL CLOCK
+ *
+ * The page's heading and its grid are both drawn for the month `monthIndex` names, which is today's month — but
+ * **"today" is a value that moves and the grid is the month the heading names**, and the failure this file has
+ * already recorded once is exactly that pair drifting. So the cells' dates come from the marker the fill wrote,
+ * which came from the same `monthIndex` that drew the cells: from the marker's own year and month,
+ * `Date.UTC(y, m - 1, k)` walks day 1 to day `k`, for every `k`, and the marker is the only date on the page
+ * that the stamp can disagree with.
+ *
+ * WHY IT IS PREPENDED TO THE SCRIPT RATHER THAN APPENDED
+ *
+ * The script's own three dispatches — the four-day month view, the date lookup and the year grid — all query
+ * for elements that exist in the document before the script runs, and this one does the same: the fill's cells
+ * are in the served HTML, so they are in the DOM at parse time, and `defer` runs the script after the document
+ * is parsed. On `/igbo-calendar/` and `/market-days/` the selector matches nothing, because those grids are
+ * built by `render()` and `renderYear()` after this line has already run — which is why their cells are stamped
+ * by the builders and not by this.
+ *
+ * AND IT DOES NOT WRITE THE LABEL ITSELF, SO THE TYPE SCALE IS THE DESIGN'S. It appends a `<small class="muted">`
+ * and lets the page's own stylesheet size and colour it; `.sx-cultural-day > span` is the date, and the label
+ * sits under it as its context. **No `has-event`, no `data-event-*`, no `button`, no `href`: an inert date does
+ * not become a claim about an event, and the page still says the archive holds none.
+ *
+ * ================================================================================================
+ * THE CODE GOES INSIDE THE DESIGN'S OWN IIFE, ON THE LINE AFTER `marketDay` IS DECLARED
+ * ================================================================================================
+ *
+ *
+ * **The first version of this appended a second IIFE, in front of the design's** — and it could not see
+ * `marketDay` at all, because that function is declared inside the design's closure and a sibling scope cannot
+ * reach it. Measured: `ReferenceError: marketDay is not defined`, thrown on load, which would have left the
+ * cells blank and **killed every handler the script registers after it** — the lookup form, the month arrows
+ * and the year grid with it. So the marker is a line the design wrote, one line is spliced in after it, and the
+ * result is a script that parses and runs, which the test now proves by running it rather than by reading it.
+ */
+const MARKET_CELL_MARKER = 'sx-cal-market-day';
+/**
+ * The design's own `marketDay` declaration, which is where the splice goes.
+ *
+ * **It is matched by its declaration rather than by a line number**, and the match is asserted to be unique
+ * before anything is spliced: a file where the cycle is declared twice is a file this extension does not
+ * understand, and refusing is better than stamping cells from whichever copy happened to come first.
+ */
+const MARKET_DAY_DECLARATION = '  const marketDay = date => { const utc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()); const delta = Math.round((utc-anchor)/86400000); return days[((anchorIndex+delta)%4+4)%4]; };';
+const MARKET_CELL_FILLER = [
+  '  const marketCells = document.querySelector("[data-market-month]");',
+  '  const marketMarker = marketCells && /^(\\d{4})-(\\d{2})$/.exec(marketCells.getAttribute("data-market-month"));',
+  '  if (marketMarker) {',
+  '    const marketDays = marketCells.querySelectorAll("[data-market-day-cell]");',
+  '    for (let k = 1; k <= marketDays.length; k += 1) {',
+  '      const marketDate = new Date(Number(marketMarker[1]), Number(marketMarker[2]) - 1, k);',
+  '      const marketLabel = document.createElement("small");',
+  `      marketLabel.className = "muted ${MARKET_CELL_MARKER}";`,
+  '      marketLabel.textContent = marketDay(marketDate);',
+  '      marketDays[k - 1].appendChild(marketLabel);',
+  '    }',
+  '  }',
+  '  /* The Igbo market day on every date the fill drew. */',
+].join('\n');
+
 const YEAR_BUILDER_REPLACEMENT = [
   '  function renderYear(){ if(!yearInput||!yearGrid) return;',
   '    const year = Math.min(2100, Math.max(1900, Number(yearInput.value) || today.getFullYear()));',
@@ -4087,7 +4245,32 @@ export function extendMarketDaysScript(script: string): string {
    * readable builder with itself and the third would leave two copies of it. The marker is the call the
    * readable builder already has.
    */
-  if (script.includes('sx-cal-year-card')) return script;
+  if (script.includes('sx-cal-year-card') || script.includes(MARKET_CELL_MARKER)) return script;
+  /*
+   * ================================================================================================
+   * THE MARKET DAY THE FILL'S OWN CELLS ARE WAITING FOR
+   * ================================================================================================
+   *
+   * `fillCulturalCalendar` draws `/cultural-calendar/`'s month grid as numbered cells that carry
+   * `data-market-day-cell`, and one `data-market-month="YYYY-MM"` on the grid itself. **One line is spliced in
+   * after the design's own `marketDay` declaration**, so the label it writes comes from the one function in
+   * this repository that reckons the four-day cycle — not from a copy of it in TypeScript. On `/igbo-calendar/`
+   * and `/market-days/` the selector matches nothing, because those grids are built by `render()` and
+   * `renderYear()` later in this same script; their cells are stamped by the builders, as they always were.
+   *
+   * THE SPLICE IS CHECKED, AND A FILE WITHOUT THE DECLARATION IS SERVED UNCHANGED RATHER THAN HALF-EXTENDED.
+   * The declaration is asserted to appear exactly once before it is used as an anchor, because a file that
+   * declares the cycle twice is not a file this understands. **A missing anchor is not thrown on**: the caller
+   * answers a throw with the design's own script, and that would take the year grid away from the two screens
+   * that have one — so a file this pass cannot read is a file it leaves alone. **And it is left alone QUIETLY,
+   * because `console.error` is the ROUTE's business and not this function's**: this file is a browser script,
+   * where there is no `process` on a page that is not served by Node, and a bare reference to one is a
+   * `ReferenceError` that kills every handler registered after it — the same class of fault as the sibling-scope
+   * one above.
+   */
+  if (script.split(MARKET_DAY_DECLARATION).length === 2) {
+    script = script.replace(MARKET_DAY_DECLARATION, () => `${MARKET_DAY_DECLARATION}\n${MARKET_CELL_FILLER}`);
+  }
   /*
    * THE ANCHOR IS THE YEAR GRID BUILDER, FOUND BY ITS OWN DECLARATION RATHER THAN BY A LINE NUMBER.
    *

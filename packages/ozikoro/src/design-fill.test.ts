@@ -306,11 +306,41 @@ test('the calendar grid is plain days for the month it names, and no invented ev
   // October 2026's 1st is a Thursday, so three blanks line the 1st up under `Thu`.
   assert.match(
     out,
-    /aria-label="October 2026 cultural events calendar">\s*<div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day"><span>1<\/span><\/div>/
+    /aria-label="October 2026 cultural events calendar"\s+data-market-month="2026-10">\s*<style>[\s\S]*?<\/style>\s*<div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day is-empty" aria-hidden="true"><\/div><div class="sx-cultural-day" data-market-day-cell><span>1<\/span><\/div>/
   );
   // 31 numbered days, and 3 blanks — the design's own grid held 28 cells, four of which were examples.
-  assert.equal((out.match(/<div class="sx-cultural-day"><span>\d+<\/span><\/div>/g) ?? []).length, 31);
+  assert.equal((out.match(/<div class="sx-cultural-day" data-market-day-cell><span>\d+<\/span><\/div>/g) ?? []).length, 31);
   assert.equal((out.match(/sx-cultural-day is-empty/g) ?? []).length, 3);
+
+  /*
+   * THE MONTH GRID HOLDS THE MARKET-DAY HOOK AND THE MONTH IT IS FOR, AND NO MARKET DAY OF ITS OWN.
+   *
+   * The hook is per cell and the month is stated once, on the grid: **the fill writes neither `Eke` nor `Orie`
+   * nor any other day of the cycle**, because the cycle is reckoned in one place and it is not this file. The
+   * same month the heading names is the month the cells are stamped for.
+   */
+  // The COUNT is of cells rather than of the string: the style block's own selectors contain it as well.
+  assert.equal((out.match(/<div class="sx-cultural-day" data-market-day-cell>/g) ?? []).length, 31);
+  assert.equal((out.match(/data-market-month="2026-10"/g) ?? []).length, 1);
+  for (const day of ['Eke', 'Orie', 'Afọ', 'Nkwọ']) {
+    assert.ok(!out.includes(`<small class="muted sx-cal-market-day">${day}`), `the fill wrote the market day ${day} itself instead of leaving it to market-days.js`);
+  }
+  // The screen loads the one script that reckons the cycle, and exactly one tag of it.
+  assert.equal((out.match(/market-days\.js/g) ?? []).length, 1, 'the grid has no market-day script, or more than one');
+  assert.match(out, /<script src="\/design\/market-days\.js" defer><\/script>/);
+
+  /*
+   * THE ONE STYLE BLOCK, AND WHERE IT IS.
+   *
+   * `.sx-cultural-day > span` is `display:block` and the cell's own padding is written for the BUTTON the design
+   * puts inside an event date, so a plain date and its market day sat hard against the cell's corner with no
+   * space between them. The correction has to be in the served page — `public/design/` may not change — **and it
+   * has to be in the BODY**: the route replaces the whole `<head>` with the generated SEO head after this fill
+   * returns, so a rule written into the head is discarded before anyone sees it. It is also written in AFTER
+   * `fillContainer`, because that call replaces everything between the grid's tags.
+   */
+  assert.match(out, /<div class="sx-cultural-grid"[^>]*><style>\s*\.sx-cultural-day\[data-market-day-cell\]\{padding:\.65rem\}/);
+  assert.ok(!out.slice(0, out.indexOf('</head>')).includes('sx-cal-market-day'), 'the market-day rule is in the head, which the route replaces');
 
   /*
    * AND NOT ONE TRACE OF THE DESIGN'S EXAMPLE EVENTS. Each of these appears in the design file and would be a
@@ -319,6 +349,119 @@ test('the calendar grid is plain days for the month it names, and no invented ev
   for (const gone of ['has-event', 'data-event-date', 'Verified event title appears here', '2 events', 'Community-submitted event', 'Exhibition event pattern', 'data-title=']) {
     assert.ok(!out.includes(gone), `the design's example event survived the fill as: ${gone}`);
   }
+});
+
+/*
+ * ================================================================================================
+ * THE MARKET DAY ON EVERY DATE OF THE MONTH GRID, STAMPED BY THE SCRIPT THAT RECKONS THE CYCLE
+ * ================================================================================================
+ *
+ * The two tests below are the whole of this round's claim: **the fill leaves the cells waiting, and the
+ * design's own `marketDay()` answers them.** Neither can be proved by reading markup — the label exists only
+ * after the script runs — so the second test RUNS the served script in a stub of the two DOM calls it makes and
+ * reads what it wrote into the cells. That is the difference between "the markup is present" and "the page
+ * shows a market day", and it is exactly the difference that made the blank market-day stamp earlier today.
+ */
+test('the market-day hook is on every cell and the month marker on the grid, and neither is an event', () => {
+  const out = calendarAt(2026, 10, 0);
+  const grid = out.slice(
+    out.indexOf('<div class="sx-cultural-grid"'),
+    out.indexOf('<aside class="sx-event-day-panel"')
+  );
+
+  // 31 cells, each one declaring that it wants the cycle's day for its own date.
+  assert.equal((out.match(/<div class="sx-cultural-day" data-market-day-cell>/g) ?? []).length, 31);
+  // And one month, stated once, in the same tag as the grid's own accessible name.
+  assert.equal((out.match(/data-market-month="2026-10"/g) ?? []).length, 1);
+  /*
+   * THE CELLS STAY INERT. The label is CONTEXT for the date and not a claim about an event: no link, no button,
+   * no hover state, and none of the hooks the grid's CSS reads as "this day has something".
+   */
+  for (const claim of ['has-event', 'data-event-', '<button', '<a ']) {
+    assert.ok(!grid.includes(claim), `the month grid claims an event, or an interaction, with: ${claim}`);
+  }
+});
+
+test('the design’s own script stamps Eke, Orie, Afọ and Nkwọ on the grid, four days apart, from its anchor', () => {
+  const out = calendarAt(2026, 10, 0);
+  const marker = /data-market-month="(\d{4})-(\d{2})"/.exec(out);
+  assert.ok(marker, 'the grid carries no month marker, so nothing can stamp it');
+  const cells = (out.match(/<div class="sx-cultural-day" data-market-day-cell>/g) ?? []).length;
+  assert.equal(cells, 31);
+
+  /*
+   * RUN THE SERVED SCRIPT, IN A STUB OF THE TWO CALLS IT MAKES.
+   *
+   * `document.querySelector("[data-market-month]")` and `createElement("small")` are the whole of what the
+   * spliced lines touch; everything else the script asks for is absent here and its dispatches return early,
+   * exactly as they do on the cultural calendar, which has none of those elements either.
+   */
+  const stamped: string[] = [];
+  const cellStubs = Array.from({ length: cells }, () => ({
+    appendChild(element: { className: string; textContent: string }) {
+      stamped.push(element.textContent);
+    },
+  }));
+  const gridStub = {
+    getAttribute: () => `${marker[1]}-${marker[2]}`,
+    querySelectorAll: () => cellStubs,
+  };
+  const scope = globalThis as unknown as { document?: unknown; window?: unknown };
+  const realDocument = scope.document;
+  const realWindow = scope.window;
+  scope.document = {
+    querySelector: (selector: string) => (selector === '[data-market-month]' ? gridStub : null),
+    /* `dataset` is here because the script's own mobile-navigation tail sets one on the element it builds. */
+    createElement: () => ({ className: '', textContent: '', dataset: {} }),
+    querySelectorAll: () => [],
+    head: { appendChild: () => undefined },
+  };
+  scope.window = { location: { href: 'http://127.0.0.1:3110/cultural-calendar/' } };
+  try {
+    // eslint-disable-next-line no-new-func
+    new Function(extendMarketDaysScript(readFileSync(SCRIPT, 'utf8')))();
+  } finally {
+    if (realDocument === undefined) delete scope.document; else scope.document = realDocument;
+    if (realWindow === undefined) delete scope.window; else scope.window = realWindow;
+  }
+
+  /*
+   * THE RECKONING IS THE DESIGN'S, AND IT IS CHECKED BY THE ARITHMETIC RATHER THAN BY THE SCRIPT.
+   *
+   * The frame is the design's own two constants, written out here on purpose: `["Eke","Orie","Afọ","Nkwọ"]`
+   * indexed from 1 at `Date.UTC(2026, 0, 1)`. **1 January 2026 is Orie** — the page's stated anchor — and the
+   * expected day of each cell is that index advanced by the whole days between the 1st of January and the cell's
+   * own date. A second implementation of the cycle inside the extension would have to agree with this line to
+   * pass, and the assertion that the script itself has one `marketDay` is what keeps the two from existing at
+   * once.
+   */
+  const cycle = ['Eke', 'Orie', 'Afọ', 'Nkwọ'];
+  const anchorUtc = Date.UTC(2026, 0, 1);
+  const expected = Array.from({ length: cells }, (_, index) => {
+    const utc = Date.UTC(Number(marker[1]), Number(marker[2]) - 1, index + 1);
+    const delta = Math.round((utc - anchorUtc) / 86400000);
+    return cycle[((1 + delta) % 4 + 4) % 4];
+  });
+
+  assert.equal(stamped.length, cells, 'a cell the fill drew was left without a market day');
+  assert.deepEqual(stamped, expected);
+  // The anchor itself, which no cell of October can show: the 1st of January 2026 is Orie.
+  assert.equal(cycle[((1 + 0) % 4 + 4) % 4], 'Orie');
+  // And the four-day cycle, checked against four days of this month rather than one.
+  assert.deepEqual(stamped.slice(0, 5), ['Afọ', 'Nkwọ', 'Eke', 'Orie', 'Afọ']);
+  assert.deepEqual(stamped.slice(28, 31), ['Afọ', 'Nkwọ', 'Eke']);
+  // Every label is one of the four days, and no cell carries anything else.
+  assert.deepEqual([...new Set(stamped)].sort(), ['Afọ', 'Eke', 'Nkwọ', 'Orie'].sort());
+  /*
+   * AND THE CYCLE IS THE DESIGN'S OWN FUNCTION, CALLED AND NOT REIMPLEMENTED. `marketDay`, the anchor and the
+   * array of the four days each appear exactly once in the served script; a copy of any of them would be a
+   * second reckoning of one cycle, which is what the cross-screen agreement below depends on not existing.
+   */
+  const extended = extendMarketDaysScript(readFileSync(SCRIPT, 'utf8'));
+  assert.equal((extended.match(/const marketDay = /g) ?? []).length, 1);
+  assert.equal((extended.match(/const days = \["Eke", "Orie", "Afọ", "Nkwọ"\];/g) ?? []).length, 1);
+  assert.equal((extended.match(/const anchor = Date\.UTC\(2026, 0, 1\);/g) ?? []).length, 1);
+  assert.equal((extended.match(/const anchorIndex = 1;/g) ?? []).length, 1);
 });
 
 test('the calendar panel is honest before its script runs, and keeps every hook the script needs', () => {
@@ -446,6 +589,15 @@ test('today’s Igbo market day is a compact stamp filled by the design’s own 
   // The two hooks the design's script looks for.
   assert.match(out, /<strong data-market-day>Market day<\/strong>/);
   assert.match(out, /<time data-modern-date>Today<\/time>/);
+  /*
+   * AND THE PER-CELL HOOK DID NOT SUPPRESS IT. `data-market-day-cell` CONTAINS `data-market-day`, so a guard
+   * written as `includes('data-market-day')` — which this fill had — stops inserting the stamp the moment the
+   * cells carry their own hook. **The failure is silent: the markup the page keeps looks complete, and the one
+   * sentence that states the anchor is simply not there.** So both hooks are counted, and the grid's must not
+   * be miscounted for the stamp's.
+   */
+  assert.equal((out.match(/[\s"']data-market-day(?![\w-])/g) ?? []).length, 1, 'the compact stamp is missing, or inserted twice');
+  assert.equal((out.match(/<div class="sx-cultural-day" data-market-day-cell>/g) ?? []).length, 31);
 
   /*
    * THE SCRIPT TAG, WHICH THE DESIGN'S CULTURAL CALENDAR DID NOT HAVE.
