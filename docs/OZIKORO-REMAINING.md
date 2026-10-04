@@ -19655,6 +19655,7 @@ identical 63 differing 0 missing 0
   `investors`, `journeys`, `sponsors`), because its `ROUTE` map has no entry for them — the dashboards are served
   by the middleware rewrite to `/design-screen/[screen]`, which the check does not know about. **It was not
   touched here and it fails identically on the parent commit.**
+
 ## ROUND 331 — THE `Next` LINK WENT TO THE FRONT PAGE, AND A SECTION WITH NO CARDS IS NO LONGER DRAWN
 
 The owner, on `/watch/`: *"why is the 'Unspoken Stories' now empty? is it irrelevant or you forgot? if it is
@@ -20194,6 +20195,8 @@ standalone holds **52** design screens where the source holds 52, and the brief'
 * **`/favicon.ico` answers 404.** It is the only console `404` the browser probe recorded, no page links it,
   and it predates this round.
 
+---
+
 ## ROUND 334 — THE PHOTOGRAPHS CARD CARRIES A CAMERA, AND WHAT IT CARRIED INSTEAD WAS AN ARTICLE'S OLDEST IMAGE
 
 **The owner, verbatim:** *"on the explore page 'http://127.0.0.1:3110/collections', please, the photographs
@@ -20672,6 +20675,239 @@ would silently change what every relative address on the page means.
 - **`/photographs/` and `/documents/` as React routes are still shadowed** by the middleware rewrite to the
   design screens. Unchanged this round; measured, and recorded above.
 
+## ROUND 337 — A PARAGRAPH OFF THE CONTENT COLUMN, SEVEN AUTHOR PORTRAITS THE IMPORT NEVER READ, AND A SENTENCE THAT WAS FALSE
+
+The owner reported three things in one message, and asked for them in this order: the layout fault, the
+authors, the wording. The second one turned out to matter most, because the archive was not merely missing
+data — **it was asserting the data's absence as a fact**, and that assertion was false.
+
+### 1. THE LAYOUT FAULT — A BLOCK THE FILL PUT OUTSIDE THE DESIGN'S OWN CONTAINER
+
+*"the place written 'Of 1,051 published histories … largest open problem' does not even stay well on the
+website, rather it is even moving far left outside the website."*
+
+**It never produced a scrollbar, and that is why reading CSS did not find it.** Measured in Chrome over the
+DevTools Protocol (`scripts/probe-overflow.mjs`), on `/about/`:
+
+| | viewport | element box | parent | design's content column | `documentElement.scrollWidth` |
+|---|---|---|---|---|---|
+| before | 1440 | `p.small.muted` `{x:0, w:475.9}` | `main#main` `{x:0, w:1440}` | `.wrap` `{x:112, w:1216}`, text at **136** | **1440** |
+| before | 768 | same `{x:0, w:475.9}` | `main#main` `{x:0, w:768}` | `.wrap` text at **24** | **768** |
+| before | 390 | same `{x:0, w:390}` | `main#main` `{x:0, w:390}` | `.wrap` text at **16** | **390** |
+| after | 1440 | `div.wrap` `{x:112, w:1216}` | `main#main` | text at **136** | 1440 |
+| after | 390 | `div.wrap` `{x:0, w:390}`, `padding-left:16px` | `main#main` | text at **16** | 390 |
+
+**The cause is placement, not CSS.** The fill inserted the paragraph bare, as the previous sibling of
+`<section class="sx-principles">` — and that section is a direct child of `<main>`, so the paragraph became
+one too. Every other block on the page sits in the design's `.wrap`, and `.wrap` *is* the column
+(`width:100%; max-width:var(--container); margin-inline:auto; padding-inline:var(--s-5)`). A block cannot be
+wider than its containing block, so nothing overflowed and no scrollWidth check could see it: **the fault was
+that the containing block was the window rather than the column.** At 1440 px the text hung 136 px to the left
+of every other element on the page, which is exactly what "moving far left outside the website" describes; at
+390 px it ran edge to edge with no padding at all.
+
+**WHERE THE FIX WENT, AND WHY NOT `a11y.css`.** It went into `packages/ozikoro/src/design-fill.ts`, which runs
+at serve time: the fill now emits `<div class="wrap"><p …></p></div>`. It is **not** a rule in
+`apps/ozikoro/public/a11y.css`, and the distinction is the point of that file. `a11y.css` carries corrections
+over the design's own CSS; here the design's CSS is correct and doing precisely what it was written to do —
+the HTML the fill produced was never in the container. A rule broad enough to catch the class
+(`main > p { … }`) would misfire on `type-test.html` and `dashboard-states.html`, where **the design itself**
+puts a bare `<p>` directly under `<main>`; a rule narrow enough not to misfire would be a selector describing
+this one paragraph. So the placement was fixed at its source, and two regression tests were added to
+`design-fill.test.ts` that assert the paragraph is inside a `.wrap` and that no paragraph is inserted as a
+bare sibling of a section under `<main>`.
+
+**THE PROBE FOUND A SECOND ONE, WHICH READING DID NOT.** `.sx-metrics` appears nowhere in the design's
+`about.html` — the fill introduces it — and the design's rule for it is
+`display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s-4)` with **no outer padding**, on screens where
+it sits in an already-padded pane. Inserted bare into `<main>` it became a full-bleed band: at 1440 px it was
+`{x:0, w:1440}` with its first figure's text at 24 px, against a content column at 136 px. It is now inside a
+`.wrap` too. **This is the argument for the sweep below: the owner named one paragraph, and the same fault was
+sitting in the band above it.**
+
+### 2. THE SWEEP — EVERY REACHABLE PAGE, THREE WIDTHS, ONE PROBE
+
+`scripts/sweep-overflow.mjs` drives real Chrome over 138 pages at 390, 768 and 1440 px — **414 page-widths** —
+and reports four distinct things per page, because they have four distinct causes: `documentElement.scrollWidth`
+against `clientWidth`; an element past the viewport's right or left edge; an element whose own `scrollWidth`
+beats its `clientWidth` with `overflow: visible`; and an element outside the page's content column, which is
+the owner's fault and makes no scrollbar.
+
+**BEFORE: 87 of 414 page-widths failed at least one check, and 3 pages scrolled sideways — all three at 390 px,
+none at 768 or 1440.**
+
+| page | overflow at 390 | driver | cause |
+|---|---|---|---|
+| `/documents/` | **+86 px** | `div.sx-pdf-grid` | the design's `<=40rem` step uses `1fr` where its wide rule uses `minmax(0,1fr)`; the track grew to 459 px in a 358 px column, driven by a record whose **title is its filename** — `capacity_building_for_traditional` |
+| `/folklore-reader/` | **+150 px** | `div.sx-reading-columns` | same dropped guard; a WordPress `[caption]` figure carries `style="width:540px"` inline, copied from the uploaded image |
+| `/the-rise-decline-and-potential-revival-of-akwa-blacksmithing-a-centuries-old-igbo-craft/` | **+242 px** | `div.sx-reading-columns` | same dropped guard; the migrated body carries **raw URLs as link text** — `https://independent.ng/anambra-community-seeks-revival-of-aw…` measures 658 px at 16.8 px |
+
+`1fr` is `minmax(auto, 1fr)`, and that `auto` minimum is the item's **min-content** width, so a track meant to
+mean "the column" silently became "whatever the widest unbreakable thing in this item measures". **The design
+had already guarded this in its wide rules and dropped the guard in its narrow ones.**
+
+**THE FIX FOR THESE THREE IS `a11y.css`, AND IT IS A CORRECTION OF EXACTLY THE KIND THAT FILE IS FOR.** WCAG
+2.2 SC 1.4.10 (Reflow) requires content to reflow to a 320 CSS-pixel viewport without two-dimensional
+scrolling; the design's own narrow rules break it on the archive's real content, and the design file may not
+be edited. The rules added are `minmax(0, 1fr)` at the two breakpoints the design used `1fr` at, plus
+`overflow-wrap: anywhere` on the surfaces migrated record text lands in and a `max-width: 100%` cap on the
+caption figure. `overflow-wrap: anywhere` rather than `break-word` is deliberate — it is the value that also
+shrinks the min-content contribution, which is what stops the track growing; and the design already agrees,
+because `.cite-block` in `main.css` sets it for the same reason. **A URL is not a word and a filename used as
+a title is not a word either.** No `word-break: break-all` appears anywhere.
+
+**AFTER: the same 24 pages that had failed any content-column or page-overflow check were re-swept at all three
+widths — 72 page-widths — and `0` scrolled sideways.**
+
+**FOUND, NAMED AND DELIBERATELY NOT CHANGED.** These leak past the viewport but **do not** scroll the page,
+because a deliberate design region contains them, and changing them would change the design:
+
+- `.sx-hero > img` on `/`, `/home/`, `/folklore-reader/` — `.sx-hero{overflow:hidden}`, the ken-burns cover image.
+- `.sx-marquee ul/li/a` on `/` and `/home/` — `.sx-marquee{overflow:hidden}` and `.sx-marquee-track{overflow:hidden}`, the rotating strip. Round 333 added the keyboard half of its pause rule.
+- `table.sx-ledger-table` on `/igbo-calendar/`, `/market-days/` and `/ledger/` — `.sx-table-wrap{overflow-x:auto}`, measured at 1,924 px inside a 390 px column, which is the design's own scroll region.
+- `nav.sx-subnav` (`/photographs/`, `/material-culture/`), `nav.sx-tabs` (`/ledger/`), `nav.sx-az-jump` (`/topics/`), `nav.sx-filter-row` (`/watch/`), `nav.sx-filterbar` (`/clans/`) — horizontally scrollable strips that do not move the page.
+- `header.sx-article-opening` on 14 article pages at 390 px, 16 px of internal overflow that does not leave the page.
+
+### 3. THE AUTHORS — SEVEN PORTRAITS THAT WERE IN THE BUILDING ALL ALONG
+
+*"on the authors, the main blog ozikoro.com has all the authors profile, yet you could not get them?"*
+
+**He was right, and the loss was the same one the EXIF credits had already suffered: the REST import read the
+one field that could not carry the thing, and never the table that could.**
+
+The archive import filled `ozikoro_contributor.avatar_url` from the WordPress REST API's `avatar_urls`, which
+is **Gravatar** — and Gravatar's `d=mm` fallback is one grey silhouette served identically for everybody.
+**14 of the contributor table's 15 rows held a Gravatar default** (10 of them among the published
+contributors). The live site's author box does not read that field at all; it reads the usermeta key
+`sabox-profile-image`, and in one case Molongui's `molongui_author_image_url`. That key is in the SQL dump the
+archive already holds at `data/ozikoro-wp/dbdump/sql/ozikbfpe_ozikoro.sql`, and **all seven of the portrait
+files it names were already in this archive's own media store**, migrated with the other 3,488 items.
+
+**THE TWO COUNTS, WHICH IS WHAT DECIDES THE SENTENCE BELOW.** Over the ten contributors with at least one
+published, non-page record — the same rule `/about/` uses:
+
+| | before | after |
+|---|---|---|
+| with a **biography** | **7** | **7** (unchanged; the `description` field was imported) |
+| with a **portrait the author uploaded** | **0** | **7** |
+| rows holding a Gravatar `d=mm` silhouette | 14 of 15 | **0** |
+
+The seven with a portrait are Chuka Odike (314 records), Kosisochukwu Nzeribe (282), Idenze Ezeme (188),
+Chukwunwike Ossai (159), Maduagwu Nzubechi (22), Chizobem Chinedu Opiah (20) and Akachukwu Vitalis (2). The
+three who keep a monogram are Chinemerem Okwuchukwu (59), Kenechukwu Umeghalu (4) and Juan Beltran (1) — and
+**Juan Beltran has a biography and no portrait, while Akachukwu Vitalis has a portrait and no biography**, so
+the two gaps are genuinely different sizes and are counted separately. The `/researchers/` directory now says
+so in one line: *"7 have a biography; the other 3 are named by the work alone. 7 have supplied a portrait; the
+other 3 appear as a monogram."*
+
+**HOW IT WAS IMPORTED.** `packages/ozikoro/src/ops/backfill-author-portraits.ts`, a dry-run-by-default ops
+script in the form `merge-contributor.ts` established. It streams only the `wpc9_usermeta` block of the dump
+(the last row of each `INSERT` ends `);` rather than `,` — a comma-only pattern silently drops one row per
+statement, and the script records that because a dropped row is the very class of loss it exists to undo),
+resolves each portrait URL to a `ozikoro_media` row, **checks the file is on disk before writing the path**,
+and clears every Gravatar default rather than keeping it, because a silhouette is a stock face. **No biography
+was written and no portrait invented**: every path is a file the archive already holds. The first run cleared
+the ten published rows and left the same false value on the five that have not published yet, so the write was
+widened to every contributor row — *a byline that publishes tomorrow must not appear in a silhouette*.
+
+**THE AUDIT.** 14 `ozikoro_audit` rows, action `backfill_author_portrait`, actor `199` (Idenze Ezeme, the
+owner's account), each carrying the old value, the source URL, the media key and whether the URL matched
+exactly. **A verified backup was taken first**: `.data/backups/pg-2026-10-04T14-51-24`, 157.5 MB, checked with
+the tool's own verifier — `Intact`.
+
+### 4. THE WORDING — WHAT SHIPPED, AND WHAT WAS REMOVED
+
+*"also, what is the relevant of this 'The people who wrote what is here … Portraits are monogram tiles because
+no author on ozikoro.com has uploaded one — no stock faces are used.'? if it is mistake, please remove or fix
+what should be there when the site goes live"*
+
+**It was a mistake, and it was a mistake twice over.** The second half was **false** — seven authors had
+uploaded a portrait, as §3 measures — and it was the wrong *kind* of sentence: it told a reader how the site
+was built ("monogram tiles", "no stock faces") rather than anything about the people.
+
+**SHIPPED, verbatim:**
+
+> The people who wrote what is here, in the order of how much of it they wrote. Biographies and portraits are
+> shown where the author supplied them.
+
+**REMOVED, and why:**
+
+1. *"7 have a biography on file; the other 3 are named by the work alone."* — the counts go, because **every
+   card already states its own state** ("No biography has been supplied. Named here by the work alone."), and a
+   number in a preamble that a card can contradict is worse than no number. The counts survive where a reader
+   is actually asking the question, on `/researchers/`, where they are now two sentences rather than one.
+2. *"Portraits are monogram tiles because no author on ozikoro.com has uploaded one — no stock faces are
+   used."* — removed entirely: false, and about the build.
+3. *"on file"* → "supplied" — "on file" is the archive's own filing language, not a reader's, and the same
+   change was made in `/researchers/`, which had copied the sentence verbatim on the promise that the two pages
+   agree.
+
+**THE FIRST HALF STAYS**, because it does real work a reader cannot do for themselves: it says *why* the list
+is in this order.
+
+**THE SAME KIND OF SENTENCE ELSEWHERE — FOUND, AND THE WORST OF THEM FIXED.** A scan of every string the fill
+inserts, for sentences about the archive's own construction:
+
+- **FIXED.** *"That is printed here rather than left for a reader to find out later, because it is the
+  archive's largest open problem."* — the sentence **the owner quoted in his first complaint**. The figures
+  above it stay; the note about the act of printing them does not.
+- **FIXED.** *"its schema holds a title, an abstract, authors with affiliations, an institution, a kind, a
+  licence, a peer-review flag and the files themselves"* on `/publications/` — a description of the database
+  schema, printed to a reader.
+- **FIXED.** *"The research repository is built and holds nothing yet"* in three places (`/about/`'s shelf
+  list, `/publications/`, the publication record) — "is built" is about construction. Now: the repository
+  *holds* nothing yet, and a record appears when a work is deposited.
+- **FIXED.** *"The design drew an example one — an invented title, two invented authors and their
+  universities, a 2026 date and a page count — and none of it is carried over"* on the publication record.
+- **FIXED.** *"This is the archive's actual state rather than a placeholder waiting to be replaced"* on
+  `/careers/`.
+- **REPORTED, NOT FIXED.** Four sentences of the form *"The design drew one example here … and it is not
+  carried over, because it is not a record"* remain on `/material-culture/` (`fillMaterialCulture`) and the
+  cultural-event screen. They are not claims about the record and they are true; they explain why an **empty**
+  page is empty, which a reader does need. **They name "the design" though, which no reader has seen**, and
+  that is a judgement for the owner rather than a fix to take unilaterally.
+- **REPORTED, NOT FIXED.** The archive calls its own market-day reckoning *"a demonstration"* in several
+  places on `/igbo-calendar/` and `/cultural-calendar/`. The label is honest but the word means "a demo of the
+  product" to most readers; "a fixed anchor, not a claim about every community" is the reader-facing idea and
+  is already stated beside it.
+
+### 5. WHAT WAS VERIFIED
+
+- **The design is untouched.** The parity command prints, verbatim:
+
+      identical 63 differing 0 missing 0
+
+- **`npm run typecheck` from the repo root: exit 0** (read from its own exit code).
+- **`node --test packages/ozikoro/src/design-fill.test.ts`: 67 pass, 0 fail**, including the two new
+  regression tests added this round.
+- **The build is the locked one**: `bash scripts/serve-review.sh`, and the standalone holds **52** design
+  screens against the source's 52.
+- **Screenshots looked at, not just produced**: `/about/` at 390 px and 1440 px, before and after. At 1440 px
+  the paragraph's text now begins at 136 px, aligned with `01 No invention` beneath it; before, it began at 0.
+  At 390 px it now begins at 16 px; before, at 0 with no padding.
+- **The portraits are served from this archive's own origin.** All seven `/media/ozikoro/…` paths return
+  `200` — 54 KB to 363 KB each — and the `/about/` and `/researchers/` pages were photographed and read:
+  seven real faces and three monogram tiles.
+
+### 6. WHAT DOES NOT WORK
+
+- **`node --test src/*.test.ts` for `@ozikoro/platform` reports one failure, `knowledge.test.ts`, and it is
+  contention rather than a defect**: the review server on 3110 holds the PGlite cluster, and the test's own
+  guard says so — *"REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT … This is contention, not
+  corruption."* It is a database test and cannot run while the site is up; it was not re-run against a stopped
+  server in this round.
+- **The post-fix sweep is complete at 390 px and incomplete at 768/1440.** Full re-sweep: **138 pages at
+  390 px, `0` that scroll sideways** — six pages (`/researcher-profile/`, `/sponsors/`, `/topics/`, `/town/`,
+  `/towns/`, `/type-test/`) hit a transient navigation failure in that run and were measured separately
+  immediately afterwards, all six `overflow=0`. **The 768 and 1440 passes were stopped while stalled** (the
+  log had not advanced for eleven minutes), so this record does not claim them: what is measured there is
+  narrower — **no page failed the page-overflow check at 768 or 1440 before the change, and `/about/`,
+  `/documents/`, `/folklore-reader/` and the Akwa blacksmithing article were each re-measured clean at both
+  widths after it.** The one assertion this record will not make is the one it did not run.
+- **`overflow-wrap: anywhere` on `.sx-publication-list article` is prophylactic.** No page in the sweep
+  needed it; it is there because a record title that is a filename can appear in that list tomorrow. That is
+  an argument, not a measurement.
+
 ## ROUND 338 — EVERY `/_next/static` FILE ANSWERED 404 `text/plain` WHILE EVERY PAGE ANSWERED 200, AND THE ASSERTION THAT SHOULD HAVE CAUGHT IT PASSED THE BROKEN ARTEFACT
 
 ### 1. WHAT WAS WRONG — THE FILE, THE LINE, AND THE ORDERING FAULT
@@ -20894,3 +21130,96 @@ serving when this round began. `serve-review.sh` stopped that process with SIGTE
 - **The 138-page sweep in round 337 was not re-run.** Its three failing pages were diagnosed from design CSS
   that was being served, but the sweep as a whole was measured against React pages whose app stylesheet was
   not, and re-running it is a separate round's work.
+
+
+## ROUND 339 — THE RECONCILIATION FROM THE DUMP TO THE CLUSTER: EVERY CATEGORY COUNTED ON BOTH SIDES, AND THE ELEVEN DIFFERENCES THAT DO NOT EXPLAIN THEMSELVES AWAY
+
+**The launch goal's one condition no round had touched, and the one where being wrong is unrecoverable.**
+The owner's instruction is that nothing on the live site may be lost. The import has been done over many
+rounds; what did not exist was the **proof**, and this round produced it: `docs/IMPORT-RECONCILIATION.md`,
+the 121,468,815-byte dump against the cluster's 119 tables, every category counted on both sides.
+
+**Read-only on both sides, and the fragile things left alone.** The review server on 3110 held
+`.data/pg`; the lock was not removed, no process was signalled, and no `kill -9` was used. The cluster was
+read from a **copy** at `.data/scratch-recon/pg`. The live site was asked for **6 `HEAD` requests**, all
+read-only, and nothing else.
+
+**The dump was parsed, not grepped.** 121,468,815 bytes, 111 `CREATE TABLE`, 41 tables holding rows,
+**2,616 `INSERT` statements carrying 202,743 tuples**, one statement 1.5 MB long — so a line count is not
+a row count. A byte-level tokeniser that walks each `VALUES` list and counts the tuples it closes
+reported **0 parse failures** and reproduced every figure the project already held exactly: 9,144 posts,
+27,996 postmeta, 15 users, 724 usermeta, 51 comments, 248 commentmeta, 11,150 terms, 11,150 taxonomies,
+21,137 relationships. An independent PHP unserialiser read `_wp_attachment_metadata` byte-exactly and
+found the same **144 `image_meta.credit` and 52 `copyright`** round 337 recorded.
+
+### THE CATEGORIES THAT CLOSE EXACTLY
+
+- **Articles.** 1,051 published + 39 drafts + 6 published pages = **1,096 rows with a `wp_post_id`**, and
+  **not one cluster `wp_post_id` exists that the dump does not hold**. Plus 524 Blogger records = **1,620**,
+  the cluster's exact total. The article arithmetic closes on both sides with nothing invented.
+- **Tags.** **11,056** `post_tag` terms against 11,056 `ozikoro_label` rows, and **18,496** relationships
+  against 18,496 `ozikoro_article_label` rows. Exact on both.
+- **Media files.** **0** of the 3,437 keyed rows lacks its file and **0** of the 3,437 files in the served
+  store lacks its row; all 3,437 sizes agree with their rows and **all 3,488 rows' `filesize_bytes` equal
+  the dump's original `filesize`**. Three live `HEAD`s agree to the byte (242,267 / 191,005 / 7,364,399).
+- **Bylines.** All 8 PublishPress `author` terms resolve to a contributor; across 455 byline
+  relationships only **2 posts** disagreed with `post_author`, and both were `ozikoro` vs `nze` — the pair
+  the deliberate merge joined.
+- **Biographies and portraits.** The 7 non-empty WordPress `description`s are precisely the 7 contributors
+  holding a bio, and the 7 `sabox-profile-image` URLs precisely the 7 `avatar_url`s.
+- **The retired address works.** `/author/ozikoro/` → **301** → `/author/nze/`, and `/author/nze/` → 200.
+
+### THE ELEVEN DIFFERENCES THAT DO NOT
+
+The value of a reconciliation is the list it cannot explain away, so it is stated plainly and **nothing was
+fixed**:
+
+1. **The draft page "Contact Us"** (`wpc9_posts` 3591, 200 words, modified 2026-08-20) — the only page or
+   post of any status not imported, and **`/contact/` is 404**; three published menu items pointed at it.
+2. **51 comments — 47 of them approved reader comments — and 248 `commentmeta` rows.** No comment table and
+   no comment importer exist.
+3. **4,266 revisions, of which 3,061 hold 28.6 MiB of text found in no surviving post**, across 808 parents.
+   There is no `ozikoro_article_revision` table.
+4. **1,052 category assignments** on 671 posts: `topic_id` is one foreign key, and the category kept is not
+   always Yoast's declared primary (765 agree, 243 differ).
+5. **80 images of the 39 drafts** — no row, no file; recoverable only by fetching from `ozikoro.com`.
+6. **51 media records whose file is nowhere**, and 404 on the live site too, so not recoverable from the dump.
+7. **Six published articles whose image does not resolve although the file is on disk** — the resolver
+   returns null and the body falls back to `ozikoro.com`. Named individually in the document, with the
+   orphan file each needs a row for.
+8. **313 unreachable files** in the development-only fallback directory: WordPress `-WxH` renditions under a
+   counter that started at the then-highest media id, in no table and not in the store.
+9. **Four social profile URLs** (two users × two links).
+10. **Four of six published pages' WordPress addresses 404** — `/authors/`, `/privacy-policy/`, `/nze/`,
+    `/construction/` — though all six pages' content is in the cluster. Reported, not touched: adjacent to
+    the links-and-menus sweep.
+11. **2 auto-drafts and 1 private WordPress export `.txt`** — correctly not imported; no content.
+
+### THE TWO DISCREPANCIES THE BRIEF CARRIED, MEASURED
+
+- **"3,488 rows against 3,441 files is a discrepancy of 47"** — not the discrepancy. 3,441 is the **store**
+  (`.data/media/ozikoro`): 3,437 keyed files **plus 4 episode recordings**. The real media gap is **3,583
+  `attachment` rows against 3,488 `ozikoro_media` rows — 95**: 94 are the images the 39 drafts carry, and 1
+  is a WordPress database-export `.txt` uploaded by mistake. Of the 95, 15 have the identical file held under
+  a duplicate attachment; 80 have no file anywhere.
+- **"1,024 of 1,051 published bodies hold the old address, only 7 hold `/media/`"** — reproduced exactly.
+  The trap was stepped around by running the archive's **own** `mediaUrlMap` resolver over every address in
+  all 1,057 published bodies: **2,876 addresses, 2,855 resolve and every resolved file is on disk**; the 21
+  that do not are 14 third-party hosts (left alone by design) and **7 `ozikoro.com` addresses that are real
+  holes**.
+- **The 51 null `storage_key` rows**: confirmed at 51, their files in neither store, and **404 on the live
+  site** for the two asked — so the record is a hole, not an import failure. 46 of the 51 names are also
+  outside the media route's `KEY_PATTERN` (`–`, `Ƙ`, `Ω`, `×`, Malayalam).
+
+### WHAT WAS VERIFIED, AND WHAT DOES NOT WORK
+
+- **The design is untouched**: `identical 63 differing 0 missing 0`.
+- **`npm run typecheck` from the repo root exits 2, and it is not this round's change** — this round added no
+  source file; its scripts are under the gitignored `.scratch/recon/`. The two failures are other agents'
+  work in flight: `packages/ozikoro/src/external-audio.test.ts(157,31)` against the current `RealArticle`
+  type, and stale `.next/types` files that `TS2307` on `app/listen/page.js`, which `git status` shows deleted
+  in the working tree. `.next` was not touched.
+- **The live spot check is a size comparison, not a digest**, and the 80 missing draft images were not tested
+  against the live site — that would be 80 requests at a production WordPress install.
+- **The cluster was read from a copy**, so the counts should be re-read from the live cluster before the
+  document is treated as final.
