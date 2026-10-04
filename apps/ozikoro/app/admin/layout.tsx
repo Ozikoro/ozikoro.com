@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import { getDb } from '@ozituma/db/client';
-import { capabilitiesFor } from '@ozikoro/platform';
+import { capabilitiesFor, dashboardModeHref, dashboardModesFor } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import { mayEnterBackOffice } from '@/lib/access';
 
@@ -98,6 +98,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const label = account.displayName ?? account.email;
 
+  /*
+   * THE WAY BACK TO THE WORKSPACES, BECAUSE A DOOR THAT ONLY OPENS INWARDS IS HALF A DOOR.
+   *
+   * The owner's words were *"and to admin mode anytime they want"*, and the other half of that is getting
+   * out again: until now the administration's navigation listed twelve sections and not one of them led to
+   * a dashboard. **A person who arrived from a workspace had no route back to one.**
+   *
+   * The list is the same allow-list the dashboards' own switch is built from — `dashboardModesFor` — so an
+   * editor is offered the editorial desk and the publishing workflow, a moderator the moderation queue, and
+   * the owner every workspace the archive draws. **It is not a second list that could disagree with the
+   * first**, and nothing here widens what anybody may do: every entry is a screen the account's own
+   * capabilities already open, and the screen refuses anyone whose capabilities do not.
+   */
+  const workspaces = dashboardModesFor({ platformRole: account.role, capabilities });
+
   return (
     <>
       <a className="skip" href="#main">
@@ -140,6 +155,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/spotify">Spotify</Link>
         </div>
       </nav>
+      {workspaces.length > 0 && (
+        <nav className="admin-nav admin-workspaces" aria-label="Workspaces">
+          <div className="admin-nav__inner">
+            <span className="admin-workspaces__label">Your workspaces</span>
+            {workspaces.map((mode) => (
+              <Link key={mode.mode} href={dashboardModeHref(mode)}>
+                {mode.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
+      )}
       <main className="admin-shell" id="main">
         {children}
       </main>

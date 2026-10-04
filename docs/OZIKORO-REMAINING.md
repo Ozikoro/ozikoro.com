@@ -19375,3 +19375,283 @@ films on page 1 and by not drawing a section at all on a page that has none of i
 against the note's background where the note's own text measures **7.96:1**. The two links on the
 out-of-range page now carry `style="color:inherit"` — the same fix, for the same reason, that
 `fillDashboardLinks` already applies to the dashboard links.
+
+---
+
+## ROUND 329 — THE WORKSPACE SWITCH THAT NAMES THE PERSON, AND THE ADDRESS THAT REFUSES TO PRETEND
+
+**The owner's report:** *"on the dashboards, there should be an option for the admins, and as owner to view any
+part of the profile. i logged in as a user, and could not find way to switch to admin, so it should have a way
+for admins to enter other dashboard mode, and to admin mode anytime they want"*.
+
+**There WAS a control for this, and a previous round deliberately removed it.** Round 304 recorded why: nine of
+the fourteen dashboards carry a `<details class="sx-role-switch">` offering nine workspaces, and served as the
+live site it showed the owner **his own name under the word Administrator, and under Reader, and under
+Community knowledge holder** — workspaces labelled with roles he does not hold. *"A recorded role is a fact; a
+dropdown that appears to change it is a demonstration."* The design's banner that framed the switch as a
+walkthrough was already being removed by the fill, so **the one thing on the page saying the control was not
+real was the thing that had gone.**
+
+**The count is measured, not remembered, and it is nine of fourteen rather than all fourteen.** The switch is on
+the nine dashboards drawn with a rail; the five drawn without one (`account`, `moderation`, `review`, `states`,
+`workflow`) never had it. That number is why the serve-time splice has three placements, and
+`dashboard-modes.test.ts` asserts it, so a change to the deliverable's shape fails a test rather than being
+discovered as a screen rendering no switch.
+
+### 1. Why this one is not that one
+
+The old control made one statement and it was false: *you are a Student.* This one makes four, and every one is
+checkable:
+
+| the design's switch | this one |
+|---|---|
+| `Preview role` — a control named after nothing | `Signed in as Idenze Ezeme · Owner` — the person and the role the database records |
+| the same nine workspaces offered to everybody | only the workspaces **this account's own capabilities** open, and nothing else |
+| *Reader · Student · … · Admin*, as though they were the reader's roles | *Reader workspace · Student workspace · … · Administration workspace* — **screens, named as screens** |
+| nothing said which one you were in | the closed summary reads *"Signed in as Idenze Ezeme · Owner — you are viewing the Editorial desk"*, so the fact is on the page without opening the control |
+
+**The distinction the old control blurred is the whole fix: `Editor` is a role a person holds; `Editorial desk`
+is a screen they are looking at.** Every label is now the second, the first is printed separately from what the
+database says, and a reader with nothing above the archive's floor sees **nothing at all** — not a disabled
+control, not an empty menu. That is asserted, not intended: `renderModeSwitcher` returns the empty string,
+`fillModeSwitcher` returns the page untouched, and a test reads all fourteen real screens and fails if a plain
+reader is offered a control on any of them.
+
+### 2. A view, not an impersonation — and the part of the request that is not a view at all
+
+**Entering another workspace changes which screen is drawn. It does not change who the system thinks you are:**
+
+* the session cookie is untouched, and the mode is not part of it;
+* every page still resolves the account from `getCurrentAccount()` and nothing else;
+* `fillDashboard` already fills a dashboard with **the viewer's own** name, roles, counts and capabilities, so
+  the owner looking at the reader's workspace sees *his* standing in a reader's screen, not a reader's data;
+* `ozikoro_capabilities` is asked with the signed-in account's id and never with a mode's.
+
+**One part of the request cannot be done as a view, and is not done by impersonating anybody.** *"view any part
+of the profile"*, read as another person's profile, is not a mode: that already has its own addresses —
+`/researchers/<slug>/` and `/author/<slug>/` — and the switch links to a person only through the workspaces,
+never through an identity. **A mode is a place; a person is not.**
+
+### 3. Which capability opens which workspace, and none of them was widened to make a menu work
+
+The allow-list is `packages/ozikoro/src/dashboard-modes.ts`. Every gate is a capability the archive already
+had; the resolution is still `ozikoro_capabilities` (migration 0043) and the house test is still `can`.
+
+| workspace | address | capability that opens it | who holds it |
+|---|---|---|---|
+| Reader workspace | `/dashboard-reader?mode=reader` | *none — the floor* | every account, signed in or not |
+| Account & profile | `/dashboard-account?mode=account` | *none* | every account |
+| Workspace states | `/dashboard-states?mode=states` | *none* | every account |
+| Student workspace | `/dashboard-student?mode=student` | `submit_work` | student, teacher and the three researcher roles |
+| Teacher workspace | `/dashboard-teacher?mode=teacher` | `submit_work` | as above |
+| Research workspace | `/dashboard-researcher?mode=researcher` | `research_profile` | researcher, independent researcher |
+| Independent research workspace | `/dashboard-independent-researcher?mode=independent-researcher` | `research_profile` | as above |
+| Community archive workspace | `/dashboard-knowledge-holder?mode=knowledge-holder` | `contribute_oral_history` | knowledge holder |
+| Editorial desk | `/dashboard-editor?mode=editor` | `edit_entity` | editor, admin, owner |
+| Publishing workflow | `/dashboard-workflow?mode=workflow` | `publish` | editor, admin, owner |
+| Review workspace | `/dashboard-reviewer?mode=reviewer` | `expert_review` | expert reviewer, owner |
+| Evidence review | `/dashboard-review?mode=review` | `expert_review` | as above |
+| Moderation queue | `/dashboard-moderation?mode=moderation` | `moderate` | moderator, admin, owner |
+| Administration workspace | `/dashboard-admin?mode=admin` | `manage_users` | admin, owner |
+
+Two consequences, both deliberate:
+
+* **The owner sees all fourteen.** The proprietor of the record may look at any of its workspaces, and the rule
+  is about a *view*: it grants no capability, publishes nothing and opens no private table. It is written as the
+  platform role rather than left to the capability table because migration 0044 gives the owner its capabilities
+  **as an explicit list, deliberately, so that adding a capability does not silently hand it to one person** —
+  so the role is the one "sees everything" source that cannot drift when the vocabulary grows.
+* **A platform administrator does not see the review workspaces.** An administrator holds no `expert_review`, so
+  `Review workspace` and `Evidence review` are simply not offered. That is the owner's own rule — *"an admin sees
+  what their capabilities cover"* — rather than a gap.
+
+### 4. The mechanism: a validated parameter, and a cookie that is never trusted
+
+**`?mode=<name>` is an allow-list read, never a passthrough.** The name is looked up in the fourteen and then
+tested against the account's capabilities, exactly as this route already treats a design screen's name. Four
+outcomes, and no fifth:
+
+| the request | the answer |
+|---|---|
+| a workspace this account may open, at its own address | **the page**, and the workspace is remembered |
+| a workspace it may open, named at another dashboard's address (`/dashboard-reader?mode=editor`) | **302 to `/dashboard-editor?mode=editor`** — a real HTTP redirect, so the address and the page agree afterwards, with no JavaScript involved |
+| a workspace it may **not** open (`?mode=admin` from a reader) | **403 with a sentence** |
+| a name that is not a workspace | **403**, and the refusal lists the workspaces this account *can* open |
+
+**A gated screen with no parameter is refused the same way.** `/dashboard-admin` was served to everybody before
+this round; a reader typing it now gets the same 403 sentence. **Serving the screen and refusing only the
+parameter would have made the parameter decorative.**
+
+**Where the choice is remembered: a cookie**, `ozikoro_dashboard_mode`, `Path=/`, `HttpOnly`, `SameSite=Lax`, 30
+days, `Secure` taken from `sessionCookieOptions` (the one place that decides it) and the domain deliberately not
+taken (the session may be shared with a parent domain; a workspace exists only on ozikoro.com). **It is
+re-validated on every read**, so it can only ever select among workspaces the account may already open: a
+revoked role cannot leave somebody standing in a screen the revocation removed. A parameter alone would not
+have done, and the brief names why — *a link inside a dashboard* goes to `/account/`, to `/admin/archive/` or to
+`/`, and without the cookie the workspace resets to the reader's the moment somebody follows one.
+
+**Nothing needs JavaScript.** The control is `<details>`/`<summary>` and every workspace is an ordinary anchor.
+
+### 5. The way back, from all fourteen and from everywhere else
+
+* **From every `/dashboard-*`:** the rail carries a visible *"The administration — the archive's back office"*
+  link for any account that may enter it. It is a plain anchor beside the switch rather than an item inside it,
+  because a destination that needs a disclosure opened first is two clicks and the owner asked for *"anytime
+  they want"*. All fourteen dashboards were fetched and each carries it exactly once (`dashboard-admin` carries
+  three: its own sidebar's `System overview` and tiles also point at `/admin/`).
+* **From `/admin`:** the administration's navigation gained a **Your workspaces** row, built from the same
+  allow-list — fourteen links for the owner, the editorial desk and the publishing workflow for an editor, the
+  moderation queue for a moderator. Until this round that navigation listed twelve sections and **not one of
+  them led to a dashboard**.
+* **From anywhere in the application:** `app/layout.tsx` had **no account line at all**. It now carries the same
+  switch and an account link for a signed-in reader, and *Sign in / Sign up* for anybody else. That is the other
+  half of the owner's report: signed in on `/archive/` or on `/account/`, there was no route to any workspace.
+
+### 6. What the owner will actually see, because it decides the value
+
+`docs/dashboard-functions.md` records the per-screen link maps. **Four of the fourteen are reference screens:**
+every control on them is an honest non-link reading *Not built yet*, and there is nothing to do but read them.
+Named here rather than discovered by clicking.
+
+| workspace | working destinations | honest "Not built yet" |
+|---|---|---|
+| Administration workspace | 7 real pages — `/admin/`, `/admin/archive/`, `/admin/rights/`, `/admin/claims/`, `/publications/`, `/towns/`, `/account/` — plus Return to public site | 25 |
+| Research workspace | `/publications/`, `/projects/` | 18 |
+| Student workspace | `/projects/`, `/publications/` | 15 |
+| Independent research workspace | `/publications/`, `/projects/`, Sources → `/admin/rights/` | 14 |
+| Teacher workspace | `/publications/`; Sources → `/admin/rights/` | 13 |
+| Editorial desk | Content queue → `/admin/archive/` | 12 |
+| Community archive workspace | Oral traditions → `/folklore/`, Media → `/photographs/` | 12 |
+| Reader workspace | Collections → `/archive/`, Account settings → `/account/` | 11 |
+| Review workspace | Evidence review → `/admin/reviews/` | 11 |
+| Publishing workflow | **none — every control is a non-link** | 7 |
+| Account & profile | four cards, all of which land on `/account/` | 5 |
+| Moderation queue | **none** | 5 |
+| Evidence review | **none** | 5 |
+| Workspace states | **none** | 3 |
+
+**And one link inside the workspaces is a dead end for the role it was drawn for, which is pre-existing and is
+named rather than fixed here:** `Sources` on the teacher, researcher and independent-researcher workspaces
+points at `/admin/rights/`, and `mayEnterBackOffice` admits only an administrator/owner or a holder of
+`edit_entity`, `moderate`, `expert_review` or `review_audio` — **a teacher or a plain researcher holds none of
+those**, so that link reaches an honest refusal rather than the rights register.
+
+### 7. The gate
+
+* `npm run typecheck` from the repository root: **exit 0**, read from the command's own exit code.
+* `npm run --silent check:secrets`: **exit 0** — the other half of the pre-commit hook, which refuses a commit
+  that does not typecheck or would add a credential.
+* `node --test packages/ozikoro/src/dashboard-modes.test.ts`: **23 pass, 0 fail**.
+* `npm -w @ozikoro/platform run test`: **226 tests, 225 pass, 1 fail.** The failure is `src/knowledge.test.ts`,
+  which cannot open `.data/pg` because the review server on 3110 holds the PGlite cluster lock — its own output
+  is the lock's refusal naming the holder's pid. That is the documented behaviour of a single-process PGlite and
+  is unrelated to this round; the alternative is stopping the server to run a suite that tests the dictionary.
+* Design parity, verbatim: **`identical 63 differing 0 missing 0`**, and `git status` reports nothing under
+  `design/` or `apps/ozikoro/public/design/`. The switch is added to the page at serve time and **not one byte of
+  the deliverable was edited**.
+* The standalone after `bash scripts/serve-review.sh`: **52 design screens**, which is what the script asserts
+  before it swaps the build in.
+
+### 8. The seven verifications, with the destination's own `<h1>`
+
+**1. Signed out.** No switch anywhere: `/`, `/about`, `/dashboard-reader`, `/dashboard-account` and `/archive`
+all carry `sx-mode-switch=0` **and** `sx-role-switch=0` — the design's own control is gone and no replacement is
+offered. `/dashboard-admin?mode=admin` answers **403** with
+
+> That address is not one your account may open. The Administration workspace is for an Administrator, and
+> nobody is signed in on this browser.
+
+as a real styled page with a title, an `h1` of *"That workspace is not open to this account"*, `X-Robots-Tag:
+noindex`, and links to the reader's workspace, the way in, and the public archive.
+
+**2. The owner.** On `/dashboard-editor` the switch lists **fourteen** workspaces, names him
+(*"Signed in as Idenze Ezeme · Owner — you are viewing the Editorial desk"*), marks `Editorial desk — you are
+here` with `aria-current="page"`, and carries the back-office link. **Every one of the fourteen addresses was
+fetched, and the destination's own title and `h1` are:**
+
+| address from the switch | HTTP | `<title>` | `<h1>` |
+|---|---|---|---|
+| `/dashboard-reader?mode=reader` | 200 | Reader workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-student?mode=student` | 200 | Student workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-teacher?mode=teacher` | 200 | Teacher workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-researcher?mode=researcher` | 200 | Research workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-independent-researcher?mode=independent-researcher` | 200 | Independent research workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-knowledge-holder?mode=knowledge-holder` | 200 | Community archive workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-editor?mode=editor` | 200 | Editorial desk — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-reviewer?mode=reviewer` | 200 | Review workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-moderation?mode=moderation` | 200 | Moderation states — Ozikoro | Moderation queue |
+| `/dashboard-review?mode=review` | 200 | Evidence review — Ozikoro | Evidence review |
+| `/dashboard-workflow?mode=workflow` | 200 | Publishing workflow — Ozikoro | Publishing workflow |
+| `/dashboard-admin?mode=admin` | 200 | Administration workspace — Ozikoro | Welcome back, Idenze Ezeme |
+| `/dashboard-account?mode=account` | 200 | Account &amp; profile — Ozikoro | Account & profile |
+| `/dashboard-states?mode=states` | 200 | Workspace states — Ozikoro | Every state has a next step |
+
+**A 200 is not the evidence and the `h1` is why.** Every one of the fourteen lands on the screen the switch
+names, and the four that print their own `h1` rather than the greeting are the four reference screens — which is
+also how the honest non-links in §6 were confirmed.
+
+**3. A mode the account may not enter.** A reader account was registered for this
+(`r329-reader@example.invalid`, platform role `contributor`, capabilities `read`, `bookmark`, `collection`) and
+refused four ways, each with a sentence and no switch:
+
+```
+/dashboard-reader?mode=admin    403  ...The Administration workspace is for an Administrator, and you are signed in as Nnamdi Testreader (Reader).
+/dashboard-admin                403  ...same refusal, on the screen's own address with no parameter
+/dashboard-reader?mode=editor   403  ...The Editorial desk is for an Editor, and you are signed in as Nnamdi Testreader (Reader).
+/dashboard-reader?mode=superuser 403  There is no workspace called “superuser” in this archive... The workspaces this account may open are: reader, account, states.
+/about?mode=admin               403  ...the parameter is validated on every screen this route serves, not only on dashboards
+```
+
+and their own two open workspaces still answer 200 with `sx-mode-switch=0`.
+
+**4. The way back.** All fourteen dashboards carry `href="/admin/"` for the owner (one visible link each;
+`dashboard-admin` carries three because its own sidebar and tiles also point there). `/admin` answers **200**
+with `h1` *Administration* and a **fourteen-link** *Your workspaces* row, each link the workspace's own address.
+
+**5. A link inside a dashboard.** From `/dashboard-editor?mode=editor`, the editorial desk's own sidebar links
+were followed: `Content queue → /admin/archive/` (**200**, `h1` *Editorial queue*), `Account settings →
+/account/` (**200**, `h1` *Account &amp; profile*), `Return to public site → /` (**200**). The mode cookie reads
+`editor` before and after every one of them, and on `/about`, `/archive` and `/account` the masthead's account
+item reads **`/dashboard-editor?mode=editor` — "My workspace"**, so the mode is carried rather than reset. A
+reader's masthead reads `/dashboard-reader?mode=reader` — *"My account"*.
+
+**6. JavaScript off.** Headless Chrome with `--blink-settings=scriptEnabled=false`, the session set through the
+devtools protocol, and the panel opened with a **real mouse event** rather than `element.click()`. The control
+was genuinely at risk of being script-dependent, so the disabling is proved rather than asserted: a control page
+carrying an inline `<script>` was loaded in the same browser and its `document.title` stayed `PROBE-UNCHANGED`.
+On `/dashboard-editor?mode=editor`: the switch is present in the initial HTML with all **14** anchors, closed
+(`open: false`); a real click opens it (`open: true`, 14 links visible); a real click on *Publishing workflow*
+navigates to `/dashboard-workflow?mode=workflow`, whose `h1` is *Publishing workflow*.
+
+**7. Design parity, verbatim:**
+
+```
+identical 63 differing 0 missing 0
+```
+
+### 9. What does not work
+
+* **The article pages have no switch.** `/ute-okpu-…/` and the other 1,050 records are served by
+  `app/[slug]/route.ts`, a route handler that never calls `fillMasthead`, and `article.html` has no
+  `nav.nav` — it is a `.sx-reader-header` with five links and no account item. So on an article the reader's
+  only route to a workspace is the wordmark to `/`, which does carry the switch. **Named, not fixed**: the
+  article template is a different shape and a fourth serve-time insertion site is a change to another route's
+  business, which this round did not take on.
+* **A refused mode answers 403 for a person who may in fact be entitled, if their session expired.** The
+  refusal page offers *Sign in* for a signed-out visitor, but a viewer whose session lapsed mid-reading is told
+  what they may not open before they are told to sign in again.
+* **`?mode=` is honoured on the fifty-two screens this route serves and nowhere else.** On an application page
+  (`/archive`, `/account`, `/publications`) the parameter is ignored; the account link on those pages carries
+  the remembered workspace instead, which is the working route.
+* **`scripts/serve-review.sh` can never rebuild a file edited while a build is running** — found while
+  verifying this round, and fixed in the commit that follows this one. The freshness test is
+  `find <sources> -newer "$BUILD_ID"`, and `BUILD_ID` is touched **after** the build and the swap, so a source
+  changed at T1 during a build that started at T0 and touched `BUILD_ID` at T2 is invisible forever after:
+  every later scan reports *"the build is CURRENT"* while the artefact contains the pre-T1 code. Measured here:
+  the refusal sentence was fixed at 14:33:30, the build finished and touched `BUILD_ID` at 14:35:26, and the
+  site still answered the old sentence at 14:41 while two runs reported *CURRENT*.
+* **The design-screen coverage check is stale, and was failing before this round.**
+  `node scripts/check-screen-coverage.mjs` reports `NO ROUTE` for all fourteen dashboards (and for `donate`,
+  `investors`, `journeys`, `sponsors`), because its `ROUTE` map has no entry for them — the dashboards are served
+  by the middleware rewrite to `/design-screen/[screen]`, which the check does not know about. **It was not
+  touched here and it fails identically on the parent commit.**

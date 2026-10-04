@@ -37,11 +37,20 @@ import {
   designInventory,
   listDesignOverrides,
   applyDesignOverrides,
+  DASHBOARD_MODE_COOKIE,
+  DASHBOARD_MODE_MAX_AGE_SECONDS,
+  dashboardModeForScreen,
+  decideDashboardMode,
+  decideRequestedMode,
+  escapeHtml,
+  fillModeSwitcher,
   DESIGN_THEME_HREF,
   LINKED_SCREENS,
   type DesignOverride,
 } from '@ozikoro/platform';
+import { sessionCookieOptions } from '@ozituma/db/accounts';
 import { getCurrentAccount } from '@/lib/session';
+import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
 import {
   citationFor,
   fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
@@ -359,6 +368,105 @@ async function inventoryResponse(html: string, url: URL): Promise<Response | nul
   }
 }
 
+/**
+ * WHICH WORKSPACE THIS ADDRESS IS, AND WHETHER THIS ACCOUNT MAY OPEN IT.
+ *
+ * This is the whole gate, in four lines of decision and one shared function. `decideDashboardMode` holds the
+ * rule — the `?mode=` value is looked up in the fourteen and then tested against the account's capabilities,
+ * never passed through — so **the route does not own a second copy of "who may see what"**, and
+ * `dashboard-modes.test.ts` asserts the rule without a server.
+ *
+ * TWO REFUSALS AND ONE REDIRECT, AND NO FOURTH ANSWER.
+ *
+ *   a workspace the account may not open, by address or by parameter   **403 with a sentence**
+ *   a name that is not a workspace at all                              **403 with a sentence**
+ *   a workspace it may open, named at another dashboard's address      **302 to the workspace's own address**
+ *   anything else                                                      the page, unchanged
+ *
+ * **A SCREEN WITH NO MODE OF ITS OWN STILL HONOURS THE PARAMETER**, because a person can type one into any
+ * address this route serves: `/about?mode=editor` is a shortcut to the editorial desk and
+ * `/about?mode=admin` from a reader is refused for exactly the same reason it is refused on
+ * `/dashboard-reader`. Serving a workspace the account may not open, or quietly serving a different one, are
+ * the two faults this replaces — the design's own switch did the second for eleven days.
+ */
+function refuseWorkspace(sentence: string, viewer: Awaited<ReturnType<typeof workspaceViewer>>): Response {
+  const link = (href: string, label: string) =>
+    `<a class="btn btn-quiet btn-sm" href="${escapeHtml(href)}">${escapeHtml(label)}</a>`;
+  const ways = [
+    link(viewer.primaryHref, viewer.signedIn ? 'Your own workspace' : 'The reader’s workspace'),
+    viewer.signedIn ? '' : link('/signin', 'Sign in'),
+    viewer.adminHref ? link(viewer.adminHref, 'The administration') : '',
+    link('/', 'The public archive'),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  /*
+   * A REAL PAGE, WITH THE DESIGN'S OWN STYLESHEETS, RATHER THAN A BARE `Forbidden`.
+   *
+   * The brief's rule for this round is that a refused mode must say why — *"that address is not one your
+   * account may open"* is honest and a silent serve of the wrong page is not. A response body of the single
+   * word "Forbidden" would satisfy the status and tell the reader nothing, which is the fault this project
+   * has already paid for four times today.
+   */
+  const html =
+    '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<meta name="robots" content="noindex">' +
+    '<title>That workspace is not open to this account — Ozikoro</title>' +
+    '<link rel="stylesheet" href="/design/styles/main.css">' +
+    '<link rel="stylesheet" href="/design/styles/showcase.css">' +
+    '<link rel="stylesheet" href="/a11y.css">' +
+    '</head><body><a class="skip" href="#main">Skip to content</a>' +
+    '<main id="main" class="wrap sx-section" style="padding-block:3rem">' +
+    '<p class="eyebrow">Ozikoro workspaces</p>' +
+    '<h1>That workspace is not open to this account</h1>' +
+    `<p class="lede" style="margin-top:var(--s-3)">${escapeHtml(sentence)}</p>` +
+    `<p style="margin-top:var(--s-5);display:flex;gap:var(--s-3);flex-wrap:wrap">${ways}</p>` +
+    '</main></body></html>';
+
+  return new Response(html, {
+    status: 403,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-robots-tag': 'noindex',
+    },
+  });
+}
+
+/** A real HTTP redirect, so the parameter needs no JavaScript and the address ends up telling the truth. */
+function moveToWorkspace(to: string): Response {
+  return new Response(`This workspace is at ${to}`, {
+    status: 302,
+    headers: { location: to, 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+/**
+ * WHERE THE CHOSEN WORKSPACE IS REMEMBERED, SO A LINK INSIDE A DASHBOARD DOES NOT RESET IT.
+ *
+ * The parameter alone would not do: the sidebar's own links go to `/account/`, `/admin/archive/` and `/`, and
+ * a person who chose the editorial desk would be dropped back to the reader's the moment they followed one.
+ *
+ * `Secure` is taken from `sessionCookieOptions` — the one place in this application that decides whether a
+ * cookie may travel without TLS — and the DOMAIN deliberately is not: the session may be shared with a parent
+ * domain, and a workspace exists only on ozikoro.com. `HttpOnly` because no script ever reads it, and
+ * `SameSite=Lax` because it is a preference rather than a credential. **It is re-validated on every read**,
+ * so the cookie can only ever select among workspaces the account may already open.
+ */
+function rememberModeCookie(mode: string): string {
+  const { secure } = sessionCookieOptions(DASHBOARD_MODE_MAX_AGE_SECONDS);
+  return [
+    `${DASHBOARD_MODE_COOKIE}=${encodeURIComponent(mode)}`,
+    'Path=/',
+    `Max-Age=${DASHBOARD_MODE_MAX_AGE_SECONDS}`,
+    'SameSite=Lax',
+    'HttpOnly',
+    ...(secure ? ['Secure'] : []),
+  ].join('; ');
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ screen: string }> }
@@ -422,6 +530,12 @@ export async function GET(
   };
 
   let html: string;
+  /*
+   * THE MODE COOKIE IS DECIDED INSIDE THE FIRST `try` AND WRITTEN ON THE RESPONSE THAT IS RETURNED FROM THE
+   * BOTTOM OF THIS FUNCTION, so it has to outlive that block. It stays null for every screen that is not a
+   * dashboard and for every viewer who is not signed in, which is the same condition the switch itself uses.
+   */
+  let modeCookie: string | null = null;
   try {
     html = await readFile(join(SCREEN_DIR, `${name}.html`), 'utf8');
 
@@ -460,8 +574,69 @@ export async function GET(
      * rather than in the design because **both states cannot be stored in one static file — which one is right
      * depends on who is asking.**
      */
-    const viewer = await getCurrentAccount().catch(() => null);
-    html = fillMasthead(html, { signedIn: Boolean(viewer) });
+    const workspace = await workspaceViewer();
+    html = fillMasthead(html, { signedIn: workspace.signedIn });
+
+    /*
+     * ============================================================================================
+     * WHICH WORKSPACE THIS IS, AND WHETHER THIS ACCOUNT MAY LOOK AT IT.
+     * ============================================================================================
+     *
+     * The owner's report: *"on the dashboards, there should be an option for the admins, and as owner to view
+     * any part of the profile… there should have a way for admins to enter other dashboard mode, and to admin
+     * mode anytime they want"*. The design HAD a control for it, and a previous round removed it, because
+     * served as the live site it showed the owner **his own name under the word Administrator, and under
+     * Reader, and under Community knowledge holder** — workspaces labelled with roles he does not hold.
+     *
+     * WHAT REPLACES IT IS A VIEW, NOT AN IMPERSONATION. Nothing below touches the session, swaps an identity
+     * or acts as anybody: the account is still whatever `getCurrentAccount()` says, the page is still filled
+     * with that account's own roles and capabilities, and a mode changes only WHICH SCREEN IS DRAWN. See
+     * `dashboard-modes.ts` for the allow-list, the reasons and the refusal sentences.
+     *
+     * ORDER MATTERS HERE, AND IT IS NOT COSMETIC.
+     *
+     *   1. `fillMasthead` removes the design's own `<details class="sx-role-switch">` and writes the
+     *      masthead's account item. It must run first: its removal matches that exact class string, and the
+     *      truthful switch carries `sx-role-switch sx-mode-switch` so the two cannot be confused.
+     *   2. this gate runs before anything is filled, so a refused address costs a 403 rather than a whole
+     *      page render.
+     *   3. `fillModeSwitcher` puts the truthful control where the design's one was, re-points the account
+     *      item and any `← Back to workspace` link at a workspace this viewer may actually open, and does
+     *      nothing at all for an account with no elevated workspace.
+     */
+    const url = new URL(request.url);
+    const screenMode = dashboardModeForScreen(name);
+    const requested = url.searchParams.get('mode');
+
+    if (screenMode || requested !== null) {
+      const decision = screenMode
+        ? decideDashboardMode({
+            screenMode,
+            requested,
+            viewer: { platformRole: workspace.platformRole, capabilities: workspace.capabilities },
+            identity: workspace.identity,
+          })
+        : decideRequestedMode({
+            requested: requested as string,
+            viewer: { platformRole: workspace.platformRole, capabilities: workspace.capabilities },
+            identity: workspace.identity,
+          });
+
+      // A REFUSAL SAYS WHY, AND NEVER QUIETLY SERVES A DIFFERENT WORKSPACE.
+      if (decision.kind === 'refuse') return refuseWorkspace(decision.sentence, workspace);
+      // THE RIGHT WORKSPACE AT THE WRONG ADDRESS MOVES TO ITS OWN, WITH THE PARAMETER INTACT.
+      if (decision.kind === 'redirect') return moveToWorkspace(decision.to);
+    }
+
+    html = fillModeSwitcher(html, {
+      viewer: switcherFor(workspace, screenMode?.mode ?? null),
+      primaryHref: workspace.primaryHref,
+      allowedScreens: new Set(workspace.modes.map((mode) => mode.screen)),
+    });
+
+    // Remembered only for a dashboard that was actually served to a signed-in account — see the note where
+    // the response is built, at the bottom of this function.
+    if (workspace.signedIn && screenMode) modeCookie = rememberModeCookie(screenMode.mode);
 
     /*
      * THE DEAD LINKS GO, FILLED OR NOT.
@@ -1597,7 +1772,8 @@ export async function GET(
    */
   html = await withDesignOverrides(html, name, new URL(request.url));
 
-  return new Response(html, {
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
-  });
+  const headers = new Headers({ 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+  if (modeCookie) headers.append('set-cookie', modeCookie);
+
+  return new Response(html, { headers });
 }

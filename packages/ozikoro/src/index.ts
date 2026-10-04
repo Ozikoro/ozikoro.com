@@ -61,6 +61,15 @@ export * from './knowledge.ts';
 export * from './design-fill.ts';
 export * from './design-paths.ts';
 /*
+ * WHICH WORKSPACES AN ACCOUNT MAY LOOK AT.
+ *
+ * The deliverable draws fourteen dashboards, and the design's own switcher offered all of them to
+ * everybody — which is why it was removed. `dashboard-modes.ts` holds the allow-list that replaces it:
+ * one table, read by the design screens at serve time, by the administration's navigation and by the
+ * application's masthead, so the three cannot disagree about who may open what.
+ */
+export * from './dashboard-modes.ts';
+/*
  * THE OVERRIDE LAYER, WHICH IS WHAT MAKES THE DESIGN EDITABLE WITHOUT BEING EDITED.
  *
  * `design-override.ts` is pure — the token catalogue, the selector grammar, the serve-time apply and the

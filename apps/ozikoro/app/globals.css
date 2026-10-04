@@ -551,3 +551,50 @@ code {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   THE WORKSPACE SWITCH AND THE WAY BACK TO THE WORKSPACES
+
+   The control itself is the deliverable's own `sx-role-switch`, styled by the design's `showcase.css`,
+   because the masthead it sits in is the design's night bar on the design screens AND on this
+   application's own chrome — the root layout links the same stylesheets. **Nothing about the control is
+   re-styled here; a second palette for it would be a second design.** What is here is the small amount
+   the design never had to answer: a `<details>` that must sit inside one flex item of a horizontal
+   navigation, and the administration's own row of workspace links.
+   --------------------------------------------------------------------------- */
+
+.nav-modes-item {
+  display: flex;
+  align-items: center;
+}
+
+.nav-modes-item summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--on-night);
+  padding-block: var(--s-1);
+}
+
+.nav-modes-item summary:hover {
+  color: var(--gold-bright);
+}
+
+.admin-workspaces {
+  background: transparent;
+  border-bottom: 0;
+  margin-top: -1.75rem;
+}
+
+.admin-workspaces__label {
+  padding: 0.7rem 0;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+}
+
+.admin-workspaces .admin-nav__inner {
+  border-top: 1px solid var(--rule);
+  padding-top: 0.35rem;
+  align-items: baseline;
+}

@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { headers } from 'next/headers';
+import { renderModeSwitcher } from '@ozikoro/platform';
+import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
 import './globals.css';
 
 /**
@@ -63,6 +65,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       </html>
     );
   }
+
+  /*
+   * THE MASTHEAD SAYS WHO IS HERE AND WHAT THEY MAY OPEN.
+   *
+   * The owner's report was *"i logged in as a user, and could not find way to switch to admin"*, and this
+   * navigation was part of the reason: it carried seven public sections and **not one line about the person
+   * reading it or the workspace they own**. A signed-in reader had no route from `/archive/`,
+   * `/researchers/` or an article to their own dashboard at all.
+   *
+   * The switch is the same markup the design screens receive, rendered from the same allow-list, so the two
+   * halves of the site cannot offer different workspaces. **It is inserted as HTML rather than rebuilt as
+   * JSX on purpose**: a second rendering of the control is a second thing that can drift from the first,
+   * and this one is entirely our own markup with every name and label escaped at the source.
+   */
+  const workspace = await workspaceViewer();
+  const modeSwitch = renderModeSwitcher(switcherFor(workspace, null), 'nav');
 
   return (
     <html lang="en">
@@ -153,6 +171,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 </li>
                 <li>
                   <Link href="/about">About</Link>
+                </li>
+                {/*
+                  THE SWITCH, THEN THE ACCOUNT. The control opens the list of workspaces this account may
+                  enter and marks the one it is in; the account link beside it is the one-click way to the
+                  workspace itself. A reader with nothing elevated gets no control and only the account or
+                  the way in — which is the state the site was in before, and the state the brief requires.
+                */}
+                {modeSwitch.length > 0 && (
+                  <li className="nav-modes-item" dangerouslySetInnerHTML={{ __html: modeSwitch }} />
+                )}
+                <li className="nav-account">
+                  {workspace.signedIn ? (
+                    <Link href={workspace.primaryHref}>
+                      {workspace.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace'}
+                    </Link>
+                  ) : (
+                    <Link href="/signin">Sign in / Sign up</Link>
+                  )}
                 </li>
               </ul>
             </nav>
