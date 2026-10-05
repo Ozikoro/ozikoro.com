@@ -38,6 +38,9 @@ import {
   narrationCounts,
   queueCounts,
   spotifyConnectionView,
+  VERIFY_ENGINES,
+  loadSeoVerification,
+  verificationTags,
 } from '@ozikoro/platform';
 import { requireBackOfficeOrRedirect } from '@/lib/access';
 import { AtAGlance, Card, Head } from './ui';
@@ -94,6 +97,17 @@ export default async function Page() {
     getEntityGraphState(db),
   ]);
 
+  /*
+   * THE OWNER'S SITE-VERIFICATION TOKENS, COUNTED RATHER THAN DESCRIBED.
+   *
+   * The card below says how many engines are verified and names the tags the archive is actually serving,
+   * because "is my Google verification live" is the question the owner opened the back office to answer and a
+   * link alone would make him click to find out. `verificationTags` is the same function the head builder
+   * uses, so the names printed here are read out of the markup a crawler would get.
+   */
+  const verification = await loadSeoVerification(db);
+  const tags = verificationTags(verification);
+
   const proposals = narration
     .filter((c) => c.status === 'proposed' || c.status === 'corrections' || c.status === 'pending_review')
     .reduce((sum, c) => sum + c.count, 0);
@@ -102,8 +116,45 @@ export default async function Page() {
     .reduce((sum, c) => sum + c.count, 0);
 
   return (
-    <>
+    /*
+     * ── THE DESIGN'S OWN LANDING SHAPE, WHICH THIS PAGE DID NOT HAVE ─────────────────────────────────────
+     *
+     * The owner: *"i clicked on it to see the admin, and it was completely scattred. this is not exactly as
+     * it was in the demo."* `public/design/screens/dashboard-admin.html` opens with a title row, a
+     * `section.sx-metrics` of four figures and a `div.sx-work-grid` of two panels, and only then the modules.
+     * This page had a heading and eleven cards in a single column — **stacked where the design has columns**,
+     * which is the fault the owner was describing.
+     *
+     * So the frame is the design's and the eleven cards are unchanged inside it: every control, every sentence
+     * and every count the page had, it still has. `admin-overview` is the one class the application adds — the
+     * design's own grid step, for cards that carry prose rather than being link tiles — and it is defined in
+     * `globals.css` beside the other additions to the back office.
+     *
+     * THE FOUR FIGURES ARE THE ONES THE CARDS BELOW ALREADY MEASURE, not a second set of queries: they are the
+     * headline of the page, and each card is the detail of one. A figure the page did not already count would
+     * have to be asked for twice.
+     */
+    <div className="admin-overview">
       <Head title="Administration" />
+
+      <section className="sx-metrics" aria-label="Workspace summary">
+        <article className="sx-metric">
+          <span className="small muted">Records waiting for review</span>
+          <b>{num(articles.review)}</b>
+        </article>
+        <article className="sx-metric">
+          <span className="small muted">Records in the editorial queue</span>
+          <b>{num(editorial.records)}</b>
+        </article>
+        <article className="sx-metric">
+          <span className="small muted">Media items in the register</span>
+          <b>{num(media.total)}</b>
+        </article>
+        <article className="sx-metric">
+          <span className="small muted">Entities in the knowledge graph</span>
+          <b>{num(graph.entities)}</b>
+        </article>
+      </section>
 
       <Card title="Records waiting for review">
         <p>
@@ -313,6 +364,25 @@ export default async function Page() {
         </Card>
       ) : null}
 
+      <Card title="Search engines">
+        <p>
+          Where the owner pastes the verification code Google Search Console, Bing Webmaster Tools and Yandex
+          Webmaster issue. Paste the tag or just the token, and the archive writes it into the head of{' '}
+          <b>every page</b> — the front page, every record, every topic, the documents page.
+        </p>
+        <AtAGlance
+          rows={[
+            ['Engines with a token stored', `${verification.length} of ${VERIFY_ENGINES.length + 1}`],
+            ['Verification tags served now', `${tags.length}${tags.length === 0 ? ' — nothing is claimed yet, and no empty tag is written' : `: ${tags.map((tag) => tag.replace(/^<meta name="([^"]+)".*$/, '$1')).join(', ')}`}`],
+          ]}
+        />
+        <p className="actions">
+          <Link className="btn btn--primary" href="/admin/seo">
+            Search engines
+          </Link>
+        </p>
+      </Card>
+
       <Card title="Coming to this area" quiet>
         <p>
           The history archive, its sources and citations, the researchers&rsquo; network and the
@@ -320,6 +390,6 @@ export default async function Page() {
           were.
         </p>
       </Card>
-    </>
+    </div>
   );
 }

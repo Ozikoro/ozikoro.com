@@ -41,6 +41,7 @@ import {
   designScriptPaths,
   episodeTranscriptHeader,
   fillTranscript,
+  loadSeoVerification,
   playableEpisodeSql,
   seoHead,
   withSeoHead,
@@ -88,6 +89,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
         agreementRefusalDocument(await readFile(SCREEN, 'utf8'), {
           path: `/podcast/${row.slug}/transcript/`,
           withdrawn,
+          verification: await loadSeoVerification(db),
         }),
         { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
       );
@@ -146,7 +148,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
           { name: row.title, path },
         ],
       },
-      ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+      ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css'],
+      /*
+       * A TRANSCRIPT IS A PAGE OF THIS SITE WITH ITS OWN ADDRESS AND ITS OWN canonical, so it carries the
+       * owner's verification tokens like every other page. `seoHead` is the one head builder; this is the
+       * third of its callers to hand the tokens over.
+       */
+      await loadSeoVerification(db)
     )
   );
 

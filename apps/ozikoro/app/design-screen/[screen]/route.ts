@@ -23,6 +23,7 @@ import { headers as requestHeaders } from 'next/headers';
 import { getDb } from '@ozituma/db/client';
 import {
   imageNode,
+  loadSeoVerification,
   mediaPath,
   mediaUrlResolver,
   placeNode,
@@ -2199,6 +2200,16 @@ export async function GET(
     html = html.replace('</body>', '<script src="/audio-listen.js" defer></script></body>');
   }
 
+  /*
+   * THE OWNER'S SITE-VERIFICATION TOKENS, READ FOR THIS PAGE.
+   *
+   * The head builder is synchronous and has no database, so every caller fetches them and hands them over —
+   * which is what makes a token reach fifty-two screens and an article from ONE stored row rather than two
+   * mechanisms. A failure here degrades to no tokens (`loadSeoVerification` catches its own error), because a
+   * settings row that cannot be read must not cost a page its head.
+   */
+  const verification = await loadSeoVerification(await getDb());
+
   html = withSeoHead(
     html,
     seoHead(
@@ -2232,7 +2243,8 @@ export async function GET(
          * than redeclaring it, which only works if the design's declaration is already in the cascade.
          */
         ...(name === 'watch-video' ? ['/watch-video.css'] : []),
-      ]
+      ],
+      verification
     )
   );
 

@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb, type Db } from '@ozituma/db/client';
-import { fillArticle, mediaPath, mediaUrlResolver, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, loadSeoVerification, mediaPath, mediaUrlResolver, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import { hasCapability } from '@/lib/access';
 
@@ -124,7 +124,11 @@ async function servePublishedPage(db: Db, slug: string): Promise<Response | null
     if (!mayRead) {
       const withdrawn = viewer ? await withdrawnInstitutionalAccess(db, viewer.account.id) : null;
       return new Response(
-        agreementRefusalDocument(await readFile(SCREEN, 'utf8'), { path: `/${slug}/`, withdrawn }),
+        agreementRefusalDocument(await readFile(SCREEN, 'utf8'), {
+          path: `/${slug}/`,
+          withdrawn,
+          verification: await loadSeoVerification(db),
+        }),
         { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
       );
     }
@@ -183,7 +187,10 @@ ${content}
             { name: page.title, path },
           ],
         },
-        ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+        ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css'],
+        // A published WordPress page is a page of this site like any other, so it carries the same
+        // verification tokens: a crawler that reaches it must read the same claim about the domain.
+        await loadSeoVerification(db)
       )
     ),
     { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
@@ -235,7 +242,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     if (!mayRead) {
       const withdrawn = viewer ? await withdrawnInstitutionalAccess(db, viewer.account.id) : null;
       return new Response(
-        agreementRefusalDocument(await readFile(SCREEN, 'utf8'), { path: `/${clean}/`, withdrawn }),
+        agreementRefusalDocument(await readFile(SCREEN, 'utf8'), {
+          path: `/${clean}/`,
+          withdrawn,
+          verification: await loadSeoVerification(db),
+        }),
         { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
       );
     }
@@ -581,7 +592,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
           ],
           topics: row.topic ? [row.topic] : [],
         },
-        ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+        ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css'],
+        /*
+         * THE SAME TOKENS THE FRONT PAGE CARRIES. This is the route that serves the 1,051 records, so a
+         * verification that reached the screens and not the records would be a verification of the wrong
+         * site — see the note on `seoHead`'s third parameter.
+         */
+        await loadSeoVerification(db)
       )
     );
 

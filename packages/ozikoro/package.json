@@ -53,7 +53,8 @@
     "check:residue": "node src/ops/residue-check.ts",
     "check:capabilities": "node src/ops/capability-check.ts",
     "test:pronunciation": "node src/test-pronunciation.ts",
-    "test:planner": "node src/test-planner.ts"
+    "test:planner": "node src/test-planner.ts",
+    "test:seo-verification": "node --test src/seo-verification.test.ts"
   },
   "dependencies": {
     "@ozituma/db": "*"

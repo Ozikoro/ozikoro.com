@@ -91,6 +91,13 @@ export * from './dashboard-modes.ts';
  */
 export * from './design-override.ts';
 export * from './design-override-store.ts';
+/*
+ * THE SITE-VERIFICATION TOKENS — the owner's own, held in `site_setting`, emitted by `seoHead` into every
+ * page's `<head>`. Exported beside the head builder rather than inside it because the catalogue of engines,
+ * the paste reader and the table are what the administration's screen is built from, and none of those needs
+ * a head to be testable.
+ */
+export * from './seo-verification.ts';
 export * from './seo-head.ts';
 export * from './spoken.ts';
 export * from './narration.ts';

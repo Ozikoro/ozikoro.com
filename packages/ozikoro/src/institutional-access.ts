@@ -59,6 +59,7 @@ import {
 } from './design-fill.ts';
 import { designScreenLinks, designScriptPaths } from './design-paths.ts';
 import { seoHead, withSeoHead } from './seo-head.ts';
+import type { SiteVerification } from './seo-verification.ts';
 
 // ---------------------------------------------------------------------------
 // The vocabulary
@@ -695,10 +696,20 @@ export function agreementRefusalText(input: {
  *
  * It is a 403 and a real screen, not a 404: the record exists, and the archive's rule is that a partial
  * state is a real state. The caller decides the status; this composes the body.
+ *
+ * `verification` IS OPTIONAL HERE AND IS PASSED BY THE ROUTES THAT HAVE A DATABASE. The document is served
+ * under the record's own address, so a crawler that reaches it must read the same claim about the domain as
+ * everywhere else — but this function is deliberately synchronous and pure, with no database, so the tokens
+ * arrive as an argument like everything else it is told. Omitting them emits no verification tag, which is
+ * the honest empty case rather than a wrong one.
  */
 export function agreementRefusalDocument(
   designHtml: string,
-  input: { path: string; withdrawn?: { revokedAt: string; reason: string } | null }
+  input: {
+    path: string;
+    withdrawn?: { revokedAt: string; reason: string } | null;
+    verification?: readonly SiteVerification[];
+  }
 ): string {
   const copy = agreementRefusal(input);
   const path = escapeHtml(copy.path);
@@ -766,7 +777,8 @@ export function agreementRefusalDocument(
           { name: 'Held by agreement', path: copy.path },
         ],
       },
-      ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css']
+      ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css'],
+      input.verification ?? []
     )
   );
 }

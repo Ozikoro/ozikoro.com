@@ -1,4 +1,5 @@
 import { SITE_ORIGIN } from './seo.ts';
+import { verificationTags, type SiteVerification } from './seo-verification.ts';
 
 /**
  * The document head, generated for every page the archive serves.
@@ -23,9 +24,27 @@ import { SITE_ORIGIN } from './seo.ts';
  * WHAT IS EMITTED, AND WHY EACH IS HERE
  *
  *   title, description, canonical, robots        the four things a crawler reads first
+ *   site-verification tokens                     the owner's own, and only when he has pasted one
  *   Open Graph and Twitter cards                 what a shared link looks like
  *   JSON-LD, one @graph                          see below
  *   Highwire `citation_*`                        **Google Scholar reads these and nothing else.**
+ *
+ * THE VERIFICATION TOKENS, WHICH ARE THE OWNER'S OWN AND ARE NEVER INVENTED
+ *
+ *   "i gave you yoast seo premium to replicate it's functions. now i want to see the seo in my dashboard and
+ *    it it function like the original yoast so i can see where to add google web master search engine code,
+ *    yandex, bing and others"
+ *
+ * `verification` is what `loadSeoVerification` read out of `site_setting` for this request, and it is passed
+ * IN rather than read here because this function is synchronous and pure and has no database — which is also
+ * what makes it testable without a cluster. **A CALLER THAT FORGETS IT EMITS NO VERIFICATION TAG ON ITS OWN
+ * PAGE AND NOWHERE ELSE**, which is the one way this feature can be got wrong: a token that reaches the
+ * front page and not the 1,051 records. `seo-verification.test.ts` fails if any caller in `apps/ozikoro`
+ * builds a head without passing it, so the next route added cannot quietly be the one that misses it.
+ *
+ * An empty list emits nothing at all — there is no `<meta name="google-site-verification" content="">` —
+ * because a verification tag with an empty content claims a verification that cannot succeed. See
+ * `seo-verification.ts`.
  *
  * THE CITATION META IS THE PART WORTH ARGUING FOR
  *
@@ -140,8 +159,15 @@ export const DESIGN_THEME_HREF = '/design-theme.css';
  * `styles` is passed in rather than hard-coded so the caller decides which sheets the page needs — **the design
  * loads `main.css` and `showcase.css`, and a page that loaded them twice would be a rendering fault rather than
  * an SEO one.** The design-override sheet is appended rather than left to the caller, for the reason above.
+ *
+ * `verification` is the owner's site-verification tokens, and it is emitted as `<meta name="…" content="…">`
+ * pairs directly after `robots`. An empty list emits nothing; see the header.
  */
-export function seoHead(record: SeoRecord, styles: string[]): string {
+export function seoHead(
+  record: SeoRecord,
+  styles: string[],
+  verification: readonly SiteVerification[] = []
+): string {
   const url = `${SITE_ORIGIN}${record.path}`;
   const title = clamp(record.title, 60);
   const description = clamp(
@@ -265,6 +291,16 @@ export function seoHead(record: SeoRecord, styles: string[]): string {
     : `<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">`;
 
   /*
+   * THE OWNER'S VERIFICATION TOKENS, WHICH ARE NOTHING AT ALL UNTIL HE PASTES ONE.
+   *
+   * `verificationTags` returns `[]` for an engine with no token, so this line contributes an empty string and
+   * no empty `<meta content="">` can be produced. It sits beside `robots` because both are tags about the
+   * DOCUMENT'S RELATION TO A CRAWLER rather than about the record, and because a head whose verification
+   * tags are four lines down from the top is a head a reader of the source can check at a glance.
+   */
+  const verify = verificationTags(verification).join('\n');
+
+  /*
    * THE DESIGN'S OWN SHEETS, THEN THE OWNER'S OVERRIDES. `DESIGN_THEME_HREF` is appended and never inserted,
    * because a declaration only wins against the custom property it overrides by coming later in the cascade.
    */
@@ -278,6 +314,7 @@ export function seoHead(record: SeoRecord, styles: string[]): string {
 <meta name="description" content="${esc(description)}">
 <link rel="canonical" href="${esc(url)}">
 ${robots}
+${verify}
 ${og.join('\n')}
 ${citation.join('\n')}
 ${sheets}

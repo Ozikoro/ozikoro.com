@@ -113,87 +113,193 @@ export default async function AdminLayout({ children }: { children: React.ReactN
    */
   const workspaces = dashboardModesFor({ platformRole: account.role, capabilities });
 
+  /*
+   * ── THE SECTIONS, ONCE, AND DRAWN AT THE DESIGN'S OWN TWO SHAPES ─────────────────────────────────────
+   *
+   * The owner: *"i clicked on it to see the admin, and it was completely scattred. this is not exactly as it
+   * was in the demo."* The demo is `public/design/screens/dashboard-admin.html`, and it puts these links in
+   * **`aside.sx-dash-side` as a vertical `nav.sx-dash-nav`** — not in a horizontal row above the page.
+   *
+   * What was there instead was `nav.admin-nav` with `flex-wrap: wrap` in `globals.css` and fifteen items in
+   * it: **measured at 1280 px it wrapped onto two rows, and the "Your workspaces" strip below it onto two
+   * more** — four ragged rows of small links between the reader and the page, which is what a reader means
+   * by scattered. The links themselves were all in the right place; the shape they were drawn in was not the
+   * design's, and no link has been removed to change it.
+   *
+   * ⚠️ TWO PLACEMENTS FROM ONE LIST, BECAUSE THE DESIGN HIDES THE RAIL BELOW 60REM. `showcase.css:278` sets
+   * `.sx-dash-side { display: none }` and `.sx-mobile-dashnav { display: flex }` at that width. **A rail that
+   * is the only menu and is `display:none` on a phone is fifteen unreachable screens**, so the list is a
+   * value and both placements read it — a second hand-written list is how a menu loses the screen added to
+   * it three rounds later.
+   */
+  const sections: { href: string; label: string }[] = [
+    { href: '/admin', label: 'Overview' },
+    { href: '/admin/archive', label: 'Editorial queue' },
+    { href: '/admin/entities', label: 'Knowledge graph' },
+    { href: '/admin/reviews', label: 'Review queue' },
+    { href: '/admin/audio', label: 'Audio review' },
+    { href: '/admin/pronunciation', label: 'Pronunciations and credits' },
+    { href: '/admin/media', label: 'Media register' },
+    { href: '/admin/rights', label: 'Media rights' },
+    { href: '/admin/claims', label: 'Claims' },
+    { href: '/admin/users', label: 'Users' },
+    { href: '/admin/audit', label: 'Audit trail' },
+    /*
+     * THE TRASH SITS WITH THE QUEUES, NOT BESIDE SPOTIFY.
+     *
+     * Restoring a deleted record is an editor's work — the owner's rule is that an editor "can recover or do
+     * anything" — so the screen is part of the editorial round rather than an owner's tool. **Only the destroy
+     * button on it is not the editor's**, and that is a control the screen withholds rather than the screen
+     * itself, which is why this link is not hidden from an editor.
+     */
+    { href: '/admin/trash', label: 'Trash' },
+  ];
+
+  /*
+   * INSTITUTIONAL ACCESS IS THE ONE SECTION THE NAVIGATION HIDES FROM AN EDITOR.
+   *
+   * Every other entry here is offered to everyone the layout admits, because the page's own guard answers for
+   * it and a hidden link is presentation rather than authorisation. This one is different: **only the `owner`
+   * role holds `grant_institutional_access`** — the owner's own decision, and the reason is in
+   * `docs/OZIKORO-REMAINING.md` — so the link is drawn only for an account that holds it. The page still
+   * guards itself as its first statement, so hiding the link is not what protects it.
+   */
+  if (capabilities.has(GRANT_ACCESS_CAPABILITY)) {
+    sections.push({ href: '/admin/access', label: 'Institutional access' });
+  }
+
+  /*
+   * THE DESIGN EDITOR, THE SEARCH ENGINES, THEN SPOTIFY — THE THREE THAT CHANGE THE SITE RATHER THAN ITS
+   * CONTENT, IN THE ORDER THE NAVIGATION HAS CARRIED THEM.
+   *
+   * `/admin/design/` is the only screen whose edits are visible to every reader rather than to the archive's
+   * own queues. **Under the owner's current rule an editor may reach it too**: the rule is "everything except
+   * purging the trash", and migration 0055 grants `manage_design` accordingly. An earlier and narrower
+   * instruction would have made it admin-only; that instruction was withdrawn, and a parallel round that
+   * decided otherwise is flagged in the round's report so the two agree.
+   *
+   * `/admin/seo/` is where the owner pastes the verification tokens Google, Bing and Yandex issue, and the
+   * page itself is gated on `manage_design` — the same capability — so the link is drawn for everyone the
+   * layout admits, exactly like "The design", because the page's own guard is what refuses a caller without
+   * the capability; a hidden link is presentation, not authorisation.
+   */
+  sections.push(
+    { href: '/admin/design', label: 'The design' },
+    { href: '/admin/seo', label: 'Search engines' },
+    { href: '/admin/spotify', label: 'Spotify' }
+  );
+
+  /*
+   * WHICH SECTION IS OPEN, WHICH THE OLD BAR NEVER SAID. The design's rail marks its own entry with
+   * `aria-current="page"` and `showcase.css` gives that state the gold title and the gold left rule, so a
+   * reader can see where they are in fifteen screens. `x-pathname` is the path the reader actually asked for,
+   * set by the middleware and already used above for the sign-in return address.
+   */
+  const here = requestedPath.replace(/\?.*$/, '').replace(/\/+$/, '') || '/admin';
+  const isHere = (href: string) => href === here || (href !== '/admin' && here.startsWith(href));
+
+  const railNav = (
+    <nav className="sx-dash-nav" aria-label="Sections">
+      {sections.map((section) => (
+        <Link key={section.href} href={section.href} aria-current={isHere(section.href) ? 'page' : undefined}>
+          {section.label}
+        </Link>
+      ))}
+    </nav>
+  );
+
   return (
     <>
       <a className="skip" href="#main">
         Skip to content
       </a>
-      <div className="admin-bar">
-        <div className="admin-bar__inner">
-          <Link href="/admin">Ozikoro administration</Link>
-          <span className="admin-bar__who">
-            {label} · {ROLE_LABEL[account.role] ?? account.role}
-          </span>
-          <form method="post" action="/api/auth/signout">
-            <button className="btn btn--sm" type="submit">
-              Sign out
-            </button>
-          </form>
-        </div>
-      </div>
-      <nav className="admin-nav" aria-label="Sections">
-        <div className="admin-nav__inner">
-          <Link href="/admin">Overview</Link>
-          <Link href="/admin/archive">Editorial queue</Link>
-          <Link href="/admin/entities">Knowledge graph</Link>
-          <Link href="/admin/reviews">Review queue</Link>
-          <Link href="/admin/audio">Audio review</Link>
-          <Link href="/admin/pronunciation">Pronunciations and credits</Link>
-          <Link href="/admin/media">Media register</Link>
-          <Link href="/admin/rights">Media rights</Link>
-          <Link href="/admin/claims">Claims</Link>
-          <Link href="/admin/users">Users</Link>
-          <Link href="/admin/audit">Audit trail</Link>
-          {/*
-            THE TRASH SITS WITH THE QUEUES, NOT BESIDE SPOTIFY.
+      {/*
+        THE DESIGN'S OWN DASHBOARD GRID, WHICH IS `div.sx-dashboard`, AND ITS TWO CHILDREN.
 
-            Restoring a deleted record is an editor's work — the owner's rule is that an editor "can recover or
-            do anything" — so the screen is part of the editorial round rather than an owner's tool. **Only the
-            destroy button on it is not the editor's**, and that is a control the screen withholds rather than
-            the screen itself, which is why this link is not hidden from an editor.
-          */}
-          <Link href="/admin/trash">Trash</Link>
+        `showcase.css:276` draws it as `grid-template-columns: 16rem minmax(0, 1fr)` with a sticky full-height
+        night rail — so the section list is beside the work rather than above it, which is the whole of the
+        difference between the page the owner described as scattered and the page the design draws.
+      */}
+      <div className="sx-dashboard">
+        <aside className="sx-dash-side">
+          <Link className="sx-dash-brand" href="/">
+            Ozikoro
+          </Link>
+          <p className="small" style={{ marginTop: 'var(--s-1)', color: 'var(--on-night-muted)' }}>
+            Administration
+          </p>
+          {railNav}
           {/*
-            INSTITUTIONAL ACCESS IS THE ONE SECTION THE NAVIGATION HIDES FROM AN EDITOR.
+            THE WAY BACK TO THE WORKSPACES, BECAUSE A DOOR THAT ONLY OPENS INWARDS IS HALF A DOOR.
 
-            Every other entry here is offered to everyone the layout admits, because the page's own guard
-            answers for it and a hidden link is presentation rather than authorisation. This one is different:
-            **only the `owner` role holds `grant_institutional_access`** — the owner's own decision, and the
-            reason is in `docs/OZIKORO-REMAINING.md` — so the link is drawn only for an account that holds it.
-            The page still guards itself as its first statement, so hiding the link is not what protects it.
+            The owner's words were *"and to admin mode anytime they want"*, and the other half of that is
+            getting out again: the administration's navigation listed its sections and not one of them led to a
+            dashboard. **A person who arrived from a workspace had no route back to one.**
+
+            The list is the same allow-list the dashboards' own switch is built from — `dashboardModesFor` — so
+            an editor is offered the editorial desk and the publishing workflow, a moderator the moderation
+            queue, and the owner every workspace the archive draws. **It is not a second list that could
+            disagree with the first**, and nothing here widens what anybody may do: every entry is a screen the
+            account's own capabilities already open, and the screen refuses anyone whose capabilities do not.
           */}
-          {capabilities.has(GRANT_ACCESS_CAPABILITY) && (
-            <Link href="/admin/access">Institutional access</Link>
+          {workspaces.length > 0 && (
+            <nav className="sx-dash-nav" aria-label="Your workspaces">
+              <p className="small" style={{ margin: 'var(--s-5) 0 0', color: 'var(--on-night-muted)' }}>
+                Your workspaces
+              </p>
+              {workspaces.map((mode) => (
+                <Link key={mode.mode} href={dashboardModeHref(mode)}>
+                  {mode.label}
+                </Link>
+              ))}
+            </nav>
           )}
+          {/* The design's rail ends with this, and so does this one. */}
+          <nav className="sx-dash-nav" aria-label="Return">
+            <Link href="/">Return to public site</Link>
+          </nav>
+        </aside>
+        <main className="sx-dash-main" id="main">
           {/*
-            THE DESIGN EDITOR IS LAST BUT NOT LEAST.
-
-            It is the only screen whose edits are visible to every reader rather than to the archive's own
-            queues — so it sits beside Spotify, which is the other screen that changes the site rather than its
-            content. **Under the owner's current rule an editor may reach it too**: the rule is "everything
-            except purging the trash", and migration 0055 grants `manage_design` accordingly. An earlier and
-            narrower instruction would have made it admin-only; that instruction was withdrawn, and a parallel
-            round that decided otherwise is flagged in the round's report so the two agree.
+            THE SAME SECTIONS, FOR THE WIDTHS WHERE THE RAIL IS `display:none`. The design draws this
+            scroller and `showcase.css` shows it below 60rem; above that it is hidden and the rail is shown, so
+            exactly one of the two is ever on the screen.
           */}
-          <Link href="/admin/design">The design</Link>
-          <Link href="/admin/spotify">Spotify</Link>
-        </div>
-      </nav>
-      {workspaces.length > 0 && (
-        <nav className="admin-nav admin-workspaces" aria-label="Workspaces">
-          <div className="admin-nav__inner">
-            <span className="admin-workspaces__label">Your workspaces</span>
-            {workspaces.map((mode) => (
-              <Link key={mode.mode} href={dashboardModeHref(mode)}>
-                {mode.label}
+          <nav className="sx-mobile-dashnav" aria-label="Sections">
+            {sections.map((section) => (
+              <Link key={section.href} href={section.href} aria-current={isHere(section.href) ? 'page' : undefined}>
+                {section.label}
               </Link>
             ))}
-          </div>
-        </nav>
-      )}
-      <main className="admin-shell" id="main">
-        {children}
-      </main>
+          </nav>
+          <header className="sx-dash-top">
+            <div>
+              <p className="eyebrow">Platform control</p>
+              <strong>Administration</strong>
+            </div>
+            <div className="row">
+              {/*
+                THE NAME AND THE ROLE LIVE HERE, WHICH IS WHERE THEY ARE USEFUL.
+
+                The owner's instruction removed them from the public masthead's control — *"'My Account' was
+                enough"* — and he did not say the fact was worthless. This bar is inside the back office, it is
+                read by the person it names and nobody else, and it is where the design puts the same
+                information (`sx-dash-top`). `/workspace/` prints both as well, from the session, for the
+                screens a member reads rather than works in.
+              */}
+              <span className="small muted">
+                {label} · {ROLE_LABEL[account.role] ?? account.role}
+              </span>
+              <form method="post" action="/api/auth/signout">
+                <button className="btn btn-sm" type="submit">
+                  Sign out
+                </button>
+              </form>
+            </div>
+          </header>
+          <div className="sx-dash-content">{children}</div>
+        </main>
+      </div>
     </>
   );
 }
