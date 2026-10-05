@@ -188,6 +188,21 @@ const EXPECTED_OMISSIONS = {
  */
 const OMITTED_SECTION_HEADINGS = {
   '/': ['see the archive. hear its voices.'],
+  /*
+   * ⚠️ `/topics` AND THE ALPHABET, WHICH IS A PLACEHOLDER THE PATTERN ABOVE CANNOT SEE.
+   *
+   * `topics.html` draws an A–Z index: nine `<h2>` elements holding the single letters **A C E F I O P R S**.
+   * The served page lists the sixteen letters that HAVE topics — A B C D E F H I L M N O P R U V — read from
+   * the register rather than typed. **No topic begins with S, so there is no S heading, and the page is
+   * right.** *A page that invented an empty S to match a placeholder would be the wrong fix*, and this is the
+   * same rule the PLACEHOLDER regex applies to "String games photograph" and "more verified records appear
+   * here" — except a one-letter heading is below the length at which that pattern can tell structure from
+   * sample data.
+   *
+   * The letters are declared rather than the mismatch being waived, so that **a REAL heading appearing on
+   * `/topics` is still compared**: only these nine strings are excused, and a tenth would fail.
+   */
+  '/topics': ['a', 'c', 'e', 'f', 'i', 'o', 'p', 'r', 's'],
 };
 
 /*
