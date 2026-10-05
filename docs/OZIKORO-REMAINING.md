@@ -28204,9 +28204,19 @@ account   6, re-read immediately after the backup
 > ```
 >
 > The same file lists **833 entries** when it is streamed in over stdin. **Any restore instruction of the
-> form `docker compose exec -T postgres pg_restore --list /tmp/<file>` is wrong on this host**, and that
-> includes the shape in this document's own §4a. The working form is
-> `docker compose … exec -T postgres pg_restore --list < /tmp/<file>`, or a path inside the mount.
+> form `docker compose exec -T postgres pg_restore --list /tmp/<file>` is wrong on this host.** The working
+> form is `docker compose … exec -T postgres pg_restore --list < /tmp/<file>`, or a path inside a mount the
+> container actually has.
+>
+> **⚠️ AND THIS ROUND FIRST WROTE THAT `docs/OZIKORO-CUTOVER.md` §4a HAD THE BROKEN SHAPE. IT DOES NOT.**
+> Checked before writing round 368: §4a's line is
+> `pg_restore --list < /tmp/restore.dump | head -40` — **the streamed form, which is correct, and it was
+> correct before this round touched anything.** The broken shape came from the brief and from this round's
+> own first attempt, not from that document. **The claim is corrected here rather than quietly dropped**,
+> because a round that misattributes a fault to a file it did not re-read has made the same class of
+> mistake it spent the round documenting. The one path-form instruction in the repository is in
+> `docs/OZIKORO-CUTOVER-AND-ROLLBACK.md` — `pg_restore --list /backups/ozituma-<stamp>.dump` inside the
+> `backup` service — and **that is a path in a volume that service mounts, which is a different thing.**
 
 ### 9. The load, and every count against the reconciliation
 
@@ -28412,3 +28422,266 @@ right.
 **The transfer left nothing behind: the object was deleted, the bucket was deleted, and `head-bucket`
 returns 404.** The one file this round made on the host was deleted; the one it made deliberately is the
 backup, and its path, size and entry count are in §8.
+
+---
+
+## ROUND 368 — THE CORPUS ROUND 367 LOADED WAS THE OLDER COPY: 5,456 MORE ROWS, AND `/contact/` WAS A 404 BECAUSE THE ROW WAS MISSING RATHER THAN THE ROUTE
+
+Round 367 loaded `.data/scratch-recon/pg` — the copy the brief named — and every one of its counts landed on
+the host exactly. **It was the wrong copy.** `.data/scratch-r362-pg` is newer (60 migrations against 55) and
+holds **4,269 article revisions, 10 sources, 10 article-source links, 2 more articles, 6 more media rows,
+1,157 more audit rows and one more member** that the older copy never had. This round measured the
+difference, moved it, and proved the move by hash rather than by count.
+
+**The prize was `ozikoro_article_revision`.** It was empty on the host, which meant the deployed archive had
+**no revision history at all** — not metadata, the record of how each article changed.
+
+### 1. The measurement that made the load safe, and it is not a count
+
+**A count cannot tell "the host's 1,620 are the first 1,620" from "the host's 1,620 are a different 1,620".**
+The first is a clean `COPY`; the second is a silent content loss. So the test was a hash of the sorted id
+list, and the property tested was **nesting**: is the host's set exactly the newer copy's rows up to the
+host's own maximum id?
+
+```
+                       host          newer copy      <= host max, hashed      verdict
+ozikoro_article        1620 max 2677   1622 max 2679   1620  md5 4e1a208f…   ✅ IDENTICAL
+ozikoro_media          3488 max 3488   3494 max 6982   3488  md5 8763cb65…   ✅ IDENTICAL
+ozikoro_audit           515 max  952   1672 max 2182    515  md5 6008a845…   ✅ IDENTICAL
+ozikoro_member            2 max  253      3 max  269      2  md5 cc7f4b03…   ✅ IDENTICAL
+ozikoro_member_role       2 max  114      3 max  125      2  md5 12317c2a…   ✅ IDENTICAL
+```
+
+**Every host set nests.** So "the rows the host lacks" is exactly "ids above that maximum", the delta is
+finite and named, and a plain `COPY` of it cannot collide. **Had any row failed that test, the correct answer
+would have been the importers rather than `dump.ts`, and the failure would have been a finding of its own.**
+
+### 2. The delta, counted and named
+
+| table | host | newer copy | kept | **dropped** | the dropped count must equal the host's |
+|---|---:|---:|---:|---:|---|
+| `ozikoro_article` | 1620 | 1622 | **2** | 1620 | ✅ ids **2678, 2679** |
+| `ozikoro_media` | 3488 | 3494 | **6** | 3488 | ✅ ids **6977–6982** |
+| `ozikoro_audit` | 515 | 1672 | **1157** | 515 | ✅ |
+| `ozikoro_member` | 2 | 3 | **1** | 2 | ✅ id **269** |
+| `ozikoro_member_role` | 2 | 3 | **1** | 2 | ✅ id **125** |
+| `ozikoro_article_revision` | 0 | 4269 | **4269** | 0 | table absent from this copy before |
+| `ozikoro_source` | 0 | 10 | **10** | 0 | |
+| `ozikoro_article_source` | 0 | 10 | **10** | 0 | |
+| `ozikoro_role_capability` | 100 | 100 | **0** | — | **✅ md5-identical sets — see §4** |
+| | | | **5,456** | **5,627** | |
+
+**The check that matters is the DROPPED column: it equals the host's own row count on every table**, which is
+what makes the filter a measurement rather than an inference. And the rows kept are the ones the first
+measurement predicted, read back out of the file rather than trusted:
+
+```
+ozikoro_article   2678, 2679          ozikoro_media  6977, 6978, 6979, 6980, 6981, 6982
+ozikoro_member    269                 ozikoro_member_role  125
+ozikoro_article_source  10 rows, every one article_id 2678  ← the sources arrived with the new article
+```
+
+### 3. The tool gained `--table`, and round 367's own rule needed narrowing
+
+Round 367 wrote in the cutover document that *"a delta must go through the importers, not through
+`dump.ts`"*. **The first half was right and the second half was too strong, and this round corrected it in
+the document.** `dump.ts` cannot *merge* — `COPY` has no `ON CONFLICT` — but it can emit exactly the rows a
+host lacks, once the prefix property above is proved. So it gained one option:
+
+```bash
+node packages/db/src/dump.ts --table ozikoro_source --table ozikoro_article_source > delta.sql
+```
+
+Repeatable, refused on an unknown name (exit 2 — *"unknown table(s) for --table: ozikoro_nonexistent"*,
+tested), and re-ordered into `TABLES` order so a delta still reads parents-first whatever order it was typed
+in. **A typo that quietly dumped nothing would be indistinguishable from a delta of zero rows**, which is
+the same silent-success fault the pagination fix in round 367 exists for.
+
+The reduction itself is a separate step and belongs to the transfer, not the tool: `reduce.py` drops rows at
+or below the host's maximum, rewrites each `-- <table> (N rows)` banner to the number that survived, and
+prints the kept/dropped table above. **The 11,083-row dump became 5,456 rows — 40,175,989 bytes.**
+
+### 4. `ozikoro_role_capability`, closed permanently
+
+Round 367 excluded this table from the corpus on the argument that the host's own migrations had filled it
+with newer rows. **Round 368 settles it rather than arguing it:**
+
+```
+host          100 rows   md5(role~capability) = a91e1744fc736301f4b0a34bfa3db859
+newer copy    100 rows   md5(role~capability) = a91e1744fc736301f4b0a34bfa3db859
+              ✅ THE SAME 100 ROWS
+```
+
+**Not merely equal in size — the same rows, set for set.** The exclusion was right, and it is now a fact
+rather than a judgement. Nothing was emitted and nothing changed.
+
+### 5. Before the load: a backup, and a referential pre-flight
+
+```
+path      /tmp/pre-delta-2026-10-05T19-13-17Z.dump
+size      14,164,758 bytes          (up from 9,220,149 — the new revision rows are real text)
+pg_dump   exit 0
+entries   1460 lines from `pg_restore --list`
+```
+`/tmp/pre-corpus-2026-10-05T18-55-50Z.dump` and `/tmp/pre-migrate.dump` were both left intact.
+
+**The pre-flight that mattered, because `session_replication_role = replica` suspends foreign keys and a bad
+reference would load silently as an orphan:**
+
+* `ozikoro_article_revision` — 4,269 rows, `max(article_id) 2679`, **0 rows pointing above it**, referencing
+  1,093 distinct articles, **8 of them the two new ones.**
+* `ozikoro_article_source` — 10 rows, every `source_id` in **13–22** (all in the delta), every `article_id`
+  **2678** (in the delta).
+* The six new media rows carry **`contributor_id` NULL** and `deleted_by` NULL, and the only foreign keys on
+  `ozikoro_media` are `contributor_id → ozikoro_contributor` and `deleted_by → account`, both nullable and
+  both `ON DELETE SET NULL`.
+* **And the six `storage_key`s were fetched through the public origin BEFORE the load** — all six already
+  present at their recorded byte counts (`194,344 · 43,216 · 20,129 · 925,750 · 48,075 · 12,097`). **So the
+  six rows could not become six broken images, which is what the brief asked to be checked after the load
+  and is better checked before it.**
+
+### 6. The transfer, the load, and the proof
+
+```
+delta      40,175,989 bytes · sha256 aad0c92322cc9740c50ce981fbc469fc71c45dfa22520f7ad6dd8d367f59b41f
+bucket     ozikoro-corpus-delta-793264561107 · policy to arn:aws:iam::793264561107:user/ozituma-ses alone
+host       sha256 re-checked BEFORE the load, and the load is gated on it: a mismatch exits 1 and loads nothing
+load       exit 0 · COPY 10 · 6 · 2 · 10 · 4269 · 1 · 1 · 1157      (sum 5,456)
+```
+
+```
+                     before   after      target (newer copy)   host md5 after the load
+ozikoro_article        1620 →  1622            1622             8051596945cf75654fe071bf6958f20e  ✅
+ozikoro_media          3488 →  3494            3494             a270894ac714524ea0d1efd55f3ca2da  ✅
+ozikoro_article_rev       0 →  4269            4269             (4,269 rows)
+ozikoro_source            0 →    10              10
+ozikoro_article_source    0 →    10              10
+ozikoro_audit           515 →  1672            1672             9117a2410b55abe0c5155b219faa3d22  ✅
+ozikoro_member            2 →     3               3             f94acd1081982eecff6e4e9097359941  ✅
+ozikoro_member_role       2 →     3               3             0a18245f9c0655418d6e30b8dc786ce3  ✅
+ozikoro_role_capability 100 →   100             100             a91e1744fc736301f4b0a34bfa3db859  ✅
+account                   6 →     6               6
+```
+
+**The host's archive is now row-for-row the newer copy's, and every md5 above is that copy's own md5.** Set
+equality, not a count. `account`, `auth_session` (10), `api_key` (1), `word` (34,051) and `definition`
+(39,101) are unchanged, and the five containers are as they were — `ozikoro` and `academy` both healthy.
+
+### 7. What the two extra articles are, and one of them closes a blocking item
+
+```
+2678 | wp_post_id NULL | the-rivers-that-made-us | draft  | page=false | 3,020 words | 18,674 bytes of body
+2679 | wp_post_id 3591 | contact                  | review | page=true  |   146 words |  3,451 bytes of body
+```
+
+**⚠️ ARTICLE 2679 IS `wpc9_posts` 3591 — "Contact Us" — the record `docs/IMPORT-RECONCILIATION.md` §7.1
+calls *"the only WordPress page or post of any status that was not imported"*.** The cutover document had it
+as a **blocking** item, on the grounds that three published WordPress menu items pointed at `/contact/` and
+`/contact/` answered `404`.
+
+**The row was the whole fault, and no code was needed to fix it.** `apps/ozikoro/app/contact/route.ts`
+already exists and already answers the address; it returns `404` for exactly one reason:
+
+```sql
+select … from ozikoro_article
+ where wp_post_id = 3591 and is_page = true and status in ('draft','review')
+```
+
+The corpus loaded in round 367 came from a copy in which that row had **never been imported**, so the query
+matched nothing. After this round's load:
+
+```
+GET /contact/  by Host: ozikoro.com   →   200 · 1,886 bytes · <title>Contact — Ozikoro</title>
+                                          <h1>Contact Us</h1> · 675 characters of visible text
+                                          contact@ozikoro.com · stories@ozikoro.com  ← read out of body_html
+                                          noindex, nofollow
+                                          OZ-PAGE-2679                                ← THE ROW'S OWN KEY
+```
+
+**`OZ-PAGE-2679` is in the markup, built from the row's own `id` — so the 200 is this record and not a
+static page.** The route's own comment says the `status` clause is the decision and that publishing the
+page would move it to the article route with no change of address; that is still true and untouched. **The
+`/the-rivers-that-made-us/` draft answers `404`, which is also correct** — a draft is not public.
+
+### 8. And the six new media rows are live images, not six broken ones
+
+Fetched through the app, by Host header, after the load:
+
+```
+200 image/jpeg 194344  /media/ozikoro/3625-WhatsApp-Image-2025-06-10-at-03.11.02.jpeg
+200 image/jpeg  43216  /media/ozikoro/3701-sddefault.jpg
+200 image/jpeg  20129  /media/ozikoro/3734-rev-taylor.jpg
+200 image/jpeg 925750  /media/ozikoro/3779-IMG_9629.jpeg
+200 image/png   48075  /media/ozikoro/3780-Igbo-Men-with-Ichi-Scarification-Thomas-W.-Northcote-300x148.png
+200 image/jpeg  12097  /media/ozikoro/3801-Onitsha-Women-G.-F.-Packer-in-the-1880s-300x221.jpg
+```
+
+Every size is the `filesize_bytes` the row itself carries.
+
+### 9. Two corrections this round owes, one of them to itself
+
+**1. `pg_restore --list /tmp/<file>` — round 367 blamed the wrong document.** Round 367 wrote that *"the
+shape in this document's own §4a"* was broken. **Re-read in round 368, §4a's line is
+`pg_restore --list < /tmp/restore.dump | head -40` — the streamed form, correct, and correct before this
+round touched anything.** The broken shape came from the brief and from round 367's own first attempt. The
+claim is corrected in round 367's entry rather than dropped, because a round that misattributes a fault to a
+file it did not re-read has made its own subject matter. The one path-form instruction in the repository is
+`docs/OZIKORO-CUTOVER-AND-ROLLBACK.md`'s `pg_restore --list /backups/…` inside the `backup` service, and that
+is a path in a volume that service mounts — a different thing. **The real fact stands: the `postgres`
+container's only mount is `pgdata`, so it cannot see the host's `/tmp` at all.**
+
+**2. Round 368's first orphan check was wrong, and the corrected one is 0.** The query
+`count(*) from ozikoro_article_revision r left join ozikoro_article a on a.id = r.article_id where a.id is
+null` reported **74 orphans**. It is counting **NULLs**: a `LEFT JOIN` on a NULL key matches nothing, and a
+NULL foreign key is not an orphan. Measured properly:
+
+```
+revisions with article_id NULL                                  74     ← legitimate, the column is nullable
+revisions with a NON-NULL article_id that is absent              0     ← the real orphan check
+```
+
+**Those 74 rows are revisions whose article no longer exists — which is a shape this repository expects**:
+`apps/ozikoro/app/admin/archive/orphan-revisions/[parent]/[revisionId]/page.tsx` is a route for exactly
+them, and migration `0055_ozikoro_editor_and_the_purge.sql` is the purge that produces them. **They came with
+the data from the newer copy, not from this load**, and every other referential check across the archive
+returns 0: `article_source → article`, `article_source → source`, `media → contributor`, `article →
+contributor`, `article → media`, `article_media → article`, `article_media → media`.
+
+### 10. What does not work, and what this round did not verify
+
+* **The live WordPress site was not read, and the corpus is still a snapshot.** This round closed the gap
+  between two *local copies*; it did not refresh either from `ozikoro.com`. **The host now holds the state as
+  at the newer copy's date, and any publication after that is still missing.** That is the delta sync of
+  cutover §3 and it is unchanged.
+* **`--table` was exercised on the archive only.** The dictionary's default path is untouched and was still
+  not run this round; "the default works" rests on the diff and on typecheck.
+* **`ozikoro_article_revision` is loaded but not rendered.** No page was fetched that displays a revision,
+  and the admin route that does needs a session. **Rows in a table are not a working feature**, and this is
+  recorded as unverified rather than as done.
+* **The `ozikoro_audit` rows were copied, not reconciled.** 1,157 audit rows were appended by the same
+  prefix proof as everything else — they are the newer copy's rows above 952 — but **no round has asked what
+  those events are or whether their actor accounts exist on this host**, and audit rows name a person. The
+  columns are the newer copy's; their `account` references were not checked, and accounts were deliberately
+  not moved.
+* **`ozikoro-deploy-transfer-793264561107`, the orphaned bucket round 367 recorded, is gone** — verified by
+  `head-bucket` returning 404, and **the account now holds zero S3 buckets.** It was removed by its owner
+  after round 367's report, not by this round. This round's own bucket
+  (`ozikoro-corpus-delta-793264561107`) was deleted with its object and also returns 404.
+* **`/tmp` on the host moved from 171 to 185 entries while both rounds ran, and the difference is not
+  theirs.** These two rounds added one backup each and removed each transfer file after its load; the other
+  entries belong to other agents. **Both transfer files are gone**, so no restore can pick the wrong one —
+  which was the hazard the brief named.
+* **No DNS record, no Cloudflare setting and nothing under `apps/ozikoro/public/design/` was read or
+  written.** Parity prints `identical 64 differing 0 missing 0`. **No secret's value was printed**; the
+  host's `.env` was read by variable name only.
+
+### 11. The files this round changed
+
+| file | what |
+|---|---|
+| `packages/db/src/dump.ts` | `--table <name>`, repeatable and refused on an unknown name, ordered into `TABLES` order; documented in the header |
+| `docs/OZIKORO-CUTOVER.md` | §3's rule narrowed — an *emit* is safe when the target's rows are a proved prefix of the source's, while a *merge* still belongs to the importers — with the delta table and the md5 proofs; **§2 Condition 3's §7.1 blocking item resolved** and marked resolved, with the route's own query quoted; §5 item 3 corrected (the archive image builds and is running healthy, and the server is PostgreSQL 16.15); §5 item 12 half-corrected, with the half that still needs `ozikoro.com` named |
+| `docs/OZIKORO-REMAINING.md` | this record, and round 367's misattribution to cutover §4a corrected in place |
+
+**The archive on the host is now the newer copy's archive, set for set, and the one record the cutover
+document called the only WordPress page never imported is served rather than 404.**

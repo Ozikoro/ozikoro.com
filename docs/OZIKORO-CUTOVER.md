@@ -222,6 +222,19 @@ answered `200` and correct `text/html` on three separate occasions.
 >   `stories@ozikoro.com`) is **the only WordPress page or post of any status that was not
 >   imported**, `apps/ozikoro/app` has **no `/contact` route**, so `/contact/` answers **404** —
 >   **and three published WordPress menu items pointed at it.**
+>
+>   **✅ RESOLVED IN ROUND 368, AND NO CODE WAS NEEDED FOR IT — THE ROW WAS MISSING, NOT THE ROUTE.**
+>   `apps/ozikoro/app/contact/route.ts` **does exist** (the sentence above was already stale on that point),
+>   and it answers `404` for exactly one reason: its own query finds no row.
+>   `select … from ozikoro_article where wp_post_id = 3591 and is_page = true and status in ('draft','review')`
+>   — and the corpus that was loaded in round 367 came from a copy in which that row had **never been
+>   imported**, so the query matched nothing. The newer copy `.data/scratch-r362-pg` holds it as
+>   `id 2679 · wp_post_id 3591 · slug contact · status review · is_page true`, round 368 loaded it, and
+>   **`/contact/` now answers `200`, 1,886 bytes, `<h1>Contact Us</h1>`, with the record's own
+>   `contact@ozikoro.com` and `stories@ozikoro.com` read out of `body_html`.** The proof that the 200 is
+>   *this row* and not a static page is that the markup carries the row's own key — **`OZ-PAGE-2679`** —
+>   and `noindex, nofollow`, so an unpublished record is not filed as published. **The three published menu
+>   items that pointed at a 404 now land on the record.**
 > - **§7.10 — four of the six published pages' WordPress addresses answer 404**: `/authors/`,
 >   `/privacy-policy/` (the content is served at `/privacy/`), `/nze/` and `/construction/`. The
 >   content is in the cluster for all six; the *published addresses* are not all served.
@@ -492,6 +505,44 @@ moment it is taken.
 > **The three counts that must be re-read before any switch, and were not re-read for the load:** the host's
 > copy is the corpus **as imported on 2026-10-03**, and the live WordPress site has been written to since.
 > Nothing in round 367 refreshes it.
+>
+> ---
+>
+> **⚠️ AND ROUND 368 CORRECTED ROUND 367'S OWN WARNING ABOUT `dump.ts`, BECAUSE THE DELTA WAS TAKEN WITH IT.**
+> The paragraph above says *"a delta must go through the importers, not through `dump.ts`"*. **The first half
+> is right and the second half is too strong.** What `dump.ts` cannot do is *merge* — `COPY` has no
+> `ON CONFLICT`. **What it can do, with the delta measured rather than assumed, is emit exactly the rows the
+> host lacks**, and that is what round 368 did:
+>
+> ```
+> measured by md5, not by count:  is the host's id set exactly the newer copy's ids up to the host's
+>                                 own maximum?  YES, on every table — so the rows the host lacks are
+>                                 exactly the ids above that maximum, and a plain COPY cannot collide.
+>
+> ozikoro_article            1620 → 1622    +2      ids 2678, 2679
+> ozikoro_media              3488 → 3494    +6      ids 6977–6982
+> ozikoro_audit               515 → 1672    +1157
+> ozikoro_member                2 → 3       +1      id 269
+> ozikoro_member_role           2 → 3       +1      id 125
+> ozikoro_article_revision      0 → 4269   +4269    (was absent from the old copy altogether)
+> ozikoro_source                0 → 10      +10
+> ozikoro_article_source        0 → 10      +10
+> ozikoro_role_capability     100 → 100      0      ✅ md5-identical sets — the exclusion in round 367 was right
+>                                    TOTAL  +5,456
+> ```
+>
+> **And the host's archive is now row-for-row the newer copy's**, asserted the same way: after the load, the
+> md5 of each of those sorted id lists **equals the newer copy's own md5** — `article 8051596945cf75654fe071bf6958f20e`,
+> `media a270894ac714524ea0d1efd55f3ca2da`, `audit 9117a2410b55abe0c5155b219faa3d22`,
+> `member f94acd1081982eecff6e4e9097359941`, `member_role 0a18245f9c0655418d6e30b8dc786ce3`,
+> `role_capability a91e1744fc736301f4b0a34bfa3db859`. **The filter's own check is the dropped count: it
+> equalled the host's row count on every table, which is what makes "the rows the host lacks" a measurement
+> rather than an inference.**
+>
+> **So the rule for this section is narrower than round 367 wrote, and it is the right one:** *emitting* is
+> safe when the target's rows are known to be a prefix of the source's, and the prefix is proved by hash.
+> *Merging* — two sets that are not in a prefix relation, or rows whose ids have changed — still belongs to
+> the importers.
 
 ### 3.1 Where the copy stands, and how far behind it is
 
@@ -1142,6 +1193,13 @@ Stated rather than substituted. Each entry names what is missing and what would 
    archive has never been built or started on that host. There is no `docker` binary on this machine,
    so the build itself cannot be rehearsed here. Settle: reconcile the host tree, build from a pinned
    SHA, and watch `docker compose up -d ozikoro`.
+   > **✅ CORRECTED IN ROUND 368: IT BUILDS, IT IS RUNNING, AND IT IS HEALTHY.** Measured on the host with
+   > `docker ps`, twice, in rounds 367 and 368: **`ozituma-ozikoro-1` is running `ozikoro-site:latest`,
+   > `Up 3 hours (healthy)`**, behind `ozituma-caddy-1`, and it serves `ozikoro.com` by Host header at
+   > **`200`, 18,256 bytes**. So the settle step above has been taken and the answer is yes — **and the
+   > item is left in place rather than deleted, because the round that wrote it was measuring a host that
+   > genuinely had no such image.** Round 368 also measured the database it serves from: **PostgreSQL
+   > `16.15` on `aarch64-unknown-linux-musl`**, which is the pinned `postgres:16-alpine` and not 18.
 3b. **Whether the host's checkout and this checkout are the same repository at all.** The host's
    remote is `https://github.com/oziikoro/Ozikoro.git`; this clone's is
    `git@github.com:Ozikoro/ozikoro.com.git`. **The repository names differ**, and `AGENTS.md` names
@@ -1197,6 +1255,14 @@ Stated rather than substituted. Each entry names what is missing and what would 
 12. **The live counts, today.** Every count in §3.1 is as of its own date and none was re-measured
     this round, because that needs `ozikoro.com`. **The reconciliation agent is the instrument,
     not this document.**
+    > **HALF-CORRECTED IN ROUND 368, AND THE HALF THAT IS STILL OPEN IS THE ONE THAT NEEDS `ozikoro.com`.**
+    > **The host's own counts have now been re-measured, twice** — before and after each load — and they are
+    > no longer a question: `ozikoro_article` **1622**, `ozikoro_media` **3494**, `ozikoro_article_revision`
+    > **4269**, `ozikoro_source` **10**, `ozikoro_article_source` **10**, `ozikoro_audit` **1672**,
+    > `ozikoro_member` **3**, `ozikoro_role_capability` **100**, `account` **6**. **What no round has
+    > measured is the WordPress side** — whether the old site has been written to since 2026-10-03 — and
+    > that is what a delta sync still turns on. **The loaded corpus is the state as at its copy's date, and
+    > neither round 367 nor 368 refreshed it from the live site.**
 
 ---
 

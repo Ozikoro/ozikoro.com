@@ -40,6 +40,8 @@ import { closeDb, getDb, type Db } from './client.ts';
  *
  *   node packages/db/src/dump.ts > ozituma-data.sql            # the dictionary, as before
  *   node packages/db/src/dump.ts --set corpus > ozikoro.sql    # the archive's records, to load into a host
+ *   node packages/db/src/dump.ts --table ozikoro_source --table ozikoro_article_source > delta.sql
+ *                                                              # named tables only, for a second pass
  *
  * **`corpus` rather than `archive`, and the difference is two tables.** `archive` is the schema's whole
  * `ozikoro_*` list; `corpus` is that list minus the two reference tables the host's own migration chain
@@ -193,6 +195,31 @@ const TABLE_SETS: Record<string, readonly string[]> = {
  * statements for the biggest table in the corpus.
  */
 const PAGE_ROWS = 200;
+
+/**
+ * `--table <name>`, repeatable, as an explicit alternative to `--set`.
+ *
+ * **A DELTA IS NOT A SET.** The sets exist to move a whole corpus into empty
+ * tables. The second pass over a host that already holds most of a table is the
+ * other case: it has to name the tables it is topping up, and the ones it is
+ * topping up are not a corpus, they are a measurement. `--table` therefore also
+ * wins over `--set` when both are given, and the names are re-ordered into
+ * {@link TABLES} order so the output still reads parents-first.
+ *
+ * An unknown name is refused rather than skipped. A typo that quietly dumped
+ * nothing would be indistinguishable from a delta of zero rows, which is exactly
+ * the silent-success fault the pagination comment above exists for.
+ */
+function requestedTables(argv: readonly string[]): string[] {
+  const names: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === '--table') {
+      names.push(argv[i + 1] ?? '');
+      i += 1;
+    }
+  }
+  return names;
+}
 
 /**
  * Format a JS array as a Postgres array literal.
@@ -357,7 +384,20 @@ async function main(): Promise<void> {
   // list exists to prevent.
   const flag = process.argv.indexOf('--set');
   const requested = flag === -1 ? 'dictionary' : (process.argv[flag + 1] ?? '');
-  const tables = requested === '' ? undefined : TABLE_SETS[requested];
+  const explicit = requestedTables(process.argv);
+  const nameless = explicit.filter((t) => t === '').length;
+  const unknown = explicit.filter((t) => t !== '' && !TABLES.includes(t));
+
+  let tables = explicit.length > 0 ? explicit : TABLE_SETS[requested];
+  if (nameless > 0 || unknown.length > 0) {
+    process.stderr.write(
+      nameless > 0
+        ? '--table needs a table name\n'
+        : `unknown table(s) for --table: ${unknown.join(', ')}\n`
+    );
+    process.exitCode = 2;
+    return;
+  }
   if (!tables) {
     process.stderr.write(
       `unknown --set ${requested}: expected one of ${Object.keys(TABLE_SETS).join(', ')}\n`
@@ -365,7 +405,16 @@ async function main(): Promise<void> {
     process.exitCode = 2;
     return;
   }
-  process.stderr.write(`table set: ${requested} (${tables.length} tables)\n`);
+  if (explicit.length > 0) {
+    // Dependency order rather than the order they were typed, so a delta still
+    // reads parents-first.
+    tables = [...tables].sort((a, b) => TABLES.indexOf(a) - TABLES.indexOf(b));
+  }
+  process.stderr.write(
+    explicit.length > 0
+      ? `tables: ${tables.length} named by --table (${tables.join(', ')})\n`
+      : `table set: ${requested} (${tables.length} tables)\n`
+  );
 
   const db = await getDb();
   // Streamed to stdout so a multi-hundred-megabyte dump never has to be held in
