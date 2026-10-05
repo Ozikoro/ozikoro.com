@@ -174,8 +174,30 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
     });
   }
 
+  /*
+   * ⚠️ THE SAME JOIN THE PROFILE ROUTE MAKES, BECAUSE WITHOUT IT THIS LISTED A 404.
+   *
+   * This read `select account_id from ozikoro_member where is_public = true and status = 'active'`, and
+   * `getResearcher` — the function that decides whether `/researchers/<id>/` renders or 404s — reads:
+   *
+   *     from ozikoro_member m join account a on a.id = m.account_id
+   *    where m.account_id = $1 and m.is_public = true and m.status = 'active'
+   *
+   * **The join is the whole difference, and it is not cosmetic: `account` holds six rows while
+   * `ozikoro_member` holds members with no account behind them.** *So a member with no account row was
+   * dropped by the profile's query and kept by this one.*
+   *
+   * ⚠️ MEASURED ON THE LIVE SITE, 2026-10-05: `/sitemap/researchers` held **exactly one `<loc>`** —
+   * `https://ozikoro.com/researchers/199/` — **and it answered 404.** *The whole group was one URL and the
+   * URL was wrong.* A sitemap inviting a crawler to a page that does not exist is the same small lie as the
+   * redirects this file listed until round 260, in the other direction.
+   *
+   * **THE FIX ASKS THE ROUTE'S OWN QUESTION**, so the two cannot disagree: a researcher is listed exactly
+   * when their profile renders.
+   */
   const researchers = await db.rows<{ account_id: number }>(
-    `select account_id from ozikoro_member where is_public = true and status = 'active' order by account_id`
+    `select m.account_id from ozikoro_member m join account a on a.id = m.account_id
+      where m.is_public = true and m.status = 'active' order by m.account_id`
   );
   for (const r of researchers) out.push({ url: canonicalUrl(`researchers/${r.account_id}`), group: 'researchers', changeFrequency: 'monthly', priority: 0.6 });
 
