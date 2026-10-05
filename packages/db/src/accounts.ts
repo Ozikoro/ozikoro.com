@@ -47,9 +47,6 @@ const MAX_PASSWORD_LENGTH = 200;
 const SESSION_TTL_DAYS = 30;
 export const SESSION_COOKIE = 'ozituma_session';
 
-// The same person, on the courses side. See supabase-mirror.ts.
-import { mirrorAccount } from './supabase-mirror.ts';
-
 /*
  * `owner` outranks `admin`, and every check that asks for an admin has to admit the
  * owner. That is easy to get wrong by accident, so the comparisons live in the two
@@ -307,22 +304,6 @@ export async function registerAccount(
   );
   if (!row) throw new AccountError('internal', 'Could not create that account.');
 
-  /*
-   * Mirror the new account into Supabase, so the same person can sign in at learn.ozituma.com.
-   *
-   * Deliberately NOT awaited and NOT able to throw: the dictionary account is the product and it
-   * already exists by this line. If the courses are unreachable the learner has still registered,
-   * and `backfillAccounts` repairs the gap later. Making registration depend on a second system
-   * would mean an outage there stops people joining the dictionary.
-   *
-   * The plain password is in hand here and nowhere else — the row above holds a scrypt hash — so
-   * this is the only moment the two systems can be given the same credentials. It is passed
-   * straight through and never logged.
-   */
-  void mirrorAccount({ email, password: input.password, displayName: input.displayName }).catch(
-    () => undefined
-  );
-
   return normalise(row);
 }
 
@@ -509,11 +490,15 @@ export async function setAccountRole(
  *
  * WHY THERE IS A COOKIE DOMAIN AT ALL
  *
- * Without one the cookie is HOST-ONLY: a session created on ozituma.com is not sent to
- * learn.ozituma.com, so a learner who signs in on the dictionary arrives at the courses signed out
- * and has to sign in again. Setting the domain to `.ozituma.com` makes one cookie valid for both,
- * which is what §6.2 means by "a shared auth cookie domain (.ozituma.com)" and is the mechanism by
- * which one account works across the dictionary and the courses.
+ * Without one the cookie is HOST-ONLY, so a session created on one subdomain is not sent to another.
+ * The domain was originally `.ozituma.com` so that one sign-in covered both the dictionary and the
+ * courses host that has since been retired.
+ *
+ * **THE COURSES SIDE IS GONE** — that host, its Worker and its database were retired on 2026-10-04 —
+ * so the only host left is the dictionary itself and nothing currently needs to span two. The setting
+ * is kept because it is configuration rather than a constant, it is what a future sibling host would
+ * need, and removing it would be a behaviour change rather than a cleanup. Setting it is not the same
+ * as needing it.
  *
  * WHY IT IS CONFIGURATION AND NOT A CONSTANT
  *
