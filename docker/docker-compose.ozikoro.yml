@@ -1008,6 +1008,34 @@ services:
           sleep 300
         done
 
+
+  # ---------------------------------------------------------------------------
+  # AND THE CADDY SERVICE, WHICH DOES NOT GET THIS FOR FREE
+  #
+  # ⚠️ THE CADDYFILE NAMES {$OZIKORO_DOMAIN}, AND CADDY CANNOT SEE A VARIABLE THE
+  # SERVICE DOES NOT NAME. The host's own caddy service lists exactly one:
+  # `OZITUMA_DOMAIN`. Caddy substitutes an unset {$VAR} with the EMPTY STRING, so
+  # `{$OZIKORO_DOMAIN} {` became ` {` — a server block with no key — and Caddy
+  # refused the whole file with:
+  #
+  #   adapting config using caddyfile: server block without any key is global
+  #   configuration, and if used, it must be first
+  #
+  # That is AGENTS.md's own recorded fault — "compose passes a service only the
+  # variables it names … the symptom of forgetting is a silent 503 rather than a
+  # startup error" — happening to the proxy instead of to an application. It is
+  # silent in a worse way: the file looks valid, and only `caddy validate` says
+  # otherwise. The merge that added the archive's server blocks therefore has to
+  # add this name too, or the archive is unreachable and the whole proxy is one
+  # restart from refusing to start.
+  #
+  # A later compose file's `environment` MAP MERGES with an earlier one, so this
+  # adds a name without removing `OZITUMA_DOMAIN`.
+  # ---------------------------------------------------------------------------
+  caddy:
+    environment:
+      OZIKORO_DOMAIN: ${OZIKORO_DOMAIN:-ozikoro.com}
+
 volumes:
   caddydata:
   caddyconfig:
