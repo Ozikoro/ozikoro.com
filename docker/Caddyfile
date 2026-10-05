@@ -119,3 +119,55 @@ www.{$OZIKORO_DOMAIN} {
 		format json
 	}
 }
+
+# ---------------------------------------------------------------------------
+# The Academy — academy.ozikoro.com
+#
+# The learning layer, and the successor to learn.ozituma.com. A third site on the same proxy, the
+# same certificate and the same container network.
+#
+# NO `www` BLOCK, AND THAT IS THE SAME DECISION THE RETIRED COURSES HOST MADE. A course address is
+# something a learner is handed; a second spelling of it that redirects would only ever be a way for
+# a shared link to look wrong.
+#
+# THE CERTIFICATE DOES NOT YET NAME THIS HOST, AND THAT IS A KNOWN GAP RATHER THAN AN OVERSIGHT.
+# /opt/ozituma/certs/origin.pem is issued for *.ozituma.com and ozituma.com. Cloudflare's zone is on
+# `full` today, which does not validate the origin certificate, so this serves — but it is the same
+# state ozikoro.com is in for the same reason, and it stops being safe the moment anybody raises the
+# zone to `full (strict)`. The fix is one Origin CA certificate naming *.ozikoro.com, placed beside
+# this one and referenced here; until then, do not raise the zone.
+# ---------------------------------------------------------------------------
+{$ACADEMY_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# No page may be cached at the edge. The Academy sends no Cache-Control of its own, and an origin
+	# that says nothing lets Cloudflare apply its own default and cache the HTML — the failure the
+	# dictionary's notes record, where a visitor is served an old page and only a hard reload shows
+	# the truth.
+	header Cache-Control "private, no-cache, no-store, max-age=0, must-revalidate"
+
+	# Build assets are the exception, and the only one. Nitro writes the client bundle to
+	# `.output/public/assets/`, and every name carries a content hash.
+	@immutable path /assets/* /brand/* /favicon.svg /favicon.ico /apple-touch-icon.png
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	reverse_proxy academy:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

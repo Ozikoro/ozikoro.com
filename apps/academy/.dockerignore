@@ -1,0 +1,25 @@
+# Build context for `apps/academy` only.
+#
+# The image is built from this directory and not from the repository root, so the ignores here are
+# about this app rather than the monorepo.
+#
+# `node_modules` is excluded because the image installs its own from the lockfile: copying a host
+# tree in would shadow it, and a macOS install contains native binaries that cannot run on Alpine.
+# `.output` and `dist` are excluded because the image builds them; a stale one copied in would be
+# served in place of the fresh build without any error to say so.
+node_modules
+.output
+dist
+dist-ssr
+.nitro
+.vinxi
+
+# Editor and OS noise.
+.vscode
+.idea
+.DS_Store
+
+# Local environment files are never baked into an image.
+.env
+.env.*
+!.env.example
