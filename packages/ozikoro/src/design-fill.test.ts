@@ -1304,6 +1304,82 @@ test('the other screen that loads this script states its anchor too', () => {
 });
 
 /**
+ * EKE'S OTHER NAME, AND THE PLACES THE OWNER ASKED FOR IT (round 364).
+ *
+ * The design writes a variant for three of its four day cards and not for the fourth, and the owner's
+ * instruction is that `Eken` be added *"same way you added for others"*. **So this test reads the design's own
+ * markup first and asserts the bare card is still there to be matched** — a fill whose pattern no longer
+ * matches anything is the fault this file keeps recording, and it fails by serving the design unchanged —
+ * and then asserts the served card carries the variant in the same `<small>` form as the other three.
+ */
+test('the fourth day variant is on the card and the lede, and says who recorded it', () => {
+  const design = screen('igbo-calendar');
+  assert.ok(
+    design.includes('<article data-day-card="Eke"><span>01</span><h2>Eke</h2></article>'),
+    'the design no longer writes the bare Eke card, so the fill’s replacement would match nothing'
+  );
+
+  const out = igbo();
+  assert.ok(
+    out.includes('<article data-day-card="Eke"><span>01</span><h2>Eke <small>Eken</small></h2></article>'),
+    'Eke still carries no variant'
+  );
+  // In the same form as the other three, which is what the owner asked for.
+  for (const [day, variant] of [['Orie', 'Oye'], ['Afọ', 'Afor'], ['Nkwọ', 'Nkwor']]) {
+    assert.ok(out.includes(`<h2>${day} <small>${variant}</small></h2>`), `${day} lost its variant`);
+  }
+  // And the lede's list of pairs, which the design writes for three days, takes the fourth.
+  assert.ok(out.includes('follow Eke/Eken, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor'), 'the lede still lists Eke without its pair');
+  /*
+   * THE SELECT IS A VALUE LIST RATHER THAN A SPELLING LIST, AND IS DELIBERATELY LEFT ALONE. Its options are what
+   * the design's `marketDay()` and the `?day=` comparison match a request against, so a variant there would be a
+   * choice that selects nothing.
+   */
+  assert.ok(
+    out.includes('<select data-upcoming-select><option>Eke</option><option>Orie</option><option>Afọ</option><option>Nkwọ</option></select>'),
+    'the market-day select was changed'
+  );
+  /*
+   * THE PROVENANCE, WHICH IS THE HALF THAT MAKES THE VARIANT HONEST. `Eken` is in neither named source and in
+   * no record the archive holds; it is the owner's own, and the check row that lists the other three now says
+   * so rather than leaving the day card's fourth name unattributed.
+   */
+  assert.match(out, /it is the archive owner’s own reading of the material, recorded here as his/);
+});
+
+/**
+ * THE NRI ACCOUNT, SAID WHERE A READER MEETS THE CALENDAR (round 364).
+ *
+ * The owner: *"emphasize that the calendar is a product of nri, so we are following nri calendar days, even
+ * though some igbo communities might differ."* Both halves are asserted, and so is the attribution — the
+ * sentence must not promote what the archive actually holds (the article, a tertiary source, reporting
+ * Onwuejeogwu 1981 for the month names) into something the archive asserts in its own voice.
+ */
+test('the Nri account is stated plainly under the basis note, with its qualification', () => {
+  const out = igbo();
+  const heading = out.indexOf('Community context matters');
+  const sentence = out.indexOf('<b>The account of the calendar followed here is the Nri one.</b>');
+  assert.ok(heading !== -1 && sentence !== -1, 'the Nri statement is not on the page');
+  assert.ok(sentence > heading, 'the Nri statement must sit under the “Community context matters” heading');
+  assert.ok(sentence - heading < 400, 'the Nri statement must be in the basis note rather than further down');
+  // The first half: the account followed here is the Nri reckoning.
+  assert.match(out, /The four market days and the thirteen-month year as this page presents them are the Nri reckoning/);
+  // The second half: other communities keep other reckonings, which is the article's own qualification.
+  assert.match(out, /Other Igbo communities keep other reckonings/);
+  // And what backs it, with the limit of the archive's knowledge stated rather than smoothed over.
+  assert.match(out, /reports Onwuejeogwu \(1981\) for the month names — a book this archive does not hold and has not read/);
+  /*
+   * AND IT IS ON THIS SCREEN ONLY. `/market-days/` keeps the anchor sentence and does not take an emphasis the
+   * owner asked for in the note headed "Community context matters", which only this screen has.
+   */
+  const sibling = fillIgboCalendar(screen('market-days'));
+  assert.ok(
+    !sibling.includes('The account of the calendar followed here is the Nri one.'),
+    'the sibling screen took an emphasis the owner asked for on this one'
+  );
+});
+
+/**
  * NO MARKDOWN ASTERISKS, WHICH THE SERVED PAGE SHOWED AS LITERAL TEXT.
  *
  * The description columns of the verification table are escaped plain text, and three of them were written with

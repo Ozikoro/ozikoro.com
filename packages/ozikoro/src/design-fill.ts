@@ -5530,7 +5530,7 @@ const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> 
   {
     claim: 'That the market week runs Eke, Orie, Afọ, Nkwọ, in that order, with local spellings',
     state: true,
-    note: 'The design’s own screen and the archive’s own catalogued record <i>Symbolism of the Four Market Days in Igbo Culture</i> both state the four days and the variants Oye, Afor and Nkwor.',
+    note: 'The design’s own screen and the archive’s own catalogued record <i>Symbolism of the Four Market Days in Igbo Culture</i> both state the four days and the variants Oye, Afor and Nkwor. <i>Eken</i> is neither source’s, and neither is it the article’s: it is the archive owner’s own reading of the material, recorded here as his, and the day headings and the lede above carry it on his instruction.',
   },
   {
     claim: 'That the four days are tied to the cardinal points, and that the four-day week is the base unit of the calendar',
@@ -6037,6 +6037,49 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
     /Check today, look up another date, or follow Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor across a month or full year\./,
     'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar, the year those days make up: the thirteen months and their sources, and what this archive can and cannot substantiate of the account behind them.'
   );
+  /*
+   * ── THE FOURTH VARIANT: EKE'S OTHER NAME, ON THE OWNER'S INSTRUCTION (round 364) ─────────────────
+   *
+   * His words: *"also add that another word for 'eke' is 'eken' same way you added for others."* **The design
+   * writes a variant for three of its four day cards and not for the fourth**, measured on `/igbo-calendar/`
+   * before this round:
+   *
+   *     <article data-day-card="Eke"><span>01</span><h2>Eke</h2></article>                       ← no variant
+   *     <article data-day-card="Orie"><span>02</span><h2>Orie <small>Oye</small></h2></article>
+   *     <article data-day-card="Afọ"><span>03</span><h2>Afọ <small>Afor</small></h2></article>
+   *     <article data-day-card="Nkwọ"><span>04</span><h2>Nkwọ <small>Nkwor</small></h2></article>
+   *
+   * So the card takes `<small>Eken</small>` in exactly the form the other three use, and the lede's list of
+   * variant pairs — which the design itself writes as "Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor", in the
+   * sentence a reader meets first — takes the pair beside the other three rather than leaving Eke the only
+   * unpaired day there. **The design's own file is not edited**: `public/design/` is the source and this is a
+   * serve-time rewrite of it. Both strings are asserted against the design in `design-fill.test.ts`, so a
+   * design whose markup moves fails the suite instead of silently dropping the variant.
+   *
+   * WHERE THE NAME COMES FROM, SAID RATHER THAN ASSUMED. `Eken` appears nowhere in the design, nowhere in the
+   * archive's five catalogued records that bear on this account, and nowhere in the article the page draws on —
+   * checked rather than supposed. It is the owner's own statement about his archive, which is a source class
+   * this archive already uses: `docs/DATA-SOURCES.md` §5 records his own list as the corpus for the name
+   * material, "where the two overlap the owner's row wins". **So the variant goes up AND its provenance goes
+   * into the claim row that lists the other three** (`CALENDAR_VERIFIED` below), because a name on a day card
+   * that no row says who recorded is exactly the unattributed claim this page's check table exists to prevent.
+   *
+   * AND THE ONE PLACE IT IS DELIBERATELY NOT ADDED IS THE `<select>`. Its options are the four values a request
+   * is matched against — the design's `marketDay()` and the server-side `?day=` comparison take exactly one
+   * name each — so a variant there would be a choice that selects nothing rather than a second spelling. The
+   * same reasoning leaves the `days` array in `public/design/market-days.js` alone: that array **is** the
+   * reckoning, it is the design's, and it is not editable from here. The month grid and the upcoming lists the
+   * script draws therefore keep the canonical four, which is what a heading's `<small>` is a gloss on rather
+   * than a replacement for.
+   */
+  out = out.replace(
+    /Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor/g,
+    'Eke/Eken, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor'
+  );
+  out = out.replace(
+    /<article data-day-card="Eke"><span>01<\/span><h2>Eke<\/h2><\/article>/,
+    '<article data-day-card="Eke"><span>01</span><h2>Eke <small>Eken</small></h2></article>'
+  );
   out = out.replace(
     /*
      * BOTH OF THE DESIGN'S SENTENCES GO, AND THE SECOND ONE IS WHY THIS PATTERN IS NOT THE OLD ONE.
@@ -6048,9 +6091,36 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
      * claim that every Igbo community uses the same anchor." The same thing twice, the second time in the
      * design's own voice. The pattern now takes the pair, so the replacement is the whole of what a reader reads
      * there.
+     *
+     * ── AND THE NRI STATEMENT JOINS IT, ON THE OWNER'S INSTRUCTION (round 364) ───────────────────────
+     *
+     * His words: *"and emphasize that the calendar is a product of nri, so we are following nri calendar days,
+     * even though some igbo communities might differ."* The material was already on the page, distributed
+     * through the month table's caption, its column, every row, and the check table — and **his complaint was
+     * that it is not said plainly where a reader meets the calendar.** The note under "Community context
+     * matters" is where the design itself states the basis, so the plain statement goes there, in the same
+     * breath as the qualification he asked for in the same sentence.
+     *
+     * BOTH HALVES OR NEITHER. The first half alone would claim the Nri account for all of Igboland; the second
+     * alone would hide which account this page is following. And the qualification is not the page's wish: it is
+     * the article's own sentence, quoted in full further down and shortened here.
+     *
+     * IT IS NOT PROMOTED TO A CLAIM THE ARCHIVE CANNOT BACK. The emphasis says the account **followed here** is
+     * the Nri one and names where the archive takes it from — the article named under "Where this account comes
+     * from", a tertiary source reporting Onwuejeogwu (1981) for the month names. **The archive does not hold
+     * that book and has not read it**, which the check table below already records as an outcome the archive
+     * cannot substantiate; so the sentence says the article states it and the names are at second hand, rather
+     * than asserting Nri practice in the archive's own voice. That is the same split the existing month-table
+     * prose makes — "the article says Nri reckons the year in these thirteen months" — kept rather than
+     * flattened.
+     *
+     * AND IT IS ON THIS SCREEN ONLY. `/market-days/` carries the same anchor paragraph from the replacement
+     * below, and the owner named this note — the one headed "Community context matters" — which only
+     * `/igbo-calendar/` has. The sibling's basis note still states the anchor and that communities differ.
      */
-    /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\.\s*It is not a claim that every Igbo community uses the same anchor\./,
-    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.`
+    /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\.\s*It is not a claim that every Igbo community uses the same anchor\.<\/p>/,
+    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.</p>
+        <p><b>The account of the calendar followed here is the Nri one.</b> The four market days and the thirteen-month year as this page presents them are the Nri reckoning: the article this page draws on states that its months and their meanings are the Nri-Igbo calendar of the Nri kingdom, and reports Onwuejeogwu (1981) for the month names — a book this archive does not hold and has not read, so the names are given at second hand from the article named below. Other Igbo communities keep other reckonings, and the article says the same of the calendar it describes: it is <em>“neither universal nor synchronized”</em>, so groups may be at different stages of the week, or even year.</p>`
   );
   /*
    * THE SAME ANCHOR, STATED ON THE OTHER SCREEN THAT LOADS THIS SCRIPT.

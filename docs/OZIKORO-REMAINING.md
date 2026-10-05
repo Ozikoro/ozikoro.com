@@ -27254,3 +27254,167 @@ reproduces a tertiary source with nothing saying what the archive can and cannot
   (missing h2 "s") — **both pre-existing and recorded in round 361 as not that round's**.
 * Design parity, computed directly: **`identical 63 differing 0 missing 0`**, before this round's changes and
   after them. `apps/ozikoro/public/design/` was not touched.
+
+## ROUND 364 — EKE GAINED ITS OTHER NAME ON THE DAY CARD AND IN THE LEDE, THE CLAIM ROW SAYS WHO RECORDED IT, AND THE NRI ACCOUNT IS NOW SAID PLAINLY WHERE THE DESIGN STATES ITS BASIS
+
+**Two of the owner's instructions, both serve-time, both in `fillIgboCalendar`.** The design deliverable was
+not edited: `apps/ozikoro/public/design/` is the source the fill rewrites, and **`identical 63 differing 0
+missing 0`** against `design/calm-comfort-construct/public/design` after the round as before it.
+
+### 1. `Eken` on the fourth day card, and the claim row that had to change with it
+
+**Before**, verbatim from the serving build at the start of this round:
+
+```html
+<article data-day-card="Eke"><span>01</span><h2>Eke</h2></article>
+<article data-day-card="Orie"><span>02</span><h2>Orie <small>Oye</small></h2></article>
+<article data-day-card="Afọ"><span>03</span><h2>Afọ <small>Afor</small></h2></article>
+<article data-day-card="Nkwọ"><span>04</span><h2>Nkwọ <small>Nkwor</small></h2></article>
+```
+
+**After**, verbatim from the serving build, same request:
+
+```html
+<article data-day-card="Eke"><span>01</span><h2>Eke <small>Eken</small></h2></article>
+<article data-day-card="Orie"><span>02</span><h2>Orie <small>Oye</small></h2></article>
+<article data-day-card="Afọ"><span>03</span><h2>Afọ <small>Afor</small></h2></article>
+<article data-day-card="Nkwọ"><span>04</span><h2>Nkwọ <small>Nkwor</small></h2></article>
+```
+
+**⚠️ AND THE NAME IS IN NO SOURCE THE PAGE NAMES, WHICH WAS CHECKED BEFORE IT WAS ADDED RATHER THAN AFTER.**
+A word-boundary search for `Eken` over `packages/`, `apps/ozikoro/app/`, `apps/ozikoro/public/design/` and
+`docs/` returns **nothing** — the only hits anywhere are `Ekene` (a personal name) in the ANIOMA and name
+corpora, which is a different word. So it is **not** in the design, **not** in the article the page follows, and
+**not** in any of the archive's five catalogued records that bear on this account. It is the owner's own
+statement about his own archive.
+
+**That is a source class this archive already uses.** `docs/DATA-SOURCES.md` §5 records his own list as the
+corpus for the name material — *"669 entries … supplied directly by the project owner"*, and *"where the two
+overlap the owner's row wins"*. So the variant was added **and its provenance was written into the claim row**,
+because a fourth name on a day card with no row saying who recorded it is exactly the unattributed claim that
+table exists to prevent.
+
+**The claim row, before and after** (the claim text itself is unchanged — the variants have always lived in the
+note, not the claim):
+
+| | |
+|---|---|
+| **before** | *The design's own screen and the archive's own catalogued record <i>Symbolism of the Four Market Days in Igbo Culture</i> both state the four days and the variants Oye, Afor and Nkwor.* |
+| **after** | *…both state the four days and the variants Oye, Afor and Nkwor. <i>Eken</i> is neither source's, and neither is it the article's: it is the archive owner's own reading of the material, recorded here as his, and the day headings and the lede above carry it on his instruction.* |
+
+**The outcome column stays `true`**, because what it records is the outcome for the four days and the order,
+which both named sources carry; the note now states, in the reader's own view, which part of the row rests on
+the owner rather than on them.
+
+### 2. Every other place the four days are named, and what happened to each
+
+Enumerated from the **served** page rather than from the source, because a name the script draws is not in the
+markup:
+
+| site on the served page | changed? | why |
+|---|---|---|
+| the day cards | **yes** | the owner's instruction, and the form the other three use |
+| the lede — *"follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor"* | **yes**, now *"Eke/Eken, Orie/Oye, …"* | the design itself writes a pair for three days there; leaving Eke unpaired keeps in the first sentence a reader reads the same asymmetry the owner reported |
+| the `<select>` for *Next ten market days* | **no** | its options are **values a request is matched against** — the design's `marketDay()` and the server-side `?day=` comparison each take exactly one name — so a variant there is a choice that selects nothing, not a second spelling. Asserted unchanged in the test |
+| the twelve year-card paragraphs, *"one of Eke, Orie, Afọ and Nkwọ"* | **no** | twelve repetitions of the cycle's own names inside a `<noscript>`; a gloss belongs where a reader meets the days as days, not twelve times in a fallback |
+| the addendum's quotation of the article — *"(Eke, Orie, Afọ, and Nkwọ)"* | **no** | it is a **verbatim quotation**; a quotation is not edited to carry the archive's variant |
+| the cardinal-point note, *"Eke east, Orie west, Afọ north, Nkwọ south"* | **no** | a statement about those four, in the archive's record's own terms |
+| *Ọnwa Ife Eke* (a month) and *"an Nkwọ day"* (a date) | **no** | the month's name and a date's day are not the list of variants |
+| the claim row and its note | **note changed** | above |
+| `market-days.js` — `["Eke", "Orie", "Afọ", "Nkwọ"]`, the month grid and the upcoming lists it draws | **no** | that array **is** the reckoning, it is the design's file, and it is inviolable; the grid prints one name per day cell and a `<small>` gloss has no place there |
+
+**The lede change lands on `/market-days/` too, deliberately**, because that screen's design carries the same
+variant list in its own lede — measured served: *"follow Eke/Eken, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor."* One
+list of names, stated once, rather than two screens disagreeing about Eke.
+
+### 3. The Nri emphasis, verbatim, and what it rests on
+
+His words: *"emphasize that the calendar is a product of nri, so we are following nri calendar days, even
+though some igbo communities might differ."* The paragraph goes **inside the design's own `sx-basis-note`,
+under the heading "Community context matters"**, immediately after the sentence that states the anchor —
+measured on the served page, index 10164 of the document, some 240 characters after the heading:
+
+```html
+<p><b>The account of the calendar followed here is the Nri one.</b> The four market days and the
+thirteen-month year as this page presents them are the Nri reckoning: the article this page draws on
+states that its months and their meanings are the Nri-Igbo calendar of the Nri kingdom, and reports
+Onwuejeogwu (1981) for the month names — a book this archive does not hold and has not read, so the
+names are given at second hand from the article named below. Other Igbo communities keep other
+reckonings, and the article says the same of the calendar it describes: it is <em>“neither universal
+nor synchronized”</em>, so groups may be at different stages of the week, or even year.</p>
+```
+
+**⚠️ BOTH HALVES ARE THERE, WHICH IS THE WHOLE POINT.** The first without the second claims the Nri account
+for all of Igboland; the second without the first hides which account the page is following. The second half is
+not the page's own hedge: *"neither universal nor synchronized"* is the article's sentence, quoted in full in
+the addendum below and shortened here.
+
+**And it does not promote what the archive holds.** The sentence says where the account comes from — the article
+named under *Where this account comes from, and what is not on this page*, a tertiary source — and states the
+limit in the same breath: **Onwuejeogwu (1981) is not held by this archive and has not been read here**, which
+the check table already records as an outcome the archive cannot substantiate. The existing month-table prose
+already makes that split — *"the article says Nri reckons the year in these thirteen months, and that Nri is not
+all of Igboland"* — and the new sentence keeps it rather than flattening it into the archive's own voice.
+
+**⚠️ AND IT IS ON `/igbo-calendar/` ONLY.** `/market-days/` takes the same anchor sentence from the sibling
+replacement and still says communities differ, but it does **not** take the Nri emphasis: the owner named the
+note headed "Community context matters", which only this screen has, and its heading there is *"How this
+calculation works"*. Asserted in the test, measured on the served page: `0` occurrences of the Nri sentence on
+`/market-days/`.
+
+### 4. The `Before production:` note — measured rather than trusted
+
+The design still contains it in `igbo-calendar.html`, so it was checked on the served page rather than in the
+source:
+
+| string searched for | on `/igbo-calendar/` before this round | after |
+|---|---|---|
+| `Before production` | **0** | **0** |
+| `verify the anchor` | **0** | **0** |
+| `production result` | **0** | **0** |
+| `verify the timezone` | **0** | **0** |
+
+**It is gone, and round 363's removal is what removed it.** The design's copy survives in the source because
+`public/design/` is inviolable and the fill's replacement is the only thing suppressing it — which is why this
+was measured on the served document and not by reading the design.
+
+### 5. The gate
+
+* `npm run typecheck` from the repository root: **exit 0**.
+* `node --test src/design-fill.test.ts`: **96 pass, 0 fail** (94 before the round; two tests added). The new
+  tests read the design's own markup first and assert **the bare Eke card is still there to be matched** — a
+  fill whose pattern silently matches nothing is the fault this file keeps recording — then assert the served
+  card, the lede pair, the select's **unchanged** options, the claim note's provenance, both halves of the Nri
+  sentence, the attribution's limit, and that the sibling screen did **not** take the emphasis.
+* `scripts/check-design-parity.mjs`: **`/igbo-calendar` ok (14 design sections, 9 headings)**. Two routes still
+  fail — `/towns` (missing h1) and `/topics` (missing h2 "s") — **both pre-existing and recorded in round 361 as
+  not that round's**.
+* `bash scripts/serve-review.sh`: build 68 s, restart 3 s, artefact complete (52 design screens), **READY**.
+
+### 6. The parity output, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+### 7. What does not work, and what this round did not verify
+
+* **The two parity failures above are not this round's** and were not touched: `/towns` and `/topics`.
+* **Nothing was exercised in a browser.** Every claim here is against the server's HTML: the day cards, the
+  lede, the select, the basis note, the claim row and the parity digest were read from `curl`. The month grid
+  and the "next ten" list are drawn by `market-days.js`, so the four-day cycle as a reader sees it after the
+  script runs was **not** measured — no headless browser was used, and the script's `days` array is deliberately
+  unchanged, which is where a change would have shown.
+* The `design/` directory is byte-identical to the design deliverable, so the markup this round rewrites is
+  still the source of truth for the next round: **if the design's day-card markup changes, the fill's
+  replacement matches nothing and the test fails rather than the variant disappearing silently.**
+
+### 8. The files this round changed
+
+| file | what |
+|---|---|
+| `packages/ozikoro/src/design-fill.ts` | the Eken replacements (card, lede), the Nri paragraph in the basis note, the amended claim note, and the reasoning for each |
+| `packages/ozikoro/src/design-fill.test.ts` | two tests: the variant and its provenance; the Nri statement, both halves, its limit, and its absence on the sibling |
+| `docs/OZIKORO-REMAINING.md` | this record |
+
+**No other file was touched, and nothing under `apps/ozikoro/public/design/` was.**
