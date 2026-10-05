@@ -12,7 +12,14 @@
  * text of an unreviewed render — which is the review gate's whole purpose.
  */
 import { getDb } from '@ozituma/db/client';
-import { episodeTranscriptHeader, playableEpisodeSql } from '@ozikoro/platform';
+import {
+  agreementRefusalText,
+  episodeTranscriptHeader,
+  playableEpisodeSql,
+  withdrawnInstitutionalAccess,
+} from '@ozikoro/platform';
+import { getCurrentAccount } from '@/lib/session';
+import { hasCapability } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,12 +37,35 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
    */
   const row = await db.one<{
     transcript: string; title: string; slug: string; narrator_kind: string; external_url: string | null;
+    access_tier: string | null;
   }>(
-    `select transcript, title, slug, narrator_kind, external_url from ozikoro_episode
-      where slug = $1 and ${playableEpisodeSql()}`,
+    `select e.transcript, e.title, e.slug, e.narrator_kind, e.external_url,
+            (select a.access_tier from ozikoro_article a where a.id = e.article_id) as access_tier
+       from ozikoro_episode e
+      where e.slug = $1 and ${playableEpisodeSql('e')}`,
     [slug]
   );
   if (!row) return new Response('Not found', { status: 404 });
+
+  /*
+   * ── THE RECORD'S SECOND MARK GATES THE FILE TOO ───────────────────────────────────────────────────
+   *
+   * This address is a FILE rather than a page — the feed names it as the episode's transcript and a machine
+   * reads it — so it answers in the same content type it always has, with the refusal as plain text rather
+   * than as a document. **The words are composed from the one `agreementRefusal` the page also calls**, so
+   * the file and the page cannot describe the same record two different ways.
+   */
+  if (row.access_tier === 'by_agreement') {
+    const viewer = await getCurrentAccount().catch(() => null);
+    const mayRead = viewer ? await hasCapability(viewer.account.id, 'read_restricted') : false;
+    if (!mayRead) {
+      const withdrawn = viewer ? await withdrawnInstitutionalAccess(db, viewer.account.id) : null;
+      return new Response(
+        agreementRefusalText({ path: `/podcast/${row.slug}/transcript.txt`, withdrawn }),
+        { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } }
+      );
+    }
+  }
 
   /*
    * THE HEADER SAYS WHICH KIND OF TEXT THIS IS, BECAUSE FOR ONE KIND IT IS NOT A TRANSCRIPT.

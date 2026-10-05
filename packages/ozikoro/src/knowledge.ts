@@ -110,6 +110,21 @@ export async function archiveKnowledgeItems(
               limit 1) as topic
        from ozikoro_article a
       where a.status = 'published' and a.is_page = false
+        /*
+         * A RECORD HELD BY AGREEMENT IS NOT ANSWERABLE FROM.
+         *
+         * access_tier = 'by_agreement' (migration 0057) means the record cannot be read at all without an
+         * institutional access agreement. This function reads body_html and hands whole passages to
+         * /api/ask, so a gated record left in the corpus would be the tier leaking through a door nobody
+         * would think to look behind: the question endpoint would quote the very words the reading page
+         * refuses. The predicate is here rather than at the endpoint because every caller of this function
+         * feeds the same retrieval, and a gate written at one caller is a gate the next caller does not
+         * inherit.
+         *
+         * This is the reading claim, not the media register's restricted column, which is about reuse and has
+         * no bearing on whether a record may be quoted.
+         */
+        and a.access_tier = 'open'
       order by a.published_at desc nulls last, a.id
       limit $1`,
     [limit]

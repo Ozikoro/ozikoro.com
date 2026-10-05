@@ -44,6 +44,7 @@
     "test:publications": "node src/test-publications.ts",
     "import:media-store": "node src/import/media-store.ts",
     "test:rights": "node src/test-rights.ts",
+    "test:institutional-access": "node src/test-institutional-access.ts",
     "test:search": "node src/test-search.ts",
     "import:media-upload": "node src/import/media-upload.ts",
     "backup": "node src/ops/backup.ts",

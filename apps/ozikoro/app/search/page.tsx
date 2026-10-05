@@ -24,6 +24,8 @@ import {
   type SearchKind,
   type SearchMode,
 } from '@ozikoro/platform';
+import { getCurrentAccount } from '@/lib/session';
+import { hasCapability } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,8 +55,27 @@ export default async function SearchPage({
     : null;
 
   const db = await getDb();
+  /*
+   * A RECORD HELD BY AGREEMENT IS NOT SHOWN TO A READER WHO DOES NOT HOLD ONE.
+   *
+   * A search result carries the record's own title, its standfirst and its address, so it is part of
+   * reading the record — and the tier's claim is that the record cannot be read at all without an
+   * institutional access agreement. The page is the only place that knows who is asking, so it asks the
+   * capability and passes the answer down; **`searchEverything` defaults to excluding them**, because the
+   * safe state has to be the default state. This is the reading claim, not the media register's
+   * `restricted`, which is about reuse and does not affect search at all.
+   */
+  const viewer = await getCurrentAccount().catch(() => null);
+  const byAgreement = viewer ? await hasCapability(viewer.account.id, 'read_restricted') : false;
   const [outcome, popularLabels] = await Promise.all([
-    query ? searchEverything(db, query, { mode, ...(kind ? { kinds: [kind] } : {}), limit: 40 }) : Promise.resolve(null),
+    query
+      ? searchEverything(db, query, {
+          mode,
+          ...(kind ? { kinds: [kind] } : {}),
+          limit: 40,
+          includeByAgreement: byAgreement,
+        })
+      : Promise.resolve(null),
     listLabels(db, { limit: 14 }),
   ]);
 

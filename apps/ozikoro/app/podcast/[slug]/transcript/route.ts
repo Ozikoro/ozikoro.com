@@ -36,6 +36,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
 import {
+  agreementRefusalDocument,
   designScreenLinks,
   designScriptPaths,
   episodeTranscriptHeader,
@@ -43,7 +44,10 @@ import {
   playableEpisodeSql,
   seoHead,
   withSeoHead,
+  withdrawnInstitutionalAccess,
 } from '@ozikoro/platform';
+import { getCurrentAccount } from '@/lib/session';
+import { hasCapability } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,10 +59,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
 
   const row = await db.one<{
     slug: string; title: string; transcript: string; narrator_kind: string | null;
-    external_url: string | null; article_slug: string; published_at: Date | null;
+    external_url: string | null; article_slug: string; published_at: Date | null; access_tier: string;
   }>(
     `select e.slug, e.title, e.transcript, e.narrator_kind, e.external_url,
-            a.slug as article_slug, e.published_at
+            a.slug as article_slug, e.published_at, a.access_tier
        from ozikoro_episode e
        join ozikoro_article a on a.id = e.article_id
       where e.slug = $1 and ${playableEpisodeSql('e')}
@@ -66,6 +70,29 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
     [slug]
   );
   if (!row) return new Response('Not found', { status: 404 });
+
+  /*
+   * ── THE RECORD'S SECOND MARK GATES ITS TRANSCRIPT TOO ─────────────────────────────────────────────
+   *
+   * A transcript is the record's own words — the same text the reading page serves — so a record held by
+   * agreement whose transcript answered 200 would be the tier leaking through a second door. **This route
+   * already composes one gate of the record's, its status and its approval; this adds the other.** The
+   * refusal is the same screen the record's own address serves, composed by the one function both call.
+   */
+  if (row.access_tier === 'by_agreement') {
+    const viewer = await getCurrentAccount().catch(() => null);
+    const mayRead = viewer ? await hasCapability(viewer.account.id, 'read_restricted') : false;
+    if (!mayRead) {
+      const withdrawn = viewer ? await withdrawnInstitutionalAccess(db, viewer.account.id) : null;
+      return new Response(
+        agreementRefusalDocument(await readFile(SCREEN, 'utf8'), {
+          path: `/podcast/${row.slug}/transcript/`,
+          withdrawn,
+        }),
+        { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
+      );
+    }
+  }
 
   const path = `/podcast/${row.slug}/transcript/`;
   const recordPath = `/${row.article_slug}/`;

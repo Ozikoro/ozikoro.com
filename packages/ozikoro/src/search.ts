@@ -66,6 +66,20 @@ export interface SearchOptions {
   offset?: number;
   /** Filter by discipline, for research results. */
   discipline?: string | null;
+  /**
+   * Whether records held by agreement are searchable by this caller.
+   *
+   * `access_tier = 'by_agreement'` means the record cannot be read at all without an institutional access
+   * agreement (migration 0057). **A search result is part of reading a record**: it carries the record's own
+   * title and its standfirst, and it hands the reader the address. So a caller who does not hold
+   * `read_restricted` is not shown those results, and a caller who does hold it is — which is why this is an
+   * option rather than a permanent `where` clause. The caller is the page, which knows who is signed in;
+   * **the default is false, because the safe state has to be the default state.**
+   *
+   * This is NOT the media register's `restricted`, which means an item may be read here and may not be
+   * republished, and does not affect search at all.
+   */
+  includeByAgreement?: boolean;
 }
 
 export interface SearchOutcome {
@@ -124,12 +138,13 @@ export async function searchEverything(
          from ozikoro_article a
          left join ozikoro_contributor c on c.id = a.author_id
         where a.status = 'published' and a.is_page = false
+          and (a.access_tier = 'open' or $5::boolean)
           and (a.folded_title like $1
                or a.search_vector @@ websearch_to_tsquery('english', $3)
                or c.display_name ilike $1)
         order by (a.folded_title like $2) desc, a.published_at desc nulls last
         limit $4`,
-      [pattern, prefix, raw, limit]
+      [pattern, prefix, raw, limit, Boolean(options.includeByAgreement)]
     );
     perKind.article = rows.map((r) => ({
       kind: 'article' as const,

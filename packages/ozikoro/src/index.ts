@@ -54,6 +54,15 @@ export * from './publications.ts';
 export * from './publication-files.ts';
 export * from './follows.ts';
 export * from './rights.ts';
+/*
+ * THE SECOND MARK ON A RECORD, AND THE AGREEMENT THAT OPENS IT.
+ *
+ * `rights.ts` holds the claim about REUSE (`restricted`: read it here, do not republish it). This holds the
+ * claim about READING (`access_tier = by_agreement`: not readable at all without an institutional access
+ * agreement). **They are separate modules because they are separate claims**, and `institutional-access.ts`
+ * carries the note that says why they must not share a column, a flag or a word.
+ */
+export * from './institutional-access.ts';
 export * from './search.ts';
 export * from './entities.ts';
 export * from './places.ts';

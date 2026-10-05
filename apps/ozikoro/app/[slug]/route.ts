@@ -23,8 +23,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb, type Db } from '@ozituma/db/client';
-import { fillArticle, mediaPath, mediaUrlResolver, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, mediaPath, mediaUrlResolver, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
+import { hasCapability } from '@/lib/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,13 +99,36 @@ function escapeText(text: string): string {
 async function servePublishedPage(db: Db, slug: string): Promise<Response | null> {
   const page = await db.one<{
     id: number; slug: string; title: string; body_html: string | null; legacy_url: string | null;
-    published_at: Date | null; modified_at: Date | null;
+    published_at: Date | null; modified_at: Date | null; access_tier: string;
   }>(
-    `select id, slug, title, body_html, legacy_url, published_at, modified_at
+    `select id, slug, title, body_html, legacy_url, published_at, modified_at, access_tier
        from ozikoro_article
       where status = 'published' and is_page = true and (slug = $1 or slug = $2)`,
     [slug, wordpressUriEncode(slug)]
   );
+
+  if (!page) return null;
+
+  /*
+   * A PAGE CAN CARRY THE SECOND MARK TOO, AND THE ARTICLE BRANCH ABOVE DOES NOT COVER IT.
+   *
+   * This function is reached only when no ARTICLE matched, so the gate in `GET` has already run and found
+   * nothing — a page held by agreement would otherwise fall straight through to being served in full. The
+   * mark is on `ozikoro_article`, which holds pages as well as records, so the check is repeated here rather
+   * than assumed once: **a read path that is not edited is a read path that can be forgotten**, which is the
+   * lesson the trash's own migration records.
+   */
+  if (page.access_tier === 'by_agreement') {
+    const viewer = await getCurrentAccount().catch(() => null);
+    const mayRead = viewer ? await hasCapability(viewer.account.id, 'read_restricted') : false;
+    if (!mayRead) {
+      const withdrawn = viewer ? await withdrawnInstitutionalAccess(db, viewer.account.id) : null;
+      return new Response(
+        agreementRefusalDocument(await readFile(SCREEN, 'utf8'), { path: `/${slug}/`, withdrawn }),
+        { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
+      );
+    }
+  }
 
   const body = page?.body_html ?? '';
   if (!page || body.trim() === '') return null;
@@ -161,6 +185,45 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const topic = await db.one<{ slug: string }>(`select slug from ozikoro_topic where slug = $1`, [clean]);
   if (topic) {
     return new Response(null, { status: 307, headers: { location: `/topics/${topic.slug}/` } });
+  }
+
+  /*
+   * ── THE SECOND MARK, ASKED BEFORE ANYTHING ABOUT THE RECORD IS READ ───────────────────────────────
+   *
+   * `access_tier = 'by_agreement'` says the record cannot be read at all without an institutional access
+   * agreement. **This is not the media register's `restricted`, which says an item may be read here and may
+   * not be republished** — different column, different claim, different words.
+   *
+   * THE ORDER IS THE WHOLE OF IT. The tier is read in a query of its own, over `id`-free columns — one
+   * indexed lookup that returns a single string — and the gate happens **before** the record's own query, its
+   * body, its related reading and its entities. So a refused caller's request never reads the record, and the
+   * gate cannot be forgotten by a later change to the query below it. The alternative, checking the tier
+   * after the full row was fetched, would leave the body in memory on every refused request and would make
+   * the gate a property of the code that follows rather than of the read.
+   *
+   * AND THE REFUSAL IS A REAL SCREEN WITH A 403, NOT A 404. The record exists; the archive's rule is that a
+   * partial state is a real state, and a 404 would teach a reader that the record is not here. The screen is
+   * composed by `agreementRefusalDocument` inside this page's own design frame, and it names the address
+   * asked for rather than the record — a screen that printed the title would be reading part of the record
+   * this tier exists to withhold.
+   */
+  const mark = await db.one<{ access_tier: string }>(
+    `select access_tier from ozikoro_article
+      where slug in ($1, $2) and status = 'published' and is_page = false`,
+    [clean, wordpressUriEncode(clean)]
+  );
+  if (mark?.access_tier === 'by_agreement') {
+    const viewer = await getCurrentAccount().catch(() => null);
+    // The literal is written out rather than imported so `check:capabilities` reads it out of this call site
+    // and verifies that a role holds it; it is the same name as `READ_BY_AGREEMENT_CAPABILITY`.
+    const mayRead = viewer ? await hasCapability(viewer.account.id, 'read_restricted') : false;
+    if (!mayRead) {
+      const withdrawn = viewer ? await withdrawnInstitutionalAccess(db, viewer.account.id) : null;
+      return new Response(
+        agreementRefusalDocument(await readFile(SCREEN, 'utf8'), { path: `/${clean}/`, withdrawn }),
+        { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
+      );
+    }
   }
 
   const row = await db.one<{

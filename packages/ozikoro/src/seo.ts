@@ -78,9 +78,14 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
   out.push({ url: canonicalUrl('about'), group: 'pages', changeFrequency: 'monthly', priority: 0.5 });
 
   // Records at their original addresses, which the plan requires to survive the move.
+  //
+  // A RECORD HELD BY AGREEMENT IS NOT LISTED, AND A PAGE HELD BY AGREEMENT IS NOT EITHER. The address is
+  // served as a 403 carrying `noindex` (migration 0057), so a sitemap that invited a crawler to it would be
+  // asking a search engine to index a door it cannot open. This is the READING claim; the media register's
+  // `restricted` is a claim about reuse and has nothing to do with what may be listed here.
   const articles = await db.rows<{ slug: string; modified_at: string | null }>(
     `select slug, modified_at from ozikoro_article
-      where status = 'published' and is_page = false order by id`
+      where status = 'published' and is_page = false and access_tier = 'open' order by id`
   );
   for (const a of articles) {
     out.push({
@@ -92,7 +97,8 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
 
   // WordPress pages, which are part of the migrated site and were absent from the old sitemap too.
   const pages = await db.rows<{ slug: string }>(
-    `select slug from ozikoro_article where status = 'published' and is_page = true order by id`
+    `select slug from ozikoro_article
+      where status = 'published' and is_page = true and access_tier = 'open' order by id`
   );
   for (const p of pages) out.push({ url: canonicalUrl(p.slug), group: 'pages', changeFrequency: 'monthly', priority: 0.6 });
 

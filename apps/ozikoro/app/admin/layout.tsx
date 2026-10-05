@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import { getDb } from '@ozituma/db/client';
-import { capabilitiesFor, dashboardModeHref, dashboardModesFor } from '@ozikoro/platform';
+import { capabilitiesFor, dashboardModeHref, dashboardModesFor, GRANT_ACCESS_CAPABILITY } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import { mayEnterBackOffice } from '@/lib/access';
 
@@ -153,6 +153,18 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             the screen itself, which is why this link is not hidden from an editor.
           */}
           <Link href="/admin/trash">Trash</Link>
+          {/*
+            INSTITUTIONAL ACCESS IS THE ONE SECTION THE NAVIGATION HIDES FROM AN EDITOR.
+
+            Every other entry here is offered to everyone the layout admits, because the page's own guard
+            answers for it and a hidden link is presentation rather than authorisation. This one is different:
+            **only the `owner` role holds `grant_institutional_access`** — the owner's own decision, and the
+            reason is in `docs/OZIKORO-REMAINING.md` — so the link is drawn only for an account that holds it.
+            The page still guards itself as its first statement, so hiding the link is not what protects it.
+          */}
+          {capabilities.has(GRANT_ACCESS_CAPABILITY) && (
+            <Link href="/admin/access">Institutional access</Link>
+          )}
           {/*
             THE DESIGN EDITOR IS LAST BUT NOT LEAST.
 

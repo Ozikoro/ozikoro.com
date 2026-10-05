@@ -26189,3 +26189,323 @@ identical 63 differing 0 missing 0
   were renumbered to match, and the verification script was renamed** rather than leaving a comment that points
   a reader at another round's section.
 
+
+---
+
+## ROUND 361 — THE ARCHIVE COULD SAY "DO NOT REPUBLISH THIS" AND HAD NO WAY TO SAY "DO NOT READ THIS"; IT NOW HAS A SECOND MARK HELD BY THE `owner` ROLE ALONE, AND THE ONE DOOR THE SHARED ACCOUNT TABLE WOULD HAVE OPENED IS SHUT AND MEASURED
+
+### 1. The four answers, and the grantor set the owner chose
+
+The feature was blocked on four questions — what is gated, who grants it, on what terms, and what a revocation
+does. The owner answered the first two himself and volunteered the corporate structure that says who the
+parties are:
+
+> *"only the admin gives institutional rights, while you decide who else since i am new to this, choose who you
+> think is better and let me know"*
+
+> *"Ozikoro.com is the mother company of academy, and store, while ozituma.com is subsidiary which ozikoro.com
+> owns 60% of it. Use this information to do what is right"*
+
+He was then given a recommendation — the `owner` **and** an `admin` — and **he overruled it**:
+
+> *"then let only the owner 'idenzeme@gmail.com' hold it since you think it is the best"*
+
+**So the grantor set is the `owner` ROLE and nothing else, and that is his decision rather than a
+simplification taken here.** Two capabilities were created, because one name cannot express two acts:
+
+| capability | what it is | held by |
+|---|---|---|
+| `read_restricted` | may read a record held by agreement | `owner`, plus every account with a live agreement, and nobody else |
+| `grant_institutional_access` | may make and withdraw the agreements, and may place a record in the tier | `owner`, and nobody else |
+
+**It is the ROLE that carries it, not the address.** The guard asks `ozikoro_has_capability(account_id,
+'grant_institutional_access')`; nothing anywhere tests for `idenzeme@gmail.com`. A capability attached to one
+email address is a capability that breaks the day the address changes, which is `apps/ozikoro/lib/access.ts`'s
+own rule — ask *may this caller X*, never *is this caller the proprietor*.
+
+**The owner's claim about his own archive was verified rather than assumed, from a copy of the live cluster:**
+
+```
+--- 2 account(s) ---
+  #199  idenzeme@gmail.com  role=owner  status=active  archive_roles=[owner]
+  #233  r329-reader@example.invalid  role=contributor  status=active  archive_roles=[reader]
+
+account.role = 'owner' : 1 account(s) -> 199:idenzeme@gmail.com
+ozikoro_member_role 'owner' : 1 -> 199:idenzeme@gmail.com
+
+--- the capability, asked of the database, per account (after migration 0057) ---
+  #199  idenzeme@gmail.com                 n=27  grant_institutional_access=true  read_restricted=true  purge_trash=true
+```
+
+**He is right, and there is exactly one such account.** `idenzeme@gmail.com` holds `account.role = 'owner'`
+*and* `ozikoro_member_role = 'owner'`; it was the only `owner` in either vocabulary before this round, and it is
+the only one now. `scripts/create-owner.ts` is what made it, and it says in its own header that **both** role
+systems are set "because a person who is the owner of the record should be the owner in both places". Its
+capability count went from 25 to 27 — the two new names and nothing else.
+
+**If a second account is ever given `owner` in either vocabulary, it will hold this too, and that is the single
+grantor's known edge.** Naming the failure mode rather than working around it: **while the proprietor's account
+is unavailable, no agreement can be made and none can be withdrawn**, so a record placed under an agreement
+stays closed until that account returns. That is the cost of the narrower set. It is written on the screen
+itself, in a panel that says so, and it is written here so that widening it is a decision the owner makes —
+it is one row in `ozikoro_role_capability`.
+
+### 2. The two claims, which share no column, no flag and no word
+
+**What `restricted` meant before this round, measured rather than described:** `ozikoro_media_rights.restricted`
+(migration 0040) is a boolean on a *media item*, with `restriction_reason`, `takedown_requested_at` and
+`takedown_resolved_at` beside it, and its reader-facing sentence is generated in `rightsStatement`:
+
+> *"This item is restricted: <reason>. It is held for the record but is not available for reuse."*
+
+That is a claim about **reuse**. This round adds a claim about **reading**, and it is a new column on a
+different table:
+
+| | the reuse claim | the reading claim |
+|---|---|---|
+| column | `ozikoro_media_rights.restricted` | `ozikoro_article.access_tier` |
+| values | `true` / `false`, default false | `open` / `by_agreement`, default `open` |
+| what it says | you may read this here, you may not republish it | you may not read this at all without an agreement |
+| the reader's words | "restricted" | **"held by agreement"** |
+
+**The word `restricted` is nowhere on the refusal screen and nowhere in the new tier's vocabulary**, which is
+asserted rather than promised: `institutional-access.test.ts` checks the claim text, both labels, the whole
+composed document and the head it carries for the substring, and the failure message is the copy itself. The
+new tier is reached at `/[slug]/`, `ozikoro_media_rights` is unchanged, and the two are asserted to be two
+columns in two tables.
+
+### 3. The refusal page, verbatim
+
+**It is a 403 and a real screen, not a 404** — the record exists, and the archive's rule is that a partial state
+is a real state. It is served **at the record's own address**, inside the design's own reading frame
+(`article.html`'s masthead, navigation and stylesheets), with its `<main>` replaced wholesale — which is what
+makes the design's example article, its example byline and its example related reading disappear rather than sit
+on screen under a refusal. **The design draws no such screen** — fifty-two screens, searched, none of them an
+access register or a refusal — so this is a screen the archive writes for itself in the design's frame, which
+the round's report says plainly.
+
+Served from `http://127.0.0.1:3111/zzr361-held-by-agreement/` as an anonymous caller, tags stripped:
+
+```
+Held by agreement
+Skip to article
+OZI IKORO
+Archive
+All histories
+Folklores
+Listen
+Watch
+Explore
+Held by agreement · Institutional access
+This record is held under an institutional access agreement.
+You asked for
+/zzr361-held-by-agreement/
+The record at /zzr361-held-by-agreement/ is in the archive, and reading it is not open.
+What is withheld is the reading of the record — its words, its images and its sources. This is not the same statement as an item the archive marks as unavailable for reuse: that mark says an item may be read here and may not be republished, and it is answered by that item's own rights record. This one is about being able to read the record at all.
+An institutional access agreement is what opens it. The agreement is made with the archive's proprietor, who is the only account the archive lets make one, and it is recorded against the account that will read the record — with the institution it is made with, the terms, and the date. It can also be withdrawn, and a withdrawal is recorded the same way rather than erasing the agreement.
+So that nobody is sent to a door that is not there: the archive has set no fee for this, publishes no form for it, and states no time within which a request is answered. What is written here is only what is true at the archive today.
+Asking for access
+The archive publishes its addresses on its own terms page: corrections and material offered to the archive go to archive@ozikoro.com, and anything else — which is what this is — to hello@ozikoro.com. Write and say which record you are asking about, quoting its address and its reference if you have one.
+archive@ozikoro.com
+hello@ozikoro.com
+The terms page, where both addresses are published
+```
+
+**What it promises, and what it refuses to promise.** It names the address asked for and **not the record** —
+its title, topic, author and body are not printed, because the tier's claim is that the record cannot be read at
+all and a screen that printed the title would be reading part of it. It promises no tier that does not exist:
+there is no portal, no form and no queue, and the copy says so in as many words. **Every address it gives is one
+the archive already publishes** — the two on `/terms`, and the page they are published on — which the test
+asserts as an allow-list, so an invented form, fee or committee fails the suite. No turnaround time appears
+anywhere, and no email address is written into the page that `/terms` does not already carry.
+
+### 4. What a revocation does, and what the person who lost access is told
+
+**A grant is a row with an actor and a date. A revocation is its own audit row, and the grant survives it.**
+`revoked_at`, `revoked_by` and `revocation_reason` are stamped on the grant row so that "was this account ever
+allowed to read it" — the question asked after an incident — stays answerable, and a separate
+`revoke_institutional_access` row joins `ozikoro_audit`. Both audit rows from the HTTP run, quoted:
+
+```
+2026-10-05T14:56:27.987Z  grant_institutional_access  actor=300
+  before {"access":"none"}
+  after  {"email":"zzr361-reader@example.invalid","terms":"Consultation on the scratch cluster only.","holder":"Round 361 Probe Institute","accountId":302,"instrument":"Probe agreement of 5 October 2026"}
+  note   Access by agreement granted to zzr361-reader@example.invalid — Round 361 Probe Institute.
+2026-10-05T14:56:28.798Z  revoke_institutional_access  actor=300
+  before {"terms":"Consultation on the scratch cluster only.","access":"by_agreement","holder":"Round 361 Probe Institute"}
+  after  {"access":"none","reason":"The probe agreement has run its term."}
+  note   Access by agreement withdrawn from zzr361-reader@example.invalid — The probe agreement has run its term.
+```
+
+`entity_id` in `ozikoro_audit` has no foreign key, so the trail outlives a deleted account, and the grant's own
+`granted_by`/`revoked_by` are `on delete set null` for the same reason: a revoked account's history is not
+deleted with it. `granted_at`, `granted_by` and `terms` were read back after the withdrawal and are unchanged,
+and the row count is unchanged — **a withdrawal is not a delete.**
+
+**And the person who lost access is told, which was decided deliberately.** The refusal screen asks for the
+caller's own withdrawn agreement and prints it, and only for that caller:
+
+```
+An agreement you held has been withdrawn
+An institutional access agreement for this account was withdrawn on 5 October 2026 by the archive's proprietor. The reason recorded is: "The probe agreement has run its term.". Until a new agreement is made, records held by agreement are closed to this account. They have not been removed from the archive.
+```
+
+A reader who could read a record yesterday and cannot today will otherwise conclude the record has vanished, and
+the archive's rule is that a partial state is a real state and is stated. **The revoker is named by ROLE — "the
+archive's proprietor" — and not by address**, and the reason is shown exactly as it was recorded. The revocation
+form says so before the save, in as many words: *"The reason you type is shown to the person whose access is
+withdrawn."* A reader who never held an agreement is told none of this — asserted, because a screen that told
+everybody their access had been withdrawn would be a fabrication.
+
+### 5. The corporate structure, and the door the shared account table would have opened
+
+**ozikoro.com is the mother company; ozituma.com is a 60%-owned subsidiary. The archive is the parent's.** So an
+institutional access agreement about the archive's own holdings is the proprietor's to make, and a minority
+holder's staff must not be able to open or close access to the parent's cultural record.
+
+⚠️ **THE APPLICATIONS SHARE ONE `account` TABLE, AND THE COMPOSE FILE SAYS SO IN ITS OWN WORDS.** Under the
+`ozikoro` service in `docker/docker-compose.prod.yml`:
+
+> *"Shares the one postgres service and the one account table with them: three sites, one database, which is the
+> requirement this project has held to throughout."*
+
+**Three sites, one database, one `account` table** — the dictionary, the archive, and the Academy, which
+`AGENTS.md` records as live at `academy.ozikoro.com` and *"sharing the dictionary's own database and `account`
+table"*. Every service receives the same `DATABASE_URL`, and `AGENTS.md`'s statement that *"the dictionary's
+accounts are now self-contained"* is about the retired Supabase mirror, **not** about the archive: there is one
+`account` table and all three sites read it. That is load-bearing, because `ozikoro_capabilities` has always had
+a clause that hands the **admin role's** capabilities to any account whose platform role is `admin` or `owner` —
+migration 0043 added it "because that is how the first administrator exists". **So it is not only the
+dictionary's administrator who would have reached this: any Ozituma-side account with the platform `admin`
+role would have, on either child site.**
+
+**Had `grant_institutional_access` been granted to the `admin` role, every Ozituma-side administrator would have
+been able to open and close access to the parent's record.** It was therefore granted to the `owner` role only,
+and the isolation is measured rather than argued — in the database and over HTTP:
+
+```
+--- who holds the tier, account by account (ozikoro_capabilities, measured) ---
+  proprietor (account.role=owner, archive owner)       caps=27 read_restricted=true  grant_institutional_access=true  purge_trash=true
+  dictionary administrator (account.role=admin)        caps=20 read_restricted=false grant_institutional_access=false purge_trash=true
+  archive administrator (ozikoro_member_role=admin)    caps=20 read_restricted=false grant_institutional_access=false purge_trash=true
+  dictionary editor (account.role=editor)              caps= 3 read_restricted=false grant_institutional_access=false purge_trash=false
+  archive editor (ozikoro_member_role=editor)          caps=24 read_restricted=false grant_institutional_access=false purge_trash=false
+  reader (contributor, reader role)                    caps= 3 read_restricted=false grant_institutional_access=false purge_trash=false
+```
+
+and, over HTTP, against a real server and a real database: an Ozituma-side administrator **cannot mark a record**
+(`303 -> /admin/access/?error=That needs the "grant institutional access" permission, which this account does not
+have.`), **cannot open the grant screen** (307), and **is refused the gated record itself** (403). The proprietor
+gets the record (200), so the gate is not simply refusing everybody.
+
+**One thing this round did not do, named because it is the same door and it is already open:** an
+`account.role = 'admin'` account — a dictionary administrator — still holds `purge_trash` and the other
+nineteen archive-admin capabilities through migration 0043's clause, because nothing narrowed it and this round
+does not either. **The destructive act on the parent's archive is reachable from the subsidiary's administrator
+today.** That is pre-existing, it is measured above (`purge_trash=true` for the dictionary administrator), and
+it is a decision for the owner rather than a change taken quietly in a round about reading.
+
+### 6. How many records are held by agreement
+
+**Zero.** Measured on the archive's own data, from a copy of the live cluster with 0057 applied:
+
+```
+this scratch cluster: ... of 1053 published records
+records held by agreement that are NOT this suite's fixture: 0 — none
+```
+
+**The tier has no members, and that is stated rather than dressed up.** A tier with no members is a real state;
+a tier pretending to have members is a fabrication. Nothing was marked to make the feature look used — **marking
+a real record to demonstrate the refusal would be a false claim about that record** — so the refusal page is
+reached in a test and not in the wild, and the scratch cluster the instrument uses carries one synthetic record
+whose slug says what it is. The grant screen says the same thing to the operator: *"No record is held by
+agreement. That is the archive's real state and not a failure to load."*
+
+### 7. The parity output, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+`apps/ozikoro/public/design/` was not touched. The refusal screen and the grant screen are new files under
+`app/`, and the refusal reuses the design **at serve time** by replacing the `<main>` of the delivered
+`article.html` — it does not edit it.
+
+### 8. What does not work, with the exact reason
+
+* **`npm run check:design-parity` reports two routes that do not match their design screen, and neither is this
+  round's.** `/towns` is missing its `h1: "towns & communities"` and `/topics` its `h2: "s"` — the second is the
+  `U+2060 WORD JOINER` topic-name fault round 358 recorded. The command is otherwise green: 18 routes compared,
+  1 unverified behind a load boundary, 1 declared omission. Stated so the red is not read as this round's.
+* **The listing and counting surfaces still print a record held by agreement's title and standfirst.** The
+  record's own words are served in full by exactly three addresses — the record, `/podcast/<slug>/transcript/`
+  and `/podcast/<slug>/transcript.txt` — and all three are gated. The other read paths were closed where they
+  carry the record's words: `/api/ask`'s knowledge corpus now excludes the tier, `/sitemap.xml` no longer lists
+  the address, and `/search` hides those results from a caller without the capability. **Seventy-five other
+  query sites across `apps/ozikoro/app` and `packages/ozikoro/src` select published records without filtering
+  the tier** — listings, facets, counts, related reading — and they were not changed, because the goal named
+  one gated route and a listing shows a title rather than a record. Measured by grep, not estimated. Zero
+  records carry the mark today, so nothing is exposed; when the first record is marked, its **title** will
+  appear in the places titles appear until a later round decides whether a listing should hide it.
+* **The refusal was not photographed in a browser this round.** The evidence for it is the response (403), the
+  document as served, and the text above with the tags stripped. `scripts/verify-round-361.mjs` starts a real
+  server and fetches it over HTTP, but it takes no screenshot, and no claim here rests on one.
+* **A standalone Next server bound to `127.0.0.1` answers 500 on every route except the index**, because its own
+  proxy resolves `localhost` to `::1` first. Measured here: three `/search` queries, all 500, with `Failed to
+  proxy http://localhost:3111/search` in the log — and it is the same fault `scripts/serve-review.sh` records,
+  which is why the instrument sets `HOSTNAME=0.0.0.0`. The first version of the instrument set `127.0.0.1` and
+  its search assertion **passed on a 500**, which is what a check that cannot fail looks like; the assertion now
+  requires 200 as well.
+* **The archive's administrator — an `ozikoro_member_role` of `admin` — cannot read a record held by agreement,
+  and cannot make an agreement either.** That follows from the owner's single-grantor choice and is deliberate:
+  the archive's roles are the archive's own grants, and the owner chose to keep the tier with himself. If the
+  intent was "the proprietor and whoever runs the archive", it is one row in `ozikoro_role_capability` and a
+  decision to make.
+* **`scripts/check-capability-fn.mjs` holds a second copy of the capability rule, and this round had to edit it.**
+  It compares a hand-written query against `ozikoro_capabilities` across 21 combinations of platform role and
+  archive role, so a rule changed in one place and not the other fails loudly — but the copy is a copy, and the
+  edit is recorded rather than left implicit. It passes: **21 cases, 0 mismatches.**
+* **Migration 0055's own comment overstates what it does.** It says a capability added by a later migration "is
+  held by an editor without this file being edited" — which cannot be true, because 0055 runs before the later
+  migration exists. The effect this round relies on is the true one: **the vocabulary grew and the editor's set
+  did not grow with it.** Measured: the archive editor holds 24 of the 27 capabilities, and the three it does not
+  hold are `purge_trash`, `read_restricted` and `grant_institutional_access`.
+
+### 9. The tests, the instrument and the gate
+
+* `packages/ozikoro/src/institutional-access.test.ts` — **11 tests, all passing**, pure and with no database:
+  the two claims and their labels, the refusal's words, the withdrawal paragraph, the allow-list of addresses,
+  and the composed document against the **real** `article.html` (asserting the design's example title, byline,
+  quotation, related reading and banner do **not** survive).
+* `packages/ozikoro/src/test-institutional-access.ts` — the database suite, `npm -w @ozikoro/platform run
+  test:institutional-access`: the capability matrix account by account, the six refusals, the grant and what it
+  opens, the mark, the revocation and the audit rows, the two columns being two columns, and the count. **All
+  checks passed**, against a fresh 57-migration cluster and against a copy of the archive's own data.
+* `scripts/verify-round-361.mjs` — the HTTP instrument, and it owns both the scratch cluster and its own server
+  on 3111, because PGlite is single-process and the fixtures need the cluster while the probe needs the server.
+  **PROBLEMS: 0.**
+* `npm run typecheck` from the repository root, read from its own exit code: **0**.
+* `npm -w @ozikoro/platform run test`: **300 pass, 0 fail** (against the scratch cluster; the live cluster is held
+  by the review server, which is the known contention).
+* `npm -w @ozikoro/platform run check:capabilities`: **14 capabilities required by the source; every one is held
+  by at least one role.**
+* `scripts/check-capability-fn.mjs`: **21 cases, 0 mismatches.**
+* **The migration was applied to the live cluster in one window** — SIGTERM, wait, `migrate`, restart with
+  `serve-review.sh` — after being rehearsed on a copy of the archive's own data. **No `kill -9` was sent and no
+  lock was removed.** The build took 121 s and the restart 8 s; the served site answers 200 for `/`, for a real
+  record, for `/search`, and for `/sitemap.xml`, and `/admin/access/` refuses an anonymous caller with a 307
+  whose 10 KB body contains **none** of the page's content.
+
+### 10. The files this round changed
+
+| file | what it now does |
+|---|---|
+| `packages/db/migrations/0057_ozikoro_institutional_access.sql` | the `access_tier` column, the `ozikoro_institutional_access` table, the two capabilities on `owner`, and `ozikoro_capabilities` extended for the owner role and for a live grant |
+| `packages/ozikoro/src/institutional-access.ts` | the grants, the revocation, the mark, and the refusal screen and its text |
+| `packages/ozikoro/src/institutional-access.test.ts`, `test-institutional-access.ts` | the two suites |
+| `apps/ozikoro/app/admin/access/page.tsx`, `apps/ozikoro/app/api/admin/access/route.ts` | the grant screen and its endpoint, both gated on `grant_institutional_access` |
+| `apps/ozikoro/app/[slug]/route.ts` | the gate, before anything about the record is read, and for pages too |
+| `apps/ozikoro/app/podcast/[slug]/transcript/route.ts`, `…/transcript.txt/route.ts` | the same record's words, gated the same way |
+| `packages/ozikoro/src/search.ts`, `seo.ts`, `knowledge.ts` | the three paths that would otherwise carry the record's words or invite a crawler to them |
+| `apps/ozikoro/app/search/page.tsx`, `apps/ozikoro/app/admin/layout.tsx` | the capability passed to the search page, and the one navigation entry drawn only for a holder |
+| `scripts/check-capability-fn.mjs` | the second copy of the rule, kept in step |

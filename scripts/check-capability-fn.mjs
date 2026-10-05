@@ -16,6 +16,25 @@ const ARCHIVE_ROLES = ['reader','student','teacher','researcher','independent_re
   'community_knowledge_holder','editor','expert_reviewer','moderator','admin'];
 const ACCOUNT_ROLES  = ['learner','contributor','editor','linguist','native_reviewer','content_editor','admin','owner'];
 
+/*
+ * THE SECOND COPY OF THE RULE, AND WHY IT IS STILL HERE.
+ *
+ * This query is a copy of `ozikoro_capabilities` written in the script rather than in the application, and its
+ * only job is to be compared against the function so that a rule changed in one place and not the other fails
+ * loudly. **Since migration 0057 the rule has one more clause and one more union**, so this copy has them too:
+ *
+ *   * `c.role = 'owner'` for an account whose PLATFORM role is `owner` — the binding that makes
+ *     `grant_institutional_access` resolve for the proprietor's own account. It is additive: an owner already
+ *     resolved the admin rows through the clause above.
+ *   * `read_restricted` from a live row in `ozikoro_institutional_access` — the reading right a grant carries,
+ *     and nothing else.
+ *
+ * **The two institutional capabilities are on the `owner` role and NOT on `admin`, which is what keeps a
+ * dictionary administrator out of the tier** — the two applications share one `account` table, so the admin
+ * clause would have handed it to every one of them. The probes below measure that (the archive roles are
+ * combined with every platform role), and `packages/ozikoro/src/test-institutional-access.ts` asserts it by
+ * name.
+ */
 const TS_QUERY = `
   select distinct c.capability
     from ozikoro_role_capability c
@@ -23,7 +42,14 @@ const TS_QUERY = `
       or c.role in (select role from ozikoro_member_role where account_id = $1)
       or (c.role = 'admin' and exists (
             select 1 from account a where a.id = $1 and a.role::text in ('admin','owner')
-          ))`;
+          ))
+      or (c.role = 'owner' and exists (
+            select 1 from account a where a.id = $1 and a.role::text = 'owner'
+          ))
+   union
+  select 'read_restricted'
+    from ozikoro_institutional_access
+   where account_id = $1 and revoked_at is null`;
 
 let mismatches = 0, checked = 0, grants = 0;
 
