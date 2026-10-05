@@ -24,8 +24,26 @@ import { closeDb, getDb, type Db } from './client.ts';
  * Tables in the order they are written. `pg_depend`-based ordering would be
  * automatic, but an explicit list is easier to read and to keep stable in a
  * diff — and it makes an accidentally omitted table obvious.
+ *
+ * ⚠️ AND THERE ARE TWO SETS, BECAUSE THE DATABASE HOLDS TWO CORPORA.
+ *
+ * This tool was written for the DICTIONARY, whose 26 tables are below. The owner's archive — `ozikoro.com`,
+ * the history and archive — lives in the same Postgres behind 44 `ozikoro_*` tables, and its records had
+ * never been on the production host. *"which is exactly the case this exists for"*, says the header above,
+ * and the archive is that case.
+ *
+ * **⚠️ AND THE TWO SETS MUST NOT BE EMITTED TOGETHER.** `account`, `session` and `api_key` are in the
+ * dictionary's list, and the production host's `account` table holds the LIVE rows of the dictionary and
+ * the Academy — the academy shares it. **A dump that carried `account` and was then loaded would replace
+ * two running sites' users.** So the set is chosen explicitly and the default is unchanged: running this
+ * script with no argument dumps the dictionary, exactly as it always has.
+ *
+ *   node packages/db/src/dump.ts > ozituma-data.sql            # the dictionary, as before
+ *   node packages/db/src/dump.ts --set archive > ozikoro.sql   # the archive's records
  */
-const TABLES = [
+
+/** The dictionary's tables — unchanged, and the default. */
+const DICTIONARY_TABLES = [
   'language',
   'source',
   'part_of_speech',
@@ -53,6 +71,70 @@ const TABLES = [
   'daily_usage',
   'schema_migration',
 ];
+
+/**
+ * The archive's tables — all 44, taken from the production host's own
+ * `information_schema` rather than from a list written by hand, so an omission is a fact rather than an
+ * oversight.
+ *
+ * ⚠️ PARENTS FIRST. *The script's header sets `session_replication_role` so foreign keys are suspended
+ * during load and order does not strictly matter* — but the list is read by people, and a child above its
+ * parent reads as a mistake.
+ *
+ * ⚠️ AND **NO** `account`, `session` OR `api_key` HERE, DELIBERATELY. The archive has no accounts of its
+ * own; the six rows in the host's `account` table belong to the dictionary and the academy.
+ */
+const ARCHIVE_TABLES = [
+  'ozikoro_site',
+  'ozikoro_role_capability',
+  'ozikoro_entity',
+  'ozikoro_label',
+  'ozikoro_topic',
+  'ozikoro_source',
+  'ozikoro_media',
+  'ozikoro_media_rights',
+  'ozikoro_article',
+  'ozikoro_article_entity',
+  'ozikoro_article_label',
+  'ozikoro_article_media',
+  'ozikoro_article_revision',
+  'ozikoro_article_source',
+  'ozikoro_entity_label',
+  'ozikoro_entity_relation',
+  'ozikoro_audit',
+  'ozikoro_claim',
+  'ozikoro_contributor',
+  'ozikoro_contributor_claim',
+  'ozikoro_correction',
+  'ozikoro_dating',
+  'ozikoro_design_override',
+  'ozikoro_episode',
+  'ozikoro_episode_revision',
+  'ozikoro_episode_transition',
+  'ozikoro_evidence',
+  'ozikoro_excavation',
+  'ozikoro_follow',
+  'ozikoro_institutional_access',
+  'ozikoro_member',
+  'ozikoro_member_role',
+  'ozikoro_object',
+  'ozikoro_oral_history',
+  'ozikoro_podcast_show',
+  'ozikoro_pronunciation',
+  'ozikoro_pronunciation_occurrence',
+  'ozikoro_publication',
+  'ozikoro_publication_author',
+  'ozikoro_publication_file',
+  'ozikoro_publication_review',
+  'ozikoro_publication_transition',
+  'ozikoro_publication_version',
+  'ozikoro_redirect',
+];
+
+/** Which set this run writes. `--set archive` chooses the archive; anything else is the dictionary. */
+const TABLES = process.argv.includes('--set')
+  ? (process.argv[process.argv.indexOf('--set') + 1] === 'archive' ? ARCHIVE_TABLES : DICTIONARY_TABLES)
+  : DICTIONARY_TABLES;
 
 /**
  * Format a JS array as a Postgres array literal.
