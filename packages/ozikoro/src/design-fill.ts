@@ -4913,14 +4913,14 @@ export function fillCulturalCalendar(
     /** The month as 1–12, so the grid is drawn for the month the page NAMES rather than for the wall clock. */
     monthIndex: number;
     events: number;
-    /**
-     * The market-day reckoning this page states, in the same words `/igbo-calendar/` uses.
+    /*
+     * THERE WAS AN `anchor` HERE, AND IT IS GONE WITH THE SENTENCE IT WROTE.
      *
-     * **PASSED IN SO THAT THE TWO SCREENS CANNOT STATE DIFFERENT ANCHORS.** The cycle is computed by the
-     * design's own `market-days.js` — this string is only the basis sentence beside it, and a second copy of
-     * the wording here would be a second place to be wrong.
+     * It existed only to state the market-day basis in the `sx-source-note` beside the stamp, and the owner
+     * asked for that paragraph to be removed from this page. **A field nothing reads is a field that says the
+     * page states its anchor when it does not**, which is why it is deleted rather than left in place; the
+     * anchor itself is stated in full where the reckoning lives, on `/igbo-calendar/` and `/market-days/`.
      */
-    anchor: string;
   }
 ): string {
   let out = clearExampleMaterial(html);
@@ -5281,8 +5281,9 @@ export function fillCulturalCalendar(
    * WHAT IT SAYS, AND WHY THE FIRST VERSION OF THIS SENTENCE WAS WRONG
    *
    * A stamp reading "Nkwọ" over today's date reads as a fact about the reader's own town, and it is not one:
-   * **a community that keeps a different anchor keeps a different market day.** That qualification is real and
-   * stays. What the owner objected to was its SHAPE, in his own words: *"why is this 'A demonstration
+   * **a community that keeps a different anchor keeps a different market day.** That fact is true and it is
+   * stated on the two pages that do the reckoning; what the owner objected to here was its SHAPE, in his own
+   * words: *"why is this 'A demonstration
    * reckoning from a fixed anchor — 1 January 2026 taken as Orie, repeating the four-day cycle — not a claim
    * that every Igbo community uses the same one. The Igbo calendar states the basis in full.' there? fix."*
    *
@@ -5292,12 +5293,22 @@ export function fillCulturalCalendar(
    * reader who came to find out which day it is learns nothing from any of the three, and the same objection
    * was upheld against five sentences of this class on `/about/` an hour before this one was reported.
    *
-   * So the same fact is stated as a fact about the calendar: communities do not all keep one anchor, so a town
-   * that keeps another keeps another market day — and the anchor this page reckons from, because a day without
-   * its anchor cannot be read. The link to the Igbo calendar stays, because the reader who now wonders what
-   * their own town keeps is exactly the reader who wants it; **it is named as a destination rather than
-   * vouched for as a complete account**, which is the claim that made the old last clause about the other page
-   * rather than about this one.
+   * ── AND THEN THE WHOLE NOTE GOES, ON THE OWNER'S INSTRUCTION ──────────────────────────────────────
+   *
+   * The sentence above was rewritten once and the owner objected to it a second time and to its presence
+   * rather than its wording: *"why is this on the cultural calendar page? Please remove!"* — quoting
+   * *"The four-day cycle is kept from different anchors … The Igbo calendar sets out the cycle and the sources
+   * behind this account."* **So the paragraph is not written at all.** This is a cultural-events page; the
+   * market-day stamp on it is a small aside, and the aside had grown a methodology note about a reckoning
+   * this page does not otherwise use.
+   *
+   * **WHAT THAT COSTS, RECORDED RATHER THAN HIDDEN.** The note was the only place on `/cultural-calendar/`
+   * that stated the anchor, and it carried the only link from here to `/igbo-calendar/`. So the stamp now
+   * prints a market day over today's date with **nothing on the page saying which anchor reckons it** — and
+   * the reckoning, and the fact that communities keep different ones, is stated where the reckoning is:
+   * `/igbo-calendar/` and `/market-days/`. **Nothing was invented to replace the note**, and nothing was
+   * quietly moved into another slot to keep the anchor on this page; that is the owner's instruction carried
+   * out, and the absence is written here so the next person finds the reasoning rather than a gap.
    */
   const marketDay = `
       <aside class="wrap" style="margin-top:var(--s-6)">
@@ -5305,7 +5316,6 @@ export function fillCulturalCalendar(
           <p class="eyebrow" style="margin:0">Today&rsquo;s Igbo market day</p>
           <p style="margin:0"><strong data-market-day>Market day</strong><span class="small muted"> · <time data-modern-date>Today</time></span></p>
         </div>
-        <p class="sx-source-note small" style="margin-top:var(--s-3)">The four-day cycle is kept from different anchors in different communities, so a town that keeps another anchor keeps another market day; the anchor used here is ${esc(month.anchor)}. <a href="/igbo-calendar/">The Igbo calendar</a> sets out the cycle and the sources behind this account.</p>
       </aside>`;
   /*
    * INSERTED AFTER THE HERO, FOUND BY ITS OWN CLASS. A page without the hero is left alone rather than
@@ -5395,7 +5405,7 @@ export function fillCulturalEvent(html: string): string {
  * article's sentence is substantially longer the shortened form stays close to its wording on purpose: a
  * paraphrase of a tertiary source is a second layer of interpretation over it, and the page's provenance
  * statement is worth less if the reader cannot see whose words they are reading. The full text of each is at
- * the article, which the sources section links to.
+ * the article, which the source paragraph below links to.
  *
  * THE NRI PATTERN, WHICH KEEPS THIS MATERIAL FROM BECOMING "THE IGBO CALENDAR"
  *
@@ -5515,98 +5525,6 @@ const CALENDAR_MONTHS: CalendarMonth[] = [
   },
 ];
 
-/**
- * THE SOURCES, AS THEY STAND, WITH WHAT EACH IS CITED FOR.
- *
- * Every entry below is a reference the article itself cites, and each was read from the article's own
- * reference list rather than inferred from a citation marker — **a reference number mapped to the wrong work
- * is a false attribution, and it is the one fault this page cannot afford.** The first two are marked because
- * they matter most: Onwuejeogwu (1981) is the work the article names for the month names and their Gregorian
- * ranges, and Udeani (2007) is the one it names for the timekeepers and for birth-day naming.
- *
- * WHAT IS NOT CLAIMED
- *
- * **The archive holds none of these works.** They are not in `ozikoro_article`, `ozikoro_publication` or any
- * media record, so nothing here has been read at source by this archive — which is why the page says so
- * beside the claims rather than in a footnote. What a reader gets is a faithful description of what one
- * tertiary source says and who it says it after, which is the most this archive can honestly offer for a
- * system it holds no verified community calendar for.
- */
-const CALENDAR_SOURCES: Array<{ key?: boolean; citation: string; cited: string }> = [
-  {
-    key: true,
-    citation: 'Onwuejeogwu, M. Angulu (1981). <i>An Igbo civilization: Nri kingdom &amp; hegemony</i>. Ethnographica. ISBN 978-123-105-X.',
-    cited: 'The work the article names for the thirteen month names, their Gregorian equivalents, and the intercalary day at the end of the year. Cited at references 2 and 13 of “Igbo calendar” (Wikipedia, revision 1370565297, 18 February 2026).',
-  },
-  {
-    key: true,
-    citation: 'Udeani, Chibueze C. (2007). <i>Inculturation as dialogue: Igbo culture and the message of Christ</i>. Rodopi, pp. 28–29. ISBN 978-90-420-2229-4.',
-    cited: 'The article’s source for the priests or Dibia as the traditional timekeepers, and for naming children after the day of birth. Cited at reference 4, and again at reference 8 alongside the naming-practice reference.',
-  },
-  {
-    citation: 'Isichei, Elizabeth Allo (1997). <i>A History of African Societies to 1870</i>. Cambridge University Press, p. 247. ISBN 0-521-45599-5.',
-    cited: 'Cited at reference 5, alone, for the correspondence between the four days and the four cardinal points.',
-  },
-  {
-    citation: '<i>Aṅụ Magazine</i>. Aṅụ Journal, no. 1, 1979, Cultural Division, Ministry of Education and Information, pp. 79 and 104. LCCN 88659506, ISSN 0331-1937.',
-    cited: 'Cited at reference 6, alone, for the four days alternating in “major” and “minor” phases to give a longer eight-day cycle. A single citation with no page-level quotation is the whole of the support this page can report for that claim.',
-  },
-  {
-    citation: 'Onuigbo, Sylvanus Nnamdi (2001). <i>The history of Ntuegbe Nese: A Five-town Clan</i>. Afro-Orbus Publishing Company. ISBN 9789783525368.',
-    cited: 'Cited at reference 7 for the article’s most important sentence: that the calendar is “not something written down and followed … rather it is observed in the mind of the people.”',
-  },
-  {
-    citation: 'Ụkaegbu, Jọn Ọfọegbu (1991). <i>Igbo Identity and Personality Vis-à-vis Igbo Cultural Symbols</i>. Universidad Pontificia de Salamanca, Facultad de Filosofia.',
-    cited: 'Cited at reference 3 for the attempts to adjust the thirteen-month calendar to twelve, in line with the Gregorian calendar, and for the article’s statement that it has not been easy.',
-  },
-  {
-    citation: 'Akubue, Godwin Boswell (2013). <i>Cow Without Tail, Book 1</i>. Dorrance Publishing. ISBN 9781434915399.',
-    cited: 'Cited at reference 12 for the two festivals: Ịgụ Arọ, due around 18 February, and Emume Ọnwa-asatọ in the eighth month.',
-  },
-  {
-    citation: 'Anizoba, Emmanuel Kaanene (2010). <i>Ngü Arö Öka: The Öka Lunar Calendar, 2010–2021</i>. Demercury Bright Printing &amp; Publishing.',
-    cited: 'Cited at reference 13 for Imöka being celebrated on the 20th day of the second month.',
-  },
-  {
-    citation: 'Aguwa, Jude C. U. (1995). <i>The Agwu deity in Igbo religion</i>. Fourth Dimension Publishing, p. 29. ISBN 978-156-399-0; and Hammer, Jill (2006). <i>The Jewish book of days: a companion for all seasons</i>. Jewish Publication Society, p. 224. ISBN 0-8276-0831-4.',
-    cited: 'Cited jointly at reference 10 for Ọnwa Agwụ being the traditional start of the year.',
-  },
-  {
-    citation: '“Day MASSOB Took Over Nri Kingdom”, <i>The Nigerian Voice</i>, 21 March 2012.',
-    cited: 'Cited at reference 9 for the 2012 Ịgụ Arọ and for the article’s report of the 1,013th recorded year of the Nri calendar. A news report of one year’s festival, which is what the article uses it for.',
-  },
-  {
-    citation: '“Izu Igbo Calendar”, izuigbocalendar.com. Retrieved 21 August 2026.',
-    cited: 'Cited at reference 1 for the name Ọ̀gụ́àfọ̀ Ị̀gbò. A commercial calendar site, and the article’s only support for that name.',
-  },
-  {
-    citation: '“Naming practice guide UK 2006”, March 2006.',
-    cited: 'Cited at reference 8, with Udeani, for the naming practice. A guidance document rather than a study of Igbo naming; the article cites it for the practice as it stood in 2006.',
-  },
-  {
-    citation: 'H.R.H. Silver Ibenye-Ugbala, <i>Igbo Calendar from A.D. 0001 to A.D. 8064: With a Comparative Examination of Gregorian and Other World Calendars</i>.',
-    cited: 'The article’s own “General references” list holds this title and nothing further — no publisher, no date and no citation marker anywhere in the text. <strong>This page does not use it, and lists it only because the article carries it and a reader checking the article will meet it.</strong>',
-  },
-];
-
-/** What the article states, and the article's own section it is stated in, so a claim can be found. */
-const CALENDAR_CLAIM_SOURCE: Array<{ claim: string; where: string }> = [
-  { claim: 'The names and the Gregorian ranges of the thirteen months', where: 'System — reference 2, Onwuejeogwu (1981)' },
-  { claim: 'The intercalary day at the end of the year, in the last month', where: 'System — reference 2' },
-  { claim: 'The priests or Dibia as the traditional timekeepers', where: 'System — reference 4, Udeani (2007)' },
-  { claim: 'Afọ north, Nkwọ south, Eke east, Orie west', where: 'System — reference 5, Isichei (1997)' },
-  { claim: 'Four days alternating in major and minor phases, giving an eight-day cycle', where: 'System — reference 6' },
-  { claim: 'The calendar is neither universal nor synchronized', where: 'Lead and Use — reference 7' },
-  { claim: '“Not something written down and followed … observed in the mind of the people”', where: 'Use — reference 7, quoted by the article' },
-  { claim: 'Naming children after the day of birth: Mgbeke, Mgborie, and the male forms', where: 'Naming after dates — references 4 and 8' },
-  { claim: 'The Nri-Igbo calendar of the Nri kingdom, which may differ from other Igbo calendars', where: 'Months and meanings — the article’s own framing' },
-  { claim: 'The meaning and ritual of each of the thirteen months', where: 'Months and meanings — each month’s own subsection' },
-  { claim: 'Ịgụ Arọ around 18 February, and Emume Ọnwa-asatọ in the eighth month', where: 'Festivals — reference 12' },
-  { claim: 'Imöka on the 20th day of the second month', where: 'Festivals — reference 13' },
-  { claim: 'The 1,013th recorded year of the Nri calendar, and the 2012 dates', where: 'Festivals and Ọnwa Mbụ — reference 9, a news report of one year' },
-  { claim: 'That the day-spirits were fishmongers, created by Chineke to establish a social system', where: 'System — this sentence carries no reference in the article' },
-];
-
 /** The same claims, each with the outcome of putting it to the archive's own records. */
 const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> = [
   {
@@ -5666,40 +5584,43 @@ const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> 
   },
 ];
 
-/** Every festival the article names, so a reader can see them as a set rather than scattered in prose. */
-const CALENDAR_FESTIVALS: Array<{ name: string; gregorian: string; what: string; src: string }> = [
-  {
-    name: 'Ịgụ Arọ',
-    gregorian: 'around 18 February',
-    what: 'The article calls this the Igbo new year festival and the year-counting festival of the Nri calendar: the planting season, when the king, the Eze Nri in the Nri area, tells the Igbo to go and sow their seed after the next rainfall.',
-    src: 'Wikipedia, Festivals and Ọnwa Mbụ — references 9 and 12',
-  },
-  {
-    name: 'Emume Ọnwa-asatọ',
-    gregorian: 'the eighth month',
-    what: 'The harvest festival, described in the article as one of the two major festivals of the calendar.',
-    src: 'Wikipedia, Festivals — reference 12',
-  },
-  {
-    name: 'Önwa Asatọ',
-    gregorian: 'the month Ọnwa Ilọ Mmụọ',
-    what: 'The article calls this the Eighth Month festival, held in the eighth month.',
-    src: 'Wikipedia, Months and meanings, Ọnwa Ilọ Mmụọ — no reference of its own',
-  },
-  {
-    name: 'Imöka',
-    gregorian: 'the 20th day of the second month',
-    what: 'Named in the article’s Festivals section, with that date and no further description.',
-    src: 'Wikipedia, Festivals — reference 13',
-  },
-];
-
 /**
  * Build the material that sits below the design's own content on `/igbo-calendar/`.
  *
  * Kept out of the fill itself so the fill reads as the few edits it makes to the design's markup, and so this
- * block — which is long, and is the part a reader of this file will want to check against the article — can
- * be found and read on its own.
+ * block can be found and read on its own.
+ *
+ * ── IT WAS 4,100 WORDS AND IS NOW ABOUT 2,000, ON THE OWNER'S INSTRUCTION ─────────────────────────────
+ *
+ * His words, about everything below the design's own "Community context matters" note: *"after 'community
+ * context matters', the rest are scattered, and extremely useless. can you fucking arrange it well like
+ * others?"* Measured before this: the page was 4,429 words, of which **4,101 were this block and 622 were the
+ * calendar a reader came for** — eight sections reproducing Wikipedia's "Igbo calendar" article, including a
+ * table of which claim rests on which of the article's references and a section listing the article's own
+ * reference list with what each is cited for. **A calendar page that is 87% an account of one encyclopaedia
+ * article is the fault he named**, and the two sections above are the clearest part of it: they are the
+ * article's apparatus rather than anything about the calendar.
+ *
+ * WHAT WENT, AND WHERE IT WENT — because the archive's rule is that a claim keeps its attribution and its
+ * place or goes with a note saying where. **The paragraph below the source names the revision and says in
+ * plain words which material is at it and not here**: the article's account of the four days and their
+ * cardinal points, the festivals it names, the naming tradition, the eight-day cycle, the Nri year count and
+ * its full reference list with what each reference is cited for. **And the claims themselves were not
+ * dropped with those sections**: the check below records an outcome, with its attribution, for every
+ * substantial claim they carried — the cardinal correspondence, the eight-day cycle, the festivals and their
+ * dates, the naming, the year count and the day-spirits tradition are each a row in it.
+ *
+ * WHAT STAYED, AND WHY EACH.
+ *
+ *   the thirteen months   **the calendar's own content.** A reader who came for the market week is offered
+ *                         the year its weeks make up, with the names, the Gregorian ranges and the article's
+ *                         descriptions, every row marked as Nri's and carrying its own source.
+ *   the check             **the only part of this material that is the archive's own work rather than a
+ *                         reproduction of a tertiary source.** Removing it would leave the page stating
+ *                         Wikipedia's account with nothing saying what the archive can and cannot
+ *                         substantiate, which is the "does not repeat a source as settled" rule this whole
+ *                         file is written to.
+ *   what is not done      the page's own negative space, kept because an empty state is a real state.
  */
 function igboCalendarAddendum(basis: string): string {
   const monthRows = CALENDAR_MONTHS.map((m, i) => {
@@ -5723,15 +5644,6 @@ function igboCalendarAddendum(basis: string): string {
             </tr>`;
   }).join('\n');
 
-  const sources = CALENDAR_SOURCES.map(
-    (s) => `          <dt>${s.key ? '<span class="sx-cal-tag">Named for the month names</span> ' : ''}${s.citation}</dt>
-          <dd>${s.cited}</dd>`
-  ).join('\n');
-
-  const claimSource = CALENDAR_CLAIM_SOURCE.map(
-    (c) => `            <tr><th scope="row">${c.claim}</th><td>${c.where}</td></tr>`
-  ).join('\n');
-
   const verification = CALENDAR_VERIFIED.map((v) => {
     const label = v.state ? 'The archive can substantiate this' : 'Not verified here';
     return `            <tr>
@@ -5739,17 +5651,6 @@ function igboCalendarAddendum(basis: string): string {
               <td><p>${v.claim}</p><p class="small muted">${v.note}</p></td>
             </tr>`;
   }).join('\n');
-
-  const festivals = CALENDAR_FESTIVALS.map(
-    /*
-     * TWO COLUMNS, AND DELIBERATELY NOT FOUR. The Igbo names here run to two words with dotted vowels and tone
-     * marks, and a four-column table at 390 px leaves each of them about nine characters wide — so the names
-     * would wrap mid-word on the phone this page is read on most. A definition list keeps each name, its
-     * Gregorian placement and its source on lines a phone can hold, and lets the description wrap underneath.
-     */
-    (f) => `          <dt>${esc(f.name)}<span class="small muted"> · ${esc(f.gregorian)}</span></dt>
-          <dd><p>${esc(f.what)}</p><p class="small muted">${f.src}</p></dd>`
-  ).join('\n');
 
   /*
    * THE MONTH-ROW TOGGLE.
@@ -5805,50 +5706,17 @@ function igboCalendarAddendum(basis: string): string {
           .sx-cal-account .sx-cal-no-state { color: var(--ochre, #8a5a2b); }
           .sx-cal-account .sx-ledger-table th[scope="row"] { vertical-align: top; }
           .sx-cal-account .sx-cal-account-key th[scope="row"], .sx-cal-account .sx-cal-account-key td { white-space: nowrap; }
-          .sx-cal-account dl { margin-top: var(--s-4); max-width: 74ch; }
-          .sx-cal-account dt { margin-top: var(--s-5); font-weight: 600; }
-          .sx-cal-account dd { margin: var(--s-2) 0 0; color: var(--text-muted); }
-          .sx-cal-account dd p + p { margin-top: var(--s-2); }
-          .sx-cal-account .sx-cal-legend { margin-top: var(--s-4); padding: var(--s-3) var(--s-4); border-left: 3px solid var(--gold, #c9a84c); background: var(--ochre-wash, #f3e6d3); font-size: var(--t-sm); }
           .sx-cal-account .sx-cal-year-card { padding: var(--s-3) var(--s-4); border: 1px solid var(--rule-firm); background: var(--paper-raised); }
           .sx-cal-account .sx-cal-year-card > summary { cursor: pointer; font-family: var(--font-serif); font-size: var(--t-lg); font-weight: 600; }
           .sx-cal-account :is(a, button, summary):focus-visible { outline: 3px solid var(--focus, #1b4f8a); outline-offset: 2px; }
         </style>
 
         <p class="eyebrow">The Igbo calendar</p>
-        <h2>The system</h2>
-        <p>This part of the page sets out what one published account says about the Igbo calendar as a system: the shape of its week and its year, the names it gives to the days and the thirteen months, the festivals attached to them, and the naming tradition that follows the day of a child’s birth. It is a description of a system rather than a conversion, because it has to be.</p>
-        <p><strong>Everything in this part of the page comes from Wikipedia’s <a href="https://en.wikipedia.org/wiki/Igbo_calendar">“Igbo calendar” article</a>, in the revision of 18 February 2026.</strong> It is not this archive’s own description, and it is not a community’s. Where the article attributes a claim to a named work, this page names that work; where it does not, this page says so. Each section below names its own source, and the works are gathered in full at the end.</p>
-        <div class="sx-cal-legend">
-          <p><strong>The article’s own caveat on itself.</strong> Its talk of citations is not empty. The article carries a maintenance banner reading <em>“This article needs more citations. Please help improve this article by adding citations to reliable sources. Unsourced material may be challenged and removed”</em>, dated June 2015.</p>
-        </div>
-        <p>The article describes the system in these words: <em>“The calendar has 13 months in a year (Afọ), 7 weeks in a month (Ọnwa), and 4 days of Igbo market days (Eke, Orie, Afọ, and Nkwọ) in a week (Izu) plus an extra day at the end of the year, in the last month. The name of these months was reported by Onwuejeogwu (1981).”</em></p>
-        <p>Here is that structure in the article’s own terms. A week, <i>izu</i>, holds four days, <i>ubo chi</i>; seven weeks make a month, <i>ọnwa</i>; a month is 28 days; and a year, <i>afọ</i>, holds thirteen of them. In the last month an extra day is added, which is an intercalary day — a day put in outside the ordinary count so that a count of whole weeks can keep its place against the solar year. Thirteen months of 28 days come to 364 days, and the extra day brings the count to the 365 of a common solar year. The article names the traditional timekeepers of Igboland as the priests or <i>Dibia</i>, and gives Udeani (2007) for it.</p>
-        <p><strong>What follows is the most useful sentence in the article, and it agrees with what this page already said above it.</strong> The article states: <em>“The calendar is neither universal nor synchronized, so various groups will be at different stages of the week, or even year.”</em> It goes on to say that the four-and-eight-day cycle nonetheless serves to synchronise market days between villages, and that substantial parts of Igboland — the Kingdom of Nri among them — do share the same year-start. It also records that some Igbo communities have tried to adjust the thirteen-month calendar to twelve months, in line with the Gregorian calendar, and that it has not been easy.</p>
-        <p>That is the same position this page takes above. <strong>The reckoning above is one archive’s, from a fixed anchor; the article says the reckoning is not shared; and neither is a claim about what your own community keeps.</strong> A reader who takes either as universal has been misled, so both are said in plain words rather than left to be inferred.</p>
-
-        <h2>The days of the week</h2>
-        <p>The article says the four market days follow one another in this order, and that in various parts of Igboland each community has a market named after one of them — an Eke market, an Afọ market. The order is the sequence, not a set, and it is the sequence the reckoning above uses.</p>
-        <div class="sx-table-wrap">
-          <table class="sx-ledger-table">
-            <caption>Eke, Orie, Afọ and Nkwọ, in the order the article gives them, and where the article places each.</caption>
-            <thead><tr><th scope="col">No.</th><th scope="col">Day (ubo chi)</th><th scope="col">Where the article places it</th></tr></thead>
-            <tbody>
-              <tr><th scope="row">1</th><td>Eke</td><td>East. Isichei (1997) is cited for the cardinal correspondence.</td></tr>
-              <tr><th scope="row">2</th><td>Orie, also Oye</td><td>West. The article’s form is Orie; the screen above already lists Oye beside it.</td></tr>
-              <tr><th scope="row">3</th><td>Afọ, also Afor</td><td>North.</td></tr>
-              <tr><th scope="row">4</th><td>Nkwọ, also Nkwor</td><td>South.</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="small muted">Reference 5, Isichei, <i>A History of African Societies to 1870</i> (1997), p. 247, is cited for the cardinal correspondence and for nothing else in the article. This page does not print the four directions in the day cards above, because those cards are the design’s and the correspondence is one source’s statement rather than a fact the archive holds.</p>
-        <p>The article also says the four days <em>“come in alternate cycles of ‘major’ and ‘minor’, giving a longer eight day cycle”</em>, citing a 1979 issue of <i>Aṅụ Magazine</i>. <strong>This page does not draw an eight-day cycle, because one magazine reference with no quotation behind it is not enough to draw one with.</strong> The reckoning above stays on the four days the design and the archive’s own records both set out, and the claim is recorded here rather than acted on.</p>
-        <p>One sentence in the article is a tradition about origins rather than a report of an event: that the day-spirits, whom it calls fishmongers, <em>“were created by Chineke (Faith and Destiny) in order to establish a social system throughout Igboland.”</em> <strong>It is set down here as the tradition it is.</strong> The article gives it no reference, the archive holds no support for it, and this page neither repeats it as settled nor rules on it.</p>
-
-        <h2>The thirteen months</h2>
-        <p>This is the centre of what the article adds. <strong>The names and the Gregorian ranges are the article’s system table, which attributes them to Onwuejeogwu (1981); the descriptions are the article’s “Months and meanings” section, which the article states is the Nri-Igbo calendar of the Nri kingdom.</strong> The two are kept apart in the table below because they carry different weight. <strong>What this page can say is that the article says Nri reckons the year in these thirteen months, and that Nri is not all of Igboland.</strong></p>
-        <p><strong>The Gregorian column is a range and not a date.</strong> February–March for the first month describes roughly where in the solar year it falls; it is not a rule that turns a Gregorian day into an Igbo one. The reckoning above works the other way round: it takes a Gregorian date and gives the market day under one stated anchor. The article supplies nothing that would join the two, so this page prints no such conversion, and the market-day view above remains a reckoning of the four-day week from one stated anchor rather than a converter for the thirteen months.</p>
-        <p>Each month is a button. Press it, or press Enter on it, and the article’s description of that month opens in the row beneath. <strong>The descriptions are written into the page either way</strong>, so they are readable, findable and printable with JavaScript switched off.</p>
+        <h2>The year and its months</h2>
+        <p>The article sets the system out in its own words: <em>“The calendar has 13 months in a year (Afọ), 7 weeks in a month (Ọnwa), and 4 days of Igbo market days (Eke, Orie, Afọ, and Nkwọ) in a week (Izu) plus an extra day at the end of the year, in the last month. The name of these months was reported by Onwuejeogwu (1981).”</em> In its terms: a week, <i>izu</i>, holds four days; seven weeks make a month, <i>ọnwa</i>, of 28 days; and a year, <i>afọ</i>, holds thirteen of them. The extra day in the last month is an intercalary day — a day put in outside the ordinary count so that a count of whole weeks keeps its place against the solar year — and the thirteen months of 28 days plus it come to 365. The article names the traditional timekeepers of Igboland as the priests or <i>Dibia</i>, and gives Udeani (2007) for it.</p>
+        <p>The names of the thirteen months and their Gregorian equivalents are the article’s system table, which it attributes to Onwuejeogwu (1981). The descriptions are its “Months and meanings” section, which the article states is the Nri-Igbo calendar of the Nri kingdom and says may differ from other Igbo calendars in naming, rituals and ceremonies. <strong>What this page can say is that the article says Nri reckons the year in these thirteen months, and that Nri is not all of Igboland.</strong> The Gregorian column is a range and not a date: it describes roughly where in the solar year a month falls, and it is not a rule that turns a Gregorian day into an Igbo one. The article supplies nothing that would join the two, so this page prints no such conversion, and the market-day view above remains a reckoning of the four-day week from one stated anchor rather than a converter for the thirteen months.</p>
+        <p><strong>The sentence that matters most in the article is the one that agrees with this page.</strong> It states: <em>“The calendar is neither universal nor synchronized, so various groups will be at different stages of the week, or even year.”</em> That is the position this page takes above: the reckoning above is one archive’s, from a fixed anchor, and it is not a claim about what your own community keeps.</p>
+        <p>Each month below is a button. Press it, or press Enter on it, and the article’s description of that month opens in the row beneath. <strong>The descriptions are written into the page either way</strong>, so they are readable, findable and printable with JavaScript switched off.</p>
         <div class="sx-table-wrap">
           <table class="sx-ledger-table">
             <caption>Thirteen months (ọnwa). Names and Gregorian equivalents: Onwuejeogwu (1981), as reported by the article. Descriptions: the article’s Nri-Igbo section, which it says may differ from other Igbo calendars in naming, rituals and ceremonies. Every row is Nri’s.</caption>
@@ -5859,17 +5727,6 @@ ${monthRows}
           </table>
         </div>
         <p class="small muted">A note on the names: the article gives <i>Ọnwa Ilọ Mmụọ</i> for the eighth month, and the description it gives that month calls the festival held in it <i>Önwa Asatọ</i>, with the umlaut the article uses. Both spellings are the article’s and are left as the article has them.</p>
-
-        <h2>Festivals named in this account</h2>
-        <p>These are the festivals the article names, set out so a reader can see them as a set. <strong>They are the article’s, and the archive holds no event record for any of them.</strong> <a href="/cultural-calendar/">The cultural calendar</a> states that the archive holds no events, and nothing here changes that: no festival below has a date the archive can stand behind, a place, an organiser, or a record to look at.</p>
-        <dl>
-${festivals}
-        </dl>
-        <p class="small muted">Two annual dates in the article are worth reading with care. The 18 February given for Ịgụ Arọ is the date the article reports for 2012, alongside a note that in the event the festival was held in March — and the article’s own lead says the reckoning is not synchronised between groups. A festival reckoned from the moon does not sit on one Gregorian day, so this page prints the article’s date as the article’s rather than as a standing date.</p>
-
-        <h2>Naming after dates</h2>
-        <p>The article says newborn babies are sometimes named after the day they were born on, though it adds that this is no longer commonly used. It gives <i>Mgbeke</i> as a maiden born on the day of Eke, and <i>Mgborie</i> as a maiden born on the Orie day, and says that for males <i>Mgbo</i> is replaced by <i>Oko</i>, a male child, or <i>Nwa</i>, a child. Its example is Nwankwo Kanu, the footballer — <i>Nwa</i> and <i>Nkwọ</i>, a child born on the Nkwọ day.</p>
-        <p>Udeani (2007), which the article cites for this, is cited for it twice: at reference 4 and again at reference 8 alongside a 2006 British naming-practice guide. <strong>This is one of the few claims on this page the archive can partly substantiate from its own shelves</strong>: it holds a record on the name Mgbeke, its origin and its use, and the check below records what that record and the archive’s other calendar records say.</p>
 
         <h2>What the archive can substantiate about this account</h2>
         <p>This archive’s first rule about a source is that it does not repeat one as settled. So each substantial claim the article makes was put to the archive’s own records, and the result is below. <strong>“The archive can substantiate this” means one or more of the archive’s own catalogued records states it independently of the article.</strong> It does not mean the claim is settled: a record can be wrong, and both records named here are secondary accounts rather than a community’s own.</p>
@@ -5884,30 +5741,12 @@ ${verification}
         </div>
         <p class="small muted">Where the check was made, so that it can be repeated. The archive holds five catalogued records that bear directly on this account: <i>Traditional Igbo calendar and lunar/solar alignments</i>, <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i>, <i>Symbolism of the Four Market Days in Igbo Culture</i>, and <i>Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture</i>. <strong>The check was made against the archive’s own catalogued article data for these five by name, and not against a live query.</strong> Their own pages carry their own provenance, which is where a claim about them should be checked.</p>
 
-        <h2>Sources and how to read them</h2>
-        <p>The source for this account is a Wikipedia article, and this archive says that plainly rather than dressing it up. It is cited below in full so that a reader can go to it, check the revision, and judge it. The article is itself a tertiary source: it gathers what other works say. Its own reference list is what makes it usable, and that list is reproduced with a note on what each reference is used for.</p>
-        <dl>
-          <dt>Wikipedia contributors. “Igbo calendar.” <i>Wikipedia, The Free Encyclopedia.</i> Revision 1370565297, 18 February 2026.</dt>
-          <dd>Read at <a href="https://en.wikipedia.org/wiki/Igbo_calendar">en.wikipedia.org/wiki/Igbo_calendar</a>. Every claim in this part of the page is taken from this revision. The article carries a “needs more citations” banner dated June 2015, which is reproduced above and is part of the assessment rather than a detail beside it.</dd>
-        </dl>
-        <h3>The works the article cites, and what each is cited for</h3>
-        <p>These are the article’s own references, with what the article uses each for. A marked reference is one of the two the article relies on for the parts of this page a reader is most likely to want to check.</p>
-        <dl>
-${sources}
-        </dl>
-        <h3>Which claim rests on which reference</h3>
-        <p>So that a reader can find a claim in the article rather than trusting this page’s summary of it, the section each claim comes from is given beside the reference the article attaches to it.</p>
-        <div class="sx-table-wrap">
-          <table class="sx-ledger-table sx-cal-account-key">
-            <caption>Claim, and the article’s section and reference for it.</caption>
-            <thead><tr><th scope="col">What the article states</th><th scope="col">Where, and on what</th></tr></thead>
-            <tbody>
-${claimSource}
-            </tbody>
-          </table>
-        </div>
+        <h2>Where this account comes from, and what is not on this page</h2>
+        <p>The source is Wikipedia’s <a href="https://en.wikipedia.org/wiki/Igbo_calendar">“Igbo calendar”</a>, revision 1370565297 of 18 February 2026 — a tertiary source, which gathers what other works say, and the revision is given so that a reader can fetch the exact text. The two works it relies on for most of what is above are Onwuejeogwu (1981), for the month names and their Gregorian ranges, and Udeani (2007), for the timekeepers and for naming a child after the day of birth. <strong>The article’s own caveat on itself is part of the assessment rather than a detail beside it</strong>: it carries a maintenance banner reading <em>“This article needs more citations. Please help improve this article by adding citations to reliable sources. Unsourced material may be challenged and removed”</em>, dated June 2015.</p>
+        <p>The article also carries an account of the four days and their cardinal points, the festivals it names, the tradition of naming a child after the day of birth, the claim of a longer eight-day cycle, a year number for the Nri calendar, and a full reference list with a note of what each reference is cited for. <strong>Those are at the revision linked above and are not reproduced on this page.</strong> They were set out here at length and the page read as an account of the article rather than of the calendar; what is kept is what the calendar itself is and what this archive can check, and the claims the page has dropped are the ones the check above already records an outcome for.</p>
+        <p><strong>AND NO CLAIM LOST ITS SOURCE WITH ITS SECTION.</strong> The works the article cites for the material that is at that revision rather than here are named in one place, so that a reader who wants to check one can go to it: Isichei (1997) for the correspondence between the four days and the four cardinal points; <i>Aṅụ Magazine</i> no. 1 (1979) for the four days alternating in “major” and “minor” phases to give a longer eight-day cycle; Udeani (2007) for the priests or <i>Dibia</i> as the traditional timekeepers and for naming a child after the day of birth; Akubue (2013) for Ịgụ Arọ and Emume Ọnwa-asatọ; Anizoba (2010) for Imöka; and <i>The Nigerian Voice</i> of 21 March 2012 for that year’s Ịgụ Arọ and for the article’s 1,013th-year figure. Each is cited at the article’s own reference list, which is where the article’s use of it can be read in full.</p>
         <h3>What this page has not done</h3>
-        <p>It has not converted a Gregorian date into an Igbo day, month or year. It has not drawn the eight-day cycle. It has not given any festival a date of its own. It has not repeated the article’s year count for the Nri calendar as a fact. It has not put any of this into the market-day reckoning above, which remains this archive’s reckoning from the fixed anchor stated at <i>${esc(basis)}</i>. And it has not created an event record: <strong>the archive holds no event for any of these festivals</strong>, and <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself. Each of those is a thing the material could be made to say and the sources do not carry, which is why it is not said.</p>
+        <p>It has not converted a Gregorian date into an Igbo day, month or year. It has not drawn the eight-day cycle. It has not given any festival a date of its own. It has not repeated the article’s year count for the Nri calendar as a fact. It has not put any of this into the market-day reckoning above, which remains this archive’s reckoning from the fixed anchor stated at <i>${esc(basis)}</i>. And it has not created an event record: <strong>the archive holds no event for any festival the article names</strong>, and <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself. Each of those is a thing the material could be made to say and the sources do not carry, which is why it is not said.</p>
         ${monthToggle}
       </section>`;
 }
@@ -6153,9 +5992,10 @@ export function extendMarketDaysScript(script: string): string {
  * So the account is appended as one section below the design's own content, and nothing above it moves. Three
  * things make it honest rather than merely present:
  *
- *   1. **the source is named at the point of use.** Every claim's material carries the article's section and
- *      reference number, the works the article cites are listed with what each is cited for, and the revision
- *      is given so a reader can fetch the exact text;
+ *   1. **the source is named at the point of use.** The revision is given so a reader can fetch the exact
+ *      text, the two works the article relies on for what is above are named where their claims are, and
+ *      every removed section is named in the source paragraph as material that is at the revision and not on
+ *      this page;
  *   2. **the Nri account is marked as Nri's.** The months-and-meanings material is the Nri-Igbo calendar of the
  *      Nri kingdom by the article's own statement, and the table says so in its caption, its column and every
  *      row — presenting it as "the Igbo calendar" would be the universalising this page forbids;
@@ -6164,6 +6004,12 @@ export function extendMarketDaysScript(script: string): string {
  *      it and, for the rest, the reason it cannot be. **"The archive can substantiate this" means one of the
  *      archive's own catalogued records states it independently of the article**, which is a weaker claim than
  *      proof and is worded that way.
+ *
+ * THE BLOCK WAS 4,100 WORDS AND THE OWNER CALLED IT USELESS. It is now about 2,000, the article's own
+ * apparatus — its reference list and its claim-by-reference table — is off the page, and `igboCalendarAddendum`
+ * records what went, what stayed and where the removed material is. **The 4,100-word version is in this
+ * commit's parent**, which is where a removed section of prose is recoverable from; the claims themselves
+ * were never dropped, because the check below carries an outcome for each.
  *
  * **And the sentence that matters most in the article is the one that agrees with this page.** It says the
  * calendar is *"neither universal nor synchronized, so various groups will be at different stages of the week,
@@ -6177,13 +6023,19 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
    * THE HERO'S OWN DESCRIPTION OF WHAT THE PAGE HOLDS.
    *
    * It read "Check today, look up another date, or follow Eke, Orie, Afọ and Nkwọ across a month or full
-   * year." **That was the whole of the page when it was written and it is not the whole of it now** — this
-   * round adds the system, the thirteen months and their sources below. A hero that leaves them out is the
-   * page underselling itself at the one point every reader reads.
+   * year." **That was the whole of the page when it was written and it is not the whole of it now** — the
+   * account below the calendar is part of the page. A hero that leaves it out undersells the page at the one
+   * point every reader reads.
+   *
+   * AND IT IS NAMED AGAIN SINCE THE ACCOUNT WAS TRIMMED, WHICH IS THE HALF OF THIS THAT IS EASY TO MISS. The
+   * sentence used to promise "the system, the thirteen months, the festivals the account names, the naming
+   * tradition, and where all of it comes from" — and after the owner's trim **the festivals and the naming
+   * tradition are no longer below.** A hero that still promised them would be the archive's own front door
+   * pointing at a section that is not there, which is worse than the underselling this line was added to fix.
    */
   out = out.replace(
     /Check today, look up another date, or follow Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor across a month or full year\./,
-    'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar, the system behind it: the thirteen months of the year, the festivals the account names, the naming tradition that follows the day of a child’s birth, and where all of it comes from.'
+    'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar, the year those days make up: the thirteen months and their sources, and what this archive can and cannot substantiate of the account behind them.'
   );
   out = out.replace(
     /*
@@ -6200,10 +6052,6 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
     /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\.\s*It is not a claim that every Igbo community uses the same anchor\./,
     `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.`
   );
-  out = out.replace(
-    /A production result should always name its source\./,
-    'This result names its source: the anchor above. A community that keeps a different anchor will keep a different market day, and this page cannot tell you which one your town uses.'
-  );
   /*
    * THE SAME ANCHOR, STATED ON THE OTHER SCREEN THAT LOADS THIS SCRIPT.
    *
@@ -6215,16 +6063,55 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
    * anchor in one form.
    *
    * Two sentences rather than one, because the two screens were written differently and **a replacement that
-   * silently matches nothing is the fault this file keeps recording** — each string below is read from the
-   * screen it belongs to, and the test asserts that both are replaced.
+   * silently matches nothing is the fault this file keeps recording** — each string is read from the screen it
+   * belongs to, and the test asserts that both are replaced.
    */
   out = out.replace(
     /The supplied helper sets 1 January 2026 as Orie and repeats the four-day cycle\. This is a design basis, not a claim that every Igbo community uses the same anchor\./,
     `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.`
   );
+  /*
+   * ── AND THE NOTE-TO-SELF COMES OFF BOTH SCREENS ──────────────────────────────────────────────────
+   *
+   * The design's last paragraph in `sx-basis-note` is addressed to a developer rather than to a reader:
+   * *"Before production: verify the anchor, community basis, timezone, spellings and whether the day changes
+   * at sundown. A production result should always name its source."* — and `/market-days/` carries the same
+   * instruction minus its last sentence. **It reached readers**, and the fill had been rewording the second
+   * half of it while leaving "Before production:" in place: the site was serving an instruction to its own
+   * author with the author's checklist left intact beside it.
+   *
+   * SO THE WHOLE PARAGRAPH GOES, INSTRUCTION AND ALL, AND NOTHING REPLACES IT. Everything in it a reader can
+   * use is already on the page twice: the paragraph immediately above states that this page reckons from a
+   * fixed anchor and that communities do not all keep the same one, and every claim in the account below is
+   * attributed. What is left — verify the timezone, verify the spellings, verify whether the day changes at
+   * sundown — is a list of work this archive has not done, addressed to whoever does it next, and **a page
+   * must not carry instructions to its own author.**
+   *
+   * THE TWO SPELLINGS ARE MATCHED WHERE THEY STAND rather than by one loose pattern, because the two screens
+   * wrote the paragraph differently and **a replacement that silently matches nothing is the fault this file
+   * keeps recording**. The test asserts that both are gone from the pages that carried them.
+   */
   out = out.replace(
-    /verify the anchor, community basis, timezone and whether the day changes at sundown\./,
-    'verify the anchor, the community basis, the timezone, the spellings and whether the day changes at sundown. A community that keeps a different anchor will keep a different market day, and this page cannot tell you which one your town uses.'
+    /<p><b>Before production:<\/b> verify the anchor, community basis, timezone, spellings and whether the day changes at sundown\. A production result should always name its source\.<\/p>/,
+    ''
+  );
+  out = out.replace(
+    /<p><b>Before production:<\/b> verify the anchor, community basis, timezone and whether the day changes at sundown\.<\/p>/,
+    ''
+  );
+  /*
+   * THE SAME CLASS OF SENTENCE, FOUND ON THE SIBLING SCREEN WHILE LOOKING FOR THE FIRST ONE.
+   *
+   * `/market-days/` carries a second note after its month view: *"Market-day sequences can differ by
+   * community. A production result should always name its verified calendar source."* **The first sentence is
+   * for the reader and the second is for the build** — "a production result" is this archive talking about
+   * its own deployment, exactly as "Before production:" was. So the second sentence goes and the first stays,
+   * with the fact the second was protecting stated for a reader instead: this page does name its anchor, in
+   * the basis note above, and a town that keeps another one keeps another market day.
+   */
+  out = out.replace(
+    /<p>Market-day sequences can differ by community\. A production result should always name its verified calendar source\.<\/p>/,
+    '<p>Market-day sequences can differ by community. This page states the anchor it reckons from above, and a town that keeps another anchor keeps another market day.</p>'
   );
 
   /*

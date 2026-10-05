@@ -19,6 +19,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { headers as requestHeaders } from 'next/headers';
 import { getDb } from '@ozituma/db/client';
 import {
   imageNode,
@@ -131,6 +132,59 @@ const DASHBOARDS = [
   'dashboard-reviewer', 'dashboard-admin', 'dashboard-account', 'dashboard-moderation',
   'dashboard-review', 'dashboard-states', 'dashboard-workflow',
 ];
+
+/**
+ * THE DASHBOARDS THAT BELONG TO A MEMBER, AND THE ONE FAULT THEY SHARED.
+ *
+ * THE OWNER'S REPORT: *"i went to the dashboard, clicked on profile, and it led me to login again, instead of
+ * the account profile."*
+ *
+ * Measured before this, signed out:
+ *
+ *     GET /dashboard-reader/    200   ← renders "Your workspace" to anybody
+ *     GET /dashboard-account/   200   ← renders the account screen to anybody
+ *     GET /account/             307 → /signin?error=…&next=/account/
+ *
+ * So the dashboard met a stranger as though he were a member: a heading saying *Your workspace*, a metrics
+ * row, and — on `/dashboard-reader/` — a **Profile** button. That button is the first control on the page that
+ * checks anything, and it is `/account/`, which is gated. **A page that greets somebody as the owner of a
+ * workspace and then bounces them at the first click reads exactly as having been logged out**, and nothing
+ * up to that point had told him he was not signed in. That is the fault, and it is this set's whole reason for
+ * existing.
+ *
+ * ── WHICH TWO, AND WHY NOT THE OTHER TWELVE ───────────────────────────────────────────────────────────
+ *
+ * A dashboard needs the session HERE when **it is a page addressed to a member and it renders a customer's own
+ * record rather than a refusal.** Two of the fourteen answer that:
+ *
+ *   `dashboard-reader`    the reader's own workspace — the floor every account stands on, and the address the
+ *                         masthead, the design's own "My Ozikoro" item and `primaryDashboardHref` all point at
+ *   `dashboard-account`   the account screen, which is the same page `/account/` serves — and `/account/`
+ *                         has required a session since it was built
+ *
+ * **THE OTHER TWELVE ALREADY REFUSE, AND A REFUSAL IS NOT THIS FAULT.** `/dashboard-editor/`,
+ * `/dashboard-admin/` and the rest are opened by a capability, so signed out they reach `decideDashboardMode`
+ * and answer **403 with a sentence that says nobody is signed in on this browser and offers a way to do it**.
+ * That page tells a stranger the truth at the first moment; it does not greet them as a member. **And
+ * `/dashboard-states/` is left public deliberately**: it is the design's own reference for what an empty, a
+ * loading, an error, a permission, a pending and a success state look like — "Every state has a next step" —
+ * which is a page about the archive's language rather than anybody's record, and it neither says "your
+ * workspace" as its subject nor links to an account.
+ *
+ * ── AND THE DESIGN'S OWN ANSWER, WHICH IS THE OPPOSITE, AND IS WHY THIS IS WRITTEN DOWN ───────────────
+ *
+ * **The design draws a signed-out variant of the dashboard and always did.** `fillDashboard`'s
+ * "A VISITOR WHO IS NOT SIGNED IN GETS THE SAME PAGE, SAYING SO" branch renders *"Not signed in · This
+ * workspace is yours to claim"* with links to `/join` and `/signin`, and its comment records the reasoning —
+ * *"it must not open on a sign-in form … the screen is not hidden behind the door it describes."* So this gate
+ * **reverses a recorded design decision rather than repairing an oversight**, and it does so on the owner's
+ * own report: the signed-out variant is a small status chip under a heading that says *Your workspace*, and he
+ * read the page as his own and the bounce as a sign-out. **The consequence is stated rather than hidden: the
+ * design's signed-out panel is now unreachable at `/dashboard-reader/` and `/dashboard-account/`**, because
+ * the reader never sees the page that carries it. Whoever wants it back should read this list and the design's
+ * comment together, and decide the question the owner has now answered the other way.
+ */
+const MEMBER_DASHBOARDS = new Set(['dashboard-reader', 'dashboard-account']);
 
 /** The screen name to the role it speaks for, and the label the design prints. */
 const DASHBOARD_ROLE: Record<string, { role: string; label: string }> = {
@@ -611,6 +665,61 @@ export async function GET(
      * depends on who is asking.**
      */
     const workspace = await workspaceViewer();
+
+    /*
+     * ============================================================================================
+     * THE MEMBER'S OWN DASHBOARDS REQUIRE A SESSION, THE SAME WAY `/account/` DOES.
+     * ============================================================================================
+     *
+     * Measured before this, signed out: `/dashboard-reader/` answered **200** and rendered
+     * `<h1>Your workspace</h1>` with a **Profile** button pointing at `/account/`; `/dashboard-account/`
+     * answered 200 with the account screen. `/account/` itself answered **307 to
+     * `/signin?error=…&next=/account/`**. So the first thing on the dashboard that checked anything was the
+     * Profile button, and it bounced the reader to sign-in — *"i went to the dashboard, clicked on profile,
+     * and it led me to login again, instead of the account profile."* **That reads as having been logged
+     * out**, because nothing before that click had said he was not signed in.
+     *
+     * WHY 307 AND WHY A `Response` RATHER THAN `redirect()`
+     *
+     * 307 is the status `/account/` produces for the same case, so the two member surfaces answer alike.
+     * `redirect()` from `next/navigation` throws a control-flow signal that this handler's own `try` would
+     * catch — the whole body below sits inside it, and the catch answers **404 for the screen**, which is the
+     * worst available answer for a reader who merely needs to sign in. A plain `Response` returns from the
+     * handler without passing through that catch, which is why it is written this way.
+     *
+     * WHERE `next` COMES FROM, MEASURED RATHER THAN ASSUMED
+     *
+     * `/account/` reads `(await headers()).get('x-pathname') ?? '/account/'`, and the header is set by the
+     * middleware — **but only on the two branches that pass it through**, `NextResponse.next({ request: {
+     * headers } })` at the bottom and the slash-less `NextResponse.rewrite(url, { request: { headers } })`
+     * above it. A design screen never reaches either: the middleware rewrites `/dashboard-reader/` to
+     * `/design-screen/dashboard-reader` with `NextResponse.rewrite(target)` and **no request headers of its
+     * own**, so `x-pathname` is not on the request this route receives. Measured on the served response: a
+     * request for `/dashboard-reader` (no slash) comes back with `next=%2Fdashboard-reader%2F`, with the
+     * trailing slash the reader did not type — which is the fallback and not the header, because a header
+     * would have carried `/dashboard-reader` verbatim. **So the fallback is what runs on this route, and the
+     * fallback is the screen's own canonical address rather than `/account/`.** The header is still read
+     * first: it costs one call, and it is what keeps this correct if the middleware ever starts forwarding it.
+     */
+    if (MEMBER_DASHBOARDS.has(name) && !workspace.signedIn) {
+      /*
+       * THE IMPORT IS ALIASED BECAUSE THIS FUNCTION ALREADY HAS A `headers` OF ITS OWN. The response built at
+       * the end of this handler is `new Response(html, { headers })` and declares `const headers = new
+       * Headers(...)`, so `headers()` from `next/headers` would be a name collision inside one function body —
+       * `TS2448: Block-scoped variable 'headers' used before its declaration`, measured, not guessed.
+       */
+      const requestedPath = (await requestHeaders()).get('x-pathname') ?? `/${name}/`;
+      return new Response(null, {
+        status: 307,
+        headers: {
+          location:
+            `/signin?error=${encodeURIComponent('Sign in to reach your workspace.')}` +
+            `&next=${encodeURIComponent(requestedPath)}`,
+          'cache-control': 'no-store',
+        },
+      });
+    }
+
     html = fillMasthead(html, { signedIn: workspace.signedIn });
 
     /*
@@ -1722,12 +1831,14 @@ export async function GET(
          * month from the wall clock while the heading took it from here: the same value today, and a page
          * headed "October 2026" over November's days the moment either changed.
          *
-         * THE MARKET-DAY ANCHOR COMES FROM THE CONSTANT BELOW, WHICH THE IGBO CALENDAR ALSO USES.
+         * THE OWNER ASKED FOR TODAY'S IGBO MARKET DAY ON THIS SCREEN. **The reckoning is the design's own
+         * `market-days.js`, not a second implementation here**, and the fill draws no day of the cycle itself.
          *
-         * The owner asked for today's Igbo market day on this screen, and **the reckoning is the design's own
-         * `market-days.js`, not a second implementation here.** What is passed is the basis sentence beside it,
-         * and passing the same constant to both screens is what stops the two from ever stating different
-         * anchors — the drift a copied string would eventually produce.
+         * THE BASIS SENTENCE THAT USED TO BE PASSED IN IS GONE, ON THE OWNER'S INSTRUCTION — *"why is this on
+         * the cultural calendar page? Please remove!"* The note it wrote was the only statement of the anchor
+         * on this page, so **`/cultural-calendar/` no longer names the anchor its stamp reckons from**; the
+         * anchor is stated in full on `/igbo-calendar/` and `/market-days/`, which are the pages that own the
+         * reckoning. See `fillCulturalCalendar` for what that costs and why nothing replaced it.
          */
         const now = new Date();
         html = fillCulturalCalendar(html, {
@@ -1736,7 +1847,6 @@ export async function GET(
           // `getUTCMonth()` is 0-based; the fill wants 1–12 because it does calendar arithmetic with it.
           monthIndex: now.getUTCMonth() + 1,
           events: 0,
-          anchor: MARKET_DAY_ANCHOR,
         });
       }
 

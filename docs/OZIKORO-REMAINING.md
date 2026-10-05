@@ -27085,3 +27085,172 @@ reports it as a word. **Live keys would jump the queue ahead of everything excep
 | `scripts/rotate-credential.mjs` | the host-side half: one credential per run, backup first, prove before write, restore on failure, **never print a value**, refuse empty and identical values, and refuse to be an agent's tool |
 
 **No existing file was modified by this round except this record.**
+
+## ROUND 363 — THE DASHBOARD GREETED A STRANGER AS ITS OWNER, THE CULTURAL CALENDAR CARRIED A NOTE THE OWNER HAD ALREADY REJECTED TWICE, AND THE IGBO CALENDAR'S 4,258-WORD APPENDIX ABOUT ONE WIKIPEDIA ARTICLE WAS CUT TO THE CALENDAR AND THE ARCHIVE'S OWN CHECK
+
+**Three faults, one of which changed shape while the round ran.** The owner's first report was the dashboard
+and a sentence on the cultural calendar; his second, sent while the work was in progress, was that everything
+below *"Community context matters"* on `/igbo-calendar/` is *"scattered, and extremely useless"*.
+
+### 1. The dashboard's fault, measured rather than reasoned
+
+Signed out, before this round:
+
+| address | status | what it was |
+|---|---|---|
+| `/dashboard-reader/` | **200** | `<h1>Your workspace</h1>`, a **Profile** button pointing at `/account/` |
+| `/dashboard-account/` | **200** | the account screen |
+| `/account/` | **307** | `→ /signin?error=…&next=%2Faccount%2F` |
+
+So the first control on the dashboard that checked anything was **Profile**, and it bounced the reader to
+sign-in. *"i went to the dashboard, clicked on profile, and it led me to login again, instead of the account
+profile."* — **which reads as having been logged out**, because nothing before that click had said he was not
+signed in.
+
+**⚠️ THE BRIEF'S PREMISE WAS WRONG IN TWO PLACES, AND BOTH ARE RECORDED RATHER THAN PASSED OVER.**
+
+* There is **no `apps/ozikoro/app/dashboard-reader/page.tsx`**. `/dashboard-reader/` is served by
+  `app/design-screen/[screen]/route.ts` — the middleware rewrites the reader's address to
+  `/design-screen/dashboard-reader` — so a grep of the app directory for `getCurrentAccount` was never going
+  to find this page's gate. It has none, and that half of the diagnosis stands.
+* **The page did not say nothing about signing in.** `fillDashboard` renders a signed-out panel —
+  *"Not signed in · This workspace is yours to claim"*, with links to `/join` and `/signin` — and its own
+  comment records the decision: *"it must not open on a sign-in form … the screen is not hidden behind the
+  door it describes."* **So the gate reverses a recorded design decision rather than repairing an oversight**,
+  and the cost is stated: the design's signed-out panel is now unreachable at both member addresses.
+
+### 2. The gate, and where `next` comes from
+
+`MEMBER_DASHBOARDS = {dashboard-reader, dashboard-account}` in the design-screen route; when the viewer is not
+signed in it answers **307** with
+
+```
+/signin?error=Sign%20in%20to%20reach%20your%20workspace.&next=%2Fdashboard-reader%2F
+```
+
+**The other twelve dashboards are deliberately not in the set.** They are opened by a capability, so signed
+out they already answer **403 with a sentence that says nobody is signed in and offers a way to** — a refusal
+at the first moment, not a greeting. `/dashboard-states/` stays public: it is the design's own reference for
+what an empty, a loading, an error, a permission, a pending and a success state look like, and it is about the
+archive's language rather than anybody's record.
+
+**`x-pathname` is NOT set on this route, and that was measured rather than assumed.** The middleware sets it
+only on the branches that attach request headers — `NextResponse.next({ request: { headers } })` and the
+slash-less `rewrite(url, { request: { headers } })`. A design screen reaches neither: the rewrite at
+`/dashboard-reader/` is `NextResponse.rewrite(target)` with no headers of its own. **The proof is the trailing
+slash**: a request for `/dashboard-reader` *without* one comes back with `next=%2Fdashboard-reader%2F` — the
+slash the reader did not type — where a forwarded header would have carried `/dashboard-reader` verbatim. So
+the fallback is what runs, and the fallback is `/${name}/`, i.e. the dashboard and never `/account/`.
+
+| address | before | after |
+|---|---|---|
+| `/dashboard-reader/` | 200 | **307** `→ /signin?…&next=%2Fdashboard-reader%2F` |
+| `/dashboard-reader` | 200 | **307**, `next=%2Fdashboard-reader%2F` — the fallback, proved |
+| `/dashboard-account/` | 200 | **307** `→ /signin?…&next=%2Fdashboard-account%2F` |
+| `/dashboard-admin/` | 403 | **403**, unchanged |
+| `/dashboard-states/` | 200 | **200**, unchanged and deliberate |
+| `/account/` | 307 | **307**, unchanged |
+
+**The signed-in case was tested with a real session**, established by `POST /api/auth/register` against the
+serving build (`303 → /dashboard-reader/`, `Set-Cookie: ozituma_session=…`). With that cookie:
+`/dashboard-reader/` **200**, 7,424 bytes, `<h1>Welcome back, Round 363 probe</h1>`; `/dashboard-account/`
+**200**; `/account/` **200**. A probe account was created in the shared local database
+(`dsh-round-363-probe@example.invalid`, reader role) and **was not deleted** — the API has no delete path and a
+CLI script would collide with the running server's PGlite cluster.
+
+### 3. Is there an identity marker in the dashboard chrome? Measured
+
+* **`<h1>Welcome back, Round 363 probe</h1>`** — the person's name, written by `fillDashboard`.
+* `<header class="sx-dash-top">` carries `<strong>Reader</strong>` — **the role**, not the name.
+* **`nav-account` is absent from `dashboard-reader.html`**, so `fillMasthead` writes no account item into the
+  rail.
+* **There is no "sign out" and no "Signed in as …" anywhere on the dashboard** for a plain reader. The
+  truthful mode switch (`Signed in as <b>…</b> · Owner`) is rendered only for an account holding at least one
+  elevated workspace (`hasElevatedDashboardModes`), and a reader holding only the floor sees nothing — by
+  design.
+
+**So the page does name the person, in its `<h1>`, and it names their role in the header; it has no sign-out
+control and no identity item in the chrome.** Nothing was added: the design draws neither.
+
+### 4. The cultural calendar's sentence, and the note-to-self beside it
+
+* `fillCulturalCalendar` wrote the whole `sx-source-note` paragraph under the market-day stamp, and that
+  paragraph is **not written at all now** — *"why is this on the cultural calendar page? Please remove!"*
+* **The `anchor` option on `fillCulturalCalendar` is deleted with it**, and the route stopped passing
+  `MARKET_DAY_ANCHOR`: a field nothing reads says the page states its anchor when it does not.
+* **⚠️ AND WHAT THAT COSTS, STATED PLAINLY: nothing else on `/cultural-calendar/` now explains the anchor.**
+  Measured on the served page: `four-day cycle is kept` **0**, `sets out the cycle and the sources behind this
+  account` **0**, the word `anchor` **0**, the word `Orie` **0**. The stamp still prints a market day over
+  today's date with **no statement of which anchor reckons it and no link to the page that does**. Nothing was
+  invented to replace it. The page went **487 → 437 words**.
+* **A second note-to-self was served, and it is not the one the owner quoted.** The design's closing paragraph
+  in `sx-basis-note` reads *"**Before production:** verify the anchor, community basis, timezone, spellings and
+  whether the day changes at sundown. A production result should always name its source."* — **and the fill had
+  been rewording its second half while leaving `Before production:` standing.** `/market-days/` carried the
+  same instruction plus a third build-facing sentence in its closing note (*"A production result should always
+  name its verified calendar source."*). **All three are gone**: the whole paragraph is removed on both
+  screens, and the market-days closing note keeps its reader-facing first sentence. What the reader keeps is
+  the basis note above it — *"This page reckons the cycle from a fixed anchor: … Communities do not all keep
+  the same anchor, so a town that keeps another one keeps another market day."* Measured on the served pages:
+  `Before production` **1 → 0** on both, `A production result` **1 → 0** on market-days.
+
+### 5. The Igbo calendar's appendix, and the two premises that did not survive measurement
+
+**⚠️ `/market-days/` IS NOT THE MODEL THE BRIEF ASSUMED.** It is **4,361 words** and carries **the same
+appendix word for word** — `fillIgboCalendar` serves both screens. `/cultural-calendar/` is the only short one
+at 487 words. So "make this page's shape match that family" had no family to match, and the trim applies to
+both screens because one fill writes both.
+
+**What went, and where it went.** Five `<h2>` sections and two `<h3>` subsections — the article's own apparatus
+and the prose about it: *The system*, *The days of the week*, *Festivals named in this account*, *Naming after
+dates*, *The works the article cites…*, *Which claim rests on which reference*, *What this page has not done*
+(as a heading). **No claim went with them without a source**: the source paragraph now names, in one place and
+with the claim each carries, Isichei (1997), *Aṅụ Magazine* (1979), Udeani (2007), Akubue (2013), Anizoba
+(2010) and *The Nigerian Voice* (21 March 2012), and says that the article's account of the four days and their
+cardinal points, its festivals, the naming tradition, the eight-day cycle, the Nri year count and its full
+reference list **are at the linked revision and are not reproduced here**. **The claims themselves were never
+dropped**: the check table records an outcome, with its attribution, for every one of them, including the
+fishmonger tradition and the eight-day cycle. The 4,100-word version is recoverable from this commit's parent.
+
+**What stayed, and why each:**
+
+| kept | why |
+|---|---|
+| the thirteen months (976 words) | **the calendar's own content** — the year the four-day weeks make up, every row marked Nri's with its own source |
+| what the archive can substantiate (738) | **the only part of the material that is the archive's own work rather than a reproduction of a tertiary source**; removing it would leave the page stating Wikipedia's account with nothing to check it |
+| where this account comes from (406) | the revision, the two works relied on, and the plain statement of what is not here |
+| what this page has not done (136) | the page's own negative space, and an empty state is a real state |
+
+**The words, before and after, all measured on the serving build** (whole document, `<script>`, `<style>` and
+`<noscript>` taken out and whitespace-separated tokens counted — so the absolute figure is a little lower than
+one that keeps the scripts, and the before/after pair is the comparison that matters):
+
+| page | before | after |
+|---|---|---|
+| `/igbo-calendar/` | 4,429 | **2,504** |
+| `/market-days/` | 4,361 | **2,459** |
+| `/cultural-calendar/` | 487 | **437** |
+
+**⚠️ AND THE RATIO IS REPORTED RATHER THAN DRESSED UP: below "Community context matters" the page is still
+2,341 words of 2,504, because the two tables are the bulk and both were kept.** If the owner wants the
+appendix off the page entirely, the honest next step is to give the months and the check an address of their
+own — which needs a route and therefore his decision — because deleting them here would leave a page that
+reproduces a tertiary source with nothing saying what the archive can and cannot vouch for.
+
+### 6. The gate, and what does not work
+
+* `npm run typecheck` from the repository root: **exit 0**.
+* `node --test src/design-fill.test.ts`: **94 pass, 0 fail**. The five tests that asserted the removed
+  sections, the removed sentence and the removed notes are **inverted rather than deleted** — the assertion
+  that required *"The four-day cycle is kept from different anchors…"* now requires its absence, with the
+  owner's instruction in the comment, because a test that requires a thing the owner asked to be removed
+  removes it again.
+* `npm -w @ozikoro/platform run test`: **297 pass, 1 fail** — `src/knowledge.test.ts` fails with
+  `REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT`, i.e. the review server's PGlite
+  single-process lock. **Contention, not this round's change** (`design-fill.test.ts` is green in the same
+  run).
+* `scripts/check-design-parity.mjs`: **`/igbo-calendar` ok (14 design sections, 9 headings)**,
+  **`/cultural-calendar` ok (11 sections, 4 headings)**. Two routes fail — `/towns` (missing h1) and `/topics`
+  (missing h2 "s") — **both pre-existing and recorded in round 361 as not that round's**.
+* Design parity, computed directly: **`identical 63 differing 0 missing 0`**, before this round's changes and
+  after them. `apps/ozikoro/public/design/` was not touched.
