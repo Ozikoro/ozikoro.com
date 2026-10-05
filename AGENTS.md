@@ -198,30 +198,50 @@ record or deploy to it. It has no record in the `ozikoro.com` zone, and a link t
 a link to nothing."* **The academy has a record, resolves, and serves — see the live measurements above.**
 The paragraph was obeyed for a day and would have caused a working site to be "tidied" away.
 
-### 🔴 The Academy's image has no source in either repository
+### ✅ The Academy's source is in this repository as of `aec2092` — and this section used to say it was nowhere
 
-**Measured on 2026-10-05, and it is the most dangerous fact on that host:**
+**⚠️ READ THIS FIRST: THE PARAGRAPH THAT WAS HERE WAS TRUE WHEN IT WAS WRITTEN AND IS FALSE NOW.** It said,
+in red, *"The Academy's image has no source in either repository … the most dangerous fact on that host …
+nothing in either repository can rebuild it."* **The owner pushed the Academy's source on 2026-10-05 and it
+was merged at `aec2092`.** *This is the second time this file has carried an authoritative warning that
+stopped being true and was obeyed by agents who did not re-measure it — the first was the claim that
+`academy.ozikoro.com` was not live while it was serving 200.* **So: when this file makes a claim about
+production, measure it before acting on it, and correct the file when it is wrong.**
+
+**What is true now, measured:**
 
 ```
-on the host, running    ozituma-academy-1   ozikoro-academy:latest   Up (healthy)
-the host's Dockerfile   targets: base · deps · builder-web · builder-learn · runtime-base · web · learn
-                        ← THERE IS NO ACADEMY TARGET
-this checkout           no academy app at all (it has apps/web and apps/ozikoro)
+in this repository       apps/academy — 139 files, tracked, merged at aec2092
+                         apps/academy/Dockerfile exists (3,533 bytes)
+docker/docker-compose.prod.yml
+  the `academy` service  build:
+                           context: ../apps/academy      ← resolves to apps/academy
+                           dockerfile: Dockerfile
+                         image: ozikoro-academy:latest
+                         PORT 3000, HOST 0.0.0.0, expose 3000, with a healthcheck —
+                         named rather than defaulted, because the Dockerfile's EXPOSE
+                         and the Caddyfile's `reverse_proxy academy:3000` are three
+                         places that must agree
 ```
 
-**So the running Academy image was not built from the host's Dockerfile, and this checkout cannot build
-it.** It came from somewhere else — another checkout, another directory, or a `docker build` someone ran by
-hand — and **nothing in either repository can rebuild it.**
+**So `docker compose build academy` builds it from a real source tree, and the whole-file build this file
+used to forbid is no longer forbidden by *this* reason.**
 
-**What that costs, and why it is written down here:** if that image is ever lost, or if anyone runs
-`docker compose build` or `up --build` across the whole file, **the Academy has no stage to build from.**
-The failure is not obviously about the Academy — a whole-file build either errors on a missing target or
-leaves the running container on a stale image while the compose file claims otherwise, **which is the
-"file and production disagree" fault this project keeps producing.**
+**⚠️ BUT ONE THING IS UNCHANGED, AND IT IS THE PART THAT MATTERS ON THE HOST.** *The Academy's source is in
+**this** checkout. The host at `/opt/ozituma/app` is a different checkout — `oziikoro/Ozikoro`, a different
+history — and **it may still have no `apps/academy`.** *The `academy` service in the compose file that is
+actually on the host is the one that matters, and if the host's copy of that file has no `academy` build
+block then the service still cannot be rebuilt there.* **Measure the host's `apps/` and its compose
+`academy` block before running any build on it; do not assume this merge reached it.**
 
-**Until the Academy's source is found and brought into this repository: do not run a whole-file build on
-that host, and do not remove the `learn` stages from its Dockerfile** — they are the closest thing to it
-that exists there, and they may be what a previous session built the image from under an older name.
+**The safe form of the instruction, which is what should be followed until the host is measured:**
+
+- **`docker compose build academy` in THIS checkout** — fine, the source and the build block are both here.
+- **Any build on the host** — check `/opt/ozituma/app/apps/academy` and the host's `docker/docker-compose.prod.yml`
+  `academy:` block first. *If either is absent, the host still cannot build the Academy and a whole-file
+  build there is still what this section used to warn about.*
+- **Do not remove the `learn` stages from the host's Dockerfile.** *They are unrelated to the Academy's own
+  Dockerfile and were only ever noted here as the closest thing that existed on that host at the time.*
 
 ### The Academy's host, and how a retired link is handled
 
