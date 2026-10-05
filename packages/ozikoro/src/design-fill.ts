@@ -1741,9 +1741,63 @@ export type RealArticleEntity = {
  * all, from Google or the BBC, and replacing those would be inventing a source.
  */
 export function rewriteBodyImages(body: string, resolve: (url: string) => string | null): string {
-  const fix = (url: string) => resolve(url) ?? url;
+  /*
+   * A VIDEO IS NOT AN IMAGE, AND THREE OF ITS ADDRESSES WERE BEING MISSED.
+   *
+   * This function rewrote `<img src>` and `srcset` and nothing else. **A `<video>` is written by WordPress as
+   * a `<video>` holding a `<source src>` and a fallback `<a href>`, and none of those three matched** — so the
+   * record `omabe-nsukka-the-spirit-tradition-and-heritage-of-the-igbo-masquerade-festival` served two
+   * videos pointing at `ozikoro.com/wp-content/uploads/2024/10/…mp4` while both files sat in the media
+   * bucket with a row apiece. Seven published records carry a `<video>`; the other five happen to hold an
+   * already-rewritten address.
+   *
+   * ⚠️ AND TWO SMALLER THINGS WERE ALSO WRONG ABOUT THE ADDRESS ITSELF, for images as well as video. The map
+   * is keyed by the record's own `source_url`, which is absolute — `https://ozikoro.com/wp-content/…`. The
+   * markup asks with a **relative** path, `/wp-content/…`, and the `<source>` carries a cache-buster,
+   * `…mp4?_=2`. An exact-match lookup answers null for both, so the address survived untouched.
+   *
+   * So the lookup is normalised rather than the map: strip the query or fragment before asking, and ask again
+   * with whatever the resolver did not already answer. **Nothing is rewritten unless a media row matched**,
+   * which is what keeps this bounded — a link to another article cannot be touched, because no media row
+   * carries that address. The query is put back when one was there, so a cache-buster still busts.
+   */
+  const fix = (url: string) => {
+    const bare = url.replace(/[?#].*$/, '');
+    const tail = url.slice(bare.length);
+    /*
+     * ⚠️ THE ADDRESS THE MARKUP QUOTES IS SITE-RELATIVE WHILE THE MAP IS ABSOLUTE, WHICH IS THE ROOT OF THIS.
+     * `mediaUrlMap` is keyed by the record's own `source_url` — `https://ozikoro.com/wp-content/…` — and
+     * WordPress wrote the video's `<source>` as `/wp-content/…`. An exact-match lookup answers null for every
+     * one of them, so the address survived untouched however well the tags were matched. Asking both
+     * spellings is the whole repair; the query string was a second, smaller miss on top of it.
+     *
+     * Tried in order, first answer wins: the address as written, then without its query or fragment, then
+     * site-absolute when it is a path. The query is put back on whatever was found, so a cache-buster still
+     * busts. And **nothing is rewritten unless a media row matched**, which is what keeps this bounded — a
+     * link to another article cannot be touched, because no media row carries that address.
+     */
+    const tries: string[] = [url];
+    if (bare !== url) tries.push(bare);
+    if (bare.startsWith('/')) tries.push(`https://ozikoro.com${bare}`);
+    for (const attempt of tries) {
+      const found = resolve(attempt);
+      if (found) return found + tail;
+    }
+    return url;
+  };
   return body
     .replace(/(<img[^>]*?\ssrc=")([^"]+)(")/g, (_m, a, url, c) => a + fix(url) + c)
+    // A video, its nested sources, and an audio element — the same `src` attribute, three more tags.
+    .replace(/(<(?:video|source|audio)[^>]*?\ssrc=")([^"]+)(")/gi, (_m, a, url, c) => a + fix(url) + c)
+    /*
+     * AND THE FALLBACK ANCHOR, WHICH IS A LINK AND SO NEEDS A NARROWER NET. It is matched by extension
+     * rather than by being inside a `<video>`, because a body's markup is not reliably nested — and an
+     * extension test cannot reach an article link. A miss costs nothing: `fix` returns the address unchanged.
+     */
+    .replace(
+      /(<a[^>]*?\shref=")([^"]+\.(?:mp4|m4v|webm|ogv|ogm|mov))(\?[^"]*)?(")/gi,
+      (_m, a, url, q, c) => a + fix(url + (q ?? '')) + c
+    )
     .replace(/(\ssrcset=")([^"]+)(")/g, (_m, a, set, c) =>
       a +
       set
