@@ -203,3 +203,35 @@
 .sx-reading-columns .prose figure img {
   height: auto;
 }
+
+/*
+ * ── THE MASTHEAD LOGO WAS BEING SQUEEZED, AND THE CAUSE IS TWO RULES THAT ARE EACH CORRECT ALONE ────────
+ *
+ *   main.css:11      img { max-width: 100%; display: block }
+ *   main.css:98      .wordmark { display: inline-flex; align-items: baseline; gap: var(--s-2) }
+ *   showcase.css:19  .wordmark { align-items: center }
+ *   showcase.css:20  .wordmark img { width: 34px; height: 34px; border-radius: 50% }
+ *
+ * ⚠️ **AN `img` INSIDE A FLEX CONTAINER IS A FLEX ITEM, AND A FLEX ITEM SHRINKS BY DEFAULT**
+ * (`flex-shrink: 1`). **`max-width: 100%` then resolves against whatever space the flex line has left**,
+ * rather than against the 34 px the design asked for — so as the masthead's own content grew (the nav, the
+ * date, and on a narrow viewport the whole wrapped row), **the logo was compressed below its own size.**
+ *
+ * ⚠️ **AND THE DESIGN NEVER INTENDED A VARIABLE LOGO.** *It sets 34 px by 34 px and a circle, and the archive
+ * serves a 512 × 512 square PNG through it, so the file is not the problem and never was* — measured: the
+ * served image is **512 × 512, ratio 1.000**, 15,175 bytes. **The size was being decided by the layout rather
+ * than by the design.**
+ *
+ * SO THE SIZE IS PINNED WHERE THE APPLICATION CONTROLS IT. *`apps/ozikoro/public/design/` is inviolable — it
+ * is byte-identical to the deliverable and must stay so — and this sheet already loads **after** both of the
+ * design's, which is where a rule that **corrects** the design rather than contradicting it belongs.*
+ *
+ * `max-width: none` is needed as well as `flex: 0 0 auto`, and neither alone is enough: **`flex` stops the
+ * flex algorithm shrinking the box, and `max-width` stops the global `img` cap re-capping it once the box
+ * has been sized.** *The 34 px itself is not repeated here — it is the design's, and duplicating a value
+ * is how the two copies drift.*
+ */
+.wordmark img {
+  flex: 0 0 auto;
+  max-width: none;
+}
