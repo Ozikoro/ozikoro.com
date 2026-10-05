@@ -2194,10 +2194,31 @@ export function fillArticle(html: string, a: RealArticle): string {
 
   // Related reading, from the same topic.
   if (a.related.length > 0) {
+    /*
+     * ⚠️ THE CARD'S `<span>` WRAPPER AND ITS `<em>` WERE BOTH MISSING, AND THE DESIGN'S OWN CSS LAYS THE
+     * CARD OUT THROUGH THEM.
+     *
+     * `article.html` draws each related record as:
+     *
+     *     <a href="…"><img …><span><small>Historical Studies</small>
+     *       <strong>Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots</strong>
+     *       <em>Read history →</em></span></a>
+     *
+     * and this emitted `<a><img><small>…</small><strong>…</strong></a>` — **no `<span>`, no `<em>`.** The
+     * owner reported the result as *"the design is faulty, and is not truly what the original design was"*,
+     * which is exactly what it is: `.sx-related-list a` is a grid whose second track is the `<span>`, so
+     * **without the wrapper the image, the category and the title are three siblings with nothing holding
+     * them together**, and the card loses the shape the design gives it.
+     *
+     * ⚠️ AND THE `<em>` IS NOT DECORATION. Every other card in this design ends with one — `Read history →`,
+     * `Read or listen →` — and it is the line that tells a reader the card is a way in rather than a caption.
+     * *Its wording is the design's own and is emitted literally rather than composed, because it is furniture
+     * rather than a fact about the record: the archive has nothing to say about what a reader will do next.*
+     */
     const items = a.related
       .map(
         (r) =>
-          `<a href="${esc(r.href)}">${r.image ? `<img src="${esc(r.image)}" alt="" loading="lazy">` : ''}<small>${esc(r.topic ?? 'From the archive')}</small><strong>${esc(r.title)}</strong></a>`
+          `<a href="${esc(r.href)}">${r.image ? `<img src="${esc(r.image)}" alt="Archival image from Ozikoro">` : ''}<span><small>${esc(r.topic ?? 'From the archive')}</small><strong>${esc(r.title)}</strong><em>Read history →</em></span></a>`
       )
       .join('\n            ');
     out = replaceContainer(out, '<div class="sx-related-list"', items);
@@ -2331,6 +2352,51 @@ export function fillDocuments(html: string, docs: RealDocument[]): string {
   let out = dropExampleFlag(html);
   const rendered = docs.map(renderDocument).join('\n        ');
   out = replaceContainer(out, '<div class="sx-pdf-grid"', rendered);
+
+  /*
+   * ── ⚠️ AND THE RESEARCH SECTION, WHICH THIS FUNCTION NEVER TOUCHED ─────────────────────────────────
+   *
+   * `documents.html` holds demonstration content in TWO containers, and this replaced only the second:
+   *
+   *   #research   →  <div class="sx-publication-list">   ⚠️ LEFT ALONE since the screen was written
+   *   #other-pdfs →  <div class="sx-pdf-grid">           replaced with the archive's real PDFs
+   *
+   * **So every PDF record the archive holds was listed correctly — beneath a fabricated publication.**
+   * Measured on `/documents/`: the page linked four real files
+   * (`/documents/igbo-folk-idioms-in-caribbean-phrase/` and three others) **and, above them,
+   * `"Market week and ritual office: reading testimony against the administrative return"` attributed to
+   * `"Chinwe Ị̀kẹ̀jìànị̀ and Emeka Ǹwàchukwu · 2026"`, beside a Download button pointing at
+   * `../downloads/research-download-demonstration.pdf`.** None of that is in the database. It is the
+   * design's placeholder, and the owner clicked it expecting a document and found none.
+   *
+   * ⚠️ **IT CANNOT BE FILLED FROM THE ARCHIVE, BECAUSE THE ARCHIVE HOLDS NOTHING TO FILL IT WITH:**
+   * `ozikoro_publication` has **zero rows**. So the section says so. **A heading with a true sentence under
+   * it beats a heading that vanishes and reappears the day a paper is deposited**, and it beats a
+   * demonstration that reads as a real paper for as long as nobody checks.
+   *
+   * The words are the ones `apps/ozikoro/app/documents/page.tsx` already uses for its own empty state, so
+   * the repository says this once rather than twice in two different ways.
+   */
+  out = replaceContainer(
+    out,
+    '<div class="sx-publication-list"',
+    `<div class="empty">
+          <p>No publication has been deposited yet. A paper appears here once it has been submitted, screened and published through the archive’s review, with its version history and its access terms recorded.</p>
+          <p><a class="btn" href="/submit">Deposit a paper</a></p>
+        </div>`
+  );
+  /*
+   * AND THE COUNT BESIDE THE HEADING, WHICH READ `Sample publication states`.
+   *
+   * It is not a count at all — it is a label saying the row above is a demonstration — and with the
+   * demonstration removed it says nothing a reader can use. `ozikoro_publication` is empty, so the honest
+   * figure is zero; **the day a paper is deposited this line needs the real number, and it is written here
+   * rather than in the route because the route does not reach this container.**
+   */
+  out = out.replace(
+    /<span class="small muted">Sample publication states<\/span>/,
+    '<span class="small muted">0 published</span>'
+  );
   return out;
 }
 
@@ -5466,292 +5532,6 @@ export function fillCulturalEvent(html: string): string {
   return out;
 }
 
-/*
- * ================================================================================================
- * THE CALENDAR ACCOUNT ON THE IGBO CALENDAR PAGE
- * ================================================================================================
- *
- * WHAT THIS BLOCK IS NOW, AND WHAT IT WAS (round 365)
- *
- * It was an account of one Wikipedia article: 2,322 words of source paragraph, thirteen month rows
- * carrying that article's own descriptions and Gregorian ranges, a table of which claim rested on which
- * of the article's references, and a section listing the article's reference list. **The owner rejected
- * it twice**, first as *"scattered, and extremely useless … arrange it well like others"*, then as
- * *"remove everything about wikipedia there. the right sources are fine"*. Round 363 cut five sections
- * and left the two tables and 61 references to the article standing, which is the state he rejected.
- *
- * **Everything routed through the tertiary source is gone**: no Wikipedia, no revision number, no "the
- * article says", and no sentence whose only support was that article. The material below is the
- * calendar's own content and the archive's own records.
- *
- * WHY THE CLAIM-BY-CLAIM TABLE WENT RATHER THAN BEING REBUILT
- *
- * That table existed to do one job: record, claim by claim, whether the archive could substantiate what
- * the article said, and mark the rows where it could not — *"Onwuejeogwu (1981) is not held by this
- * archive and has not been read here. The page reports what the article says the book says."* **Its
- * subject was the article's reliability, not the calendar**, and with the article off the page it has no
- * subject left. The claims it graded were the article's claims: the Gregorian equivalents of the months,
- * the rituals and shrines it described, the eight-day cycle, the date of Imöka, the day-spirits
- * tradition, the Nri year number. **Not one of those is on this page any more, so there is nothing for a
- * row to carry** — a rebuilt table would be a table of outcomes for claims a reader cannot see.
- *
- * The work the table did for the claims that DO survive is done instead where those claims are made:
- * every sentence below names the thing that backs it. What the archive can state in its own voice is
- * stated with the record that carries it (the five catalogued records named below, whose pages were read here rather
- * than assumed); the month names are attributed to Onwuejeogwu (1981) and the archive's inability to
- * check that book is said in the same sentence. **A short attribution beside a claim beats a table of
- * attributions the claim was extracted from.**
- *
- * WHY THE MONTH NAMES STAY AND THE REST OF EACH ROW GOES
- *
- * The thirteen names are the calendar's own content, and the archive's own catalogued records contain
- * all thirteen of them — so they are attributable without the tertiary source. What went with it is the
- * material that was only the article's: the Gregorian range on every row (the archive holds no reckoning
- * that turns one into an Igbo date, and the ranges came from the article's table) and its description of
- * each month (that text was the article's "Months and meanings" section). **The names are the part the
- * archive can carry; the rest would be re-attributed to works this archive has not read.** The
- * descriptions are still true of the archive's own record — *Iguaro* gives all thirteen, with similar
- * notes — but they are the article's words, and this archive does not print a source's words unquoted.
- *
- * ── AND THE STRONGEST SOURCES ON THE PAGE NOW CARRY IT ───────────────────────────────────────────
- *
- * The owner's instruction included: *"be careful with the ones the archive holds as its own records …
- * they should carry more of the page than they do."* They did not, because the article's scaffolding sat
- * over them. Each record below was opened and read before it was cited, and the plain description of the
- * four-day week, the 28-day month, the thirteen-month year and the Ịgụ Arọ proclamation is a summary of
- * what those five records state.
- */
-type CalendarMonthName = {
-  /** The month's name in the archive's own catalogued records and in Onwuejeogwu (1981). */
-  name: string;
-  /**
-   * The part of the Gregorian year the archive's own records put the month in.
-   *
-   * **It is a range and not a date**, which is the whole of what can be said: *Iguaro* writes these
-   * alongside its own month list, and the archive holds no reckoning that would turn a Gregorian day into an
-   * Igbo one. The column heading says "Roughly" for that reason, and the caption says it again where the
-   * table is read. The ranges the page used to print came from the removed tertiary source; these are the
-   * archive's own record's, which is why the column survives the trim and the article's did not.
-   */
-  dates: string;
-  /**
-   * A variant the records themselves give, where they give one.
-   *
-   * Only Ọnwa Ilo Mmụọ has one, and it is the festival the month holds rather than a second spelling of
-   * the month: the archive's record for it calls that festival Ọnwa Asatọ. **It is kept because it is
-   * the archive's own text**, which is the test every word in this block now has to pass.
-   */
-  also?: string;
-  /**
-   * What the archive can say about this month's meaning, printed in the panel the month's button opens.
-   *
-   * **Every one of these is a finding, not a definition**, and none of them is a meaning copied from
-   * anywhere. Two shapes appear here and each says which it is:
-   *
-   *   - the archive's own record *Iguaro* carries a note for the month, and the panel says what that
-   *     record carries, names it, and says in the same breath that the record's own account is not
-   *     independent of the source this page removed — because it names that source in its own reference
-   *     list and its month notes are that source's account in other words;
-   *   - the record carries nothing that belongs to the month alone, and the panel says so.
-   *
-   * **Nothing is paraphrased into the archive's voice as its own finding.** The first shape is a report
-   * about a record; the second is an empty state. Neither is a meaning the archive can stand behind, which
-   * is why no panel says "this month means" anything.
-   */
-  note: string;
-};
-
-/**
- * The thirteen months names, in the order the archive's own catalogued records give them.
- *
- * **These are names only, deliberately.** The Gregorian ranges and the month-by-month descriptions the
- * page used to print came from the tertiary source and went with it; what the archive can carry is which
- * months the Nri year holds and what they are called, which is what fits in a row a reader scans.
- */
-const CALENDAR_MONTH_NAMES: CalendarMonthName[] = [
-  {
-    name: 'Ọnwa Mbụ',
-    dates: 'February–March',
-    note: 'The year starts here. The archive\'s record <i>Iguaro</i> gives the month as the one the Iguaro ritual opens, when the Eze Nri proclaims the planting season and communities prepare their farms; the archive\'s other Nri record, <i>Igu Aro</i>, states the same proclamation, so it is said plainly rather than reported. The year number and the single date that record offers are not carried by anything else here, and are not printed.',
-  },
-  {
-    name: 'Ọnwa Abụọ',
-    dates: 'March–April',
-    note: 'The archive\'s record <i>Iguaro</i> gives this month for clearing and cleaning the land and for purification before planting. It is that record\'s note, and no other record here states it.',
-  },
-  {
-    name: 'Ọnwa Ife Eke',
-    dates: 'April–May',
-    note: 'The archive\'s record <i>Iguaro</i> gives this month as a fast with sacrifices to Ana, the earth, and as the month of the wrestling some communities hold. The older account\'s word for the fast is not in this record, so it is not on the page.',
-  },
-  {
-    name: 'Ọnwa Anọ',
-    dates: 'May–June',
-    note: 'The archive\'s record <i>Iguaro</i> gives this month as the beginning of seed-yam planting, and names the dance festival some communities hold in it. It is that record\'s note alone.',
-  },
-  {
-    name: 'Ọnwa Agwụ',
-    dates: 'June–July',
-    note: 'The archive\'s record <i>Iguaro</i> gives this month as Agwụ\'s, when the Dibia honour him with herbs and charms and masquerades perform. It is the only account of the month here.',
-  },
-  {
-    name: 'Ọnwa Ifejiọkụ',
-    dates: 'July–August',
-    note: 'The archive\'s record <i>Iguaro</i> gives the yam rituals for Ifejiọkụ and Njoku Ji in this month, and the New Yam Festival at their end. The festival itself is named in other records here; the pairing with this month is this record\'s alone.',
-  },
-  {
-    name: 'Ọnwa Alọm Chi',
-    dates: 'August–September',
-    note: 'The archive\'s record <i>Iguaro</i> gives the yam harvest in this month, and gives the month to women\'s communion with their ancestors, to breaking kola and to motherhood. One record states it.',
-  },
-  {
-    name: 'Ọnwa Ilọ Mmụọ',
-    dates: 'late September',
-    also: 'the Ọnwa Asatọ festival is held in it',
-    note: 'The archive\'s record <i>Iguaro</i> gives the Ọnwa Asatọ festival in this month, which the range column already carries. The archive\'s record of the Omabe festival at Nsukka names the same month beside a masquerade photograph, so the month is carried twice here — and what the month means is still stated nowhere.',
-  },
-  {
-    name: 'Ọnwa Ana',
-    dates: 'October',
-    note: 'The archive\'s record <i>Iguaro</i> gives the rituals for Ana, the earth, in this month and says the month is named after her. One record states both.',
-  },
-  {
-    name: 'Ọnwa Okike',
-    dates: 'early November',
-    note: 'The archive\'s record <i>Iguaro</i> gives creation rituals in this month. The archive\'s record of an Okike instrument and its record of Nkpor\'s agricultural rites say nothing about this month, and nothing is taken from them.',
-  },
-  {
-    name: 'Ọnwa Ajana',
-    dates: 'late November',
-    note: 'The owner asked for this month by name, so here is exactly what the archive holds for it. One record states anything about the month: <i>Iguaro</i>, which gives it as a continuation of the creation rituals and as preparation for the year\'s end. <strong>That record is not independent of the account this page removed</strong> — the removed source is in its own reference list and its month notes are that account in other words — so its note is not printed as the meaning of the month. The archive\'s other records that name <i>Ajana</i> give the name to the earth and say nothing about the month. A meaning that cannot be sourced is not printed.',
-  },
-  {
-    name: 'Ọnwa Ede Ajana',
-    dates: 'late November–December',
-    note: 'The archive\'s record <i>Iguaro</i> gives this month as the closing rituals of the agricultural and spiritual year. The removed account\'s entry for the month was two words; the record\'s is a sentence, and one record is all there is.',
-  },
-  {
-    name: 'Ọnwa Ụzọ Alụsị',
-    dates: 'January–February',
-    note: 'The archive\'s record <i>Iguaro</i> gives this month as the offerings to the alusi that close the year and prepare the next, and names it as the month the extra day is added to. The count and the extra day are stated above; the offering is one record\'s note.',
-  },
-];
-
-/**
- * Build the material that sits below the design's own content on `/igbo-calendar/`.
- *
- * ── THE SHAPE, WHICH IS THE ONE HIS OTHER PAGES HAVE ─────────────────────────────────────────────
- *
- * A reader gets the calendar (the design's), then one short account of what the year is and where the
- * account comes from. **The nine headings, the two tables and the 2,322-word appendix are gone**, because
- * his report on all of it was *"the rest are scattered, and extremely useless. can you fucking arrange it
- * well like others?"* — and `/cultural-calendar/`, the page he holds this up against, is a lede and the
- * calendar in 421 words.
- *
- * ── WORDS THAT WERE ONLY DEFENDING THE REMOVED SOURCE ARE GONE TOO ───────────────────────────────
- *
- * The owner also asked for "long words that are unnecessary", and the register he was objecting to is the
- * citation defence: *"as this page presents them"*, *"which it says may differ from other Igbo calendars"*,
- * *"the article's own caveat on itself"*, *"the difference between X and Y"*. Sentences in this block are
- * short because they make a statement rather than manage a source. **Where shortening would have made a
- * claim vague, it is two short sentences instead of one long one, not one loose one.** And the two
- * paragraphs saying what is NOT on the page are kept: an empty state is a real state, and a page that
- * silently omits is indistinguishable from a page that never knew.
- */
-function igboCalendarAddendum(): string {
-  /*
-   * THE ROW IS THE CONTROL AND THE PANEL IS THE NEXT ROW — the shape round 365 deleted, recovered.
-   *
-   * A `<details>` element cannot be a `<tr>`, and putting the control in one cell would leave the Igbo name
-   * — the thing a reader comes for — outside it. So the whole row carries the button and the panel is the
-   * next row, spanning the table. The button carries `aria-expanded` and `aria-controls`, and **both states
-   * are written into the HTML rather than set by script, so the panels are readable with JavaScript switched
-   * off**; a reader without it must not be shown thirteen controls that do nothing.
-   *
-   * WHY `aria-expanded` STARTS AT `true` HERE AND THE SCRIPT CLOSES IT. The no-script state has to be the
-   * honest one: with no script the panel is visible, so the control's state is "expanded" and that is what
-   * the markup says. The script then closes each panel and flips the attribute, so the two can never
-   * disagree — the fault this shape exists to avoid is a control announcing a state it does not have.
-   */
-  const monthRows = CALENDAR_MONTH_NAMES.map((m, i) => {
-    const n = i + 1;
-    const also = m.also ? ` <span class="small muted">— ${esc(m.also)}</span>` : '';
-    return `            <tr id="igbo-month-${n}" class="sx-cal-row">
-              <th scope="row"><span class="sx-cal-no">${n}</span> <button type="button" class="sx-cal-month" data-igbo-month="${n}" aria-expanded="true" aria-controls="igbo-month-note-${n}">${esc(m.name)}</button></th>
-              <td class="sx-cal-dates">${esc(m.dates)}${also}</td>
-            </tr>
-            <tr id="igbo-month-note-${n}" class="sx-cal-note-row">
-              <td colspan="2"><p>${m.note}</p></td>
-            </tr>`;
-  }).join('\n');
-
-  /*
-   * THE MONTH-ROW TOGGLE, RECOVERED FROM THE VERSION THAT WORKED AND KEPT AT THE SAME SHAPE.
-   *
-   * It is inline and namespaced by class, so it touches nothing the design's own scripts look for. Every
-   * listener is a click on a `<button type="button">`, **which makes it work from the keyboard for free,
-   * because a button is activated by Enter and Space** — no keydown handler, no focus management and no
-   * hover is involved. The script does nothing to a button whose `aria-controls` names no element, so a
-   * panel removed from the markup leaves a control reporting the no-script state rather than a broken one.
-   */
-  const monthToggle = `<script>
-        (function () {
-          var buttons = document.querySelectorAll(".sx-cal-account .sx-cal-month");
-          Array.prototype.forEach.call(buttons, function (button) {
-            var panel = document.getElementById(button.getAttribute("aria-controls"));
-            if (!panel) return;
-            button.setAttribute("aria-expanded", "false");
-            panel.hidden = true;
-            button.addEventListener("click", function () {
-              var open = button.getAttribute("aria-expanded") === "true";
-              button.setAttribute("aria-expanded", open ? "false" : "true");
-              panel.hidden = open;
-            });
-          });
-        })();
-      </script>`;
-
-  /*
-   * NO COMMENT IN THE TEMPLATE BELOW CONTAINS A BACKTICK, which is the fault that has failed this file's
-   * build four times: a backtick inside a comment inside a backtick-delimited template literal ends the
-   * literal and the parser reports `',' expected` somewhere else entirely. The CSS block keeps its comment
-   * because it names no identifier in quotes.
-   */
-  return `      <section class="wrap section sx-cal-account">
-        <style>
-          /* THE ONE PIECE OF CSS THIS PAGE ADDS, AND WHY IT IS HERE RATHER THAN IN THE DESIGN.
-             Nothing under public/design/ may change, so a rule this block needs cannot be added to the
-             design's stylesheet. Every value below is one of the design's own tokens, so this follows the
-             design rather than departing from it. There is no colour, no shadow and no card here that the
-             design does not already draw.
-
-             ⚠️ AND THE RULES FOR THE REMOVED TABLE ARE GONE WITH IT. This block used to style
-             the table wrapper, the ledger table, the date cells, the month button (including its
-             ::after and [aria-expanded] states), the month number and the note rows. The owner's
-             updated design draws the thirteen months itself — as details elements and as
-             table.sx-cal-months — so the fill's third copy went, **and CSS for markup that no
-             longer exists is a fault in the other direction: it is emitted on every request and
-             it makes a test that greps the served page for the month-button class read the
-             styling of a control as the control.** The rules kept below are the ones the
-             surviving account still needs. */
-          .sx-cal-account h2 { margin-top: var(--s-7); }
-          .sx-cal-account h2:first-of-type { margin-top: 0; }
-          .sx-cal-account > p { max-width: 74ch; }
-          .sx-cal-account :is(a, button, summary):focus-visible { outline: 3px solid var(--focus, #1b4f8a); outline-offset: 2px; }
-        </style>
-
-        <h2>The year and its months</h2>
-        <p>The four market days are Eke, Orie, Afọ and Nkwọ, and the four together are the market week. Seven of those weeks make a month of 28 days, and thirteen months make the year: 364 days.</p>
-        <p>The archive's own catalogued records carry the year and the festival that starts it. <i>Traditional Igbo calendar and lunar/solar alignments</i> gives the four days their directions — Eke east, Orie west, Afọ north and Nkwọ south — and gives the month as seven sets of four days. <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i> gives the count, the extra day at the end of the last month, Ọnwa Ụzọ Alụsị, and the proclamation the year begins with: the Eze Nri counts the months and announces the year, and the festival is Ịgụ Arọ. <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i> is the archive's other record of the same proclamation, from Nri. <i>Symbolism of the Four Market Days in Igbo Culture</i> covers the four days at length.</p>
-        <p><strong>The month names are Onwuejeogwu (1981)</strong>, which the archive's own records give for them. <strong>The archive does not hold that book and has not read it</strong>, so the names come at second hand from those records rather than from the book. The thirteen months and what each one means are set out above, drawn from the calendar's own account; the archive's records do not corroborate a meaning month by month, and the page does not claim they do.</p>
-        <p>The records behind this account are <i>Traditional Igbo calendar and lunar/solar alignments</i>, <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i>, <i>Symbolism of the Four Market Days in Igbo Culture</i> and <i>Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture</i>.</p>
-
-        <h2>What this account is, and where it comes from</h2>
-        <p><strong>This is the Nri account.</strong> The four market days and the thirteen months are the Nri reckoning as those records set it out. Other communities keep other reckonings, which the records say themselves: the calendar varies with each community's own reading of the moon, and the four-day market week is the part they share. So a town that keeps another reckoning keeps another market day. <i>Eken</i>, the variant on the Eke card, is not in those records: it is the archive owner’s own reading, recorded here as his.</p>
-        <p>So there is no festival date here, no eight-day cycle, no year number for the Nri count, and no conversion between the Gregorian and Igbo calendars. There is also no event record for any festival; <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself.</p>
-      </section>`;
-}
-
 /**
  * Make each month of the year grid open and close.
  *
@@ -5959,7 +5739,8 @@ export function extendMarketDaysScript(script: string): string {
 }
 
 /**
- * `/igbo-calendar/` and `/market-days/` — the four-day market week, and the account behind it.
+ * `/igbo-calendar/` and `/market-days/` — the four-day market week, its stated anchor, and the design's own
+ * thirteen-month section below it.
  *
  * THE ANCHOR IS ONE RECKONING AMONG SEVERAL, AND THE PAGE SAYS SO AS A FACT ABOUT THE CALENDAR
  *
@@ -5982,49 +5763,80 @@ export function extendMarketDaysScript(script: string): string {
  * page's reckoning of it under the anchor it states, said before the answer rather than after it.
  *
  * ============================================================================================
- * AND THE ACCOUNT SITS BELOW IT, WHICH IS THE WHOLE OF THIS ROUND'S WORK (round 365)
+ * AND THE ACCOUNT THAT SAT BELOW IT IS GONE, ON THE OWNER'S INSTRUCTION (round 366)
  * ============================================================================================
  *
- * The owner asked for more information on **this page rather than scattered across the site**: *"you should
- * also at the igbo calendar page itself and update more information there … find a way to put these things
- * below there."* What he sent was a Wikipedia article, and the archive's rule is that it never presents a
- * source's account as its own — so the first build named the revision, reproduced the article's tables and
- * graded its claims. **He rejected that twice**: *"after 'community context matters', the rest are scattered,
- * and extremely useless"*, then *"remove everything about wikipedia there. the right sources are fine."*
+ * Round 365 put a short account below the design: two headings, the four market days and the 28-day month,
+ * the archive's own catalogued records named beside their claims, and the month names attributed to
+ * Onwuejeogwu (1981) with the archive's inability to hold that book said in the same sentence. One sentence
+ * of the design's own summary was removed here at the same time, because it was a note about this archive's
+ * process rather than about the calendar.
  *
- * SO THE TERTIARY SOURCE IS OFF THE PAGE ENTIRELY, AND WHAT REPLACED IT IS THE ARCHIVE'S OWN RECORDS.
- * `igboCalendarAddendum` carries the argument for what left and what replaced it; the short of it is that
- * the account is now the calendar's own content — the four-day week, the 28-day month, the thirteen months,
- * the Ịgụ Arọ proclamation — stated with the archive's own catalogued records beside each claim, and the
- * month names attributed to Onwuejeogwu (1981) with the archive's inability to hold that book said in the
- * same sentence. **A claim that only the article made is not re-attributed: it is gone.**
+ * ⚠️ **THE OWNER THEN DELETED THE WHOLE OF IT, AND THIS FUNCTION NO LONGER ADDS ANYTHING.** *"i checked the
+ * calendar again, and these things are still there, so delete these immediately"* — and he listed them: both
+ * headings, the two paragraphs that named the five catalogued records, the paragraph attributing the month
+ * names, the Nri statement, and the paragraph saying what the page does not do. Every one of those blocks
+ * was inside one template literal, and they are gone from the served page while
+ * `apps/ozikoro/public/design/` keeps its bytes.
  *
- * THE ONE THING THIS FUNCTION ADDS TO THE BASIS NOTE (round 364, kept and reworded) is the plain statement
- * that the account followed here is the Nri one. The owner asked for it in those words: *"emphasize that the
- * calendar is a product of nri, so we are following nri calendar days, even though some igbo communities
- * might differ."* **Its second half no longer quotes the article**, because a page cannot quote a source it
- * has removed; the qualification is now the archive's own statement, and it is the same statement
- * `Iguaro: The Igbo Calendar, Culture, and Cosmology` makes in its own text — that the calendar varies
- * across communities and the four-day market week is what they share.
+ * **THE MACHINERY WENT WITH THE WORDS.** Once the text was gone the section held nothing but its own
+ * `<style>` block, and every rule in that block styled an element that no longer existed — the fault that
+ * block's own comment had recorded in the other direction. So the empty `<section class="sx-cal-account">`,
+ * its stylesheet, the `CALENDAR_MONTH_NAMES` table it was built from, the month-row builder and the
+ * insertion guard all went in the same change. What a reader meets below the calendar now is the design's
+ * own thirteen-month section and basis note, unchanged.
+ *
+ * THE ONE THING THIS FUNCTION STILL ADDS TO THE BASIS NOTE (round 364, kept and reworded) is the plain
+ * statement that the account followed here is the Nri one. The owner asked for it in those words:
+ * *"emphasize that the calendar is a product of nri, so we are following nri calendar days, even though some
+ * igbo communities might differ."* **That sentence was never part of the removed account** — it lives in the
+ * design's own "Community context matters" note rather than in the section the owner deleted, and the tests
+ * assert it survives there.
  */
 export function fillIgboCalendar(html: string, state: { basis: string } = { basis: MARKET_DAY_ANCHOR }): string {
   let out = clearExampleMaterial(html);
   out = out.replace(/Selected demonstration basis/g, 'The basis this page uses');
   /*
+   * ── THE SUMMARY ENDS AT THE CALENDAR, AND THE TWO SENTENCES AFTER IT ARE ABOUT US ─────────────────
+   *
+   * The owner: *"go back and end exactly at that, and delete the rest."* **He is right, and the paragraph
+   * proves it by reading.** `<p class="sx-cal-sources">` describes the calendar for four sentences and then
+   * turns to address a maintainer: *"This summary is reference material drawn principally from Onwuejeogwu
+   * (1981); the full source list is to be verified before publication."*
+   *
+   * ⚠️ **THAT IS A NOTE ABOUT THIS ARCHIVE'S OWN WORK, AND IT SAYS TWO THINGS A READER SHOULD NOT BE TOLD.**
+   * It names a reference in a form that is not the archive's citation style, and it tells the reader that the
+   * sources have *not* been checked — which is a statement about our process rather than about the Igbo
+   * calendar. **The sentence before it ends the account: "…but it has not been easy."** So the paragraph ends
+   * there.
+   *
+   * ⚠️ AND IT IS REMOVED HERE RATHER THAN IN THE DESIGN, WHICH IS INVIOLABLE. The sentence is in
+   * `igbo-calendar.html` on disk; `apps/ozikoro/public/design/` is byte-identical to the upstream deliverable
+   * and must stay so, and the serve-time rewrite is where every other design sentence this project has had to
+   * change is changed. **The design keeps its bytes and the reader does not meet the note.**
+   */
+  out = out.replace(
+    /\s*This summary is reference material drawn principally from Onwuejeogwu \(1981\); the full source list is to be verified before publication\./g,
+    ''
+  );
+  /*
    * THE HERO'S OWN DESCRIPTION OF WHAT THE PAGE HOLDS.
    *
    * It read "Check today, look up another date, or follow Eke, Orie, Afọ and Nkwọ across a month or full
    * year." **That was the whole of the page when it was written and it is not the whole of it now** — the
-   * account below the calendar is part of the page. A hero that leaves it out undersells the page at the one
-   * point every reader reads.
+   * design's own thirteen-month section sits below the calendar. A hero that leaves it out undersells the
+   * page at the one point every reader reads.
    *
    * AND THE SECOND SENTENCE NAMES WHAT IS BELOW, WHICH IS THE HALF OF THIS THAT IS EASY TO MISS. It has
    * promised, in three rounds, "the system, the thirteen months, the festivals the account names, the naming
    * tradition, and where all of it comes from" and then "the thirteen months and their sources, and what this
    * archive can and cannot substantiate of the account behind them" — **and round 365 removed the claim table
    * the second of those offered, so both promises are now false.** A hero that points at a section that is
-   * not there is worse than the underselling this line was added to fix. What is below is the Nri year, its
-   * thirteen months and the archive's own records, so that is what it says.
+   * not there is worse than the underselling this line was added to fix. What is below is the Nri year and
+   * its thirteen months, which the design draws, with the basis note above them saying they are the Nri
+   * reckoning taken from the archive's own catalogued records — so that is what it says. **It still holds
+   * after round 366 took the account's prose away, because the design's own section and the basis note are
+   * the two things it points at.**
    */
   out = out.replace(
     /Check today, look up another date, or follow Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor across a month or full year\./,
@@ -6150,11 +5962,13 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
    * author with the author's checklist left intact beside it.
    *
    * SO THE WHOLE PARAGRAPH GOES, INSTRUCTION AND ALL, AND NOTHING REPLACES IT. Everything in it a reader can
-   * use is already on the page twice: the paragraph immediately above states that this page reckons from a
-   * fixed anchor and that communities do not all keep the same one, and every claim in the account below is
-   * attributed. What is left — verify the timezone, verify the spellings, verify whether the day changes at
-   * sundown — is a list of work this archive has not done, addressed to whoever does it next, and **a page
-   * must not carry instructions to its own author.**
+   * use is already on the page: the paragraph immediately above states that this page reckons from a fixed
+   * anchor and that communities do not all keep the same one, and the design's own thirteen-month section
+   * below carries the year the basis note attributes to the archive's records. **The account's prose is no
+   * longer there to attribute, and the note still may not be restored to carry the load.** What is left —
+   * verify the timezone, verify the spellings, verify whether the day changes at sundown — is a list of work
+   * this archive has not done, addressed to whoever does it next, and **a page must not carry instructions to
+   * its own author.**
    *
    * THE TWO SPELLINGS ARE MATCHED WHERE THEY STAND rather than by one loose pattern, because the two screens
    * wrote the paragraph differently and **a replacement that silently matches nothing is the fault this file
@@ -6211,29 +6025,27 @@ ${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB',
   out = out.replace(/(<div class="sx-year-controls">[\s\S]*?<\/div>)/, `$1\n${yearNoScript}`);
 
   /*
-   * THE NEW MATERIAL GOES BELOW EVERYTHING THE DESIGN DRAWS, AND THE ANCHOR IS THE PAGE'S OWN `</main>`.
+   * ── AND NOTHING IS ADDED BELOW THE DESIGN, BECAUSE THE ACCOUNT IS GONE (round 366) ────────────────
    *
-   * The design runs hero, day cards, lookup, month view, full-year grid, and its closing note, and then closes
-   * `<main>`. The owner's instruction was *"find a way to put these things below there"*, so the block goes
-   * between the design's last element and the end of `main` — after everything, above the footer, and inside
-   * the region a screen reader treats as the page.
+   * This point in the function used to append a `<section class="sx-cal-account">` before the page's closing
+   * `</main>`, anchored there because the design runs hero, day cards, lookup, month view, full-year grid and
+   * its closing note before it closes `main` — and guarded, because this function runs on the design's own
+   * file per request and an insertion that doubles on a second pass is the kind of fault that only shows up
+   * in production.
    *
-   * THE FIRST TWO ATTEMPTS ANCHORED ON THE CLOSING NOTE AND BOTH PUT THE BLOCK IN THE WRONG PLACE. One
-   * appended at the section's close, which is the note's position, so **the design's own closing statement
-   * ended up BELOW the new material**; the other searched for the note by class and found the addendum's own
-   * `<style>` block first, which put the page's content inside a CSS selector. Anchoring on `</main>` has
-   * neither problem: it is the page's structural end, it appears once, and nothing this function adds contains
-   * it.
+   * ⚠️ THE OWNER DELETED EVERY WORD OF THAT ACCOUNT, SO THE INSERTION WENT WITH IT. *"i checked the calendar
+   * again, and these things are still there, so delete these immediately"* — both headings, the paragraphs
+   * naming the archive's five catalogued records, the paragraph attributing the month names to Onwuejeogwu
+   * (1981), the Nri statement and the paragraph saying what the page does not do. With the text gone the
+   * section held nothing but a `<style>` block whose every rule styled an element that no longer existed, so
+   * the section, the stylesheet, the month-name table and the builder that made the account all went in the
+   * same change.
    *
-   * **AND IT IS GUARDED RATHER THAN MERELY FOUND.** If the marker is absent the page is returned unchanged
-   * rather than having the block appended somewhere arbitrary, and if the block is already present it is not
-   * added twice — because this function is called on the design's own file per request, and an insertion that
-   * doubles on a second pass is the kind of fault that only shows up in production.
+   * **A GUARD WITH NOTHING TO GUARD IS NOT KEPT FOR SENTIMENT.** Everything this function still does — the
+   * anchor rewrite, the Nri statement in the basis note, the hero lede, Eke's variant and the no-script year —
+   * rewrites the design's own text in place, so none of it needs an insertion anchor or an idempotency check.
+   * The design's page is returned with its own `</main>` intact.
    */
-  if (!out.includes('sx-cal-account') && out.includes('</main>')) {
-    const at = out.indexOf('</main>');
-    out = `${out.slice(0, at)}\n${igboCalendarAddendum()}\n    ${out.slice(at)}`;
-  }
   return out;
 }
 
