@@ -601,7 +601,7 @@ export function fillWatch(html: string, films: RealFilm[], options: WatchFillOpt
    */
   rebuilt = rebuilt.replace(
     /(<div class="sx-inline-player-actions">)/,
-    '$1<a class="btn btn-ghost" id="inline-player-page" href="/watch-video/" hidden>This film’s page</a>'
+    '$1<a class="btn btn-ghost" id="inline-player-page" href="/watch-video/" hidden>This Film’s Article</a>'
   );
   /*
    * AND LAST, THE FILTER ROW NAMES ONLY THE SECTIONS THIS PAGE DRAWS.
@@ -6486,7 +6486,7 @@ export function fillWatchVideo(
    * SO BOTH INWARD CONTROLS POINT AT THE HOLDING RECORD, and that is not a duplicate by accident. **The record
    * IS the low-bandwidth reading of the film**: the design's own heading for the slot the old anchor reached
    * was *"Read when video is difficult to load"*, and the writing is what a reader who cannot load the film
-   * came for. The third control is the same address under the name the owner gave it — "This film's page" —
+   * came for. The third control is the same address under the name the owner gave it — now **"This Film's Article"**, which is what he asked for —
    * which is what makes the article reachable in one click from the film rather than only implied by the
    * aside's small link. **The class is the row's own: `btn btn-gold` is the design's, `btn btn-ghost` is the
    * design's, and nothing here invents one.**
@@ -6498,7 +6498,7 @@ export function fillWatchVideo(
   out = out.replace(
     /<a class="btn btn-ghost" href="[^"]*">Low-bandwidth reading<\/a>/,
     `<a class="btn btn-ghost" href="${esc(film.href)}">Low-bandwidth reading</a>`
-      + `<a class="btn btn-ghost" href="${esc(film.href)}">This film’s page</a>`
+      + `<a class="btn btn-ghost" href="${esc(film.href)}">This Film’s Article</a>`
   );
 
   /*

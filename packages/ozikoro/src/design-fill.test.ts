@@ -3120,7 +3120,7 @@ test('the reading section is replaced by the design’s own Related viewing bloc
     'the outward control is not this film’s own'
   );
   assert.match(out, /<a class="btn btn-ghost" href="\/a\/">Low-bandwidth reading<\/a>/, 'the design’s reading control was lost');
-  assert.match(out, /<a class="btn btn-ghost" href="\/a\/">This film’s page<\/a>/, 'the main article has no control');
+  assert.match(out, /<a class="btn btn-ghost" href="\/a\/">This Film’s Article<\/a>/, 'the main article has no control');
   // The header nav names the block it now reaches, in the design’s own wording for that block.
   assert.match(out, /<a href="\/watch-video\/\?v=LL8YX0pXzdI#related-video">Related viewing<\/a>/, 'the header nav names a section the page does not carry');
 
@@ -3183,7 +3183,7 @@ test('the design’s own page is given a film page’s shape, and says the archi
     /<a class="btn btn-ghost" aria-disabled="true" title="Not built yet — waiting on a record that holds this film; the archive holds no record for the film this page shows">Low-bandwidth reading <span class="small muted">— no archive record for this film<\/span><\/a>/
   );
   assert.doesNotMatch(own, /Low-bandwidth reading<\/a>/, 'the reading control is still a link');
-  assert.doesNotMatch(own, /This film’s page/, 'a control to a record appeared on a page with no record');
+  assert.doesNotMatch(own, /This Film’s Article/, 'a control to a record appeared on a page with no record');
 
   /* The design's own band and its own block stand where the section stood, saying why they are not filled. */
   assert.match(
