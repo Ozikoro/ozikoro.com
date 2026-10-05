@@ -198,6 +198,31 @@ record or deploy to it. It has no record in the `ozikoro.com` zone, and a link t
 a link to nothing."* **The academy has a record, resolves, and serves — see the live measurements above.**
 The paragraph was obeyed for a day and would have caused a working site to be "tidied" away.
 
+### 🔴 The Academy's image has no source in either repository
+
+**Measured on 2026-10-05, and it is the most dangerous fact on that host:**
+
+```
+on the host, running    ozituma-academy-1   ozikoro-academy:latest   Up (healthy)
+the host's Dockerfile   targets: base · deps · builder-web · builder-learn · runtime-base · web · learn
+                        ← THERE IS NO ACADEMY TARGET
+this checkout           no academy app at all (it has apps/web and apps/ozikoro)
+```
+
+**So the running Academy image was not built from the host's Dockerfile, and this checkout cannot build
+it.** It came from somewhere else — another checkout, another directory, or a `docker build` someone ran by
+hand — and **nothing in either repository can rebuild it.**
+
+**What that costs, and why it is written down here:** if that image is ever lost, or if anyone runs
+`docker compose build` or `up --build` across the whole file, **the Academy has no stage to build from.**
+The failure is not obviously about the Academy — a whole-file build either errors on a missing target or
+leaves the running container on a stale image while the compose file claims otherwise, **which is the
+"file and production disagree" fault this project keeps producing.**
+
+**Until the Academy's source is found and brought into this repository: do not run a whole-file build on
+that host, and do not remove the `learn` stages from its Dockerfile** — they are the closest thing to it
+that exists there, and they may be what a previous session built the image from under an older name.
+
 ### The Academy's host, and how a retired link is handled
 
 `learn.ozituma.com` is named in code, in env examples, in docs **and in seventeen of the fifty-two design
