@@ -5669,45 +5669,33 @@ function igboCalendarAddendum(): string {
              Nothing under public/design/ may change, so a rule this block needs cannot be added to the
              design's stylesheet. Every value below is one of the design's own tokens, so this follows the
              design rather than departing from it. There is no colour, no shadow and no card here that the
-             design does not already draw. */
+             design does not already draw.
+
+             ⚠️ AND THE RULES FOR THE REMOVED TABLE ARE GONE WITH IT. This block used to style
+             the table wrapper, the ledger table, the date cells, the month button (including its
+             ::after and [aria-expanded] states), the month number and the note rows. The owner's
+             updated design draws the thirteen months itself — as details elements and as
+             table.sx-cal-months — so the fill's third copy went, **and CSS for markup that no
+             longer exists is a fault in the other direction: it is emitted on every request and
+             it makes a test that greps the served page for the month-button class read the
+             styling of a control as the control.** The rules kept below are the ones the
+             surviving account still needs. */
           .sx-cal-account h2 { margin-top: var(--s-7); }
           .sx-cal-account h2:first-of-type { margin-top: 0; }
           .sx-cal-account > p { max-width: 74ch; }
-          .sx-cal-account .sx-table-wrap { margin-top: var(--s-4); }
-          .sx-cal-account .sx-ledger-table caption { padding: var(--s-3) var(--s-4); text-align: left; color: var(--text-muted); font-size: var(--t-sm); }
-          .sx-cal-account .sx-cal-dates { white-space: nowrap; }
-          .sx-cal-account .sx-ledger-table th[scope="row"] { vertical-align: top; }
-          .sx-cal-account .sx-cal-month { padding: 0; border: 0; background: none; color: var(--accent, #0d5c45); font: 600 var(--t-lg) var(--font-serif); text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-          .sx-cal-account .sx-cal-month::after { content: " −"; color: var(--ochre, #8a5a2b); font-family: var(--font-sans); font-size: var(--t-base); }
-          .sx-cal-account .sx-cal-month[aria-expanded="false"]::after { content: " +"; }
-          .sx-cal-account .sx-cal-no { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--t-sm); }
-          .sx-cal-account .sx-cal-note-row td { background: var(--paper-sunk); }
-          .sx-cal-account .sx-cal-note-row[hidden] { display: none; }
           .sx-cal-account :is(a, button, summary):focus-visible { outline: 3px solid var(--focus, #1b4f8a); outline-offset: 2px; }
         </style>
 
         <h2>The year and its months</h2>
         <p>The four market days are Eke, Orie, Afọ and Nkwọ, and the four together are the market week. Seven of those weeks make a month of 28 days, and thirteen months make the year: 364 days.</p>
         <p>The archive's own catalogued records carry the year and the festival that starts it. <i>Traditional Igbo calendar and lunar/solar alignments</i> gives the four days their directions — Eke east, Orie west, Afọ north and Nkwọ south — and gives the month as seven sets of four days. <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i> gives the count, the extra day at the end of the last month, Ọnwa Ụzọ Alụsị, and the proclamation the year begins with: the Eze Nri counts the months and announces the year, and the festival is Ịgụ Arọ. <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i> is the archive's other record of the same proclamation, from Nri. <i>Symbolism of the Four Market Days in Igbo Culture</i> covers the four days at length.</p>
-        <p><strong>The month names are the one thing here the archive cannot check.</strong> They are Onwuejeogwu (1981), which the archive's own records give for them. <strong>The archive does not hold that book and has not read it</strong>, so the names below come at second hand from those records rather than from the book.</p>
-        <p><strong>What each month means is not defined here, and every month opens to say why.</strong> One record of the archive's own does give a note for all thirteen months, <i>Iguaro</i> — and that record carries the account this page removed in its own reference list, so its notes are that account in other words, not an independent source. <strong>A meaning this page cannot source is not printed as one.</strong> What each month does carry is named in its own panel, and the month the owner asked about says so at length.</p>
-        <div class="sx-table-wrap">
-          <table class="sx-ledger-table">
-            <caption>The thirteen months of the Nri year. Names: Onwuejeogwu (1981), at second hand from the catalogued records above. The ranges are approximate, and the archive holds no reckoning that turns a Gregorian date into an Igbo one. Open a month for what the archive holds for it.</caption>
-            <thead><tr><th scope="col">Month (ọnwa)</th><th scope="col">Roughly</th></tr></thead>
-            <tbody>
-${monthRows}
-            </tbody>
-          </table>
-        </div>
-        <p class="small muted">The records behind this account are <i>Traditional Igbo calendar and lunar/solar alignments</i>, <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i>, <i>Symbolism of the Four Market Days in Igbo Culture</i> and <i>Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture</i>. Each page states that the archive records no period and no source type for it, or for any of its published entries, so a title here leads to the account itself and not to a citation the archive has not done the work to give.</p>
+        <p><strong>The month names are Onwuejeogwu (1981)</strong>, which the archive's own records give for them. <strong>The archive does not hold that book and has not read it</strong>, so the names come at second hand from those records rather than from the book. The thirteen months and what each one means are set out above, drawn from the calendar's own account; the archive's records do not corroborate a meaning month by month, and the page does not claim they do.</p>
+        <p>The records behind this account are <i>Traditional Igbo calendar and lunar/solar alignments</i>, <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i>, <i>Symbolism of the Four Market Days in Igbo Culture</i> and <i>Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture</i>.</p>
 
         <h2>What this account is, and where it comes from</h2>
         <p><strong>This is the Nri account.</strong> The four market days and the thirteen months are the Nri reckoning as those records set it out. Other communities keep other reckonings, which the records say themselves: the calendar varies with each community's own reading of the moon, and the four-day market week is the part they share. So a town that keeps another reckoning keeps another market day. <i>Eken</i>, the variant on the Eke card, is not in those records: it is the archive owner’s own reading, recorded here as his.</p>
-        <p><strong>The month list above is where the answers are.</strong> Each month opens to say what the archive holds for it and which record that is; the months whose meanings this page cannot source say so there rather than staying silent. <strong>The archive's own records do not corroborate the months' meanings one by one</strong>, and a page that cannot say where a meaning came from does not print it.</p>
         <p>So there is no festival date here, no eight-day cycle, no year number for the Nri count, and no conversion between the Gregorian and Igbo calendars. There is also no event record for any festival; <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself.</p>
-      </section>
-      ${monthToggle}`;
+      </section>`;
 }
 
 /**

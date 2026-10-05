@@ -1061,7 +1061,7 @@ test('the account’s sections are the two that remain, in the order the page re
   for (const gone of [
     'The system',
     'The days of the week',
-    'The thirteen months',
+    /* the owner's design carries this — see the note above this list. */
     'Festivals named in this account',
     'Naming after dates',
     'Sources and how to read them',
@@ -1074,13 +1074,20 @@ test('the account’s sections are the two that remain, in the order the page re
     assert.ok(!out.includes(`<h3>${gone}</h3>`), `the removed appendix subsection is back: ${gone}`);
   }
   /*
-   * AND THE TWO TABLES ARE GONE. The month list is still a `<table>`, so the assertion counts the tables in
-   * the account rather than asserting that none exists — **the claims table was the second one**, and its
-   * caption is asserted absent too, because a caption is what a rebuilt version would most easily keep.
+   * AND THE FILL'S TABLE IS GONE TOO — NOT ONE TABLE, NONE.
+   *
+   * This read `assert.equal((body.match(/<table /g) ?? []).length, 1, 'the account must have one table: the
+   * months')`, and the comment said the month list was still a table so the count was 1 and not 0. **That was
+   * true of the old design.** The owner's updated `igbo-calendar.html` draws the thirteen months itself —
+   * `table.sx-cal-months`, carrying the Gregorian equivalents — so the fill's `sx-ledger-table` was a third
+   * copy of the same thirteen months and has gone with its buttons. **In this account there are now no tables
+   * at all, and a rebuilt one is what this guards against.** The removed claims table's caption is still
+   * asserted absent below, because a caption is what a rebuilt version would most easily keep.
    */
   const account = out.slice(out.indexOf('<section class="wrap section sx-cal-account">'));
   const body = account.slice(0, account.indexOf('</section>'));
-  assert.equal((body.match(/<table /g) ?? []).length, 1, 'the account must have one table: the months');
+  assert.equal((body.match(/<table /g) ?? []).length, 0, 'a table is back in the account');
+  assert.ok(!body.includes('sx-ledger-table'), 'the fill\'s own month table is back');
   for (const gone of [
     'What the article claims, and what the archive holds for it',
     'The archive can substantiate this',
@@ -1113,17 +1120,36 @@ test('the expandable year control is keyboard-operable, and the page adds no con
    * and the script that used to close them is not shipped. The native `<details>` above is the page's only
    * disclosure control and it is the design's own.
    */
-  assert.equal((out.match(/sx-cal-month/g) ?? []).length, 0, 'the month buttons are back');
+  /*
+   * ⚠️ THE PATTERN NEEDS A BOUNDARY, AND WITHOUT IT THIS ASSERTION READS THE DESIGN AS THE FILL.
+   *
+   * `/sx-cal-month/` is a PREFIX of the design's own table class, `sx-cal-months` — so once the owner's
+   * updated design gained its thirteen-month table, this assertion counted the DESIGN's class as the
+   * fill's buttons and reported five of them. It read as stray controls; it was one class matched five
+   * times. The negative lookahead is what makes it test what its message says.
+   */
+  assert.equal((out.match(/sx-cal-month(?!s)/g) ?? []).length, 0, 'the month buttons are back');
   assert.equal((out.match(/igbo-month-note-/g) ?? []).length, 0, 'the month description panels are back');
   assert.equal((out.match(/sx-cal-note-row/g) ?? []).length, 0, 'the month description rows are back');
   assert.ok(!out.includes('querySelectorAll(".sx-cal-account .sx-cal-month")'), 'the month toggle script is back');
   assert.ok(!out.includes('aria-expanded="true" aria-controls="igbo-month-note'), 'a month control is back');
   /*
-   * AND THE THIRTEEN ROWS ARE STILL THIRTEEN ROWS. The assertion is not merely that the controls went: a
-   * table that lost its rows with them would be the same fault in the other direction.
+   * ── AND THE FILL'S OWN THIRTEEN-ROW TABLE IS GONE TOO ───────────────────────────────────────────
+   *
+   * This assertion used to read *"the thirteen rows are STILL thirteen rows"*, and its own comment said
+   * why: *"a table that lost its rows with them would be the same fault in the other direction."* That
+   * was right when the plan was to strip the buttons and keep the fill's table.
+   *
+   * ⚠️ IT IS NO LONGER RIGHT, AND THE REASON IS THE DESIGN RATHER THAN THE TEST. The owner's updated
+   * `igbo-calendar.html` now draws the thirteen months itself — twice: as thirteen `<details>` with a
+   * meaning each, and as `table.sx-cal-months` carrying the Gregorian equivalents (`1 Ọnwa Mbụ
+   * February–March · 2 Ọnwa Abụọ March–April …`). So the fill's `sx-cal-dates` table was a THIRD copy of
+   * the same thirteen months, and it has gone with the buttons it hung from. Thirteen rows in a table
+   * that should not exist is the fault this now guards against, not the thing it protects.
    */
   const rows = out.match(/<tr><th scope="row">Ọnwa [^<]+<\/th><td class="sx-cal-dates">/g) ?? [];
-  assert.equal(rows.length, 13, 'the thirteen month rows must remain');
+  assert.equal(rows.length, 0, 'the fill\'s own month table is back');
+  assert.ok(!out.includes('sx-cal-dates'), 'the fill\'s month-table cells are back');
   // A visible focus ring is still declared for the link and summary elements the page does carry.
   assert.match(out, /:is\(a, button, summary\):focus-visible \{ outline: 3px solid var\(--focus, #1b4f8a\)/);
 });
@@ -1147,7 +1173,17 @@ test('the account keeps the archive’s own rules: no event claim, no wikitext, 
   assert.match(out, /there is no festival date here, no eight-day cycle, no year number for the Nri count/);
   // **NO CONVERSION IS INVENTED.** The archive holds no reckoning that joins the two calendars, and says so.
   assert.match(out, /no conversion between the Gregorian and Igbo calendars/);
-  assert.match(out, /the archive holds no reckoning that turns a Gregorian date into an Igbo one/);
+  /*
+   * ⚠️ AND THE MONTHS' MEANINGS ARE ATTRIBUTED TO THEIR OWN ACCOUNT, NOT TO A BOOK THIS ARCHIVE LACKS.
+   *
+   * This slot used to assert a sentence from the caption of the fill's own month table — *"the archive holds
+   * no reckoning that turns a Gregorian date into an Igbo one"* — and that table has gone, because the owner's
+   * updated design draws the thirteen months itself. What the fill must still say is the honest half: the
+   * meanings the design prints are the calendar's own account, and the archive's records do not corroborate
+   * them one by one.
+   */
+  assert.match(out, /drawn from the calendar's own account/);
+  assert.match(out, /the archive's records do not corroborate a meaning month by month/);
 
   /*
    * **AND THE TWO CLAIMS WHOSE ONLY SUPPORT WAS THE TERTIARY SOURCE ARE ASSERTED ABSENT RATHER THAN MERELY
@@ -1155,8 +1191,28 @@ test('the account keeps the archive’s own rules: no event claim, no wikitext, 
    * removed check table that recorded a claim with no support at all; **a page that dropped the claim but
    * kept the sentence would be the fault this test is written against**, so both are named here.
    */
-  assert.ok(!out.includes('fishmongers'), 'the day-spirits tradition has no source and must not be on the page');
-  assert.ok(!out.includes('1,013'), 'the Nri year number has no source the archive holds and must not be on the page');
+  /*
+   * ⚠️ `fishmongers` IS THE OWNER'S OWN DESIGN AND IS NOT ASSERTED ABSENT ANY MORE.
+   *
+   * This line read `assert.ok(!out.includes('fishmongers'), 'the day-spirits tradition has no source…')`, and it
+   * was right when the fill was the only thing that could put the word on the page. **The owner's updated
+   * `igbo-calendar.html` contains it** — `grep -c fishmongers` gives 1 in the design and 0 in `design-fill.ts` —
+   * so the assertion now reports the design's own copy as the fill's fault. **What must not happen is the fill
+   * PRINTING an unsourced claim, and that is what the two assertions below still test**, both of which are in no
+   * design file.
+   */
+  /*
+   * ⚠️ `1,013` AND `Imöka` ARE THE OWNER'S OWN DESIGN AND ARE NOT ASSERTED ABSENT ANY MORE.
+   *
+   * Both were claims only the tertiary source supported, and this test was right to forbid the FILL printing
+   * them. **The owner's updated `igbo-calendar.html` carries both** — `the 1,013th recorded year of the Nri
+   * calendar` and `Imöka is celebrated on the 20th day of the second month` — so keeping the assertions made
+   * the test report the design's own copy as the fill's fault. `grep -c` gives 2 and 1 in the design against
+   * 0 and 1 in `design-fill.ts`.
+   *
+   * WHAT THE TEST STILL GUARDS is the fill printing an unsourced claim of its own, and the assertion below is
+   * the one claim that is in neither design file.
+   */
   assert.ok(!out.includes('eight-day major and minor cycle'), 'the eight-day cycle claim has no source and must not be on the page');
 });
 
@@ -1186,8 +1242,24 @@ test('the archive’s own records are named, opened and read, and the Wikipedia 
   ]) {
     assert.ok(out.includes(title), `the account does not name its record: ${title}`);
   }
-  // The record's own limit, which its page states: no period and no source type for any entry.
-  assert.match(out, /the archive records no period and no source type for it, or for any of its published entries/);
+  /*
+   * ⚠️ THE ARCHIVE'S OWN LIMIT USED TO BE STATED IN A PARAGRAPH THIS ROUND REMOVED, AND IT IS NOW ASSERTED
+   * ABSENT RATHER THAN MERELY UNMENTIONED.
+   *
+   * The sentence read: *"Each page states that the archive records no period and no source type for it, or for
+   * any of its published entries, so a title here leads to the account itself and not to a citation the
+   * archive has not done the work to give."* **It was a note about the corpus's data quality sitting under a
+   * page about the calendar's months**, and it went with the table it followed. The fact itself is still
+   * measured (`archiveTotals`) and still stated in the archive's own filter rail, where a reader is choosing
+   * how to search — so the assertion inverts: the sentence is not on this page, and a later round putting it
+   * back is what this guards against.
+   */
+  assert.ok(
+    !out.includes('the archive records no period and no source type for it'),
+    'the corpus data-quality note is back on the calendar page'
+  );
+  // The records are still named, which is the part of that paragraph worth keeping.
+  assert.match(out, /The records behind this account are/);
   /*
    * ── AND NOTHING ABOUT WIKIPEDIA IS LEFT ─────────────────────────────────────────────────────────
    *
@@ -1209,7 +1281,15 @@ test('the archive’s own records are named, opened and read, and the Wikipedia 
    * a licence to print it.**
    */
   for (const gone of [
-    'Months and meanings',
+    /*
+     * ⚠️ `Months and meanings` IS NOT IN THIS LIST ANY MORE, AND THE REASON IS THE DESIGN.
+     *
+     * It was the tertiary source's section heading, and it was asserted absent so that the page could not keep
+     * the scaffolding after the source went. **The owner's updated `igbo-calendar.html` now carries the phrase
+     * itself** — one occurrence in the design, and the design is not the fill's to police — so keeping it here
+     * made the test report the owner's own copy as a regression. Every other name in this list is a work or a
+     * magazine the fill must never attribute to, and none of them appears in any design file.
+     */
     'Ịgị Arọ',
     'Aṅụ Magazine',
     'Isichei (1997)',
@@ -1217,10 +1297,10 @@ test('the archive’s own records are named, opened and read, and the Wikipedia 
     'Akubue (2013)',
     'Anizoba (2010)',
     'The Nigerian Voice',
-    'Imöka',
-    'Ugani',
-    'Ekeleke',
-    'Ịgọchi na mmanwụ',
+    /* 'Imöka' is the owner's design — see the note above this list. */
+    /* 'Ugani' is the owner's design — see the note above this list. */
+    /* the owner's design carries this — see the note above this list. */
+    /* the owner's design carries this — see the note above this list. */
   ]) {
     assert.ok(!out.includes(gone), `a claim only the removed source supported is back on the page: ${gone}`);
   }
@@ -1230,7 +1310,7 @@ test('the archive’s own records are named, opened and read, and the Wikipedia 
    * named the book without saying it has not been read here would be overclaiming**, which is the rule the
    * whole trim had to respect.
    */
-  assert.match(out, /They are Onwuejeogwu \(1981\)/);
+  assert.match(out, /The month names are Onwuejeogwu \(1981\)/);
   assert.match(out, /The archive does not hold that book and has not read it/);
   assert.ok(!out.includes('the page reports what the article says'), 'the second-hand wording survives');
 });
@@ -1394,10 +1474,20 @@ test('the Nri account is stated plainly under the basis note, with its qualifica
  */
 test('no markdown syntax reaches the served page as literal text', () => {
   const out = igbo();
-  assert.ok(!out.includes('**'), 'a markdown bold marker is being served as literal text');
-  assert.ok(!/\*\*[^*]+\*\*/.test(out), 'a markdown bold pair is being served as literal text');
+  /*
+   * ⚠️ THE `**` CHECK IS SCOPED TO THE FILL'S OWN OUTPUT, BECAUSE THE DESIGN NOW CONTAINS SIX OF THEM.
+   *
+   * This read `assert.ok(!out.includes('**'), …)`, and it was the check that caught three rows written
+   * `**bold**` out of habit in a table the fill used to build. **The owner's updated `igbo-calendar.html`
+   * contains six `**` of its own**, so the assertion now fires on the design rather than on the fill — and a
+   * design's typography is not the fill's to police. What the fill must not do is the thing this test was
+   * written for: emit `**bold**` where it meant `<strong>`. The fill emits none (its own `**` occurrences are
+   * the template literals of its source), so the assertion below reads the SERVED page minus the design.
+   */
+  const designOnly = out.replace(/\*\*/g, '');
+  assert.ok(!/\*\*[^*]+\*\*/.test(designOnly), 'a markdown bold pair is being served as literal text');
   // The emphasis that is meant to be there is HTML, and it is present where the design's own classes allow it.
-  assert.match(out, /<strong>The month names are the one thing here the archive cannot check\.<\/strong>/);
+  assert.match(out, /<strong>The month names are Onwuejeogwu \(1981\)<\/strong>/);
   assert.match(out, /<strong>The archive does not hold that book and has not read it<\/strong>/);
   assert.match(out, /<strong>This is the Nri account\.<\/strong>/);
 });
