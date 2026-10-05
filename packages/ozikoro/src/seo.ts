@@ -73,6 +73,29 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
   out.push({ url: canonicalUrl('documents'), group: 'pages', changeFrequency: 'weekly', priority: 0.7 });
   out.push({ url: canonicalUrl('topics'), group: 'pages', changeFrequency: 'weekly', priority: 0.7 });
   out.push({ url: canonicalUrl('entities'), group: 'places', changeFrequency: 'weekly', priority: 0.7 });
+  /*
+   * The clan register.
+   *
+   * `/towns` was already built and was missing from this list, and `/clans` did not exist — so the whole
+   * place surface was invisible to a crawler while `/entities` was listed, and `check-links.sh` has the
+   * same gap in its seeds. Both are closed here rather than left for whoever notices next.
+   *
+   * ⚠️ AND BOTH ADDRESSES IT NAMED ARE NOW 301s, WHICH ROUND 260 FOUND BY FETCHING THEM. The owner renamed
+   * the register — *"add them all to the /towns page, and maybe rename it to /clan-towns to accommodate
+   * both"* — so `/clans/` and `/towns/` answer **301 to `/clan-towns/`**, and this list was inviting a
+   * crawler to two URLs that immediately send it elsewhere. **A sitemap names canonical addresses**; a
+   * redirect in one asks a search engine to index a door that opens onto a different room.
+   *
+   * ⚠️ THIS COULD NOT HAVE BEEN SEEN BEFORE ROUND 257. `check-sitemap.sh` read the sitemap's INDEX and
+   * tested its eight sub-sitemap URLs, so no page inside was ever fetched — the check reported
+   * `Every sampled page resolved` on eight paths out of fifteen thousand. The first run after it was
+   * repaired found these.
+   *
+   * `/clans/tribes` and `/clans/regions` stay: measured, both answer **200** and are not redirects.
+   */
+  out.push({ url: canonicalUrl('clan-towns'), group: 'places', changeFrequency: 'weekly', priority: 0.8 });
+  out.push({ url: canonicalUrl('clans/tribes'), group: 'places', changeFrequency: 'monthly', priority: 0.6 });
+  out.push({ url: canonicalUrl('clans/regions'), group: 'places', changeFrequency: 'monthly', priority: 0.6 });
   out.push({ url: canonicalUrl('publications'), group: 'publications', changeFrequency: 'daily', priority: 0.8 });
   out.push({ url: canonicalUrl('researchers'), group: 'pages', changeFrequency: 'weekly', priority: 0.7 });
   out.push({ url: canonicalUrl('about'), group: 'pages', changeFrequency: 'monthly', priority: 0.5 });
@@ -127,6 +150,18 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
       order by id`
   );
   for (const e of entities) out.push({ url: canonicalUrl(`entities/${e.slug}`), group: 'places', changeFrequency: 'weekly', priority: 0.7 });
+
+  /*
+   * Every published register entry, at its canonical address.
+   *
+   * `/town/<slug>/` is deliberately NOT listed here. It serves the same record as `/clans/<slug>/` and
+   * declares the register address as its canonical, so listing both would ask a crawler to index one entry
+   * twice — which is the duplicate the canonical link on that page exists to prevent.
+   */
+  const places = await db.rows<{ slug: string }>(`select slug from clan where published order by id`);
+  for (const p of places) {
+    out.push({ url: canonicalUrl(`clans/${p.slug}`), group: 'places', changeFrequency: 'monthly', priority: 0.7 });
+  }
 
   const publications = await db.rows<{ slug: string; published_at: string | null }>(
     `select slug, published_at from ozikoro_publication where status = 'published' and is_public = true order by id`
