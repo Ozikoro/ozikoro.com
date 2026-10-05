@@ -19,7 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { designScriptPaths, designScreenLinks } from './design-paths.ts';
+import { designScriptPaths, designScreenLinks, withSiteFooter } from './design-paths.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROUTES = join(here, '..', '..', '..', 'apps', 'ozikoro', 'app');
@@ -328,3 +328,140 @@ test('no design screen still writes an `about.html#access` link once it has been
   assert.ok(before > 0, 'no design screen links about.html#access — this test has stopped testing anything');
   assert.deepEqual(after, [], `these screens still write an #access link after the rewrite: ${after.join(', ')}`);
 });
+
+/* ------------------------------------------------------------------------------------------------
+ * THE FOOT OF THE SITE, ON THE SCREENS THE DELIVERABLE DREW WITHOUT ONE
+ * ---------------------------------------------------------------------------------------------- */
+
+const SCREENS = join(here, '..', '..', '..', 'apps', 'ozikoro', 'public', 'design', 'screens');
+
+/** The calendar's footer exactly as the deliverable writes it — the owner's report, as a fixture. */
+const THIN_FOOTER = '<footer class="site-foot"><div class="wrap"><div class="legal">'
+  + '<span>© 2026 Ozi Ikoro Limited.</span>'
+  + '<span><a href="careers.html">Careers</a> · <a href="cite.html">Citation guide</a></span>'
+  + '</div></div></footer>';
+
+test('a screen whose footer is the legal strip gains the site\'s own columns', () => {
+  const out = withSiteFooter(`<html><body>${THIN_FOOTER}</body></html>`);
+  assert.match(out, /class="grid-4"/, 'the calendar still ends in one line of small print');
+  assert.match(out, /<h4>Archive<\/h4>/, 'the Archive column is missing');
+  assert.match(out, /<h4>Research<\/h4>/);
+  assert.match(out, /<h4>Platform<\/h4>/);
+  assert.match(out, /<h4>Terms<\/h4>/);
+  /*
+   * THE SCREEN'S OWN STRIP STAYS, CHARACTER FOR CHARACTER. It is where the deliverable says what *this*
+   * page's foot holds — "Collections · Citation guide" on the library, "All projects · Public ledger" on a
+   * project — and four columns of the site's links are not a reason to take it away.
+   */
+  assert.match(out, /<span><a href="careers\.html">Careers<\/a> · <a href="cite\.html">Citation guide<\/a><\/span>/,
+    'the screen\'s own legal line was replaced rather than added to');
+  // Idempotent: the second pass sees the columns and does nothing.
+  assert.equal(withSiteFooter(out), out);
+});
+
+test('a screen that already has the columns, or has no footer, is left exactly as it was', () => {
+  const full = `<html><body><footer class="site-foot"><div class="wrap"><div class="grid-4">`
+    + '<div><h4>Archive</h4></div></div><div class="legal"><span>© 2026</span></div>'
+    + '</div></footer></body></html>';
+  assert.equal(withSiteFooter(full), full, 'a second set of columns was added to a screen that has one');
+
+  /*
+   * `article.html`, the nineteen dashboards and the readers have no footer at all, and an article record is
+   * not the page to grow the site's directory. The rule asks the document what its footer IS, so these are
+   * reached by the same call and changed by it in no way.
+   */
+  const none = '<html><body><p>An article</p></body></html>';
+  assert.equal(withSiteFooter(none), none);
+
+  // A `site-foot` with no legal strip is neither of the two shapes the deliverable draws.
+  const odd = '<footer class="site-foot"><div class="wrap"><p>Something else</p></div></footer>';
+  assert.equal(withSiteFooter(odd), odd);
+
+  /*
+   * AND `folklore.html`'s INLINE `margin-top:0` COMES OFF, because it was written for a footer that had
+   * nothing above the strip and would otherwise collapse the separation the other sixteen screens keep.
+   */
+  const folklore = '<footer class="site-foot"><div class="wrap"><div class="legal" style="margin-top:0">'
+    + '<span>© 2026 Ozi Ikoro Limited.</span></div></div></footer>';
+  const fixed = withSiteFooter(folklore);
+  assert.match(fixed, /<div class="legal">/, 'the collapsed strip kept its margin-top:0 under four columns');
+  assert.doesNotMatch(fixed, /margin-top:0/);
+});
+
+test('the columns are the front page\'s own, taken from the file rather than retyped', () => {
+  /*
+   * A CONSTANT COPIED OUT OF AN INVIOLABLE FILE IS A CONSTANT THAT WILL ONE DAY DISAGREE WITH IT. This reads
+   * `screens/home.html`, extracts its `<div class="grid-4">`, and asserts that what the transform injects is
+   * that block and not a paraphrase of it — the same arrangement `design-fill.test.ts` uses for the design's
+   * own calendar script.
+   *
+   * `home.html` is the footer taken, and the test says WHY it is the one: `/` is served from this same
+   * deliverable (the middleware rewrites it to `/design-screen/home`), so these columns are already what the
+   * front page shows, and they are the only set that names the sections these thin screens belong to.
+   */
+  const home = readFileSync(join(SCREENS, 'home.html'), 'utf8');
+  const footer = /<footer class="site-foot">[\s\S]*?<\/footer>/.exec(home)?.[0];
+  assert.ok(footer, 'home.html has no `site-foot` — the footer this transform copies has gone');
+  const columns = /<div class="grid-4">[\s\S]*?\n    <\/div>\n/.exec(footer)?.[0];
+  assert.ok(columns, 'home.html no longer draws a `grid-4` block for this transform to copy');
+
+  const out = withSiteFooter(`<html><body>${THIN_FOOTER}</body></html>`);
+  assert.ok(
+    out.includes(columns),
+    'the injected columns have drifted from home.html\'s own — copy them again rather than editing the constant'
+  );
+});
+
+test('every screen the deliverable drew thin is served with the columns, and the count is asserted', () => {
+  /*
+   * THE CLAIM OVER THE REAL DELIVERABLE RATHER THAN A FIXTURE. Measured on 2026-10-05: of the 52 screens,
+   * **17 carry `site-foot` with only the legal strip, 13 carry the four columns, and 17 have no footer
+   * element at all** (plus `account.html`, whose foot is a `.footer` line of its own). Both sides are
+   * asserted so the test cannot pass by there being nothing to do.
+   */
+  const files = readdirSync(SCREENS).filter((f: string) => f.endsWith('.html'));
+  assert.ok(files.length >= 52, `expected the deliverable's screens; found ${files.length} files`);
+
+  const thin: string[] = [];
+  const withColumns: string[] = [];
+  const noFooter: string[] = [];
+  const stillThin: string[] = [];
+
+  for (const file of files) {
+    const raw = readFileSync(join(SCREENS, file), 'utf8');
+    const footer = /<footer class="site-foot">[\s\S]*?<\/footer>/.exec(raw)?.[0];
+    if (!footer) {
+      noFooter.push(file);
+      continue;
+    }
+    if (footer.includes('class="grid-4"')) withColumns.push(file);
+    else thin.push(file);
+    if (!withSiteFooter(raw).includes('class="grid-4"')) stillThin.push(file);
+  }
+
+  assert.equal(thin.length, 17, `the deliverable's thin-footer screens have changed: ${thin.join(', ')}`);
+  assert.equal(withColumns.length, 13, `the deliverable's four-column screens have changed: ${withColumns.join(', ')}`);
+  assert.ok(noFooter.length > 0, 'no screen is without a footer — this test has stopped testing anything');
+  assert.deepEqual(stillThin, [], `these screens are still served without the columns: ${stillThin.join(', ')}`);
+});
+
+test('the injected columns are resolved by the same rule as every other address on the page', () => {
+  /*
+   * THE ORDERING IS THE WHOLE OF HOW THE LINKS WORK, and this is the assertion that keeps it. The constant
+   * carries the design's own relative addresses — `archive-index.html`, `towns.html`, `learn.ozituma.com` —
+   * and the route calls `withSiteFooter` BEFORE `designScreenLinks`, which is the one place those resolve.
+   * Called the other way round, twenty-two footer links would sit on a served page as `archive-index.html`,
+   * resolving one segment too deep, in markup that reads as correct.
+   */
+  const out = designScreenLinks(withSiteFooter(`<html><head></head><body>${THIN_FOOTER}</body></html>`));
+
+  assert.doesNotMatch(out, /href="[a-z0-9-]+\.html/, 'a relative footer address reached the served page');
+  assert.match(out, /href="\/archive\/">All histories</, 'archive-index.html did not resolve to the archive');
+  assert.match(out, /href="\/clan-towns\/">Clans and towns</, 'towns.html did not resolve to the register');
+  assert.match(out, /href="\/academy\/">Learn Igbo</, 'the retired host did not resolve to the archive\'s own page');
+  assert.match(out, /href="https:\/\/ozituma\.com\/"/, 'the dictionary is an address, not a screen, and was rewritten');
+  // The one footer item that names a section no page draws is removed, exactly as it is on the front page.
+  assert.doesNotMatch(out, /#access/, 'the footer kept a link to an institutional-access section that does not exist');
+  assert.match(out, /href="\/about\/#terms"/, 'a real fragment was removed with it');
+});
+

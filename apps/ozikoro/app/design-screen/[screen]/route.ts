@@ -34,6 +34,7 @@ import {
   fillDashboardLinks,
   designScriptPaths,
   designScreenLinks,
+  withSiteFooter,
   can,
   decodeDesignPreview,
   designInventory,
@@ -635,6 +636,27 @@ export async function GET(
      * both routes call it so a third cannot repeat the omission.
      */
     html = designScriptPaths(html);
+
+    /*
+     * AND THE SITE'S OWN FOOT, ON THE SCREENS THE DELIVERABLE DREW WITHOUT IT.
+     *
+     * *"also, add information on the footer shown here http://127.0.0.1:3110/cultural-calendar/"* — the
+     * calendar's footer is the deliverable's legal strip and nothing above it, so the page ends in one line
+     * of small print and a reader who reaches the bottom finds no way onward. Seventeen of the fifty-two
+     * screens are drawn that way and thirteen carry four columns; the transform, the reason for the footer
+     * it copies, and the measured list are in `withSiteFooter`.
+     *
+     * IT RUNS HERE, BEFORE `designScreenLinks` BELOW, AND THAT ORDER IS THE WHOLE OF HOW ITS LINKS WORK. The
+     * columns are the design's own relative addresses — `archive-index.html`, `towns.html`,
+     * `learn.ozituma.com` — and the call below is the one place those are resolved. Injecting after the
+     * rewrite would put `archive-index.html` on a served page, where it resolves one segment too deep: a
+     * footer of twenty-two links that all 404 while reading as correct in the source.
+     *
+     * IT IS NOT A FILL. A fill belongs to a screen; this belongs to none, and is driven by what the document
+     * contains rather than by its name — so `careers.html`, `listen.html` and the calendar are reached by the
+     * one call, and a screen added to the deliverable is reached without anyone remembering this line.
+     */
+    html = withSiteFooter(html);
 
     /*
      * AND THE DESIGN'S OWN RELATIVE ADDRESSES, FOR EVERY SCREEN RATHER THAN FOR A LIST OF THEM.

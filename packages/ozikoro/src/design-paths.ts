@@ -346,3 +346,158 @@ export function designScreenLinks(html: string, at?: string): string {
 
   return out;
 }
+
+/**
+ * The design's own four-column foot, for the screens the deliverable drew without one.
+ *
+ * ── THE OWNER'S REPORT, AND WHAT WAS ACTUALLY THE MATTER WITH THE PAGE ─────────────────────────────
+ *
+ * *"also, add information on the footer shown here http://127.0.0.1:3110/cultural-calendar/"*
+ *
+ * Measured, the cultural calendar's footer is the deliverable's own:
+ *
+ *     <footer class="site-foot"><div class="wrap"><div class="legal">
+ *       <span>© 2026 Ozi Ikoro Limited.</span>
+ *       <span><a href="careers.html">Careers</a> · <a href="cite.html">Citation guide</a></span>
+ *     </div></div></footer>
+ *
+ * — one line, two links, and the page ends. Every other screen in the same deliverable carries four
+ * columns of the archive's own sections above that strip, so the calendar is not missing a *detail*; it is
+ * missing the foot of the site. **That is the "information" he means**, and it is the reading the brief's
+ * own rule supports: a page that looks unfinished at the bottom reads as a page nobody finished.
+ *
+ * ── WHICH FOOTER, AND WHY THAT ONE ────────────────────────────────────────────────────────────────
+ *
+ * The deliverable does not have one footer, it has three, and they are not identical:
+ *
+ *   * `home.html` — Archive · Research · Platform · Terms, twenty-two links
+ *   * `about.html`, `donate.html`, `investors.html`, `ledger.html`, `projects.html`, `sponsors.html` —
+ *     Discover · Participate · Support · Institution
+ *   * six others — two links each
+ *
+ * **`home.html` IS THE ONE TAKEN, and it is taken from the file rather than retyped**: the constant below
+ * is the front page's own `<div class="grid-4">`, byte for byte, and the test beside this file asserts that
+ * it still is. Three reasons for that choice, in order of weight:
+ *
+ *   1. IT IS THE FRONT PAGE'S FOOTER. `/` is served from this same deliverable — the middleware rewrites
+ *      it to `/design-screen/home` — so this is the footer a reader meets first and the one the site is
+ *      already showing. Copying it produces a foot that exists at an address, not a new arrangement.
+ *   2. IT IS THE ONLY ONE THAT NAMES THE SECTIONS THESE SCREENS BELONG TO. The columns that carry
+ *      *Collections*, *Journeys & places*, *Topics A–Z* and *Clans and towns* are exactly the sections the
+ *      screens with the thin footer sit in — the calendar, the library, the photograph and object
+ *      collections, the clan and town register. The Discover/Participate family names none of them.
+ *   3. IT IS THE LONGEST, so it is the one that leaves the least to add later. A footer that has to be
+ *      widened twice is the fault this change exists to remove, one round on.
+ *
+ * ── WHY IT IS A COPY, AND WHY THE COPY IS ASSERTED RATHER THAN TRUSTED ────────────────────────────
+ *
+ * Reading `home.html` again on every request would be the tidier arrangement and it is the wrong one: this
+ * function runs for all fifty-two screens, `home.html` is 18 KB, and a serve-time substitution is not a
+ * build step. So the markup is a constant — **and a constant copied out of an inviolable file is a constant
+ * that will one day disagree with it.** `design-paths.test.ts` therefore extracts the block from
+ * `screens/home.html` and asserts it equals this one, which is the same arrangement `design-fill.test.ts`
+ * uses for the design's own calendar script.
+ *
+ * ── WHAT IT DOES NOT DO, AND THAT MATTERS AS MUCH ─────────────────────────────────────────────────
+ *
+ *   * A SCREEN THAT ALREADY HAS THE COLUMNS IS LEFT ALONE. Thirteen of the deliverable's screens carry
+ *     `grid-4` and would otherwise get a second copy of it.
+ *   * A SCREEN WITH NO `<footer class="site-foot">` IS LEFT ALONE. `article.html`, the nineteen dashboards
+ *     and the readers have no footer at all, and an article is not the page to grow the site's directory.
+ *   * THE SCREEN'S OWN LEGAL STRIP STAYS, character for character. It is where the deliverable says what
+ *     *this* screen's foot holds — *"Collections · Citation guide"* on the library, *"All projects · Public
+ *     ledger"* on a project — and a reader who scrolls past four columns of the site's links is owed the
+ *     two that belong to the page they are on. Only the columns are added.
+ *
+ * The links are the design's own relative addresses (`archive-index.html`, `towns.html`,
+ * `learn.ozituma.com`) and this function does not resolve them: it runs before `designScreenLinks`, which
+ * is the one place that job is done, so the injected foot is resolved by the same rules as every other
+ * address on the page rather than by a second copy of them.
+ */
+const SITE_FOOTER_COLUMNS = `    <div class="grid-4">
+      <div>
+        <h4>Archive</h4>
+        <ul>
+          <li><a href="archive-index.html">All histories</a></li>
+          <li><a href="folklore.html">Folklores &amp; myths</a></li>
+          <li><a href="documents.html">Documents &amp; photographs</a></li>
+          <li><a href="collections.html">Collections</a></li>
+          <li><a href="journeys.html">Journeys &amp; places</a></li>
+          <li><a href="topics.html">Topics A–Z</a></li>
+          <li><a href="towns.html">Clans and towns</a></li>
+          <li><a href="archive-index.html">Periods</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Research</h4>
+        <ul>
+          <li><a href="researcher-profile.html">Researcher profiles</a></li>
+          <li><a href="publications.html">Publications</a></li>
+          <li><a href="upload.html">Publish your work</a></li>
+          <li><a href="about.html#access">Institutional access</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Platform</h4>
+        <ul>
+          <li><a href="https://ozituma.com/">Ozituma dictionary</a></li>
+          <li><a href="https://learn.ozituma.com/">Learn Igbo</a></li>
+          <li><a href="about.html">Ozi Ikoro Limited</a></li>
+          <li><a href="careers.html">Careers</a></li>
+          <li><a href="cultural-calendar.html">Cultural calendar</a></li>
+          <li><a href="about.html#partners">Partners</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Terms</h4>
+        <ul>
+          <li><a href="about.html#terms">Terms of use</a></li>
+          <li><a href="about.html#privacy">Privacy</a></li>
+          <li><a href="about.html#licensing">Licensing &amp; reuse</a></li>
+          <li><a href="about.html#entrust">Entrusting material</a></li>
+        </ul>
+      </div>
+    </div>
+`;
+
+/** The design's own footer element, as every screen that has one writes it. */
+const SITE_FOOT = /<footer class="site-foot">[\s\S]*?<\/footer>/;
+
+/**
+ * The front page's own four columns, added to a screen whose footer is the legal strip and nothing else.
+ *
+ * THE SHAPE OF THE RULE IS THE POINT: it asks the document what its footer *is* rather than asking a list of
+ * screen names which ones are thin, so a screen added to the deliverable is treated by what it contains. The
+ * measured list — seventeen screens thin, thirteen with the columns, seventeen with no footer at all — is in
+ * the round note in `docs/OZIKORO-REMAINING.md`, and it is a measurement of the deliverable rather than a
+ * setting this function reads.
+ */
+export function withSiteFooter(html: string): string {
+  const found = SITE_FOOT.exec(html);
+  if (!found) return html;
+
+  const footer = found[0];
+  // Already the full foot. Adding to it would be a second set of columns.
+  if (footer.includes('class="grid-4"')) return html;
+
+  const legalAt = footer.search(/<div class="legal"/);
+  // A `site-foot` with no legal strip is not one of the two shapes the deliverable draws; leave it be.
+  if (legalAt === -1) return html;
+
+  /*
+   * `folklore.html` writes its strip as `style="margin-top:0"` — true while the strip is the whole footer,
+   * and false the moment columns sit above it, because the rule that spaces the two apart is that margin.
+   * It comes off with the change that makes it wrong, and only on the screens where the columns are added.
+   */
+  const tail = footer
+    .slice(legalAt)
+    .replace('<div class="legal" style="margin-top:0">', '<div class="legal">');
+
+  return (
+    html.slice(0, found.index) +
+    footer.slice(0, legalAt) +
+    SITE_FOOTER_COLUMNS +
+    tail +
+    html.slice(found.index + footer.length)
+  );
+}

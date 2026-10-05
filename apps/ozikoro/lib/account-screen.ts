@@ -314,6 +314,76 @@ export function accountScreenLinks(html: string): string {
   return out;
 }
 
+/**
+ * THE MASTHEAD'S OWN NIGHT TREATMENT, ON THE ONE SCREEN THAT DRAWS A LIGHT HEADER OF ITS OWN.
+ *
+ * ── THE OWNER'S REPORT, AND WHAT THE TWO PAGES ACTUALLY ARE ──────────────────────────────────────
+ *
+ * *"on the menu in the signup or sign in page, make it dark like the homepage menu. make it same colour"*
+ *
+ * Measured on the served pages, the two headers are not the same element **and they are not even the same
+ * document**:
+ *
+ *     GET /        `<header class="masthead">`  — the deliverable's `screens/home.html`, whose head links
+ *                                                 `/design/styles/main.css` and `/design/styles/showcase.css`
+ *     GET /signin  `<header class="header">`    — the deliverable's `screens/account.html`, served as its own
+ *                                                 standalone document with its own inline `<style>`
+ *
+ * So this is not a class that lost its stylesheet. `account.html` declares
+ * `.header{background:var(--surface);border-bottom:1px solid var(--edge)}` — a light bar on `#fffdf8` — and it
+ * is the only screen in the deliverable drawn that way. The design is inviolable, so the treatment is added to
+ * the SERVED copy, here, where all four account addresses pass.
+ *
+ * ── THE DECLARATIONS ARE THE MASTHEAD'S OWN, TAKEN FROM THE DESIGN RATHER THAN CHOSEN ─────────────
+ *
+ * `showcase.css` is where the masthead resolves to night, under its own heading *"platform bar + masthead:
+ * night with gold"*, and these are its lines for the two elements this screen has:
+ *
+ *     .masthead { background: rgba(15, 13, 11, 0.92); border-bottom: 1px solid rgba(201, 168, 76, 0.28); }
+ *     .nav a { color: var(--on-night); }
+ *     .nav a:hover, .nav a[aria-current="page"] { color: var(--gold-bright); border-bottom-color: var(--gold); }
+ *
+ * **The three declarations that colour the bar are copied character for character**, and the token names are
+ * the design's own, from `tokens.css`:
+ *
+ *     --on-night:       #f3ead6
+ *     --gold-bright:    #e8c766
+ *     --on-night-muted: #b9ad94
+ *
+ * ── AND THE THREE TOKENS ARE DECLARED HERE, BECAUSE THIS IS THE ONE SCREEN THAT NEVER GOT THEM ────
+ *
+ * The other fifty-one screens reach `tokens.css` through `main.css`'s `@import`. `account.html` carries its own
+ * shortened `:root` — `--on:#f3ead6` is its `--on-night`, `--gold2:#e8c766` is its `--gold-bright` — and
+ * declares neither of the masthead's names. **`var(--on-night)` with no declaration and no fallback is not a
+ * colour: the declaration is invalid at computed-value time and the link inherits the body's ink, which on
+ * this ground is dark on dark.** That is the 1.2:1 trap this page is one line away from, so the three tokens
+ * are declared above the rules that use them, with the values `tokens.css` gives them. No fourth token is
+ * introduced and no value is chosen by eye; `account-screen.test.ts` reads `tokens.css` and fails if any of
+ * the three ever disagrees with it.
+ *
+ * ── THE TWO LINES THE LIGHT BAR WAS CARRYING, WHICH WOULD OTHERWISE GO INVISIBLE ──────────────────
+ *
+ * A dark ground is not only the links' business. The brand is `--ink` on the bar's `--surface` today and
+ * `.nav` is `--muted`; both are near-black, and both would have been unreadable the moment the bar turned.
+ * Their replacements are the masthead's own equivalents rather than new colours: `.wordmark b` and
+ * `.wordmark span` are that header's brand, and they resolve to `--on-night` and `--on-night-muted`.
+ *
+ * WHAT IS DELIBERATELY NOT COPIED is the masthead's `font-size: 1rem` on `.nav a` and its hover
+ * `border-bottom-color`. The first is the type scale of a header this screen does not have — its menu is 13px
+ * in an 84px bar — and the second colours a border `account.html`'s `.nav a` never gives a width, so it would
+ * be a declaration with no effect dressed up as one. **The request was the colour, and the colour is here.**
+ */
+const ACCOUNT_HEADER_STYLE = [
+  '<style>',
+  ':root{--on-night:#f3ead6;--gold-bright:#e8c766;--on-night-muted:#b9ad94}',
+  '.header{background:rgba(15,13,11,.92);border-bottom:1px solid rgba(201,168,76,.28)}',
+  '.header .brand strong{color:var(--on-night)}',
+  '.header .brand small{color:var(--on-night-muted)}',
+  '.nav a{color:var(--on-night)}',
+  '.nav a:hover{color:var(--gold-bright)}',
+  '</style>',
+].join('');
+
 /** Read the design, apply the substitutions, and return the page to send. */
 export async function accountScreen(options: AccountScreenOptions = {}): Promise<string> {
   let html = await readFile(SCREEN, 'utf8');
@@ -346,6 +416,25 @@ export async function accountScreen(options: AccountScreenOptions = {}): Promise
    * signing in.**
    */
   html = html.replace('type="checkbox" required', 'type="checkbox"');
+
+  /*
+   * THE MENU TURNS NIGHT, HERE, SO THAT EVERY ACCOUNT ADDRESS TURNS WITH IT.
+   *
+   * `/signin`, `/join`, `/forgot` and `/reset` are four routes serving this one screen, and **the owner asked
+   * about "the signup or sign in page" — a dark sign-in beside a light sign-up is the same fault one click
+   * away.** Putting it in the four routes would be four chances to forget it and a fifth screen drawn
+   * tomorrow; putting it in `accountScreen` is the one place all four pass. See `ACCOUNT_HEADER_STYLE` for
+   * which of the masthead's declarations these are and where in the design they come from.
+   *
+   * IT GOES IN BEFORE `</head>`, and therefore after the design's own inline `<style>`: the design's rules
+   * and these have the same specificity (`.header`, `.nav a`), so the later one is the one that wins — which
+   * is the whole mechanism, and why this is an insertion rather than a rewrite of the design's own line.
+   *
+   * THE FINDS ALREADY RUN are the caller's, and `/signin` and `/join` both end by writing a `<script>` before
+   * `</head>`. That leaves exactly one `</head>` in the document, so `replaceOnce` still finds one occurrence
+   * and still refuses to serve the page if it does not.
+   */
+  html = replaceOnce(html, '</head>', `${ACCOUNT_HEADER_STYLE}</head>`);
 
   html = accountScreenLinks(html);
 
