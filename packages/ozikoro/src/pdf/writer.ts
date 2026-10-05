@@ -79,52 +79,67 @@ export const FRAME = {
 export const MEASURE = FRAME.marginRight - FRAME.marginLeft;
 
 /**
- * THE ARCHIVE'S OWN COLOURS, TAKEN FROM THE ARTWORK THAT CARRIES THEM.
+ * THE OWNER'S ACADEMIC-MAGAZINE PALETTE, **READ OUT OF THE TEMPLATE'S OWN `:root` AND NOT MIXED HERE.**
  *
- * **Three grounds and an accent, and not one of them is mixed here.** Each value below names the file or the
- * object it came from, and where the logo files and the reference's raster disagree the vector file wins —
- * a raster is a conversion, and a conversion is where a brand colour drifts.
+ * The template is `ozikoro-academic-magazine.html` — the design the owner supplied and said was "perfected":
+ *
+ *     --ink:#302e2e   --green:#0f5142   --green-dark:#0b3f34
+ *     --gold:#e7b82c  --cream:#eee5d2   --paper:#fffefb   --muted:#77736c
+ *
+ * **Every hex below is one of those seven**, converted to PDF's 0–1 form and written to the same number of
+ * digits so the operator in the file can be read straight back. The three that are not in the `:root` are
+ * the template's own other literals — `.503`'s `#e4dac5` feature copy, the `#ddd9d0` hairline under the
+ * running head and the footer's, the title's `#fff`, and the four fixed `#fff`-family values the design
+ * never names — and each is written out with the rule it comes from.
+ *
+ * WHY THE PALETTE MOVED FROM `#363434`/`#174c3d`/`#ddb02f` TO THIS ONE
+ *
+ * Those three were read from an earlier approved reference PDF and were **exactly 5% lighter than the
+ * template they were meant to be** — `#363434` against `#302e2e`, `#174c3d` against `#0f5142`, `#ddb02f`
+ * against `#e7b82c`. Measured on the rendered pages, that is a visibly different green on the cover spine
+ * and a visibly different gold on the rules. The owner's instruction is that the *template* is the design,
+ * so the template's own values are the ones used, and the earlier values are recorded here rather than
+ * quietly kept.
  */
 export const OZIKORO = {
-  /**
-   * **#363434**, the dark charcoal ground.
-   *
-   * From `assets/official/ozikoro-icon-yellow.svg`'s counterpart `Ozi Ikoro Icon - Brown.svg`, whose only
-   * fill is `#363434`, and confirmed independently by the reference cover's own full-bleed rectangle,
-   * written as `.211765 .203922 .203922` — 54, 52, 52, which is `#363434` exactly.
-   */
-  charcoal: [0.211765, 0.203922, 0.203922] as const,
-  /**
-   * **#174c3d**, the deep green: the cover's left stripe, the section numerals, the feature panel.
-   *
-   * **Not one of the 32 logo files carries a green**, so the reference's own content stream is the
-   * authority: `.090196 .298039 .239216` — 23, 76, 61.
-   */
-  green: [0.090196, 0.298039, 0.239216] as const,
-  /**
-   * **#ddb02f**, the gold, from `assets/official/ozikoro-icon-yellow.svg` — `.cls-1{fill:#ddb02f;}`, the
-   * only fill in that file, and the colour of every gold pixel in the icon the writer places.
-   *
-   * The reference's *raster* of the same icon reads `#e2b52e`. **The vector is the brand and the raster is a
-   * conversion of it**, so the vector's value is the one used here.
-   */
-  gold: [0.866667, 0.690196, 0.184314] as const,
-  /** **#fffdf9**, the cream head band and the white of the cover title. `1 .992157 .976471`. */
-  chalk: [1, 0.992157, 0.976471] as const,
-  /** **#d8ccb7**, the cream half of the feature panel. `.847059 .8 .717647`. */
-  panel: [0.847059, 0.8, 0.717647] as const,
-  /** **#d7ccb7**, the hairline rules. A tenth of a per cent away from the panel, and it reads as one. */
-  rule: [0.843137, 0.8, 0.717647] as const,
-  /** **#d9d1c0**, the strapline, the byline and the meta line on the dark cover. */
-  dim: [0.85098, 0.819608, 0.752941] as const,
-  /** **#f2e7cf**, the cover's italic standfirst. */
-  standfirst: [0.94902, 0.905882, 0.811765] as const,
-  /** **#262322**, the body ink. `.14902 .137255 .133333`. */
-  ink: [0.14902, 0.137255, 0.133333] as const,
-  /** **#6d655b**, the muted ink of the running head, the meta line and the captions. */
-  inkMuted: [0.427451, 0.396078, 0.356863] as const,
-  /** **#eee5d5**, the wash behind the editorial note and each reference. `.933333 .898039 .835294`. */
-  wash: [0.933333, 0.898039, 0.835294] as const,
+  /** `--ink:#302e2e` — the charcoal ground of the cover and the back page, and the body ink. */
+  ink: [0.188235, 0.180392, 0.180392] as const,
+  /** `--green:#0f5142` — the cover spine, the section numerals, the side card, the author panel. */
+  green: [0.058824, 0.317647, 0.258824] as const,
+  /** `--green-dark:#0b3f34` — declared by the template; the deep shade kept for a panel that needs it. */
+  greenDark: [0.043137, 0.247059, 0.203922] as const,
+  /** `--gold:#e7b82c` — the wordmark, the rules, the reference numerals, the side card's label. */
+  gold: [0.905882, 0.721569, 0.172549] as const,
+  /** `--cream:#eee5d2` — the reference wash **and** the feature panel's copy half. One value, two uses. */
+  cream: [0.933333, 0.898039, 0.823529] as const,
+  /** `--paper:#fffefb` — the sheet itself, and the running head's own band. */
+  paper: [1, 0.996078, 0.984314] as const,
+  /** `--muted:#77736c` — the running head, the captions, the references' intro and the meta line. */
+  muted: [0.466667, 0.45098, 0.423529] as const,
+  /** `#e4dac5` — `.feature-copy`'s own background, one step darker than the references' cream. */
+  featureCopy: [0.894118, 0.854902, 0.772549] as const,
+  /** `#ddd9d0` — the hairline under the running head and over the footer. */
+  rule: [0.866667, 0.85098, 0.815686] as const,
+  /** `#fff` — the cover's own `color:#fff`, and the `#fff` that `.cover h1` inherits. */
+  white: [1, 1, 1] as const,
+  /** `#dedbd3` — `.strap`: the small tracked line under the wordmark. */
+  strap: [0.870588, 0.858824, 0.827451] as const,
+  /** `#eee9df` — `.cover-subtitle`: the italic line under the title. */
+  subtitle: [0.933333, 0.913725, 0.87451] as const,
+  /** `#aaa69e` — `.meta` and `.end-url`. */
+  faint: [0.666667, 0.65098, 0.619608] as const,
+  /** `#7c786f` — `.page-header`'s own colour, for the topic beside the mini logo. */
+  headInk: [0.486275, 0.470588, 0.435294] as const,
+  /** `#2c2a28` — `.feature-copy`'s own colour, for the caption's bold line. */
+  featureInk: [0.172549, 0.164706, 0.156863] as const,
+  /** `#7d776d` — `.feature-copy small`: the caption's provenance line. */
+  featureFaint: [0.490196, 0.466667, 0.427451] as const,
+  /** `#393735` — `.body p`: the body's own colour, two steps off the heading's. */
+  bodyInk: [0.223529, 0.215686, 0.207843] as const,
+  /** `#858078` — `footer`'s own colour. */
+  footInk: [0.521569, 0.501961, 0.470588] as const,
+  /** `#d7e2dc` — `.author-card span`. */
+  authorFaint: [0.843137, 0.886275, 0.862745] as const,
 };
 
 export type Rgb = readonly [number, number, number];

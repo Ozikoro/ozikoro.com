@@ -16,8 +16,8 @@ import { spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
 import {
-  ArticlePdf, decodePng, isJpeg, isPng, jpegSize,
-  type ArticleLogo, type Block, type FontSet, type Raster,
+  ArticlePdf, citationForSource, decodePng, isJpeg, isPng, jpegSize,
+  type ArticleLogo, type Block, type FontSet, type Raster, type SourceRow,
 } from '@ozikoro/platform';
 
 /**
@@ -483,6 +483,35 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
     d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
   const featuredImage = imageOf(a.featured_key);
 
+  /*
+   * THE ARTICLE'S OWN SOURCE RECORDS, WHICH ARE WHAT THE REFERENCES PAGE IS FOR.
+   *
+   * The owner's template says it in its own HTML — *"In the production system, this section should be
+   * generated directly from the article's reference data"* — and the archive holds exactly that: a join
+   * table `ozikoro_article_source` carrying the order the article cites in, and `ozikoro_source` carrying
+   * the citation itself. **Ten real sources exist, and this is how they reach the page.**
+   *
+   * WHY THE ORDER IS `l.position, s.year nulls last, s.title`: `position` is the article's own order and is
+   * what a reader expects. The two tie-breakers are only for rows that share a position — an import that
+   * left them all at zero — and they are **deterministic**, so the same article produces the same file
+   * twice rather than a citation order that depends on the query planner.
+   *
+   * `referencesOf(body)` REMAINS THE FALLBACK, and it is used exactly when this returns nothing: a record
+   * whose bibliography exists only as prose in its own body. **Where both are empty the page is designed
+   * away — `references()` returns without drawing — rather than a citation being invented to fill it.**
+   */
+  const sourceRows = await db.rows<SourceRow>(
+    `select s.kind, s.title, s.authors, s.year, s.year_note, s.publisher, s.journal,
+            s.volume, s.issue, s.pages, s.url, s.identifier, s.archive, s.collection
+       from ozikoro_article_source l
+       join ozikoro_source s on s.id = l.source_id
+      where l.article_id = (select id from ozikoro_article where slug = $1)
+      order by l.position, s.year nulls last, s.title`,
+    [a.slug]
+  );
+  const fromSources = sourceRows.map(citationForSource).filter((line) => line.trim().length > 0);
+  const references = fromSources.length > 0 ? fromSources : referencesOf(body);
+
   const doc = new ArticlePdf({
     slug: a.slug,
     title: a.title,
@@ -495,7 +524,8 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
     readingMinutes: Math.max(1, Math.round(words / 220)),
     featured: featuredImage ? { ...featuredImage, caption: a.featured_caption } : null,
     blocks: toBlocks(body),
-    references: referencesOf(body),
+    references,
+    referencesFromSources: fromSources.length > 0,
     tags: [],
     logo: logo(),
     fonts: fonts(),
