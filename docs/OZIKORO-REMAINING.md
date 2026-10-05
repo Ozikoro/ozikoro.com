@@ -26858,3 +26858,230 @@ identical 63 differing 0 missing 0
 | `packages/ozikoro/src/search.ts`, `seo.ts`, `knowledge.ts` | the three paths that would otherwise carry the record's words or invite a crawler to them |
 | `apps/ozikoro/app/search/page.tsx`, `apps/ozikoro/app/admin/layout.tsx` | the capability passed to the search page, and the one navigation entry drawn only for a holder |
 | `scripts/check-capability-fn.mjs` | the second copy of the rule, kept in step |
+
+---
+
+## ROUND 362 — THE DISCLOSED HOST CREDENTIALS NOW HAVE ONE COMMAND PER CREDENTIAL INSTEAD OF SIX CAREFUL EDITS, AND THE ORDER THEY GO IN IS ARGUED RATHER THAN LISTED
+
+**This round is the second half of the remedy `AGENTS.md` states.** That file's rule — *read a secret's
+NAME, never its VALUE* — is the principle. This round is the procedure: a runbook, a host-side script,
+and an audit of whether anything else in the repository invites the opposite. **Nothing here touches the
+production host, and no value was read, printed or moved.**
+
+### 1. The order, and why it is the order
+
+Ranked by **how much damage the disclosed value does**, and secondarily by **how self-contained the
+change is**. The brief's shape was tested rather than adopted, and it survives with one correction.
+
+| # | credential | why here |
+|---|---|---|
+| 1 | `S3_ACCESS_KEY_ID` + `S3_SECRET_ACCESS_KEY` | Highest value **and** the most self-contained. `media.ozituma.com` serves objects anonymously, so the keys are the only thing between a stranger and overwriting or deleting every photograph and episode — and the application reads the keys while nothing else coordinates with them |
+| 2 | `GITHUB_TOKEN` | Push access. Self-contained; does not touch the running site at all |
+| 3 | `OZITUMA_SMTP_PASSWORD` | High value — sending mail as the domain is how an account is taken over — but multi-part, so slower |
+| 4 | `RESEND_API_KEY` *(only if the host holds one)* | Same class as 3. Resend is tried **before** SMTP, so if it exists it is the transport actually in use |
+| 5 | `PAYSTACK_SECRET_KEY`, `NOWPAYMENTS_API_KEY` | ⚠️ **Test or live decides the priority.** Live is money and it jumps the rest |
+| 6 | `POSTGRES_PASSWORD` | Different in kind: it must change in the database **and** the file, and the order decides whether the archive stays up |
+
+**Where this disagreed with the brief:** the brief placed `GITHUB_TOKEN` second and treated it as equal
+in urgency to the storage keys. It is second, **but it is not equal.** The bucket is worse, and the
+reason is that its disclosed pair is a **write** credential on an object store whose read door is
+already open — a `DELETE` needs no backup to be destructive.
+
+### 2. The cPanel answer, after the owner changed it mid-round
+
+The brief asked this round to argue whether to rotate `CPANEL_PASSWORD` / `CPANEL_API_TOKEN` at all.
+**The owner answered it directly while the work was in progress:** *"this project is meant to be in aws,
+postdegre, and cloudflare for it to be live. cpanel is going as it will expire."*
+
+**So it is not rotated, and it is not silently dropped** — dropping it silently is the failure mode this
+repository keeps producing. The runbook carries a section titled **"Not rotated, and why"** that states:
+
+* cPanel is being decommissioned on the owner's instruction, so its credentials die with it;
+* **the one thing to confirm at decommission time is that the account is actually CLOSED, not merely
+  abandoned** — *an abandoned account with a live password is not a retired account*;
+* **the residual risk, with its shape:** until cPanel is closed, the exposed `CPANEL_PASSWORD` is full
+  control of a host that still answers for `ozikoro.com`. The zone's apex still points at
+  `162.213.253.73` (27 records, proxied). **The window is open, and it has no end date** — *"when the
+  cutover completes"* is not a date, and the cutover is currently blocked.
+
+**Where each file's credentials are, checked rather than assumed:** `CPANEL_*` live in **this checkout's
+`.env.local`**, not the host's env, and `docs/OZIKORO-ROUND-340-BACKEND.md` already records them as
+*"not read by the app at all — these are for the WordPress extraction, run by hand."* The host's
+`/opt/ozituma/.env` holds `S3_*`, `POSTGRES_PASSWORD`, `OZITUMA_SMTP_*`, `NOWPAYMENTS_*`, `PAYSTACK_*`
+and `AWS_*` — and **not** `RESEND_API_KEY` (`docs/OZIKORO-CUTOVER.md` §5.8, measured). **`GITHUB_TOKEN`
+is in the macOS keychain, not the host env**, which is why its section gives the keychain sequence
+rather than a script invocation.
+
+### 3. The script — one credential, proved, and it fails closed
+
+`scripts/rotate-credential.mjs`. **One credential per invocation, named by argument**, because the whole
+point is that each is a separate, checkable step. Four promises, and each is measured:
+
+* **It backs up `/opt/ozituma/.env` before it edits it**, at mode 0600 in a mode-0700 directory, and
+  prints where the copy is. **It refuses a backup location the application serves or the bucket holds** —
+  `/opt/ozituma/app`, `/var/www`, `/opt/ozituma/backups`, `/tmp` are all refused by name. Measured:
+  a backup under `/tmp` is refused with the reason, exit 1.
+* **It proves the new value before it finishes.** For `s3` that is a **real SigV4-signed `HEAD`
+  request** against the bucket; for `postgres`, `SELECT 1` through the app's own connection string; for
+  `smtp`, an **authenticated handshake, not a send**.
+* **It never prints a value.** Name, length, `sha256` first 8, and whether it works. A masker rewrites
+  every secret it has held out of every line, including error text.
+* **It fails closed.** If the proof fails, or a restart fails, or the post-move re-proof fails, it
+  restores the file from the backup, puts the database role back, recreates the containers, and exits
+  non-zero. **It never leaves the host holding a value that does not work.**
+
+And it **refuses to run if the new value is empty, or identical to the old one** — *rotating to the same
+value is not a rotation and it would look like success.*
+
+**At the top of the script and in the runbook, in those words: this is for the owner, on the host, and
+NOT for an agent.** An agent that ran it would have to be given the new value through a conversation,
+*which is a transcript* — the exact incident this work exists to remedy.
+
+### 4. Three proven refusals, and one proven restore
+
+All against a **scratch `.env` of fake values**, never the environment:
+
+| case | result |
+|---|---|
+| **Empty new value** | exit **2**, `no new value was supplied for S3_ACCESS_KEY_ID. A rotation to nothing is not a rotation.` File hash unchanged |
+| **Identical new value** | exit **2**, names the fingerprint it matched, points at the issuer. File hash unchanged |
+| **New value fails verification** | exit **1**, *"Nothing was written to the .env file … the application is still on the old value and still up."* File hash unchanged |
+| **Write succeeds, restart fails** (real SMTP proof against a local STARTTLS mock, then the restart) | exit **1**, `↺ /tmp/…/.env restored from /Users/…/.env.<stamp>.smtp.bak`, *"The host is back where it started. Nothing is holding a value that does not work."* File hash restored to the original |
+
+### 5. No-leak proof
+
+Every captured output of every run was searched for every fake value in the fixture: **0 occurrences.**
+The script prints, for each variable, `before length=34 sha256:3fe7f57f` and
+`after length=34 sha256:23a5fa1a` — and nothing else. **The failure paths were checked the same way**,
+which is where a rotation tool usually leaks: its error text quotes what it could not parse.
+
+### 6. The `docker compose config` question — **it was already filtered**
+
+`docs/OZIKORO-CUTOVER.md` **line 297** reads, verbatim:
+
+```bash
+docker compose -f /opt/ozituma/app/docker/docker-compose.prod.yml config | \
+  sed -n '/^  caddy:/,/^  [a-z]/p' | grep -E 'OZIKORO_DOMAIN|OZITUMA_DOMAIN'
+```
+
+**It is filtered, and the filter is an allow-list.** The resolved output is narrowed to the `caddy`
+service block and then to **exactly two names**, both **public hostnames** —
+`OZIKORO_DOMAIN=ozikoro.com` is in `.env.example` in the clear. The pipeline cannot emit
+`S3_SECRET_ACCESS_KEY` or `POSTGRES_PASSWORD`, because neither name matches that `grep`. **Reported as
+found rather than as a fix, because nothing needed fixing.**
+
+**The rest of the repository was searched for the same fault:** no other composed `docker compose config`
+(three other mentions are prose about the command, not commands); no `printenv`, bare `env` or `set -x`
+in `scripts/` or `tools/`; no `cat /opt/ozituma/.env` or `source`-the-env anywhere in `docs/`;
+`docker compose config --environment` appears once, in `AGENTS.md`, as the *recommended* names-only
+form; and `scripts/check-compose-env.mjs` parses the compose file and **reports by name**, printing in
+its own words *"Values are never printed."* **The lesson recorded in the runbook: the dangerous form is
+the bare one — if you ever need `docker compose config`, pipe it through a `grep` for the exact names
+you want.** A deny-list fails open the moment a new secret is added to the file.
+
+### 7. The runbook, and what it costs
+
+`docs/CREDENTIAL-ROTATION.md`, 892 lines, **written for someone who has never rotated a credential**:
+numbered steps, exact console paths, exact expected output, and for each credential **what issued it,
+where the new one is created, what breaks if the order is wrong, and how to prove it worked — ending in
+"now confirm the old value fails" with the exact command and the expected failure.**
+
+**Where a console path could not be verified it says so instead of inventing one.** Confirmed against
+the issuer's own documentation: **Cloudflare R2** (Storage & databases → R2 → Overview → Manage → Create
+API Token), **Resend** (`resend.com/api-keys`), **Paystack** (Settings → API Keys & Webhooks, and
+"Generate new secret key" with an expiry to choose), **GitHub** (`github.com/settings/tokens`).
+**Not confirmed, and labelled as such: the Zoho menu path** — the *feature* (an app-specific password)
+and the search term are confirmed, the navigation is not. **NOWPayments' exact tab name is also marked
+"not confirmed."**
+
+**The steps, numbered, with times** (the totals are the sum, stated rather than estimated):
+
+| sitting | what | time |
+|---|---|---|
+| 1 | §2 `S3_*` — create at Cloudflare, run `s3`, prove the old key returns **403** | 10 min |
+| 2 | §3 `GITHUB_TOKEN` — create, put in the keychain, prove `/user` still returns and the old token **401s** | 8 min |
+| 3 | §4 mail — `smtp` (handshake), and `resend` only if the host holds one; old login must be **refused** | 15 + 8 min |
+| 4–5 | §5 payments — **first** establish test-or-live, then `paystack` and `nowpayments`; old keys must **401** | 12 + 13 min |
+| 6 | §6 `POSTGRES_PASSWORD` — `postgres`, then `/api/health` must report `"database":"reachable"`, and the old password must **fail authentication** | 30 min |
+
+**Roughly 1 hour 36 minutes total, in six sittings.**
+
+### 8. The payment keys, and the one question this round could NOT answer
+
+**The brief required this to be said explicitly rather than assumed: I could not establish whether the
+exposed Paystack and NOWPayments keys are TEST or LIVE.** They are not in this checkout, and reading
+them is precisely what must not happen. **So it is genuinely unknown, and the first action in that
+section is to find out.**
+
+The runbook gives a **names-and-prefix-only** way to tell, which was tested rather than written:
+`grep -oE '^PAYSTACK_SECRET_KEY=sk_(test|live)_' /opt/ozituma/.env | sed -E 's/^PAYSTACK_SECRET_KEY=//'`
+prints `sk_test_` or `sk_live_` or nothing. *(The first version of this command used `sed`'s `t` branch,
+and **BSD `sed` rejected it** — `undefined label`. It was rewritten to a portable `grep -o` form and
+re-tested against three fixtures.)* For NOWPayments the mode is which API host answers, and the script
+reports it as a word. **Live keys would jump the queue ahead of everything except `S3_*`.**
+
+### 9. Two faults this round found in its own work, and what they were
+
+* **The env file was not being passed to compose at all.** `/opt/ozituma/.env` sits *beside* the
+  application directory, but compose's default project directory is the compose file's own directory —
+  so a bare `docker compose … exec` would either fail on the required
+  `${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}` or interpolate an **empty** value into a database URL.
+  Both are failures that happen *while trying to fix a credential*, which is the worst possible moment.
+  Every compose invocation now carries an explicit `--env-file`, and **whether the flag is accepted is
+  measured once** with `config --services` rather than assumed, because this checkout cannot see the
+  host's compose version. If it is refused, the command runs without it **and says so**, so the operator
+  is never left guessing which environment the containers just received. The runbook's own compose
+  commands carry it too.
+* **The `AUTH LOGIN` handshake was wrong twice, and both failures were measured rather than reasoned
+  about.** First, `AUTH LOGIN <base64(user)>` on one line makes a server prompt for a username *again*;
+  it must be `AUTH LOGIN` alone with the two `334` challenges answered in turn. Second — and this is the
+  one worth recording — **`334` is the code for BOTH challenges**, so reacting to the code alone answers
+  the second challenge with the *username*. The script reached `334 UGFzc3dvcmQ6`, sent the username, and
+  reported `AUTH ended 334`. **A healthy password failed**, which is the exact shape of a rotation tool
+  nobody would trust. The state machine now base64-decodes the challenge and reacts to the *word*
+  (`Username:` / `Password:`). It was fixed against a local STARTTLS mock and asserted on both paths:
+  correct password → `authenticated to 127.0.0.1:2531`; wrong password → `535 Authentication
+  credentials invalid`.
+
+### 10. What does not work
+
+* **The script cannot be run by this round, or by any agent, and that is by design.** It needs a value,
+  and a value in a conversation is the incident. **Its proofs — the signed S3 `HEAD`, the Postgres
+  `SELECT 1`, the SMTP handshake — have therefore never run against the production bucket, database or
+  mailbox.** The S3 signing code is written to the published SigV4 rules and the SMTP state machine was
+  exercised against a real local server, but **an agent asserting "the S3 proof works" against the real
+  R2 endpoint would be asserting something it did not measure.** The owner will be the first to run it
+  there.
+* **`docker` is not installed on this machine**, so every compose path in the script (the `--env-file`
+  probe, `compose exec`, `compose up -d`, the health check) is **syntax-checked and reasoned, not
+  executed**. The refusal paths that do not need docker — empty, identical, verification failure, backup
+  location — were executed and are in §4.
+* **`scripts/verify-round-361.mjs` could not run**: `REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER
+  PROCESS HOLDS IT`, holder `…/.next/standalone/apps/ozikoro/server.js` (pid 10948, 23 minutes old).
+  That is the known contention with the review server and it is not a fault. **The design parity was
+  therefore computed directly instead, by the same walk and the same sha256 the verifier uses:
+  `identical 63 differing 0 missing 0`.** *(The first parity script tried,
+  `scripts/check-design-parity.mjs`, answers a *different* question — 18 routes against their screens,
+  and it reports 2 pre-existing mismatches that are not this round's.)*
+* **Nothing was confirmed about the host.** No SSM session, no `docker`, no `/opt/ozituma/` access.
+  **Everything this round says about the host is quoted from the repository's own measured documents**
+  (`AGENTS.md`, `docs/OZIKORO-CUTOVER.md` §5.8, `docs/OZIKORO-ROUND-340-BACKEND.md`) and labelled as
+  such where it is a measurement from another round.
+
+### 11. The gate
+
+* `npm run check:secrets`: **all checks passed** — no tracked environment file, no credential-shaped
+  text, no literal-assigned secret, `.env.example` in sync, and the detector self-test passing first.
+* `npm run typecheck` from the repository root, read from its own exit code: **0**.
+* `node --check scripts/rotate-credential.mjs`: **passes**.
+* Design parity computed directly: **`identical 63 differing 0 missing 0`**.
+* **`apps/ozikoro/public/design/` was not touched** — `git status` on that path returns nothing.
+
+### 12. The files this round added
+
+| file | what it is |
+|---|---|
+| `docs/CREDENTIAL-ROTATION.md` | the runbook: the argued order, the issuer and console path for each credential, what breaks if the order is wrong, how to prove the new value works, **and how to prove the old one now fails** |
+| `scripts/rotate-credential.mjs` | the host-side half: one credential per run, backup first, prove before write, restore on failure, **never print a value**, refuse empty and identical values, and refuse to be an agent's tool |
+
+**No existing file was modified by this round except this record.**
