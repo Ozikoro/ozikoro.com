@@ -258,16 +258,23 @@ nothing in this round wrote to either. `check-design-system.sh` and `check-desig
 (item 2.7) are the second, weaker half of the same question — files identical, *and* the rendered
 page using them.
 
+> **⚠️ CORRECTED IN ROUND 367: the count is `64`, not `63`.** Re-measured at the end of round 367, the
+> command above prints **`identical 64 differing 0 missing 0`** — the deliverable tree under `design/` holds
+> **64 files**, the served copy **65**, and nothing in round 367 touched either. **This is a stale number in
+> a gate, not a change**, and it matters because the gate is quoted as a literal: a *correct* tree compared
+> against the string in this document fails. **Re-run the command and read the three numbers; do not compare
+> the output to this page.**
+
 ### Condition 5 — the backend
 
 | # | what must be true | the check |
 |---|---|---|
 | 5.1 | **Postgres** — all migrations apply from an empty schema, idempotently, with matching checksums | `node scripts/verify-postgres.ts` against a real server. **Already done: 55 migrations, exit 0, a second `up()` applied 0, every checksum matched, 119 tables, 9 generated columns, 16 GIN indexes, 5 SQL functions, `createDb({url})` reported driver `postgres`** |
 | 5.2 | **and the version gap is named, not hidden** | the compose pins `postgres:16-alpine` (`docker/docker-compose.prod.yml` line 21) and that run was on **PostgreSQL 18.4**. **The gap is NOT covered.** Either re-run `verify-postgres.ts` against a 16 image before the cutover, or record the 18 run as evidence about the code and not about the pinned server |
-| 5.3 | the production database is reachable and migrated | on the host: `docker compose -f /opt/ozituma/app/docker/docker-compose.prod.yml exec -T postgres psql -U ozituma -d ozituma -tAc "select count(*) from ozikoro_article"` must return a plausible count and not an error |
-| 5.4 | **media in object storage** | `node packages/ozikoro/src/import/media-upload.ts --check` must print `driver s3`, `uploaded 0`, and `alreadyStored` equal to `rowsWithKey`. **It will fail today — see §3.6. This is a BLOCKING item.** |
-| 5.5 | the object store actually holds the archive's keys | on the host, read-only, no secret printed: the `ListObjectsV2` under `ozikoro/` must return the expected count. **Measured today: `KeyCount = 0`.** |
-| 5.6 | the episodes are in object storage too — they are a **separate key path and a separate command** | `node scripts/restore-episodes.ts --check` then `--apply`; then `ListObjectsV2` under `ozikoro/episodes/` must return 3 (or 4, if the owner's own recording is the live one). **Measured today: `KeyCount = 0`.** |
+| 5.3 | the production database is reachable and migrated — **and the archive's records are in it** | on the host: `docker compose -f /opt/ozituma/app/docker/docker-compose.prod.yml exec -T postgres psql -U ozituma -d ozituma -tAc "select count(*) from ozikoro_article"` must return a plausible count and not an error. **Measured in round 367, after the corpus load: `1620`, with `ozikoro_media` `3488`. This check passed before that too — it answered `0` — so the count is the check, not the exit status, and a `0` is the failure.** |
+| 5.4 | **media in object storage** | `node packages/ozikoro/src/import/media-upload.ts --check` must print `driver s3`, `uploaded 0`, and `alreadyStored` equal to `rowsWithKey`. **⚠️ CORRECTED IN ROUND 367: this is no longer expected to fail.** The objects are in the bucket — round 348 uploaded them — and round 367 measured them through the public origin: **24 keys spread across all 3,437 sampled, `24 × 200`, none missing**, and `https://media.ozituma.com/ozikoro/11234-ute-king.webp` → `200 image/webp`, 23,816 bytes. `media-upload.ts --check` was **not** itself re-run this round: that command, not a `curl`, is what actually closes the item. |
+| 5.5 | the object store actually holds the archive's keys | on the host, read-only, no secret printed: the `ListObjectsV2` under `ozikoro/` must return the expected count. **⚠️ CORRECTED IN ROUND 367: the `KeyCount = 0` this row used to quote is stale — see 5.4 for the measurement that supersedes it. (It was already stale when written: round 348 had uploaded the files.)** |
+| 5.6 | the episodes are in object storage too — they are a **separate key path and a separate command** | `node scripts/restore-episodes.ts --check` then `--apply`; then `ListObjectsV2` under `ozikoro/episodes/` must return 3 (or 4, if the owner's own recording is the live one). **⚠️ CORRECTED IN ROUND 367: `KeyCount = 0` is stale. All four objects answer `200` through the public origin at exactly the byte sizes §3.7 records** — `ute-okpu-…owner-recording.mp3` 10,672,389 · `ute-okpu-….mp3` 8,029,457 · `how-tortoise-….mp3` 2,310,522 · `igbo-folklore-….mp3` 8,541,919. **And the rows now settle which key each episode uses, which answers §5 item 6: the `ute-okpu` row carries `storage_key = ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.owner-recording.mp3`, and the other two carry their generated `.mp3`.** |
 | 5.7 | **secrets are named so the containers receive them** | `node scripts/check-compose-env.mjs --service ozikoro` and `--service caddy`. This is the fault `AGENTS.md` records and commit `bfbc6b5` fixes: compose passes a service **only the variables the service names**, so a value in `/opt/ozituma/.env` is not the same thing as a variable in the container |
 | 5.8 | the host's `.env` carries a value for every name the compose now requires | read **names only**. Measured this round, the host `.env` holds `S3_*`, `MEDIA_PUBLIC_BASE_URL`, `POSTGRES_PASSWORD`, `OZITUMA_SMTP_*`, `OZITUMA_MAIL_FROM`, `NOWPAYMENTS_*`, `PAYSTACK_*`, `LEARN_BRIDGE_SECRET`, `AWS_*`, `OZITUMA_DOMAIN`, `OZITUMA_SITE_URL`. **It does NOT hold `OZIKORO_DOMAIN`** (the compose default `:-ozikoro.com` supplies it), **nor `RESEND_API_KEY`, `ELEVENLABS_*`, `SPOTIFY_*`, `SUPABASE_*`, `OZITUMA_AUTH_COOKIE_DOMAIN` or `HEALTH_TOKEN`** — each of which is a feature that will be **off** rather than broken, which is the intended behaviour but should be a decision rather than a surprise |
 | 5.9 | the health check passes, and proves the database rather than the socket | `curl -s -o /dev/null -w '%{http_code}\n' http://<host>:3000/api/health` → `200`, and the body's `"database":"reachable"`; the route runs a real query against `ozikoro_article` |
@@ -463,6 +470,29 @@ This is the part that decides whether anything is lost, and it exists because **
 still being published to**. The archive is a copy, and a copy of a moving thing is wrong the
 moment it is taken.
 
+> **⚠️ WHAT CHANGED IN ROUND 367, AND WHAT IT MEANS FOR THIS SECTION.** *The archive's records are no
+> longer only on this machine.* They were loaded from the stopped copy at `.data/scratch-recon/pg` into the
+> production host's Postgres, into tables that were empty, with every count matching the reconciliation
+> (§5.3 of this document, and round 367's entry in `docs/OZIKORO-REMAINING.md` for the per-table figures):
+>
+> ```
+> ozikoro_article 1620 · ozikoro_media 3488 · ozikoro_article_label 18496 · ozikoro_label 11056
+> ozikoro_article_media 1050 · ozikoro_article_entity 232 · ozikoro_entity 188 · ozikoro_contributor 15
+> ozikoro_episode 3 · ozikoro_audit 515 · 36,749 rows across 40 tables in all
+> article_with_wp_id 1096 · article_without_wp_id 524 · media_storage_key_set 3437 · media_filesize_sum 916,506,818
+> ```
+>
+> **So the question this section answers has changed shape.** It used to be "how do we get the corpus
+> across"; it is now "**how far behind is the host's copy, and what is the delta**" — which is the same
+> instrument (§3.2's two channels) pointed at a target that already holds rows. **That makes the load
+> idempotent in name only:** the importers upsert on the preserved WordPress ids (§3.3), but the load path
+> in this section is a `COPY` into empty tables. **A second load over the host's rows is not a re-sync, it
+> is a primary-key collision.** A delta must go through the importers, not through `dump.ts`.
+>
+> **The three counts that must be re-read before any switch, and were not re-read for the load:** the host's
+> copy is the corpus **as imported on 2026-10-03**, and the live WordPress site has been written to since.
+> Nothing in round 367 refreshes it.
+
 ### 3.1 Where the copy stands, and how far behind it is
 
 | source | taken | counts |
@@ -618,9 +648,22 @@ is still at `162.213.253.73`. This is what makes the plan safe to start and safe
 3. a read-only `ListObjectsV2` on the bucket showing `ozikoro/` and `ozikoro/episodes/` at the
    expected object counts — the same probe that reads `0` today.
 
-### 3.6 The media — the hard blocker, verified empty
+### 3.6 The media — the hard blocker, and what cleared it
 
-**This is not a risk. It is a measured absence, and it stops the cutover.**
+> **⚠️ CORRECTED IN ROUND 367. THE MEASUREMENT BELOW WAS TRUE WHEN TAKEN AND IS NOT TRUE NOW.** The bucket
+> holds the archive's files: round 348 uploaded them, and round 367 measured them through the public origin —
+> 24 keys spread across all 3,437 sampled, `24 × 200`, none missing, and the four episode objects answering
+> `200` at exactly the byte sizes §3.7 lists. **The paragraphs and the table below are kept as written,
+> because they are the reason the upload was done at all, and because a document that silently deletes its
+> own wrong measurement teaches the next reader nothing. Read them as history, never as the state of the
+> bucket, and re-measure before acting on them.**
+>
+> **What round 367 changed is the other half of the same sentence: the ROWS.** The object store held the
+> files and the host's `ozikoro_media` table was empty, so every rewritten address the app could build
+> pointed at nothing. The rows are now on the host — `ozikoro_media` `3488`, of which `3437` carry a
+> `storage_key` — and a record page's images resolve (§5.3, §5.4).
+
+**This was not a risk. It was a measured absence, and it stopped the cutover.**
 
 The compose passes the same object store to all three sites. Read this round, on the production
 host, through the running `ozituma-web-1` container's own storage driver (**`LIST` only —
@@ -723,6 +766,13 @@ node scripts/restore-episodes.ts --apply
 node scripts/adopt-episode-recording.ts --check   # the owner-recording path, if it is the live one
 # then: ListObjectsV2 under ozikoro/episodes/ must return 3 (or 4)
 ```
+
+> **⚠️ CORRECTED IN ROUND 367: the upload has since happened, and the four sizes above are now the
+> measurement that proves it.** Fetched through the public origin, all four answer `200` at exactly the byte
+> counts this section lists — which is a stronger check than a `KeyCount`, because it shows each key holds
+> the right file and not merely a file. **And the episode rows are now on the host, so which key each one
+> uses is a `SELECT` rather than a question**: `ute-okpu-…` → `.owner-recording.mp3`, the other two → their
+> generated `.mp3`. §5 item 6 is answered.
 
 ---
 
@@ -1109,11 +1159,14 @@ Stated rather than substituted. Each entry names what is missing and what would 
    The disk evidence spans two passes over ~30 hours and is not a single-run figure, so it is not
    quoted as one. Settle: `--limit <n>` timed, multiplied by the outstanding count (§3.4).
 6. **Which episode key each published episode row actually points at** — the generated
-   `ozikoro/episodes/<slug>.mp3` or the owner's `…owner-recording.mp3`. **A database question,
-   deliberately not answered here**: reading the PGlite cluster would take the lock while four
-   other agents are working in this checkout, and killing a process that holds `.data/pg` is how
-   seven clusters were destroyed in one day. Settle: `node scripts/restore-episodes.ts --check`,
-   which prints the rows and the keys without writing.
+   `ozikoro/episodes/<slug>.mp3` or the owner's `…owner-recording.mp3`. **ANSWERED IN ROUND 367, and by the
+   mechanism this entry named: the rows were read, not guessed.** `ozikoro_episode` now holds 3 rows on the
+   host and their `storage_key`s are: `ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.owner-recording.mp3`
+   for the Ute-Okpu episode, and the generated `…/<slug>.mp3` for `how-tortoise-got-his-bumpy-shell` and
+   `igbo-folklore-twelve-timeless-tales-of-wisdom-wonder-and-moral-heritage`. All four objects exist in the
+   bucket (§5.6). **The entry was right that reading the PGlite cluster takes the lock and that killing the
+   holder destroyed seven clusters — the answer came from a stopped copy, and then from the loaded host,
+   with no lock taken on `.data/pg` at any point.**
 7. **The Postgres 16-versus-18.4 gap.** The compose pins `postgres:16-alpine`; the 55-migration
    run that proves the schema was against **18.4 on this machine**. **The run is evidence about
    the code and is not evidence about the pinned server.** Settle: re-run
@@ -1171,7 +1224,7 @@ C. BUILD AND SERVE, WITHOUT DNS
    2.4  curl --resolve ozikoro.com:443:44.194.56.187 -kI https://ozikoro.com/       (§4.4.1)
    2.5  the §2 checklist, run against that --resolve base
    2.6  the CSP check, against the built artefact                                   (§2 6b)
-   2.7  design parity: identical 63 differing 0 missing 0                           (§2 cond. 4)
+   2.7  design parity: identical 64 differing 0 missing 0                           (§2 cond. 4)
    2.8  keep the rollback command (§4.1) in a shell, pasted and unexecuted
 
 D. FREEZE, SYNC, SWITCH

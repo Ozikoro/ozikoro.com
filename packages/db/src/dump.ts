@@ -39,7 +39,12 @@ import { closeDb, getDb, type Db } from './client.ts';
  * script with no argument dumps the dictionary, exactly as it always has.
  *
  *   node packages/db/src/dump.ts > ozituma-data.sql            # the dictionary, as before
- *   node packages/db/src/dump.ts --set archive > ozikoro.sql   # the archive's records
+ *   node packages/db/src/dump.ts --set corpus > ozikoro.sql    # the archive's records, to load into a host
+ *
+ * **`corpus` rather than `archive`, and the difference is two tables.** `archive` is the schema's whole
+ * `ozikoro_*` list; `corpus` is that list minus the two reference tables the host's own migration chain
+ * seeds. See {@link ARCHIVE_MIGRATION_SEEDED} — copying those two would collide with the host's own rows
+ * and, under `ON_ERROR_STOP=1`, abort the entire load while printing almost nothing.
  */
 
 /** The dictionary's tables — unchanged, and the default. */
@@ -85,56 +90,109 @@ const DICTIONARY_TABLES = [
  * own; the six rows in the host's `account` table belong to the dictionary and the academy.
  */
 const ARCHIVE_TABLES = [
-  'ozikoro_site',
-  'ozikoro_role_capability',
-  'ozikoro_entity',
+  // Sources, people and labels — the roots nearly everything else references.
+  'ozikoro_source',
+  'ozikoro_contributor',
   'ozikoro_label',
   'ozikoro_topic',
-  'ozikoro_source',
+  // Entities, and the material that hangs off them.
+  'ozikoro_entity',
+  'ozikoro_entity_label',
+  'ozikoro_entity_relation',
+  'ozikoro_excavation',
+  'ozikoro_object',
+  // Media, the rights records that describe it, and the oral histories built on it.
   'ozikoro_media',
   'ozikoro_media_rights',
+  'ozikoro_oral_history',
+  // The articles themselves, and everything that attaches to one.
   'ozikoro_article',
   'ozikoro_article_entity',
   'ozikoro_article_label',
   'ozikoro_article_media',
-  'ozikoro_article_revision',
   'ozikoro_article_source',
-  'ozikoro_entity_label',
-  'ozikoro_entity_relation',
-  'ozikoro_audit',
+  'ozikoro_article_revision',
   'ozikoro_claim',
-  'ozikoro_contributor',
-  'ozikoro_contributor_claim',
+  'ozikoro_evidence',
   'ozikoro_correction',
   'ozikoro_dating',
-  'ozikoro_design_override',
+  // Podcast shows, episodes, and their revisions and transitions.
+  'ozikoro_podcast_show',
   'ozikoro_episode',
   'ozikoro_episode_revision',
   'ozikoro_episode_transition',
-  'ozikoro_evidence',
-  'ozikoro_excavation',
-  'ozikoro_follow',
-  'ozikoro_institutional_access',
-  'ozikoro_member',
-  'ozikoro_member_role',
-  'ozikoro_object',
-  'ozikoro_oral_history',
-  'ozikoro_podcast_show',
-  'ozikoro_pronunciation',
-  'ozikoro_pronunciation_occurrence',
+  // Publications, their authors, files and reviews.
   'ozikoro_publication',
   'ozikoro_publication_author',
   'ozikoro_publication_file',
   'ozikoro_publication_review',
   'ozikoro_publication_transition',
   'ozikoro_publication_version',
+  // Pronunciation, and the occurrences that point back at an article.
+  'ozikoro_pronunciation',
+  'ozikoro_pronunciation_occurrence',
+  // The remaining leaf tables — nothing in the archive references these.
+  'ozikoro_follow',
+  'ozikoro_contributor_claim',
+  'ozikoro_member',
+  'ozikoro_member_role',
+  'ozikoro_role_capability',
+  'ozikoro_audit',
+  'ozikoro_design_override',
+  'ozikoro_institutional_access',
   'ozikoro_redirect',
+  'ozikoro_site',
 ];
 
-/** Which set this run writes. `--set archive` chooses the archive; anything else is the dictionary. */
-const TABLES = process.argv.includes('--set')
-  ? (process.argv[process.argv.indexOf('--set') + 1] === 'archive' ? ARCHIVE_TABLES : DICTIONARY_TABLES)
-  : DICTIONARY_TABLES;
+/**
+ * ⚠️ TWO OF THE ARCHIVE'S TABLES HOLD **REFERENCE** ROWS, NOT CORPUS ROWS, AND A TRANSFER MUST LEAVE THEM
+ * ALONE.
+ *
+ * `ozikoro_role_capability` is seeded by migrations `0037`, `0042`, `0044`, `0046`, `0051`, `0055` and
+ * `0057`; `ozikoro_podcast_show` by `0045`. Both are therefore already populated on any host that has run
+ * the migrations, and **the host's rows are the newer ones** — it has run 63 migrations where the copy
+ * this dump is taken from has run 55. Measured rather than assumed:
+ *
+ *     ozikoro_role_capability   host 100 rows · copy 80   (host: owner 27, admin 18, editor 24)
+ *     ozikoro_podcast_show      host   1 row  · copy  1   (identical: id 1, slug 'ozikoro')
+ *
+ * COPY does not upsert. Emitting either table puts the copy's rows on top of the host's, and because both
+ * have a primary key — `(role, capability)` and `(id)` — every emitted row is a duplicate. Under the
+ * `ON_ERROR_STOP=1` this dump's own header recommends, that aborts the whole transaction and **nothing
+ * loads at all**, which is the failure mode that looks like success. Without it, `ozikoro_role_capability`
+ * would be replaced by a set that predates three migrations, revoking capabilities the live site's own
+ * permission checks read.
+ */
+const ARCHIVE_MIGRATION_SEEDED = ['ozikoro_podcast_show', 'ozikoro_role_capability'];
+
+/** What a corpus transfer writes: the archive's rows, without the migration's own reference rows. */
+const ARCHIVE_CORPUS_TABLES = ARCHIVE_TABLES.filter((t) => !ARCHIVE_MIGRATION_SEEDED.includes(t));
+
+/**
+ * Every table this tool knows how to write — the complete list, and the one to read when asking whether a
+ * table has been forgotten.
+ *
+ * **It is not the list to emit.** In one file it is the union of two corpora that live in one database on
+ * the host and must not be written over each other. Emit a named set instead.
+ */
+export const TABLES = [...DICTIONARY_TABLES, ...ARCHIVE_TABLES];
+
+/** The sets a run may name. `--set <name>` chooses one; the default is the dictionary, as before. */
+const TABLE_SETS: Record<string, readonly string[]> = {
+  dictionary: DICTIONARY_TABLES,
+  archive: ARCHIVE_TABLES,
+  corpus: ARCHIVE_CORPUS_TABLES,
+  all: TABLES,
+};
+
+/**
+ * Rows fetched per statement. See the paging comment in {@link dumpData}: a whole
+ * table in one result set is what exhausts PGlite's WebAssembly heap, and the
+ * failure is silent rather than loud. 200 keeps the largest page here (the
+ * archive's `body_html`, 313 KB in one row) well inside it and costs nine
+ * statements for the biggest table in the corpus.
+ */
+const PAGE_ROWS = 200;
 
 /**
  * Format a JS array as a Postgres array literal.
@@ -184,7 +242,11 @@ async function tableExists(db: Db, table: string): Promise<boolean> {
   return (row?.n ?? 0) > 0;
 }
 
-export async function dumpData(db: Db, out: (chunk: string) => void): Promise<Record<string, number>> {
+export async function dumpData(
+  db: Db,
+  out: (chunk: string) => void,
+  tables: readonly string[] = DICTIONARY_TABLES
+): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
 
   out('-- Ozituma data-only dump.\n');
@@ -193,7 +255,7 @@ export async function dumpData(db: Db, out: (chunk: string) => void): Promise<Re
   // Suspend FK and trigger enforcement so table order does not matter.
   out("set session_replication_role = replica;\n\n");
 
-  for (const table of TABLES) {
+  for (const table of tables) {
     if (!(await tableExists(db, table))) {
       counts[table] = -1; // reported as absent rather than zero
       continue;
@@ -218,13 +280,46 @@ export async function dumpData(db: Db, out: (chunk: string) => void): Promise<Re
       counts[table] = 0;
       continue;
     }
-    const { rows } = await db.query<Record<string, unknown>>(`select * from ${table}`);
+    // Rows are read in pages, and only the columns that will actually be
+    // written — never `select *`.
+    //
+    // ⚠️ THE PAGING IS NOT AN OPTIMISATION, IT IS THE DIFFERENCE BETWEEN A DUMP
+    // AND A FILE THAT LOOKS LIKE ONE. PGlite materialises a whole result set in
+    // WebAssembly memory, and a large one does not raise a Postgres error — it
+    // corrupts the heap. Measured on the archive's own copy, one `select` of
+    // `ozikoro_article` (1,620 rows, 15.5 MB of `body_html`, one row of 313 KB)
+    // made every *subsequent* query return nothing: the next
+    // `information_schema` probe answered "0" for a table that exists, 29 of the
+    // 42 tables were dropped from the output in silence, and the run ended by
+    // throwing a bare `Infinity` out of `close()`. The same read in pages of
+    // {@link PAGE_ROWS} succeeds and leaves the connection usable. `select *`
+    // made it worse by also fetching the generated `search_vector` (8.7 MB) that
+    // the line above has just excluded.
+    const total = (await db.one<{ n: number }>(`select count(*)::int as n from ${table}`))?.n ?? 0;
+    const selectList = columns.map((c) => `"${c}"`).join(', ');
 
-    out(`-- ${table} (${rows.length} rows)\n`);
-    if (rows.length > 0) {
-      out(`copy ${table} (${columns.map((c) => `"${c}"`).join(', ')}) from stdin;\n`);
-      for (const row of rows) {
-        out(columns.map((c) => copyValue(row[c])).join('\t') + '\n');
+    out(`-- ${table} (${total} rows)\n`);
+    if (total > 0) {
+      out(`copy ${table} (${selectList}) from stdin;\n`);
+      // Keyset pagination on `ctid`: it needs no ordered column, cannot skip or
+      // repeat a row, and needs no sort of the whole table in memory. The
+      // cluster being read is a stopped copy, so the physical order is fixed.
+      let last = '(0,0)';
+      let written = 0;
+      while (written < total) {
+        const { rows } = await db.query<Record<string, unknown>>(
+          `select ${selectList}, ctid::text as __ozituma_ctid from ${table} ` +
+            `where ctid > $1::tid order by ctid limit ${PAGE_ROWS}`,
+          [last]
+        );
+        if (rows.length === 0) break;
+        const tail = rows[rows.length - 1];
+        if (tail === undefined) break;
+        last = String(tail.__ozituma_ctid);
+        for (const row of rows) {
+          out(columns.map((c) => copyValue(row[c])).join('\t') + '\n');
+        }
+        written += rows.length;
       }
       out('\\.\n');
     }
@@ -248,7 +343,7 @@ export async function dumpData(db: Db, out: (chunk: string) => void): Promise<Re
     } else {
       out('\n');
     }
-    counts[table] = rows.length;
+    counts[table] = total;
   }
 
   out('set session_replication_role = default;\n');
@@ -257,16 +352,43 @@ export async function dumpData(db: Db, out: (chunk: string) => void): Promise<Re
 }
 
 async function main(): Promise<void> {
+  // An unknown set is refused rather than silently defaulted: a typo that quietly
+  // dumped the dictionary when the archive was meant is the whole fault this
+  // list exists to prevent.
+  const flag = process.argv.indexOf('--set');
+  const requested = flag === -1 ? 'dictionary' : (process.argv[flag + 1] ?? '');
+  const tables = requested === '' ? undefined : TABLE_SETS[requested];
+  if (!tables) {
+    process.stderr.write(
+      `unknown --set ${requested}: expected one of ${Object.keys(TABLE_SETS).join(', ')}\n`
+    );
+    process.exitCode = 2;
+    return;
+  }
+  process.stderr.write(`table set: ${requested} (${tables.length} tables)\n`);
+
   const db = await getDb();
   // Streamed to stdout so a multi-hundred-megabyte dump never has to be held in
   // memory as one string.
-  const counts = await dumpData(db, (chunk) => process.stdout.write(chunk));
+  const counts = await dumpData(db, (chunk) => process.stdout.write(chunk), tables);
   await closeDb();
 
-  process.stderr.write('\nDumped:\n');
+  // The summary names the tables it did NOT write as well as the ones it did.
+  // The failure this guards against is a dump that ends cleanly having silently
+  // dropped most of its tables, which cannot be seen from the exit code or the
+  // size of the file.
+  const absent = Object.entries(counts)
+    .filter(([, n]) => n < 0)
+    .map(([t]) => t);
+  const rows = Object.values(counts).reduce((a, n) => a + Math.max(n, 0), 0);
+  process.stderr.write(
+    `\nWrote ${Object.keys(counts).length - absent.length} of ${Object.keys(counts).length} tables, ` +
+      `${rows} rows` +
+      (absent.length > 0 ? `; absent from this cluster: ${absent.join(', ')}` : '') +
+      '\n'
+  );
   for (const [table, n] of Object.entries(counts)) {
-    if (n < 0) continue;
-    if (n > 0) process.stderr.write(`  ${table.padEnd(22)} ${n}\n`);
+    if (n > 0) process.stderr.write(`  ${table.padEnd(26)} ${n}\n`);
   }
 }
 

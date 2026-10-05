@@ -27919,3 +27919,485 @@ also fails if `account.html` is edited**, which is what made the serve-time rout
 | `docs/OZIKORO-REMAINING.md` | this record |
 
 **No other file was touched, and nothing under `apps/ozikoro/public/design/` was.**
+
+---
+
+## ROUND 367 — THE DUMP TOOL COULD ONLY WRITE THE DICTIONARY, AND THE ARCHIVE'S 36,749 ROWS WERE ON THIS MACHINE AND NOWHERE ELSE
+
+`packages/db/src/dump.ts` says in its own header that it exists for *"moving an imported corpus from a local
+PGlite instance to a real Postgres"*. Its `TABLES` list held **26 tables and not one of them was
+`ozikoro_*`.** So the tool could carry the dictionary and could not carry the archive, which is the corpus
+that needs moving.
+
+The host's `ozikoro_*` tables held **no corpus rows at all**, and the 3,488 media records — the rows every
+rewritten image address is built from — were on this machine only. This round extended the tool, took the
+dump from a **stopped copy** rather than the cluster the review server holds, carried 36,749 rows to the
+host, and put them in.
+
+**Everything below is measured. Where a measurement contradicted the brief, the measurement is what is
+recorded, and the brief's claim is quoted so the next reader can see which was which.**
+
+### 1. The change: one list became two, and the default did not move
+
+| | before | after |
+|---|---|---|
+| `TABLES` | 26 tables, all dictionary | **70** — the dictionary's 26, then the archive's 44 |
+| the archive | **absent from the tool entirely** | `ARCHIVE_TABLES`, all 44, in FK order |
+| what a run writes | `TABLES`, unconditionally | **a named set**: `--set dictionary` (the default, unchanged) · `archive` · `corpus` · `all` |
+| `dumpData` | `(db, out)` | `(db, out, tables = DICTIONARY_TABLES)` |
+
+`export const TABLES` is now the **complete** list — the thing to read when asking whether a table has been
+forgotten — and it is deliberately not the thing to emit, because in one file it is the union of two corpora
+that live in one database on the host.
+
+### 2. The FK order, computed from the host rather than written by hand
+
+The list's own comment says *"`pg_depend`-based ordering would be automatic, but an explicit list is easier
+to read and to keep stable in a diff."* **So the order had to be right, and it was taken from the authority
+on the schema rather than from memory:** the host's own `pg_constraint` graph, read over SSM.
+
+```
+44 ozikoro_* tables · 48 foreign keys wholly inside the archive · 1 self-reference
+(ozikoro_topic → ozikoro_topic) · 0 cycles
+```
+
+A topological sort of that graph is the order in the file, grouped by subject — sources, people and labels;
+entities; media; articles; episodes; publications; pronunciation; then the leaf tables nothing references.
+**Every parent precedes its child; verified by re-reading the written list and testing all 48 edges against
+it, which is the check that would have caught a transposition.**
+
+### 3. What must not be emitted, and why — two decisions, not one
+
+**Decision one: none of the dictionary's 26 tables, and `account` above all.**
+
+`account` is in the dictionary's list. The host's `account` table holds **6 rows**, and per `AGENTS.md` and
+§2 6b of the cutover document the **Academy shares that table with the dictionary** — it names the same
+`DATABASE_URL`. The copy at `.data/scratch-recon/pg` holds **2** accounts. `COPY` does not upsert, so
+emitting `account` would put the copy's rows on the host's primary keys; and the arithmetic is worse than a
+collision:
+
+| | host, before the load | the copy |
+|---|---:|---:|
+| `account` | **6** | 2 |
+| `word` | **34,051** | 8,728 |
+| `definition` | **39,101** | 10,528 |
+
+**The host's dictionary is months ahead of the copy.** A load that carried the dictionary's tables would
+have either aborted the whole transaction or, had it somehow succeeded, rolled two live sites' users and the
+entire dictionary back to a copy taken on 2026-10-03. **So the archive dump carries the archive's tables and
+nothing else.** The two sets are never emitted together, and the default run is still the dictionary,
+unchanged.
+
+**Decision two: two of the archive's own 44 tables, because the host's migrations had already filled them.**
+
+> **⚠️ THE BRIEF SAID "44 `ozikoro_*` TABLES, ALL EMPTY". THAT WAS FALSE, AND IT WAS FALSE IN THE ONE WAY
+> THAT WOULD HAVE BROKEN THE LOAD.**
+
+Measured on the host before anything was written:
+
+```
+ozikoro_role_capability    100 rows   seeded by migrations 0037, 0042, 0044, 0046, 0051, 0055, 0057
+ozikoro_podcast_show         1 row    seeded by migration 0045
+the copy                      80 and 1  (it had run 55 migrations; the host had run 63)
+```
+
+Both have a primary key — `(role, capability)` and `(id)`. **Every one of the copy's 80 capability rows is a
+duplicate of a host row**, and the host's sets are the newer ones:
+
+```
+                       host (63 migrations)      the copy (55 migrations)
+owner                            27                      24
+admin                            18                      17
+editor                           24                       8
+```
+
+Under the `ON_ERROR_STOP=1` this dump's own header recommends, a collision aborts the **entire**
+transaction: nothing loads, `psql` exits non-zero, and the host is left exactly as it was. Without it,
+`ozikoro_role_capability` would be replaced by a set predating three migrations, **revoking capabilities the
+live site's own permission checks read**. `ozikoro_role_capability` is the table the
+`ozikoro_has_capability(p_account_id, p_capability)` function reads (migration `0043`), and this is a live
+site.
+
+**So the emitted set is `corpus`: the archive's 44 tables minus those two, which are named explicitly in
+`ARCHIVE_MIGRATION_SEEDED` with the reason, so the omission is visible in the diff rather than hidden in a
+filter.** That is 42 tables — 40 of which the copy actually has.
+
+### 4. The read path: a stopped copy, never the cluster the review server holds
+
+`dumpData` takes a `Db`; the CLI's `main()` calls `getDb()`. Read from `packages/db/src/client.ts`:
+
+```ts
+const dataDir = opts.dataDir || process.env.OZITUMA_DB_PATH || DEFAULT_DATA_DIR;
+const lock = acquireClusterLock(dataDir);          // refused if another process holds it
+client = await PGlite.create({ dataDir });         // line 287
+return new PGliteDb(client, debug, lock);          // line 298
+```
+
+**So there is both a parameter (`opts.dataDir`) and an environment variable (`OZITUMA_DB_PATH`), and the
+environment variable is what the CLI reaches**, because `main()` calls `getDb()` with no options. The
+default is `.data/pg` — **the live cluster, held by the review server on 3110**, which is the fault
+`AGENTS.md` records and which a second opener corrupts.
+
+**It was made to read the copy with the environment variable, and never by touching `.data/pg`:**
+
+```bash
+env -u DATABASE_URL \
+  OZITUMA_DB_PATH=/Users/nzeora/Documents/Ozikoro/staging/.data/scratch-recon/pg \
+  node packages/db/src/dump.ts --set corpus > corpus.sql
+```
+
+`DATABASE_URL` is unset explicitly because it takes precedence over every PGlite path and would have
+silently dumped from a real server instead. **`.data/pg` was not opened, not locked and not killed at any
+point in this round; the process holding it (pid 85042) was left alone.** The cluster guard was what made
+this checkable rather than a matter of care: the copy takes its own lock at `.data/scratch-recon/pg.lock`,
+so a second reader would have been refused by name rather than corrupting it.
+
+### 5. ⚠️ The dump that produced a file, and not the data
+
+**This is the part worth more than the transfer, because the file looked correct.**
+
+The first run against the copy died with a bare WebAssembly trap:
+
+```
+RuntimeError: memory access out of bounds
+    at wasm://wasm/01edd1ba:wasm-function[7078]:0x3716e1
+```
+
+No table, no column, no size, and the exit code was 1 rather than 0, so it was at least honest. The second
+run — after fetching only the columns that are written, rather than `select *` — **exited 0 and produced
+19.6 MB that was missing most of its tables.** It ended with `commit;`, and it had written 13 `-- <table>`
+sections out of 42. The reason is that PGlite had corrupted its heap on the article query, and the *next*
+`information_schema` probes each answered "0 rows" for a table that exists:
+
+```
+ozikoro_article                   count=1620 fetched=1620 rss=386MB
+ozikoro_article_entity            ABSENT
+ozikoro_article_label             ABSENT
+...
+node:internal/modules/run_main:107
+    ^
+Infinity
+```
+
+**A `COPY` block for `ozikoro_article` and `ozikoro_media` and no others is exactly what a successful small
+dump looks like.** The instrument that settles it is the per-table `COPY <n>` count, not the file's size and
+not the exit code.
+
+**The fix is keyset pagination on `ctid`, 200 rows at a time**, and it is the tool's behaviour now:
+
+```sql
+select <columns>, ctid::text as __ozituma_ctid from <table>
+ where ctid > $1::tid order by ctid limit 200
+```
+
+**Why `ctid` and not `limit/offset`:** it needs no ordered column, cannot skip or repeat a row, and needs no
+sort of the whole table in memory. Why paging at all, measured: `ozikoro_article` alone is 15,522,208 bytes
+of `body_html` across 1,620 rows, with **one row of 313,350 bytes and two over 100 KB**, and a single
+`select` of it leaves the connection unable to answer `select count(*) from information_schema.tables`.
+The same read in pages of 200 completes in 4 seconds and the connection stays usable. `select *` also
+fetched the generated `search_vector` — 8,760,491 bytes — that the tool had already decided not to write.
+
+**And the summary now names what it did not write**, so a silent drop cannot pass as a small dump:
+
+```
+table set: corpus (42 tables)
+
+Wrote 40 of 42 tables, 36749 rows; absent from this cluster: ozikoro_article_revision, ozikoro_institutional_access
+```
+
+### 6. The dump, measured
+
+```
+size            20,038,070 bytes · 36,906 lines
+sha256          74d026b8b36255bc1c6f3114e2abc4f33b1a3ac82b8578428a2afdb685eb84cf
+tables written  40 of 42 (two absent from this copy — see §12)
+rows            36,749
+```
+
+| table | `COPY` lines | table | `COPY` lines |
+|---|---:|---|---:|
+| `ozikoro_article` | **1,620** | `ozikoro_article_label` | 18,496 |
+| `ozikoro_media` | **3,488** | `ozikoro_label` | 11,056 |
+| `ozikoro_article_media` | 1,050 | `ozikoro_audit` | 515 |
+| `ozikoro_article_entity` | 232 | `ozikoro_entity` | 188 |
+| `ozikoro_media_rights` | 61 | `ozikoro_contributor` | 15 |
+| `ozikoro_topic` | 14 | `ozikoro_episode` | 3 |
+| `ozikoro_episode_revision` | 3 | `ozikoro_episode_transition` | 3 |
+| `ozikoro_member` | 2 | `ozikoro_member_role` | 2 |
+| `ozikoro_redirect` | 1 | | |
+
+**Zero `COPY` block for `account`, `word`, `definition`, `language`, `schema_migration`,
+`ozikoro_podcast_show` or `ozikoro_role_capability`** — asserted by parsing the file, not by reading the
+configuration that produced it.
+
+**And the column lists were checked against the host's schema before anything was sent**, because a column
+the host does not have is a failed load. The host has **more** columns than the copy on two tables — a
+migration gap, not a mismatch:
+
+```
+ozikoro_article   host 28 non-generated columns, dump 24
+                  extra on host: deleted_at · deleted_by · deleted_from_status (all nullable)
+                                  access_tier (NOT NULL DEFAULT 'open')
+ozikoro_media     host 26 non-generated columns, dump 24
+                  extra on host: deleted_at · deleted_by (both nullable)
+```
+
+Every one is nullable or defaulted, so `COPY` with an explicit column list fills them and no column the dump
+writes is absent from the host. **That is the check, and it was run before the transfer rather than
+diagnosed after it.**
+
+### 7. The transfer, and the bucket that no longer exists
+
+A temporary S3 bucket, **scoped to one bucket and one principal, with no credential of any kind in the
+policy**:
+
+```
+bucket      ozikoro-corpus-transfer-793264561107        (us-east-1)
+policy      s3:GetObject on the bucket's objects, and s3:ListBucket on the bucket,
+            for arn:aws:iam::793264561107:user/ozituma-ses alone,
+            both conditioned on aws:SecureTransport = true
+public      all four Block Public Access settings on
+object      ozikoro-archive-corpus-2026-10-05.sql      20,038,070 bytes
+```
+
+The principal is the host's own identity, read **on the host** with `aws sts get-caller-identity` — an ARN,
+not a secret. **The host's `.env` was read by variable NAME only** (`grep -oE '^[A-Z_]+='`), and the values
+for `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` were passed into the shell for the duration of the
+download without being printed. Nothing secret reached this transcript.
+
+**Integrity was checked twice, and the second check is the one that matters:**
+
+```
+here        shasum -a 256 corpus.sql                        → 74d026b8…eb84cf
+here        read the object back out of S3 and hash it     → 74d026b8…eb84cf
+on the host sha256sum /tmp/ozikoro-archive-corpus-…sql      → 74d026b8…eb84cf
+```
+
+**Deleted, object first and then bucket, and `head-bucket` was run afterwards:**
+
+```
+aws s3api delete-object  --bucket … --key ozikoro-archive-corpus-2026-10-05.sql
+aws s3api delete-bucket  --bucket …
+aws s3api head-bucket    --bucket …   →  An error occurred (404) when calling the HeadBucket operation: Not Found
+aws s3api list-buckets --query "Buckets[?Name=='ozikoro-corpus-transfer-793264561107'].Name" → []
+```
+
+### 8. The host's backup, and a container mount that makes the documented restore impossible as written
+
+`/tmp/pre-migrate.dump` was **not overwritten** — it is `8,970,699` bytes, dated `2026-10-05 15:43`. A fresh
+one was taken first, by streaming `pg_dump` **out** of the container to the host:
+
+```
+path      /tmp/pre-corpus-2026-10-05T18-55-50Z.dump
+size      9,220,149 bytes
+pg_dump   exit 0
+entries   1429 lines from `pg_restore --list`  (the archive's own TOC line: "TOC Entries: 1418")
+account   6, re-read immediately after the backup
+```
+
+> **⚠️ AND `pg_restore --list /tmp/pre-migrate.dump` DOES NOT WORK ON THIS HOST, WHICH IS HOW THE 1429 WAS
+> FOUND.** The `postgres` container's only mount is `/opt/ozituma/pgdata → /var/lib/postgresql/data`.
+> **`/tmp` is not mounted into it**, so the container cannot see a dump written to the host's `/tmp`:
+>
+> ```
+> pg_restore: error: could not open input file "/tmp/pre-migrate.dump": No such file or directory
+> ```
+>
+> The same file lists **833 entries** when it is streamed in over stdin. **Any restore instruction of the
+> form `docker compose exec -T postgres pg_restore --list /tmp/<file>` is wrong on this host**, and that
+> includes the shape in this document's own §4a. The working form is
+> `docker compose … exec -T postgres pg_restore --list < /tmp/<file>`, or a path inside the mount.
+
+### 9. The load, and every count against the reconciliation
+
+**The corpus file was streamed in over stdin for the same reason the restore had to be** — the host's `/tmp`
+is not visible in the container. It was loaded with `-v ON_ERROR_STOP=1`, inside the dump's own
+`begin; … commit;`, so a failure anywhere would have rolled the whole thing back rather than half-loading it.
+
+```
+exit code 0
+COPY 15 · 11056 · 14 · 188 · 3488 · 61 · 1620 · 232 · 18496 · 1050 · 3 · 3 · 3 · 2 · 2 · 515 · 1
+sum of the COPY counts  36,749   ← exactly the dump's own total, and the reason the psql output is quoted
+```
+
+**`psql` prints one `COPY <n>` line per table it actually ingested. That output is the evidence; the exit
+code alone is not**, which is the lesson round 367 keeps re-learning from the uploader whose
+`pg_restore --list` returned 127 and marked every dump rejected in silence.
+
+| | the reconciliation | the host, after the load |
+|---|---:|---:|
+| `article_total` | 1,620 | **1,620** |
+| `article_with_wp_id` | 1,096 | **1,096** |
+| `article_without_wp_id` | 524 | **524** |
+| `media_total` | 3,488 | **3,488** |
+| `media_storage_key_set` | 3,437 | **3,437** |
+| `media_storage_key_null` | 51 | **51** |
+| `media_filesize_sum` | 916,506,818 | **916,506,818** |
+| media by kind | image 3,462 · video 13 · document 12 · other 1 | **identical** |
+
+**And the two tables that must not have been touched were re-read, and the dictionary was too:**
+
+| table | before | after |
+|---|---:|---:|
+| `account` | 6 | **6** |
+| `auth_session` | 10 | **10** |
+| `api_key` | 1 | **1** |
+| `ozikoro_role_capability` | 100 | **100** |
+| `ozikoro_podcast_show` | 1 | **1** |
+| `word` | 34,051 | **34,051** |
+| `definition` | 39,101 | **39,101** |
+| `language` | 26 | **26** |
+
+### 10. What the loaded rows actually changed, proved by fetching rather than by counting
+
+A count says the rows are in a table. It does not say a page renders, and this document already records
+three occasions on which the archive answered `200` with a page that was not a page.
+
+**A record page, by `Host: ozikoro.com`, from the host itself** (`curl -sk --resolve ozikoro.com:443:127.0.0.1`;
+`--resolve` because Caddy will not complete a handshake for a bare IP with no SNI):
+
+```
+GET /ute-okpu-an-ika-igbo-clan-and-its-nri-roots/     200 · 22,169 bytes
+<title>  Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots
+<h1>     Ute-Okpu: An Ika-Igbo Clan and Its Nri Roots     (exactly 1)
+text     11,477 characters of rendered body — the byline "By Idenze Ezeme", the terms
+         "Clan Ute Okpu", and a sentence about the record's period and source type
+```
+
+**A 200 that renders nothing would have shown near-zero characters and no `<h1>`.** 11,477 is a page.
+
+**And the rewrite, which is the whole reason the media rows matter:**
+
+```
+wp-content/uploads occurrences in the rendered HTML      0
+distinct /media/ targets in the rendered HTML            5
+    /media/ozikoro/11223-ogume-king.jpg
+    /media/ozikoro/11228-owa.jpg
+    /media/ozikoro/11231-umunede-king.jpeg
+    /media/ozikoro/11234-ute-king.webp
+    /media/ozikoro/episodes/ute-okpu-an-ika-igbo-clan-and-its-nri-roots.owner-recording.mp3
+GET /media/ozikoro/11234-ute-king.webp                   200 · image/webp · 23,816 bytes
+```
+
+**The database itself still holds `wp-content/uploads` — 22,470 occurrences across the loaded rows — and
+that is correct, not a miss.** `body_html` carries the WordPress source addresses exactly as imported; the
+rewrite to `/media/ozikoro/<name>` happens at render time and is built from `ozikoro_media`. **With the
+media rows absent, the page had nothing to rewrite to; with them present, the rendered HTML has zero
+WordPress addresses and every image resolves.**
+
+**The three sites and the containers, by `Host:` header, after the load:**
+
+| | status | bytes | |
+|---|---:|---:|---|
+| `ozituma.com` | 200 | 48,588 | `<title>Ozituma — the free dictionary of African languages</title>` |
+| `academy.ozikoro.com` | 200 | 34,785 | `<title>Ozikoro Academy — Igbo language, history and culture</title>`, one `<h1>` |
+| `ozikoro.com` | 200 | 18,256 | `<title>Ozikoro — Igbo and African history, archives and scholarship</title>` |
+
+```
+ozituma-web-1        Up 57 minutes
+ozituma-ozikoro-1    Up 2 hours (healthy)
+ozituma-caddy-1      Up 3 hours
+ozituma-academy-1    Up 22 hours (healthy)
+ozituma-postgres-1   Up 10 days (healthy)
+```
+
+**Five containers, the academy healthy, `account` still 6, and no DNS record was read, written or
+discussed.** `ozikoro.com` is still live on cPanel; the apex still points at `162.213.253.73`.
+
+### 11. Item A, measured — the bytes are in the bucket, and the cutover document still said they were not
+
+The brief named the 916 MB of media in object storage as a separate task and not this round's. **This round
+measured it anyway, because `docs/OZIKORO-CUTOVER.md` §2 5.4–5.6, §3.6 and §3.7 all assert the bucket is
+empty, and §3.6 calls it *"the hard blocker, verified empty"*.** It is not empty, and the document was
+corrected to say so:
+
+```
+24 storage_keys sampled evenly across all 3,437 that carry one,
+  fetched through the public origin https://media.ozituma.com/   →  24 × 200, 0 missing
+
+https://media.ozituma.com/ozikoro/11234-ute-king.webp            →  200 image/webp 23,816 bytes
+
+the four episode objects, at exactly the byte sizes §3.7 records:
+  ozikoro/episodes/ute-okpu-…owner-recording.mp3   10,672,389
+  ozikoro/episodes/ute-okpu-….mp3                   8,029,457
+  ozikoro/episodes/how-tortoise-….mp3               2,310,522
+  ozikoro/episodes/igbo-folklore-….mp3              8,541,919
+```
+
+**The byte-for-byte agreement with §3.7's own sizes is the stronger half of that:** it shows each key holds
+the right file, not merely a file. `media-upload.ts --check` was **not** re-run — that command, not a `curl`,
+is what formally closes item A — and the document now says exactly that rather than claiming the item.
+
+### 12. What does not work, and what this round did not verify
+
+**⚠️ The largest thing this round did not move: `ozikoro_article_revision`, and its 4,269 rows exist in a
+newer copy that was not the one the brief named.** The corpus the brief defined is
+`.data/scratch-recon/pg`, named by the cutover document §3.2 and counted in `.scratch/recon/cluster-counts.json`,
+and **every one of its counts landed on the host exactly.** But a **later** copy exists,
+`.data/scratch-r362-pg`, and this round measured both directly rather than trusting the difference to a
+report:
+
+| table | the host now | `.data/scratch-recon/pg` (55 migrations) | `.data/scratch-r362-pg` (60 migrations) |
+|---|---:|---:|---:|
+| `ozikoro_article` | 1,620 | 1,620 | **1,622** |
+| `ozikoro_media` | 3,488 | 3,488 | **3,494** |
+| `ozikoro_article_revision` | **0** | *table absent* | **4,269** |
+| `ozikoro_source` | **0** | 0 | **10** |
+| `ozikoro_article_source` | **0** | 0 | **10** |
+| `ozikoro_audit` | 515 | 515 | **1,672** |
+| `ozikoro_member` / `ozikoro_member_role` | 2 / 2 | 2 / 2 | **3 / 3** |
+| `ozikoro_role_capability` | 100 | 80 | **100** |
+| `schema_migration` | 63 | 55 | **60** |
+
+**So the host holds the 2026-10-03 corpus and not the later one, and the two tables that carry the archive's
+revision history and its sources are empty on the host while holding 4,279 rows between them in the newer
+copy.** This is not a failed step — the briefed corpus loaded completely and every count matched — it is a
+decision the brief did not make, recorded so that it is made rather than discovered. **A second load of the
+whole corpus is not the way to take it:** the host's rows now collide on every primary key. The three empty
+tables could be taken on their own — they are empty on the host precisely so they cannot collide — and
+`.data/scratch-r362-pg` is a stopped copy that takes its own lock. **It was left undone rather than done
+outside the brief.** Also worth knowing before that is attempted: `ozikoro_role_capability` in the r362 copy
+reads **100**, the same as the host, which is a second and independent confirmation that excluding it was
+right.
+
+* **`media-upload.ts --check` was not re-run**, so item A is measured by fetching and not by the instrument
+  that owns it. §2 5.4 now says so in the check itself.
+* **`ozikoro_podcast_show` and `ozikoro_role_capability` were excluded by decision, not by emptiness**, and
+  the host's values are untouched. The dump asserts their absence by parsing; the load asserts it by
+  comparing their counts before and after.
+* **Two archive tables the copy does not have are absent from the dump** — `ozikoro_article_revision` and
+  `ozikoro_institutional_access` — and the tool now says so in its summary rather than writing nothing. On
+  the host both exist and both are empty, so nothing was expected of them here; the first is the gap above.
+* **The dictionary's own dump was not run.** `--set dictionary` is the default and the code path is
+  unchanged, but this round did not execute it, so "the default still works" rests on reading the diff and
+  on `npm run typecheck`, not on a dump.
+* **The 5.3 check in the cutover document was passing while it was meaningless.** It returned `0` without an
+  error before this round and it returns `1620` now; a check that asks for "a plausible count" and accepts
+  `0` is why the emptiness was not caught earlier. The row now says a `0` is the failure.
+* **`/tmp` on the host holds 171 entries.** One file was added and one removed — the transfer was
+  `/tmp/ozikoro-archive-corpus-2026-10-05.sql`, deleted after the load, and the backup
+  `/tmp/pre-corpus-2026-10-05T18-55-50Z.dump` was deliberately kept. **The clutter the brief warned about is
+  unchanged, and it cost this round a measurement:** the first `pg_restore --list` attempt returned one
+  line, which read as a corrupt dump and was in fact the container being unable to see `/tmp` at all.
+* **No DNS record, no Cloudflare setting and nothing under `apps/ozikoro/public/design/` was read, written
+  or changed.** The parity script prints **`identical 64 differing 0 missing 0`** after this round — **and
+  the count is 64, not the 63 that every earlier round in this file records.** The deliverable tree holds
+  **64** files and the served copy **65**; the version of this script that walks the deliverable was correct
+  and the number has moved, so the gate in `docs/OZIKORO-CUTOVER.md` §2 Condition 4 now says 64. **A gate
+  that quotes a count from a past round is a gate that fails on a correct tree**, which is the same fault
+  this document keeps recording in other shapes.
+* **No secret's value was printed.** The host's `.env` was read by variable name; `AWS_ACCESS_KEY_ID` and
+  `AWS_SECRET_ACCESS_KEY` were passed into two shell commands without being echoed; and the one ARN that did
+  reach this transcript — `arn:aws:iam::793264561107:user/ozituma-ses` — is an identity, not a credential.
+
+### 13. The files this round changed
+
+| file | what |
+|---|---|
+| `packages/db/src/dump.ts` | `TABLES` split into `DICTIONARY_TABLES` + `ARCHIVE_TABLES` (all 44, FK-ordered from the host's `pg_constraint` graph) and exported complete; `ARCHIVE_MIGRATION_SEEDED` names the two tables the migrations own, with the measured reason; `TABLE_SETS` and a refused-on-typo `--set`; `dumpData` takes the set it writes; **keyset pagination on `ctid`**, without which the dump silently dropped 29 of 42 tables; only the written columns are fetched; and the summary names the tables it did not write |
+| `docs/OZIKORO-CUTOVER.md` | §2 5.3–5.6 corrected with the measurements that supersede them; §3 given the loaded counts and the warning that a second load is a primary-key collision, not a re-sync; §3.6's "verified empty" marked as history with the sampling that contradicts it; §3.7's "would 404" corrected; §5 item 6 **answered** — the episode rows name their own keys |
+| `docs/OZIKORO-REMAINING.md` | this record |
+
+**The transfer left nothing behind: the object was deleted, the bucket was deleted, and `head-bucket`
+returns 404.** The one file this round made on the host was deleted; the one it made deliberately is the
+backup, and its path, size and entry count are in §8.
