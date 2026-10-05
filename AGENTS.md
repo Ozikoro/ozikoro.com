@@ -227,19 +227,41 @@ docker/docker-compose.prod.yml
 **So `docker compose build academy` builds it from a real source tree, and the whole-file build this file
 used to forbid is no longer forbidden by *this* reason.**
 
-**⚠️ BUT ONE THING IS UNCHANGED, AND IT IS THE PART THAT MATTERS ON THE HOST.** *The Academy's source is in
-**this** checkout. The host at `/opt/ozituma/app` is a different checkout — `oziikoro/Ozikoro`, a different
-history — and **it may still have no `apps/academy`.** *The `academy` service in the compose file that is
-actually on the host is the one that matters, and if the host's copy of that file has no `academy` build
-block then the service still cannot be rebuilt there.* **Measure the host's `apps/` and its compose
-`academy` block before running any build on it; do not assume this merge reached it.**
+**⚠️ AND THE HOST WAS MEASURED THE ROUND AFTER THAT CAUTION WAS WRITTEN. IT STILL HAS NO ACADEMY, AND THE TWO
+COMPOSE FILES NOW DISAGREE ABOUT WHETHER IT SHOULD BE BUILT AT ALL.**
 
-**The safe form of the instruction, which is what should be followed until the host is measured:**
+```
+                       THIS CHECKOUT                        THE HOST (/opt/ozituma/app)
+  apps/                academy · media · ozikoro · web       learn · ozikoro · web
+  apps/academy/        139 files, Dockerfile present         ABSENT
+  the compose academy  build:                                image: ozikoro-academy:latest
+    service              context: ../apps/academy            restart: unless-stopped
+                         dockerfile: Dockerfile              environment: …
+                       image: ozikoro-academy:latest         ← NO build: BLOCK
+```
 
-- **`docker compose build academy` in THIS checkout** — fine, the source and the build block are both here.
-- **Any build on the host** — check `/opt/ozituma/app/apps/academy` and the host's `docker/docker-compose.prod.yml`
-  `academy:` block first. *If either is absent, the host still cannot build the Academy and a whole-file
-  build there is still what this section used to warn about.*
+**So the host PULLS the academy image and has nothing to build it from; this checkout BUILDS it from
+source.** *And `ozikoro-academy:latest` is on that host — 169 MB, 22 hours old, serving `academy.ozikoro.com`
+as `ozituma-academy-1` with `Up (healthy)`. Nothing there is broken today.*
+
+**🔴 THE THING THIS MAKES DANGEROUS, WHICH IS NOT A TIDINESS PROBLEM.** *If this checkout's compose were
+deployed to that host as it stands, `docker compose up -d` would try to **build** the academy from
+`../apps/academy` — and there is no `apps/academy` there.* **That is a build that fails, on the service that
+is currently the healthy one.** *The failure would present as the academy going down during a deploy that
+was supposed to touch something else, which is the "file and production disagree" fault this project keeps
+producing.*
+
+**SO, BEFORE ANY DEPLOY OF THIS CHECKOUT TO THAT HOST, RESOLVE IT — AND IT IS A CHOICE, NOT A FIX:**
+
+- **bring `apps/academy` to the host**, so its compose can build what this checkout's compose builds; **or**
+- **keep the host's `image:`-only service**, and make this checkout's compose match it, so a deploy never
+  tries to build a source that host does not have.
+
+**Until one of those is done:**
+
+- **`docker compose build academy` in THIS checkout** — fine; the source and the build block are both here.
+- **Any deploy to the host** — do not ship this checkout's `docker/docker-compose.prod.yml` unchanged, for
+  the reason above. *Check `/opt/ozituma/app/apps/academy` and the host's own `academy:` block first.*
 - **Do not remove the `learn` stages from the host's Dockerfile.** *They are unrelated to the Academy's own
   Dockerfile and were only ever noted here as the closest thing that existed on that host at the time.*
 
