@@ -12,6 +12,17 @@
 # instance is on the same 40 GB root volume as the database it copies; the note on
 # the `backup` service states that with the measurement behind it.
 #
+# AND SINCE ROUND 360 THE DUMP IS ENCRYPTED BEFORE IT IS WRITTEN, because that
+# volume is not the only place a dump can be read: `media.ozituma.com` is the R2
+# bucket's custom domain and it serves objects anonymously, so a guessed
+# `backups/ozituma/ozituma-<timestamp>.dump` key was a copy of every account row,
+# every session and every password hash, readable by anyone. The dump is now
+# `ozituma-<timestamp>.dump.age`, encrypted with `age` inside the same pipe that
+# produces it, and the key lives in `/opt/ozituma/.env` and nowhere in this
+# repository. **Read the `backup` service's note and §4a of
+# `docs/OZIKORO-CUTOVER.md` before deploying this: if the key is lost, every dump
+# it protects is unreadable forever.**
+#
 #   docker compose -f docker/docker-compose.prod.yml up -d --build
 #
 # Configuration comes from /opt/ozituma/.env, written at boot from Secrets
@@ -355,6 +366,70 @@ services:
   # `--format=custom` rather than a plain SQL dump: it compresses, and it restores selectively with
   # pg_restore, which is what makes a partial recovery possible rather than all-or-nothing.
   #
+  # THE DUMP IS ENCRYPTED BEFORE IT IS WRITTEN, IN THE PIPE, AND HERE IS THE WHOLE ARGUMENT FOR IT.
+  #
+  # `media.ozituma.com` is the R2 bucket's custom domain and it serves objects **anonymously**. That is
+  # not an inference: measured this round with no credentials at all,
+  #
+  #   curl -sI https://media.ozituma.com/ozikoro/9274-osm-intl8aa250x200@2x.png
+  #     -> HTTP/2 200, content-type: image/png, content-length: 47361
+  #
+  # and the R2 endpoint's own door is shut (round 353 measured 400 on the same object, and 400 on a
+  # listing). So the bucket is private in front of one door and open behind another, and `--acl private`
+  # is not a promise about the other one. A dump under `backups/ozituma/ozituma-<timestamp>.dump` holds
+  # every account row, every session, every password hash and every audit entry, and its name is a
+  # timestamp — which is to say guessable. **The key was the only thing standing between the public
+  # domain and the archive's account table, and a key derived from a clock is not a secret.** With the
+  # file encrypted, a guessed key yields ciphertext, and the public front door stops mattering.
+  #
+  # THE MECHANISM IS `age`, IN RECIPIENT MODE, AND THE ALTERNATIVES WERE REJECTED FOR STATED REASONS.
+  #
+  #   age -r <recipient>            authenticated encryption (X25519 + ChaCha20-Poly1305). One 32-byte
+  #                                 key, no keyring, no passphrase, no network, no TTY. CHOSEN.
+  #   openssl enc -aes-256-cbc
+  #     -pbkdf2 -iter <n>           REJECTED. Not because of the KDF — with `-pbkdf2` and an explicit
+  #                                 iteration count that part is fine — but because `enc` has no MAC:
+  #                                 the ciphertext is unauthenticated, so corruption or tampering is
+  #                                 invisible until `pg_restore` fails at the moment of need. It is also
+  #                                 NOT INSTALLED in `postgres:16-alpine`: the image's own layer listing
+  #                                 has `pg_dump`, `pg_restore`, `psql` and `pg_isready` in
+  #                                 `/usr/local/bin` and no `openssl` CLI anywhere, so "openssl is already
+  #                                 there" would have been false and an image change was needed regardless.
+  #   gpg --symmetric               REJECTED. Defensible cryptography, but it needs a passphrase in the
+  #                                 environment and a keyring in the image, and `gnupg` is not in
+  #                                 `postgres:16-alpine` either.
+  #
+  # WHY THE ENCRYPTION RUNS IN THE DUMPER AND NOT IN THE UPLOADER. So that no plaintext dump ever
+  # reaches the volume. `pg_dump` writes into a shell pipe and `age` reads that pipe and writes the
+  # ciphertext, and the rename below only ever publishes a `*.dump.age` name. The volume is a named
+  # volume and it is a directory on `/dev/nvme0n1p1` — the same 40 GB root disk as
+  # `/opt/ozituma/pgdata` — so a plaintext dump left there is a second, unencrypted copy of every
+  # account row on the disk that already holds the database, and no retention rule here would ever
+  # remove it, because the rules match `*.dump.age` names only. **Encrypt in the pipe, not afterwards.**
+  #
+  # WHY NOT A FIFO, AND WHY `pg_dump`'s OWN EXIT STATUS IS CARRIED ACROSS THE PIPE. A named pipe would
+  # let this service read `wait`'s status directly, and it was the first design. It is not the one here:
+  # every side of a FIFO blocks on `open` until the other side opens, so a writer whose reader died at
+  # start-up — an unwritable volume, a key it cannot read — hangs `wait` forever. A backup service that
+  # stops taking backups and says nothing is worse than one that says why. What replaces it is a brace
+  # group inside the pipeline that records `pg_dump`'s own status to a file:
+  #
+  #   { if pg_dump …; then echo 0 > f; else echo $? > f; fi } | age -r … -o out
+  #
+  # and the status is read back out of `f`. That status is load-bearing and it was measured rather than
+  # assumed: truncating a real custom-format dump to 99% of its bytes leaves `pg_restore --list`
+  # answering **exit 0** (measured this round: 50% and 90% fail, 99% succeeds), because the table of
+  # contents sits near the front and the data follows it. So `--list` proves an archive is a Postgres
+  # archive; it does not prove the archive is complete, and a `pg_dump` that dies near the end would
+  # otherwise be published with a `.verified` marker beside it.
+  #
+  # WHAT STILL TOUCHES THE DISK IN PLAINTEXT, SAID PLAINLY: nothing except the five words of this
+  # service's own start-up self-test. The self-test encrypts the constant string
+  # `ozituma backup self-test` to a temp file and decrypts it back, so a broken `age` binary or a
+  # recipient that does not match the identity is a refusal to start rather than a dump nobody can read.
+  # A constant written by this file is not data from the database, and the assert is worth more than the
+  # file it costs.
+  #
   # WHAT THIS SERVICE NO LONGER DOES: PRUNE. It used to end every pass with
   # `find /backups -name 'ozituma-*.dump' -mtime +14 -delete`, and as long as the only copy was the
   # one in this volume that rule was harmless. It stops being harmless the moment a copy leaves the
@@ -363,44 +438,171 @@ services:
   # is `backup-upload`'s, it happens only after the object is confirmed in R2, and its numbers are
   # stated in that service's comment below.
   #
-  # The `.verified` file beside each dump is this service's verdict, written after `pg_restore
-  # --list` has parsed the archive header and table of contents. It is a convenience for whoever is
-  # looking at the volume — `backup-upload` re-runs the same check for itself rather than trusting a
-  # marker, so a crashed or half-written pass cannot be mistaken for a good dump.
+  # The `.verified` file beside each dump is this service's verdict, written only after the ciphertext
+  # has been **decrypted twice through pipes** — the first pass draining every byte so `age`'s own
+  # authentication is the verdict on all of it, the second handed to `pg_restore --list`, which parses
+  # the archive header and table of contents. So a wrong key, a corrupted file and a dump whose
+  # `pg_dump` died partway all fail in the same place: the file is renamed `*.dump.age.failed`, no
+  # `.verified` is written, and the uploader skips it. It is a convenience for whoever is looking at
+  # the volume — `backup-upload` re-runs the same checks for itself rather than trusting a marker, so a
+  # crashed pass cannot be mistaken for a good dump.
+  #
+  # THE PLACEHOLDER KEY IN `.env.example` IS NOT A KEY. `age-keygen` prints a real identity and its
+  # recipient; the file ships a placeholder so that a reader can see the shape of both, and nothing in
+  # this repository ever commits a real one. See the note on `.env.example` and §4a of
+  # `docs/OZIKORO-CUTOVER.md` for where the real key must live and what a lost key costs.
   # ---------------------------------------------------------------------------
   backup:
-    image: postgres:16-alpine
+    # Built, not pulled. The stage's own comment in docker/Dockerfile states why its base is
+    # `postgres:16-alpine` — the same tag this file's `postgres` service runs, so `pg_dump` and the
+    # server cannot drift to different minor versions — and why it carries `age` and `aws-cli`.
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: backup-tools
+    image: "ozituma-backup-tools:${OZITUMA_IMAGE_TAG:-latest}"
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
+      # THE KEY, IN TWO HALVES, AND BOTH ARE NAMED HERE BECAUSE COMPOSE PASSES ONLY WHAT A SERVICE
+      # NAMES. `BACKUP_AGE_RECIPIENT` is the public half the dump is encrypted TO;
+      # `BACKUP_AGE_IDENTITY` is the private half, and this service needs it as well as the uploader
+      # because its own verification decrypts the file it has just written. There is deliberately no
+      # `:-` default on either: a default would be key material, and key material in this file is key
+      # material in git. Empty values are refused by the entrypoint below, loudly, at start-up.
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT}
+      BACKUP_AGE_IDENTITY: ${BACKUP_AGE_IDENTITY}
     volumes:
       - backupdata:/backups
+    # Three lines of log per pass rather than nothing, so `docker compose logs backup` answers the one
+    # question worth asking without a shell on the box.
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
     entrypoint:
       - sh
       - -c
       - |
         set -eu
-        echo "backup: starting; dumps land in /backups"
+
+        BACKUP_DIR="$${BACKUP_DIR:-/backups}"
+        recipient="$${BACKUP_AGE_RECIPIENT:-}"
+        identity="$${BACKUP_AGE_IDENTITY:-}"
+        identity_file=/run/age/ozituma-identity
+
+        # ---- FAIL CLOSED: REFUSE TO START RATHER THAN DUMP IN THE CLEAR ------------------------
+        #
+        # Every check below is a refusal, not a warning, and each one leaves the volume untouched.
+        # The one outcome worse than no backup is a plaintext dump that reaches the bucket looking
+        # like an encrypted one, so a service that cannot encrypt produces nothing at all.
+        if [ -z "$$identity" ]; then
+          echo "backup: REFUSING TO START — BACKUP_AGE_IDENTITY is empty. Compose names it, so the name is plumbed; the VALUE is missing from /opt/ozituma/.env on the host. Without it this service cannot decrypt its own dump to verify it, and it will not fall back to writing plaintext."
+          exit 78
+        fi
+        case "$$identity" in
+          AGE-SECRET-KEY-1*) : ;;
+          *) echo "backup: REFUSING TO START — BACKUP_AGE_IDENTITY does not begin 'AGE-SECRET-KEY-1', so it is not an age identity. A value that is not a key would fail at every dump; it fails here instead, where the message can say so."; exit 78 ;;
+        esac
+        if [ -z "$$recipient" ]; then
+          echo "backup: REFUSING TO START — BACKUP_AGE_RECIPIENT is empty. It is the public half that dumps are encrypted TO; with nothing to encrypt to there is no correct thing this service could write."
+          exit 78
+        fi
+        case "$$recipient" in
+          age1*) : ;;
+          *) echo "backup: REFUSING TO START — BACKUP_AGE_RECIPIENT is '$$recipient', which does not begin 'age1' and is not an age recipient."; exit 78 ;;
+        esac
+
+        # `age -d -i` takes a path, and there is no TTY to prompt on, so the identity is written to a
+        # file. `umask 077` comes first so the file is never briefly world-readable, and `/run` rather
+        # than `/tmp` because it is the container's own directory for exactly this.
+        umask 077
+        mkdir -p /run/age
+        printf '%s\n' "$$identity" > "$$identity_file"
+        chmod 600 "$$identity_file"
+
+        # ---- THE PAIR MUST MATCH, AND THE TOOL MUST WORK, BEFORE ANY DUMP IS ATTEMPTED ---------
+        #
+        # `age-keygen -y` derives the recipient from an identity, so a key whose two halves came from
+        # different runs — which is what a careless copy-paste into /opt/ozituma/.env produces — is
+        # caught here rather than at restore time. Then the round trip is exercised on a constant this
+        # file owns: encrypt it, decrypt it, compare. An encryption nobody has decrypted is a guess,
+        # and this is the cheapest place to stop guessing.
+        derived=$$(age-keygen -y "$$identity_file" 2>/dev/null) || { echo "backup: REFUSING TO START — age-keygen cannot read BACKUP_AGE_IDENTITY as a key. Nothing has been dumped."; exit 78; }
+        if [ "$$derived" != "$$recipient" ]; then
+          echo "backup: REFUSING TO START — BACKUP_AGE_IDENTITY derives the recipient '$$derived', but BACKUP_AGE_RECIPIENT is '$$recipient'. The two halves are from different keys, so every dump would be encrypted to a key this service cannot read."
+          exit 78
+        fi
+        selftest_plain=/tmp/backup-selftest.txt
+        selftest_cipher=/tmp/backup-selftest.age
+        printf 'ozituma backup self-test' > "$$selftest_plain"
+        if ! age -r "$$recipient" -o "$$selftest_cipher" "$$selftest_plain" 2>/dev/null; then
+          echo "backup: REFUSING TO START — age could not encrypt the self-test to BACKUP_AGE_RECIPIENT. Nothing has been dumped."
+          rm -f "$$selftest_plain" "$$selftest_cipher"; exit 78
+        fi
+        if [ "$$(age -d -i "$$identity_file" "$$selftest_cipher" 2>/dev/null)" != 'ozituma backup self-test' ]; then
+          echo "backup: REFUSING TO START — the self-test ciphertext did not decrypt back to what was encrypted. This key cannot read what it writes; every dump it made would be unreadable."
+          rm -f "$$selftest_plain" "$$selftest_cipher"; exit 78
+        fi
+        rm -f "$$selftest_plain" "$$selftest_cipher"
+
+        echo "backup: starting; encrypted dumps land in $$BACKUP_DIR"
+        echo "backup: age $$(age --version 2>/dev/null || echo unknown); $$(pg_dump --version 2>/dev/null || echo unknown)"
+        echo "backup: encryption is fail-closed — if the pipe fails, no file is named *.dump.age and nothing is uploaded."
+
         while true; do
           stamp=$$(date -u +%Y-%m-%dT%H-%M-%SZ)
-          out="/backups/ozituma-$$stamp.dump"
-          rm -f "$$out.verified"
-          if pg_dump -h postgres -U ozituma -d ozituma --format=custom --file="$$out"; then
-            # A dump is only a backup if it can be read back. pg_restore --list parses the archive
-            # header and the table of contents; a truncated file fails here rather than at restore time.
-            if pg_restore --list "$$out" > /dev/null 2>&1; then
-              size=$$(wc -c < "$$out")
-              : > "$$out.verified"
-              echo "backup: ok $$out ($$size bytes, archive header verified) — marked .verified for backup-upload"
-            else
-              echo "backup: FAILED verification for $$out — left in place for inspection, NOT marked .verified"
-            fi
+          out="$$BACKUP_DIR/ozituma-$$stamp.dump.age"
+          partial="$$BACKUP_DIR/.ozituma-$$stamp.dump.age.partial"
+          status_file="/tmp/backup-dump-status-$$stamp"
+          rm -f "$$out.verified" "$$out.failed" "$$partial" "$$status_file"
+
+          # pg_dump's stdout is the pipe age reads; nothing between them is a file. The brace group
+          # records pg_dump's OWN status to a file, because a pipeline reports only its last command's
+          # status and `sh` here is busybox ash with no `pipefail`. That status is not decoration —
+          # see the measurement in the comment above: a dump truncated to 99% still lists.
+          if { if pg_dump -h postgres -U ozituma -d ozituma --format=custom; then echo 0 > "$$status_file"; else echo $$? > "$$status_file"; fi; } | age -r "$$recipient" -o "$$partial"; then
+            age_status=0
           else
-            echo "backup: pg_dump FAILED at $$stamp"
+            age_status=$$?
           fi
+          dump_status=$$(cat "$$status_file" 2>/dev/null || echo missing)
+
+          if [ "$$dump_status" != "0" ] || [ "$$age_status" -ne 0 ]; then
+            echo "backup: FAILED at $$stamp — pg_dump status $$dump_status, age status $$age_status. No file named *.dump.age is produced, so there is nothing here that a later pass could mistake for a backup."
+            rm -f "$$partial" "$$status_file"
+            sleep 86400
+            continue
+          fi
+
+          # A dump is only a backup if it can be read back. Pass 1 decrypts every byte to /dev/null,
+          # so it is age's own authentication — not a marker, not a header — that is the verdict on
+          # the whole ciphertext. Pass 2 decrypts again into `pg_restore --list`, which is what proves
+          # the plaintext is a Postgres archive with a readable table of contents. Both passes stream;
+          # neither writes plaintext anywhere.
+          if age -d -i "$$identity_file" "$$partial" > /dev/null 2>&1; then
+            decrypt_status=0
+          else
+            decrypt_status=$$?
+          fi
+          if age -d -i "$$identity_file" "$$partial" 2>/dev/null | pg_restore --list > /dev/null 2>&1; then
+            list_status=0
+          else
+            list_status=1
+          fi
+
+          if [ "$$decrypt_status" -eq 0 ] && [ "$$list_status" -eq 0 ]; then
+            mv "$$partial" "$$out"
+            size=$$(wc -c < "$$out" | tr -d '[:space:]')
+            : > "$$out.verified"
+            echo "backup: ok $$out ($$size bytes, decrypted in full and listed) — marked .verified for backup-upload"
+          else
+            mv "$$partial" "$$out.failed"
+            echo "backup: FAILED verification for $$out — decrypt status $$decrypt_status, list status $$list_status. Renamed *.failed: it can never be uploaded, and no retention rule will ever delete it. A key that cannot read what it wrote looks exactly like this."
+          fi
+          rm -f "$$status_file"
           # NO find -delete HERE. See the note above: the only safe place for a delete is after an
           # upload has been confirmed, and that is backup-upload's job.
           sleep 86400
@@ -422,14 +624,24 @@ services:
   #      client's image at every start. A different image with the tool already in it is smaller
   #      than that, and leaves the postgres image's only job alone.
   #
-  # THE IMAGE IS THE AWS CLI ITSELF, PINNED. It talks to Cloudflare R2 through the same
-  # S3-compatible API `@aws-sdk/client-s3` uses from the two applications, with the same endpoint,
-  # region, path-style setting and credentials, so there is one store and one credential rather
-  # than a second system with its own key material. Pinned to an exact version rather than `:latest`
-  # so a pull on the worst day cannot change behaviour underneath a running backup. The upstream
-  # autobuild images are `amazon/aws-cli` (Docker Hub) and `public.ecr.aws/aws-cli/aws-cli`; this
-  # file uses the Docker Hub one because the host pulls anonymously from it today. The version is
-  # asserted at start and logged, so a wrong or missing tag is a loud failure and not a silent one.
+  # THE IMAGE IS BUILT FROM `docker/Dockerfile`'S `backup-tools` TARGET, AND THIS SERVICE'S OLD IMAGE
+  # COULD NOT RUN THIS SERVICE. It was `amazon/aws-cli:2.37.9`, pinned for the right reason: it talks
+  # to Cloudflare R2 through the same S3-compatible API `@aws-sdk/client-s3` uses from the two
+  # applications, with the same endpoint, region, path-style setting and credentials, so there is one
+  # store and one credential rather than a second system with its own key material. What was never
+  # checked is whether that image had the other program this entrypoint calls. Measured this round by
+  # listing the file names in the image's own layers (linux/arm64, anonymously, no credentials):
+  #
+  #   amazon/aws-cli:2.37.9   ->  /usr/local/bin/aws, /usr/bin/gpg
+  #                               NO pg_restore, NO pg_dump, NO psql, NO openssl CLI, NO age
+  #
+  # So the `pg_restore --list` at step (a) below answered `command not found` — exit 127, not a
+  # verdict on any file — on every dump it was ever given. Every dump was therefore unlistable, every
+  # dump was marked `.rejected` after five attempts, and **nothing has ever been uploaded by this
+  # service.** It failed closed, which is why nothing leaked and why nobody noticed: the pipeline was
+  # inert and silent. The built image carries `aws`, `age` and the Postgres 16 client together, so the
+  # tool each step calls is in the image that calls it; `docker/Dockerfile` records the measurement
+  # and the reasoning, and both entrypoints now assert the versions they got.
   #
   # ENVIRONMENT IS NAMED HERE, ONE NAME PER VARIABLE, AND THERE IS A SCRIPT FOR WHY.
   #
@@ -463,24 +675,45 @@ services:
   # can be compared because both still exist. There is no `backups/ozituma/latest.dump` and there
   # must never be one.
   #
-  # THE UPLOAD IS VERIFIED THREE WAYS, AND A DUMP THAT FAILS IS NOT UPLOADED AS IF IT WERE GOOD.
+  # THE UPLOAD IS VERIFIED FOUR WAYS, AND A DUMP THAT FAILS IS NOT UPLOADED AS IF IT WERE GOOD.
   #
-  #   a. `pg_restore --list` is run again, here, on the file about to be sent. It is this service's
-  #      own verdict, not the dumper's marker, so a dump that is truncated, half-written, or written
-  #      by a crashed pass is caught by the reader rather than by a stale name.
+  #   a. The ciphertext is decrypted twice before it is sent. Pass 1 drains every byte of it to
+  #      /dev/null, which makes `age`'s own authentication the verdict on the whole file; pass 2
+  #      decrypts again into `pg_restore --list`, which proves the plaintext is a Postgres archive
+  #      with a readable table of contents. A wrong key, a file damaged on the volume, or a dump the
+  #      dumper should have discarded is refused here — and it is this service's own reading, not a
+  #      marker it was handed.
   #   b. `aws s3api head-object` reads the stored object's ContentLength back and it must equal the
   #      local byte count.
-  #   c. The object is downloaded back out of R2 and `pg_restore --list` is run on what came back.
-  #      This is the check that matters: it is R2's bytes, not the local file, that are parsed, so
-  #      the dump is known to have survived the network and to be listable from the store it will be
-  #      restored from. It costs nothing in egress because R2 charges none, and it is paid once a
+  #   c. The object is downloaded back out of R2 and put through the same two decryption passes. This
+  #      is the check that matters: it is R2's bytes, not the local file, that authenticate and list,
+  #      so the dump is known to have survived the network and to be readable from the store it will
+  #      be restored from. It costs nothing in egress because R2 charges none, and it is paid once a
   #      day.
+  #   d. Only then is `.uploaded` written beside the local file. That marker is not decoration: it is
+  #      the only local evidence that this dump left the machine, and `healthwatch` reads it.
+  #
+  # WHAT IS IN THE BUCKET IS CIPHERTEXT. The plaintext archive's magic is the four bytes `PGDMP`, and
+  # the local run in `scripts/verify-round-360.mjs` asserts those bytes are absent from the object that
+  # reached the fake bucket, then decrypts that same object and counts the table-of-contents entries.
+  # That is the whole point of the change: what `media.ozituma.com` serves anonymously is now a file
+  # that is useless without a key held only in `/opt/ozituma/.env`, in the host's Secrets Manager
+  # secret, and in the offline copy §4a of `docs/OZIKORO-CUTOVER.md` tells the owner to make.
   #
   # A dump that fails (a) is never uploaded, at all. It stays on the volume and `.rejected` appears
   # beside it after five attempts, which is a name no other rule here matches, so a bad dump cannot
-  # hide, cannot be deleted by the retention rules, and cannot hold up the good ones behind it.
+  # hide, cannot be deleted by the retention rules, and cannot hold up the good ones behind it. A
+  # wrong or lost key produces exactly this, which is why the key is checked at start-up first.
   # A dump that passes (a) and fails (b) or (c) has its object left in place — deleting it would be
   # destroying evidence — and is retried under the same name.
+  #
+  # LEGACY PLAINTEXT OBJECTS ARE NAMED, NOT DELETED. If an earlier revision of this pipeline ever did
+  # upload — it did not, because it had no `pg_restore`; see the image note above — the bucket could
+  # hold `ozituma-<stamp>.dump` objects that are plaintext and anonymously readable. This loop prints
+  # a line naming every one it sees and **does not delete them**, because the rule this pipeline
+  # already learned once is that a delete must never run ahead of a confirmed replacement: the
+  # replacement is the `.dump.age` object that has been read back and listed. The one-time cleanup is
+  # an operator step with a listing first, and it is written out in `docs/OZIKORO-CUTOVER.md` §4a.
   #
   # RETENTION, IN NUMBERS, ON BOTH SIDES. Nothing deletes a local dump unless its object exists in
   # R2 and its name is in the remote listing; that is the invariant, and it is why the dumper's own
@@ -502,36 +735,72 @@ services:
   #   five days of dumps is tens of megabytes for a database of this size, so the volume is not at
   #   risk for a long time, and `.rejected` names are left for a person rather than swept.
   #
-  # HOW A PERSON RESTORES FROM THIS, in one line. `pg_restore` needs a running Postgres to restore
-  # into, and this compose file is that Postgres; run these on the host, in `/opt/ozituma/app`:
+  # HOW A PERSON RESTORES FROM THIS. `pg_restore` needs a running Postgres to restore into, and this
+  # compose file is that Postgres. Run these on the host, in `/opt/ozituma/app`. The decryption runs in
+  # a container because `age` and the key are already in the `backup-upload` image; `--entrypoint sh`
+  # is passed explicitly because this service's own entrypoint is the upload loop, and `docker compose
+  # run` uses an entrypoint unless it is replaced — without the flag these commands would start the
+  # loop instead of doing what they say.
   #
   #   # 1. list what is in R2, then fetch one dump by its own timestamped name
-  #   docker compose -f docker/docker-compose.prod.yml run --rm backup-upload sh -c '
+  #   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
   #     aws s3api list-objects-v2 --endpoint-url "$S3_ENDPOINT" \
   #       --bucket "$S3_BUCKET" --prefix "$BACKUP_UPLOAD_PREFIX" \
   #       --query "Contents[].Key" --output text'
-  #   docker compose -f docker/docker-compose.prod.yml run --rm backup-upload sh -c '
+  #   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
   #     aws s3api get-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
-  #       --key "$BACKUP_UPLOAD_PREFIX/ozituma-2026-10-05T03-00-00Z.dump" /dev/stdout' > /tmp/restore.dump
+  #       --key "$BACKUP_UPLOAD_PREFIX/ozituma-2026-10-05T03-00-00Z.dump.age" /dev/stdout' \
+  #     > /tmp/restore.dump.age
   #
-  #   # 2. put it back. `--clean --if-exists` drops and recreates the objects it holds, so this is
-  #   #    a restore over the live database, not a merge into it. The database is empty of that
-  #   #    schema's objects when it counts, and `pg_restore -l` on the file lists what it contains.
+  #   # 2. DECRYPT IT. The identity comes from the service's environment, is written to a 600 file
+  #   #    inside the container, and never appears in a command line or in this shell's history. A
+  #   #    wrong key fails here and says so; there is no way to mistake that for a good dump.
+  #   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+  #     umask 077; printf "%s\n" "$BACKUP_AGE_IDENTITY" > /tmp/k
+  #     age -d -i /tmp/k /dev/stdin' < /tmp/restore.dump.age > /tmp/restore.dump
+  #
+  #   # 3. read what it holds BEFORE touching the database, then put it back. `--clean --if-exists`
+  #   #    drops and recreates the objects it holds, so this is a restore over the live database, not a
+  #   #    merge into it. The database is empty of that schema's objects when it counts.
+  #   docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+  #     pg_restore --list < /tmp/restore.dump | head -40
   #   docker compose -f docker/docker-compose.prod.yml exec -T postgres \
   #     pg_restore --clean --if-exists --no-owner -U ozituma -d ozituma < /tmp/restore.dump
   #
   # `--no-owner` because the restore may run as a different role than the dump was taken by;
   # `--if-exists` so a database that has never had the object does not make the whole restore fail
   # on the first DROP. Both were read from PostgreSQL's own documentation for `pg_restore` and are
-  # the flags for restoring a dump taken by `pg_dump -U ozituma` into the same schema.
+  # the flags for restoring a dump taken by `pg_dump -U ozituma` into the same schema. Neither is
+  # affected by the encryption: `age` refuses a file it cannot authenticate, so a decrypted stream
+  # that `pg_restore` accepts is the same archive a plaintext pipeline would have handed it.
   #
-  # WHAT IS UNPROVEN IS STATED IN `docs/OZIKORO-REMAINING.md` ROUND 352: no upload has been run,
-  # because the S3 credential is on the host and not in the development checkout, and the bucket is
-  # reached from there. The wiring, the arguments and the shell are verified; the round trip is not.
+  # A LOST KEY MEANS THESE DUMPS ARE UNREADABLE FOREVER, AND THAT IS NOT A FIGURE OF SPEECH. `age`
+  # has no recovery path and no back door: without the identity there is no way to read the dump, by
+  # design, and no tool, no Cloudflare support and no future round of this project can produce one.
+  # The key therefore lives in THREE places, and the host's copy is the least important of them:
+  # `/opt/ozituma/.env` on the box, the `APP_SECRET` JSON in AWS Secrets Manager (which is what writes
+  # that file at boot — see `infrastructure/ozituma-stack.yaml`), and one copy the owner holds off
+  # the box. §4a of `docs/OZIKORO-CUTOVER.md` is the numbered procedure for making that third copy.
+  # **An encrypted backup with no key is not a backup; it is a file.**
+  #
+  # WHAT IS UNPROVEN, STATED PLAINLY: no upload has been run against R2, because the S3 credential is
+  # on the host and not in this checkout. What this round verified locally — the pipe, the fail-closed
+  # guard, the round trip through `age` and `pg_restore --list`, and the bytes that reach the bucket —
+  # is in `scripts/verify-round-360.mjs` and in `docs/OZIKORO-REMAINING.md` ROUND 360. What it could
+  # NOT verify is listed there too, and it is everything that needs the host: a real pull, a real
+  # `put-object`, the healthwatch alarm firing, and the built image itself, since this checkout has no
+  # Docker daemon.
   # ---------------------------------------------------------------------------
   backup-upload:
-    # Pinned. `:latest` would change under a running backup on a pull it did not ask for.
-    image: amazon/aws-cli:2.37.9
+    # The same built image as the dumper, and that is a decision rather than a convenience: the service
+    # that decrypts for verification must be the service that knows the encryption works, and one image
+    # means one `age` version on both sides of the volume. `docker/Dockerfile` records what is in it and
+    # why the base is the same `postgres:16-alpine` tag the database runs.
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: backup-tools
+    image: "ozituma-backup-tools:${OZITUMA_IMAGE_TAG:-latest}"
     restart: unless-stopped
     depends_on:
       postgres:
@@ -543,6 +812,14 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-true}
+      # BOTH HALVES OF THE KEY ARE NAMED HERE, AND THE PUBLIC ONE IS NOT DECORATION. The uploader only
+      # ever decrypts, so `BACKUP_AGE_RECIPIENT` is not needed to do its job — it is needed to CHECK
+      # its job. `age-keygen -y` derives the recipient from the identity, and the pair is compared at
+      # start-up below: a mismatch is a service that would refuse every dump as unlistable and say
+      # "the dump is bad" while the truth is "the key is wrong". That is the failure this check exists
+      # to make impossible to misread.
+      BACKUP_AGE_IDENTITY: ${BACKUP_AGE_IDENTITY}
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT}
       # The prefix, with a default so a host that has not been taught the name still writes to the
       # right place rather than to the bucket root. It is refused at start-up if it does not begin
       # `backups/`, which is the guard that keeps a typo from reaching a media prefix.
@@ -571,6 +848,7 @@ services:
         INTERVAL="$${BACKUP_UPLOAD_INTERVAL_SECONDS:-60}"
         MIN_AGE_MINUTES=30
         MAX_ATTEMPTS=5
+        identity_file=/run/age/ozituma-identity
 
         case "$$PREFIX" in
           backups/*) : ;;
@@ -585,6 +863,35 @@ services:
             exit 78
           fi
         done
+
+        # ---- THE KEY, CHECKED BEFORE A SINGLE DUMP IS JUDGED ------------------------------------
+        #
+        # This refuses to start on a missing, malformed or MISMATCHED key rather than discovering it
+        # one dump at a time. Without this, a wrong key produces the exact misreading this round is
+        # about: every dump refused as unlistable, each marked `.rejected` after five attempts, and a
+        # log that blames the dumps while the truth is the key. The pair check is the whole reason the
+        # public recipient is passed to a service that only ever decrypts.
+        if [ -z "$${BACKUP_AGE_IDENTITY:-}" ]; then
+          echo "upload: REFUSING TO START — BACKUP_AGE_IDENTITY is empty. Compose names it, so the name is plumbed; the VALUE is missing from /opt/ozituma/.env on the host. Without it nothing can be decrypted to check, and every dump would be refused as though it were corrupt."
+          exit 78
+        fi
+        case "$$BACKUP_AGE_IDENTITY" in
+          AGE-SECRET-KEY-1*) : ;;
+          *) echo "upload: REFUSING TO START — BACKUP_AGE_IDENTITY does not begin 'AGE-SECRET-KEY-1', so it is not an age identity."; exit 78 ;;
+        esac
+        if [ -z "$${BACKUP_AGE_RECIPIENT:-}" ]; then
+          echo "upload: REFUSING TO START — BACKUP_AGE_RECIPIENT is empty, so the identity cannot be checked against the key the dumps were encrypted to."
+          exit 78
+        fi
+        umask 077
+        mkdir -p /run/age
+        printf '%s\n' "$$BACKUP_AGE_IDENTITY" > "$$identity_file"
+        chmod 600 "$$identity_file"
+        derived=$$(age-keygen -y "$$identity_file" 2>/dev/null) || { echo "upload: REFUSING TO START — age-keygen cannot read BACKUP_AGE_IDENTITY as a key. Nothing has been uploaded."; exit 78; }
+        if [ "$$derived" != "$$BACKUP_AGE_RECIPIENT" ]; then
+          echo "upload: REFUSING TO START — BACKUP_AGE_IDENTITY derives the recipient '$$derived', but BACKUP_AGE_RECIPIENT is '$$BACKUP_AGE_RECIPIENT'. The key here is not the key the dumper encrypts with, so every dump would be refused as unreadable and blamed for it."
+          exit 78
+        fi
 
         export AWS_ACCESS_KEY_ID="$$S3_ACCESS_KEY_ID"
         export AWS_SECRET_ACCESS_KEY="$$S3_SECRET_ACCESS_KEY"
@@ -624,26 +931,42 @@ services:
         aws --version
 
         echo "upload: starting; prefix=$$PREFIX local_days=$$LOCAL_DAYS remote_days=$$REMOTE_DAYS interval=$${INTERVAL}s"
-        echo "upload: a dump is uploaded only after pg_restore --list accepts it here, and is only pruned locally after it is read back out of R2."
+        echo "upload: age $$(age --version 2>/dev/null || echo unknown); $$(aws --version 2>&1 | head -n 1); $$(pg_restore --version 2>/dev/null || echo 'pg_restore MISSING — nothing can be verified and nothing will be uploaded')"
+        echo "upload: a dump is uploaded only after it decrypts here and pg_restore --list accepts it, and is only pruned locally after it is read back out of R2 and decrypted again."
 
         while true; do
-          for dump in $${BACKUP_DIR:-/backups}/ozituma-*.dump; do
+          for dump in $${BACKUP_DIR:-/backups}/ozituma-*.dump.age; do
             [ -f "$$dump" ] || continue
-            base="$${dump%.dump}"
-            [ -f "$$base.rejected" ] && continue
+            # MARKERS ARE THE FULL FILE NAME PLUS A SUFFIX — `<dump>.verified`, `<dump>.uploaded`,
+            # `<dump>.rejected`, `<dump>.attempts` — and this round made them so. They used to be
+            # written from a `base` variable with the extension stripped, which meant the uploader's
+            # `.rejected` and `.attempts` sat beside `ozituma-<stamp>.dump.age` under names the dumper
+            # and the retention rule never looked for, and retention's `rm -f` named a file nobody had
+            # written. Harmless while nothing read them; not harmless now that healthwatch does.
+            [ -f "$$dump.rejected" ] && continue
 
-            # 1. It must be listable. This is the verdict carried forward from the dumper, re-taken
-            #    here so it is this service's own reading and not a marker it was handed.
-            if ! pg_restore --list "$$dump" > /dev/null 2>&1; then
-              attempts_file="$$base.attempts"
+            # 1. IT MUST DECRYPT AND LIST. Both halves matter and they are checked separately so the
+            #    log says WHICH one failed: a key that cannot read the file is a different fault from
+            #    a file that is not an archive, and the two have different answers. Pass 1 drains every
+            #    byte, so it is age's own authentication over the whole file; pass 2 is the table of
+            #    contents. Nothing is written to disk: both passes stream.
+            if ! age -d -i "$$identity_file" "$$dump" > /dev/null 2>&1; then
+              reason="it did not decrypt — this file is not authentic ciphertext for the key in BACKUP_AGE_IDENTITY, so it is either damaged or was written by a different key"
+            elif ! age -d -i "$$identity_file" "$$dump" 2>/dev/null | pg_restore --list > /dev/null 2>&1; then
+              reason="it decrypted but pg_restore --list refuses it — the plaintext is not a usable archive"
+            else
+              reason=""
+            fi
+            if [ -n "$$reason" ]; then
+              attempts_file="$$dump.attempts"
               attempts=0
               [ -f "$$attempts_file" ] && attempts=$$(cat "$$attempts_file" 2>/dev/null || echo 0)
               attempts=$$((attempts + 1))
               echo "$$attempts" > "$$attempts_file"
-              echo "upload: NOT UPLOADING $$dump — pg_restore --list refuses it (attempt $$attempts of $$MAX_ATTEMPTS). It is left in place; a dump that cannot be listed must never be uploaded as if it were good."
+              echo "upload: NOT UPLOADING $$dump — $$reason (attempt $$attempts of $$MAX_ATTEMPTS). It is left in place; a dump that cannot be read must never be uploaded as if it were good."
               if [ "$$attempts" -ge "$$MAX_ATTEMPTS" ]; then
-                : > "$$base.rejected"
-                echo "upload: $$dump is marked .rejected after $$MAX_ATTEMPTS attempts. It will not be uploaded and will not be pruned. A person must look at it."
+                : > "$$dump.rejected"
+                echo "upload: $$dump is marked .rejected after $$MAX_ATTEMPTS attempts. It will not be uploaded and will not be pruned. A person must look at it — and if EVERY dump is landing here, check BACKUP_AGE_IDENTITY before believing the dumps are bad."
               fi
               continue
             fi
@@ -667,17 +990,22 @@ services:
                 echo "upload: SIZE MISMATCH for $$key — local $$local_size bytes, R2 reports '$$remote_size'. Object left in place, dump NOT pruned, will be retried."
                 continue
               fi
-              # 3. Read it back out of R2 and parse what came back. It is the remote bytes that are
-              #    listable that makes this a backup; the local file being listable only means
-              #    pg_dump finished.
+              # 3. Read it back out of R2 and put R2's OWN BYTES through both checks. The downloaded
+              #    file is ciphertext, so it is safe in /tmp and it is removed as soon as it has been
+              #    read. It is the remote bytes that decrypt and list that makes this a backup; the
+              #    local file doing so only means the dumper wrote it.
               verify_tmp="/tmp/verify-$$(basename "$$dump")"
               if aws $$ENDPOINT_ARGS s3api get-object --bucket "$$S3_BUCKET" --key "$$key" "$$verify_tmp" --only-show-errors > /dev/null 2>&1 \
-                 && pg_restore --list "$$verify_tmp" > /dev/null 2>&1; then
+                 && age -d -i "$$identity_file" "$$verify_tmp" > /dev/null 2>&1 \
+                 && age -d -i "$$identity_file" "$$verify_tmp" 2>/dev/null | pg_restore --list > /dev/null 2>&1; then
+                # 4. The marker `healthwatch` reads. It means: this exact object was pulled back out of
+                #    R2, authenticated and listed, on this machine, after it was uploaded.
+                : > "$$dump.uploaded"
                 rm -f "$$verify_tmp"
-                echo "upload: ok $$key ($$remote_size bytes, read back from R2 and listed)"
+                echo "upload: ok $$key ($$remote_size bytes, read back from R2, decrypted and listed) — marked .uploaded"
               else
                 rm -f "$$verify_tmp"
-                echo "upload: READ-BACK FAILED for $$key — the object is in R2 but would not list after download. Object left in place, dump NOT pruned, will be retried."
+                echo "upload: READ-BACK FAILED for $$key — the object is in R2 but would not decrypt and list after download. Object left in place, dump NOT pruned, will be retried."
                 continue
               fi
             else
@@ -686,19 +1014,32 @@ services:
             fi
           done
 
+          # Legacy plaintext: named every pass until a person resolves it, and never deleted here. The
+          # replacement has to be confirmed in R2 first; a delete that runs ahead of it is the fault
+          # this pipeline removed once already.
+          legacy=$$(find "$${BACKUP_DIR:-/backups}" -maxdepth 1 -name 'ozituma-*.dump' 2>/dev/null | wc -l | tr -d '[:space:]')
+          if [ "$$legacy" != "0" ]; then
+            echo "upload: NOTE — $$legacy PLAINTEXT dump(s) from before encryption are in the volume. They are never uploaded and never deleted by this service; a person decides, once an encrypted object has been confirmed in R2."
+          fi
+
           # Remote retention: only under this prefix, only by the timestamp in the key, and only
           # objects this service wrote. A key that does not carry the dump name shape is left alone,
-          # because nothing here can judge how old it is from a name it did not write.
+          # because nothing here can judge how old it is from a name it did not write. Legacy
+          # plaintext keys DO carry that shape, and they are named rather than deleted for the reason
+          # in the comment above.
           cutoff=$$(date -u -d "$$REMOTE_DAYS days ago" +%Y-%m-%dT%H-%M-%SZ 2>/dev/null || echo "")
           if [ -n "$$cutoff" ]; then
             aws $$ENDPOINT_ARGS s3api list-objects-v2 --bucket "$$S3_BUCKET" --prefix "$$PREFIX/" --max-keys 1000 --query 'Contents[].[Key,LastModified]' --output text 2>/dev/null \
               | while read -r k m; do
                   case "$$k" in "$$PREFIX"/ozituma-*.dump.bad) continue ;; esac
                   case "$$k" in
-                    "$$PREFIX"/ozituma-*.dump) : ;;
+                    "$$PREFIX"/ozituma-*.dump.age) : ;;
+                    "$$PREFIX"/ozituma-*.dump)
+                      echo "upload: LEGACY PLAINTEXT OBJECT IN R2: $$k — readable by anyone through media.ozituma.com. It is NOT deleted automatically; delete it by hand once an encrypted object of the same period is confirmed present. See docs/OZIKORO-CUTOVER.md §4a."
+                      continue ;;
                     *) continue ;;
                   esac
-                  ts=$$(printf '%s' "$$k" | sed 's|.*/ozituma-||; s|\.dump$$||')
+                  ts=$$(printf '%s' "$$k" | sed 's|.*/ozituma-||; s|\.dump\.age$$||')
                   if [ "$$ts" \< "$$cutoff" ]; then
                     aws $$ENDPOINT_ARGS s3api delete-object --bucket "$$S3_BUCKET" --key "$$k" --only-show-errors \
                       && echo "upload: remote retention — deleted $$k (older than $$REMOTE_DAYS days)"
@@ -711,10 +1052,10 @@ services:
           # Local retention: the invariant, in one condition. A local dump is deleted only when it
           # is older than LOCAL_DAYS AND its object is confirmed present in R2 under this prefix.
           # Nothing else here deletes, and this is why the dumper's own prune was removed.
-          find "$${BACKUP_DIR:-/backups}" -name 'ozituma-*.dump' -mtime +"$$LOCAL_DAYS" 2>/dev/null | while IFS= read -r old; do
+          find "$${BACKUP_DIR:-/backups}" -name 'ozituma-*.dump.age' -mtime +"$$LOCAL_DAYS" 2>/dev/null | while IFS= read -r old; do
             present=$$(aws $$ENDPOINT_ARGS s3api head-object --bucket "$$S3_BUCKET" --key "$$PREFIX/$$(basename "$$old")" --query 'ContentLength' --output text 2>/dev/null || echo "")
             if [ -n "$$present" ] && [ "$$present" != "None" ]; then
-              rm -f "$$old" "$$old.verified" "$$old.attempts"
+              rm -f "$$old" "$$old.verified" "$$old.attempts" "$$old.rejected" "$$old.uploaded"
               echo "upload: local retention — deleted $$old (its object is in R2 and it is older than $$LOCAL_DAYS days)"
             else
               echo "upload: local retention — KEEPING $$old; it is older than $$LOCAL_DAYS days but no object of that name is in R2, so removing it would destroy the only copy"
@@ -725,11 +1066,42 @@ services:
         done
 
   # ---------------------------------------------------------------------------
-  # Health watch — one request per site per interval, logged
+  # Health watch — one request per site per interval, logged, AND THE BACKUPS
   #
   # Not a metrics stack. The archive runs on one host and the question worth answering automatically is
   # the plain one: is each of the three sites answering. The compose healthchecks already restart a
   # container that stops responding, and this records that it did.
+  #
+  # IT DID NOT LOOK AT THE BACKUPS AT ALL UNTIL THIS ROUND, AND THAT WAS THE HOLE IN IT. Round 353
+  # added the two backup services and left this service watching two HTTP endpoints only. So the one
+  # thing nothing watched was the thing whose absence is discovered on the worst day: a dumper that
+  # stopped, a volume that filled, a key that no longer decrypts what it wrote. **A monitor that says
+  # nothing while every dump is unreadable is the same fault as the gate that passed while the site
+  # was down**, so this service now reads the volume the dumper writes to and reports on it every pass.
+  #
+  # WHAT IT CHECKS, AND WHY EACH CHECK IS THE ONE IT IS:
+  #
+  #   1. Is there an encrypted dump at all, and is the newest one younger than 26 hours? The dumper's
+  #      pass is daily, so 26 hours is one missed pass plus slack. This is "no backup arrived".
+  #   2. Was it marked `.verified` with a LATER timestamp than the dump itself? The dumper writes that
+  #      marker only after decrypting the whole ciphertext and listing the archive with
+  #      `pg_restore --list`, so a fresh dump with no newer `.verified` means **a dump arrived that
+  #      cannot be decrypted** — a wrong key, a lost key, a damaged file — and it is reported in those
+  #      words rather than as a vague failure.
+  #   3. Was it marked `.uploaded`? That marker is written by the uploader only after the object was
+  #      pulled back out of R2, decrypted again and listed. Without it, the only copy is on the machine
+  #      it backs up, which is a warning rather than an alarm.
+  #
+  # WHAT IT DOES NOT DO, STATED SO THE CLAIM IS NOT OVERREAD: it holds no key and decrypts nothing
+  # itself. The decryptability verdict is the dumper's own — taken first-hand, minutes earlier, on the
+  # file in front of it — and this service alarms on the ABSENCE of that verdict. That is deliberate:
+  # a third container holding the private key so that it can repeat a check already made would widen
+  # the key's exposure for no new information. What it cannot see is a failure that leaves markers
+  # intact, and there is no such failure: both markers are written only after the checks pass.
+  #
+  # And the alarm is a LINE IN THIS CONTAINER'S LOG, because that is what this service is. It does not
+  # page anybody; nothing on this host does. `docker compose logs healthwatch | grep ALARM` is the
+  # instrument, and wiring it to a real notification is still outstanding.
   # ---------------------------------------------------------------------------
   healthwatch:
     image: alpine:3.20
@@ -737,17 +1109,43 @@ services:
     depends_on:
       - web
       - ozikoro
+    volumes:
+      # Read-only, and read-only is the point: this service observes the backup volume and must never
+      # be able to change it. The uploader is the only writer that deletes.
+      - backupdata:/backups:ro
     entrypoint:
       - sh
       - -c
       - |
         apk add --no-cache curl > /dev/null 2>&1 || true
+        BACKUP_DIR="$${BACKUP_DIR:-/backups}"
         while true; do
           for pair in "ozituma.com http://web:3000" "ozikoro.com http://ozikoro:3000"; do
             name=$${pair%% *}; url=$${pair#* }
             code=$$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "$$url/api/health" || echo 000)
             echo "healthwatch: $$name -> $$code"
           done
+
+          # ---- the backups ------------------------------------------------------------------
+          newest=$$(ls -1t "$$BACKUP_DIR"/ozituma-*.dump.age 2>/dev/null | head -n 1)
+          if [ -z "$$newest" ]; then
+            echo "healthwatch: BACKUP ALARM — there is no encrypted dump in /backups at all. The dumper has produced nothing, or it is not running, or it refused to start (a missing key, a key whose halves do not match)."
+          elif [ -n "$$(find "$$newest" -mmin +1560 2>/dev/null)" ]; then
+            echo "healthwatch: BACKUP ALARM — the newest encrypted dump is $$newest and it is more than 26 hours old. The dumper's pass is daily, so a pass has been missed."
+          elif [ ! -f "$$newest.verified" ] || [ -z "$$(find "$$newest.verified" -newer "$$newest" 2>/dev/null)" ]; then
+            echo "healthwatch: BACKUP ALARM — $$newest arrived and is NOT marked .verified with a later timestamp, which means the dumper could not decrypt it and list it. A wrong or lost key produces exactly this, and a dump nobody can decrypt is not a backup. Do not read this as a disk fault until BACKUP_AGE_IDENTITY has been checked."
+          elif [ ! -f "$$newest.uploaded" ]; then
+            echo "healthwatch: BACKUP WARNING — $$newest decrypts and lists, but no confirmed upload to R2 is marked beside it. The only copy is on the machine it backs up."
+          else
+            echo "healthwatch: backup ok — $$newest is fresh, decrypts and lists, and was read back out of R2 after upload"
+          fi
+
+          # Counted rather than named: this is the one number an operator wants from a log line.
+          failed=$$(ls -1 "$$BACKUP_DIR"/ozituma-*.dump.age.failed 2>/dev/null | wc -l | tr -d '[:space:]')
+          if [ "$$failed" != "0" ]; then
+            echo "healthwatch: BACKUP ALARM — $$failed dump(s) are named *.dump.age.failed: each one failed to decrypt or to list, and none of them can be uploaded. They are kept on purpose; a person must look."
+          fi
+
           sleep 300
         done
 

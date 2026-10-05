@@ -26192,6 +26192,349 @@ identical 63 differing 0 missing 0
 
 ---
 
+## ROUND 360 — THE BACKUP DUMP WAS PLAINTEXT UNDER A KEY MADE OF A CLOCK, ON A BUCKET THAT SERVES OBJECTS ANONYMOUSLY; IT IS NOW ENCRYPTED IN THE PIPE, AND THE UPLOADER THAT WAS SUPPOSED TO SEND IT HAS NEVER CONTAINED THE PROGRAM IT CALLS
+
+### 1. THE EXPOSURE, MEASURED AGAIN BECAUSE IT IS THE REASON FOR THE CHANGE
+
+`media.ozituma.com` is the custom domain of the R2 bucket the backups are written to, and it serves
+objects anonymously. Measured this round with no credentials of any kind:
+
+```
+curl -sI https://media.ozituma.com/ozikoro/9274-osm-intl8aa250x200@2x.png
+  HTTP/2 200
+  content-type: image/png
+  content-length: 47361
+  cf-cache-status: HIT
+
+curl -s -o /tmp/anon-media.bin -w 'http=%{http_code} type=%{content_type} bytes=%{size_download}\n' \
+  https://media.ozituma.com/ozikoro/9274-osm-intl8aa250x200@2x.png
+  http=200 type=image/png bytes=47361        # and `file` says: PNG image data, 500 x 400
+```
+
+The object's own R2 endpoint refuses the same request (round 353 measured `400`), so the bucket is
+private in front of one door and open behind the other. `--acl private` is not a promise about the
+custom domain. A dump holds every account row, every session, every password hash and every audit
+entry, and `backups/ozituma/ozituma-<timestamp>.dump` is a key derived from a clock. **Phase one of
+this round was therefore not "add encryption"; it was checking whether the pipeline that was supposed
+to be protecting the dump worked at all. It did not.**
+
+### 2. THE FAULT FOUND ON THE WAY: `backup-upload` HAS NEVER BEEN ABLE TO RUN ITS OWN VERIFICATION
+
+`backup-upload` ran `amazon/aws-cli:2.37.9`, pinned for a good reason. Nothing had ever checked
+whether that image contained the other program the entrypoint calls. Measured by listing the file
+names inside each image's own layers — anonymously, no credentials, **linux/arm64, the architecture
+this host is**:
+
+```
+postgres:16-alpine        /usr/local/bin/pg_dump, pg_restore, psql, pg_isready
+                          NO openssl CLI, NO gpg, NO age, NO aws
+amazon/aws-cli:2.37.9     /usr/local/bin/aws, /usr/bin/gpg
+                          NO pg_restore, NO pg_dump, NO psql, NO openssl CLI, NO age
+```
+
+The uploader's step 1 — "it must be listable" — is `pg_restore --list "$dump"`. In that image it
+answered **`command not found`, exit 127**, which is not a verdict on any file. So every dump was
+unlistable, every dump was marked `.rejected` after five attempts, and **nothing has ever been
+uploaded by that service.** It failed closed, which is why nothing leaked and why nobody noticed: the
+backup pipeline was inert and silent, and the only off-host copy of the account table was a line in a
+log that said "NOT UPLOADING".
+
+**Two facts follow, and both are load-bearing.** The image had to be built rather than pulled, because
+the tool each step calls must be in the image that calls it. And the encryption rides in the same
+image, because an image change was needed either way.
+
+### 3. THE MECHANISM: `age`, IN RECIPIENT MODE, AND THE THREE ALTERNATIVES WITH THE REASON EACH LOST
+
+`age` — authenticated encryption (X25519 + ChaCha20-Poly1305), one 32-byte key, no keyring, no
+passphrase, no TTY, no network. Chosen.
+
+* **`openssl enc -aes-256-cbc -pbkdf2 -iter <n>` — rejected on two counts.** The first is that
+  "openssl is already everywhere" is **false here**: `postgres:16-alpine` has no `openssl` CLI at all
+  (measured above), so an image change would be needed anyway and the argument buys nothing. The second
+  is that `enc` has no MAC: even with the strong KDF, the ciphertext is unauthenticated, so a damaged
+  or altered file decrypts to garbage and the only thing that ever notices is `pg_restore` at the
+  moment of need.
+* **`gpg --symmetric` — rejected.** Defensible cryptography, but `gnupg` is not in `postgres:16-alpine`
+  either, and it needs a passphrase in the environment plus a keyring in the image.
+* **A FIFO between `pg_dump` and `age` — rejected after the design was written.** It lets `wait` read
+  `pg_dump`'s status directly, which the next section shows is essential. But every side of a FIFO
+  blocks on `open` until the other side opens, so a reader that dies at start-up — an unwritable
+  volume, a key it cannot read — hangs `wait` forever. A backup service that stops taking backups and
+  says nothing is worse than one that says why. The status is carried across a plain pipe instead, by a
+  brace group that records it:
+
+  ```sh
+  { if pg_dump …; then echo 0 > "$status_file"; else echo $? > "$status_file"; fi; } | age -r "$recipient" -o "$partial"
+  ```
+
+### 4. WHY `pg_dump`'S EXIT STATUS HAD TO BE CARRIED, MEASURED RATHER THAN ASSUMED
+
+The plan was to let the decrypted archive's `pg_restore --list` be the completeness check. It is not
+one. Truncating a real 529,822-byte custom-format dump:
+
+```
+truncated to 50% (264,911 bytes): pg_restore --list exit 1
+truncated to 90% (476,839 bytes): pg_restore --list exit 1
+truncated to 99% (524,523 bytes): pg_restore --list exit 0     <-- lists fine
+```
+
+The table of contents sits near the front and the data follows it, so a dump whose `pg_dump` died near
+the end passes a listing check. `--list` proves an archive **is** a Postgres archive; it does not prove
+it is a **complete** one. That is why the status is recorded inside the pipeline, and why `sh`'s lack
+of `pipefail` (busybox ash has none) could not be ignored.
+
+### 5. WHAT WAS BUILT
+
+**A new image, `backup-tools`, in `docker/Dockerfile`:** `FROM postgres:16-alpine` plus
+`apk add --no-cache age aws-cli`. The base is the same tag the `postgres` service runs, so `pg_dump`
+and the server cannot drift — a hand-picked Alpine `postgresql16-client` would be frozen at whatever
+the branch held and could fall behind on a later pull. Measured against pkgs.alpinelinux.org for
+Alpine 3.20: `age` 1.2.1-r0 and `aws-cli` 2.15.57-r0, both in `community`. Both services build the same
+target, so one `age` version sits on both sides of the volume.
+
+**The dumper encrypts in the pipe.** `pg_dump --format=custom` writes into the shell pipe; `age` reads
+it and writes `ozituma-<stamp>.dump.age`. No plaintext dump is ever a file. The dump is published by
+`mv` from a `.partial` name only after it has been verified, so a crash mid-pass cannot leave something
+that looks like a backup.
+
+**Verification is two decryption passes**, neither of which writes plaintext: pass 1 drains every byte
+to `/dev/null`, which makes `age`'s own authentication the verdict on the whole file; pass 2 decrypts
+into `pg_restore --list`, which proves the plaintext is an archive with a readable TOC. A pass that
+fails either is renamed `*.dump.age.failed` — a name no upload rule matches and no retention rule
+deletes.
+
+**The dumper proves itself before it dumps.** At start-up it refuses unless both halves of the key are
+present and shaped right, then `age-keygen -y` derives the recipient from the identity and compares
+them, then it encrypts and decrypts the constant `ozituma backup self-test` and compares. A broken
+`age`, a mismatched pair or an empty variable is exit 78 with a sentence naming it — never a volume of
+files nobody can read.
+
+**The uploader decrypts before it uploads, and again after it reads back.** Its step 1 checks both
+halves separately so the log says which failed — "it did not decrypt" (wrong key, damaged file) versus
+"it decrypted but `pg_restore --list` refuses it" (not an archive). It then uploads, compares
+`ContentLength`, downloads the object back, decrypts **R2's own bytes** and lists them, and only then
+writes `<dump>.uploaded`. That marker is the only local evidence that a dump left the machine.
+
+**Markers are now the full file name plus a suffix** — `<dump>.verified`, `<dump>.uploaded`,
+`<dump>.rejected`, `<dump>.attempts`. They used to be written from a `base` variable with the extension
+stripped, which meant the uploader's `.rejected` and `.attempts` sat beside `ozituma-<stamp>.dump.age`
+under names the dumper and the retention rule never looked for, and retention's `rm -f` named a file
+nobody had written. Harmless while nothing read them; not harmless now that healthwatch does.
+
+### 6. THE ROUND TRIP, WITH THE NUMBERS
+
+Taken locally against a scratch PostgreSQL 16.14 in `/tmp` (built from the EDB macOS binaries, since
+this checkout has no server and no Docker daemon), with **all 59 migrations replayed** through the
+repository's own runner, giving **121 public tables**, and with a **throwaway `age` keypair generated by
+the instrument** — never the host's key, and its value is never printed.
+
+```
+the dumper produced exactly one encrypted dump and marked it .verified
+  ozituma-2026-10-05T14-52-01Z.dump.age
+no plaintext dump exists in the volume after a pass
+  volume holds: ozituma-…Z.dump.age, ozituma-…Z.dump.age.verified
+the .verified marker is newer than the dump it marks
+the dump is not a Postgres archive on disk: the plaintext magic PGDMP is absent
+  ozituma-…Z.dump.age is 530150 bytes and does not begin with PGDMP
+
+the bytes in the bucket are ciphertext: no PGDMP magic anywhere in the object
+  530150 bytes in the bucket; the plaintext magic does not appear
+the object in the bucket decrypts with the throwaway identity
+pg_restore --list accepts the decrypted object: exit 0, 1372 entries
+pg_restore --clean --if-exists --no-owner restores it into a second database
+  source 121 public tables -> restored 121 (pg_restore exit 0)
+```
+
+**The restore was a real restore**, not a listing: a second database was created, the decrypted object
+was fed to `pg_restore --clean --if-exists --no-owner`, and the restored database holds the same 121
+public tables as the source. `--no-owner` and `--clean --if-exists` survived the encryption because the
+decrypted stream is the same archive a plaintext pipeline would have produced.
+
+**Which dump was used, and when it was made:** none was found. There is no `*.dump` anywhere in this
+checkout — `.data/backups/` holds twelve *PGlite cluster directories*, which are not dumps — so the
+instrument takes its own, at the run recorded above (2026-10-05T14:52:01Z), from a database built by
+this repository's migrations minutes earlier. That is the stronger evidence, because the file's
+provenance is known.
+
+### 7. THE FAIL-CLOSED PROOF: NOTHING REACHES THE BUCKET WHEN THE ENCRYPTION IS BROKEN
+
+The bucket in these runs is a local directory behind a stub `aws` that logs every invocation, so
+"nothing reached the bucket" is checked against the call log, not against a claim.
+
+| broken deliberately | what happened |
+|---|---|
+| **A different but internally consistent key** — the pair check passes, the decryption is what fails | `upload: NOT UPLOADING … — it did not decrypt …` and **zero `put-object` calls**. The dump gets `.attempts` and is left in place. |
+| **The two halves from different keys** (the copy-paste fault) | `backup: REFUSING TO START — BACKUP_AGE_IDENTITY derives the recipient 'age1…', but BACKUP_AGE_RECIPIENT is 'age1…'`, **exit 78**, and the volume is untouched: no dump, no partial. |
+| **No key at all** | `backup: REFUSING TO START — BACKUP_AGE_IDENTITY is empty`, exit 78, volume empty. |
+| **`age` removed from the PATH** | the self-test fails first — `age-keygen cannot read BACKUP_AGE_IDENTITY as a key` — and **no `*.dump.age` file is produced at all**. |
+| **`pg_dump` fails on purpose** | `backup: FAILED at … — pg_dump status 1, age status 0`. **This is the case the brace group exists for**: without it the pipeline would have reported `age`'s success, `age` would have written a file, and that file would have carried a `.verified` marker. Nothing is published, no `.dump.age` and no `.verified`. |
+| **`put-object` refuses** | `upload: put-object FAILED … — dump kept, will be retried`: the dump survives, no `.uploaded` marker is written, and nothing is deleted. |
+
+The last row matters as much as the first: a refused upload must not make the pipeline "tidy up" the
+only copy it has.
+
+### 8. RETENTION, AND WHAT HAPPENS TO LEGACY PLAINTEXT
+
+Retention now counts `*.dump.age` names on both sides, and the instrument exercises both rules against
+a seeded bucket:
+
+* a local dump past the 14-day window **whose object is in R2** is deleted;
+* a local dump past the window **whose object is not in R2** is **kept**, with `KEEPING … removing it
+  would destroy the only copy` in the log — the invariant that made the dumper's old `find -delete`
+  wrong;
+* an object past the 45-day remote window is deleted, and a fresh one is not;
+* a **legacy plaintext key** in R2 (`ozituma-<stamp>.dump`, no `.age`) is named loudly,
+  `LEGACY PLAINTEXT OBJECT IN R2 … readable by anyone through media.ozituma.com`, and **is not
+  deleted**. It is not deleted because the delete must not run ahead of a confirmed replacement, and
+  the replacement is the encrypted object that has been read back and listed. The one-time cleanup is
+  the operator step in §4a of `docs/OZIKORO-CUTOVER.md`, with a listing first;
+* a legacy plaintext file in the volume is counted and named, and is **never uploaded**.
+
+`find … -delete` was not reintroduced anywhere; the instrument asserts its absence on the code, not on
+the comment that forbids it.
+
+### 9. THE PLAINTEXT ON DISK: ENCRYPT IN THE PIPE, SO THERE IS NONE
+
+The volume is a named volume and it is a directory on `/dev/nvme0n1p1` — the same 40 GB root disk as
+`/opt/ozituma/pgdata`. A plaintext dump left there is a second, unencrypted copy of every account row on
+the disk that already holds the database, and no retention rule here would ever remove it, because the
+rules match `*.dump.age` names only. **So the dump is encrypted in the pipe and there is nothing to
+remove.** Measured: after a pass the volume holds `ozituma-…Z.dump.age` and
+`ozituma-…Z.dump.age.verified` and nothing else.
+
+The one thing that does touch the disk in plaintext is the **constant** `ozituma backup self-test`,
+written and removed by the start-up check. It is five words this file owns, it is not data from the
+database, and it buys the difference between "the key works" and "we will find out on the worst day".
+The `rm -f` calls in the dumper name that temp file and its own `.partial` output; there is no sweep of
+the volume and no pattern that could match a finished backup.
+
+### 10. HEALTHWATCH: WHAT IT CHECKED, AND WHAT IT CHECKS NOW
+
+**What it checked until this round: two HTTP endpoints and nothing else.** `for pair in "ozituma.com
+http://web:3000" "ozikoro.com http://ozikoro:3000"` — that is the whole of it. Round 353 added the two
+backup services and left the monitor watching neither, so **the one thing nothing watched was the thing
+whose absence is discovered on the worst day.** A monitor that says nothing while every dump is
+unreadable is the same fault as the gate that passed while the site was down.
+
+**What it checks now**, every 300 seconds, with `backupdata` mounted **read-only** (this service
+observes and must never be able to change the volume):
+
+1. Is there an encrypted dump at all, and is the newest one younger than 26 hours? One missed daily
+   pass plus slack.
+2. Was it marked `.verified` **with a later timestamp than the dump itself**? That marker is written
+   only after a full decryption and a `pg_restore --list`, so a fresh dump with no newer marker is
+   **a dump that arrived and cannot be decrypted** — the wrong-key and lost-key case — and the alarm
+   says exactly that.
+3. Was it marked `.uploaded`? Without it, the only copy is on the machine it backs up: a warning, not
+   an alarm.
+4. Are there any `*.dump.age.failed` files? Counted and alarmed; they are kept on purpose.
+
+Exercised locally against the instrument's own volume: `backup ok — … is fresh, decrypts and lists, and
+was read back out of R2 after upload`; and for a dump whose `.verified` was removed,
+`BACKUP ALARM — … arrived and is NOT marked .verified with a later timestamp, which means the dumper
+could not decrypt it and list it`; and for an empty volume, `BACKUP ALARM — there is no encrypted dump
+in /backups at all`.
+
+**What it does not do, said so the claim cannot be overread:** it holds no key and decrypts nothing
+itself. The decryptability verdict is the dumper's own, taken first-hand on the file in front of it,
+and healthwatch alarms on the **absence** of that verdict. Giving a third container the private key so
+it can repeat a check already made would widen the key's exposure for no new information. **And the
+alarm is a line in a container's log.** It does not page anybody; nothing on this host does. Wiring it
+to something a person sees is outstanding and is named in `§4a` of the cutover document.
+
+### 11. THE KEY: WHERE IT LIVES, AND WHAT A LOST KEY COSTS
+
+`BACKUP_AGE_RECIPIENT` (public, `age1…`) and `BACKUP_AGE_IDENTITY` (private, `AGE-SECRET-KEY-1…`) are
+read from `/opt/ozituma/.env`, which is mode 600 root:root and **written at boot from the `APP_SECRET`
+JSON in AWS Secrets Manager** (`infrastructure/ozituma-stack.yaml`). Both names are listed under both
+`backup` and `backup-upload`, because *compose passes a service only the variables it names* and the
+symptom of forgetting is a service that starts cleanly and does nothing. There is deliberately **no
+`:-` default** on either: a default would be key material, and key material in the compose file is key
+material in git.
+
+Three copies, and the host's is the least important:
+
+| # | where | what it survives | who puts it there |
+|---|---|---|---|
+| 1 | `/opt/ozituma/.env` | a container restart | written at boot from copy 2 |
+| 2 | the `APP_SECRET` JSON in Secrets Manager | the host being rebuilt | the operator, once, by hand |
+| 3 | off the box — printed, password manager, sealed envelope | the AWS account, the laptop | the operator, once, by hand |
+
+**If the identity is lost, every dump it encrypted is unreadable forever.** `age` has no recovery path
+and no back door; there is no support route from Cloudflare or AWS and no future round of this project
+that can produce one. An encrypted backup with no key is not a backup; it is a file. The converse is
+also true: **a leaked key is not a leak of the dumps** — it reads, and it does not let anyone write a
+dump the dumper would accept.
+
+**The numbered host steps are §4a of `docs/OZIKORO-CUTOVER.md`**, which is where they belong because
+that document holds the rollback. It did not describe the database backup pipeline at all before this
+round — the "dump" it discusses is the WordPress one — so §4a was written from nothing.
+
+### 12. VERIFIED HERE, AND WHAT IS NOT
+
+* `node scripts/verify-round-360.mjs`, read from its own exit code: **0 — 45 passed, 0 failed.** It
+  extracts the real entrypoint bodies from the compose file and runs them under `sh` against a local
+  Postgres and a stub bucket. Its output is at `.scratch/r360/harness-output.txt`.
+* `node scripts/check-compose-env.mjs`: **`backup`, `backup-upload` and `healthwatch` each "every
+  variable the code reads is named here"** — the compose chain is complete by name.
+* `npm run typecheck`: **exit 0**.
+* `bash scripts/check-secrets.sh`: **all secret checks passed**, including "no credential-shaped text
+  in tracked files" and ".env.example is in sync with the code".
+* The compose file parses as YAML (parsed with the `yaml` module, since there is no Docker daemon
+  here).
+* **NOT verified: the image.** This checkout has no Docker daemon, so `docker build --target
+  backup-tools` was never run. The claim that the image contains `age`, `aws-cli` and the Postgres 16
+  client rests on the Alpine 3.20 package index (measured) plus the `RUN apk add` line — not on a
+  build. **The first `up -d --build` on the host is what proves it**, and both entrypoints log
+  `age --version`, `aws --version` and `pg_restore --version` at start for exactly that reason.
+* **NOT verified: anything against R2.** No `put-object`, no `head-object`, no read-back, no
+  `delete-object` has ever run against the real bucket, because the S3 credential is on the host and
+  not in this checkout.
+* **NOT verified: that the deployed host runs this file at all.** Round 353 recorded the host running
+  four services (`postgres`, `web`, `caddy`, `academy`) with no `backup` service and no `backupdata`
+  volume. If that is still true, none of this is running, and deploying it is a reconciliation rather
+  than a restart.
+* **NOT verified: the healthwatch alarm firing on the host.** It was exercised locally against a seeded
+  volume; on the host it has never fired because the service has never run there.
+
+### 13. WHAT DOES NOT WORK, WITH THE EXACT REASON
+
+* **`@embedded-postgres/darwin-x64` cannot supply a `pg_dump`.** Fetched to get a Postgres client
+  without a server: the package ships `/package/native/bin/initdb`, `pg_ctl` and `postgres` and **no
+  `pg_dump`, `pg_restore` or `psql`** (1,015 files listed; exactly three binaries). The round trip
+  therefore used the EDB PostgreSQL 16.14 macOS binaries instead —
+  `https://get.enterprisedb.com/postgresql/postgresql-16.14-1-osx-binaries.zip`, 356,966,274 bytes.
+* **`age` is not installed in this checkout**, and no `gpg` either. The instrument used the official
+  static release `age-v1.3.2-darwin-amd64.tar.gz`. The image will run 1.2.1-r0, and the age format is
+  stable across 1.x, but the *host* will run a different minor version than this round's evidence was
+  taken with. That is stated rather than glossed.
+* **BSD `date` has no `-d`.** The uploader's remote-retention cutoff uses `date -u -d "<n> days ago"`,
+  which is correct for busybox on Alpine and fails on macOS; the instrument supplies a `date` stub so
+  that branch executes instead of reporting "this image's date cannot compute 'days ago'".
+* **`docs/DEPLOYMENT.md` still has not been updated** with the backup services or the key names —
+  round 353 recorded the same gap for the services themselves. The names are in `.env.example` and the
+  procedure is in `docs/OZIKORO-CUTOVER.md` §4a; DEPLOYMENT.md is still the hole.
+* **The deployed image tag is `${OZITUMA_IMAGE_TAG:-latest}`.** For `web` and `ozikoro` that is
+  deliberate and documented. For a service that *creates the backups*, a floating local tag means a
+  rebuild with a bad Dockerfile could change the dumper on a pull nobody asked for. It is left
+  consistent with the two apps on purpose — the image is built on this host, not pulled — but a
+  per-service tag variable is the safer version of this and is not taken here.
+
+### 14. THE COMMIT
+
+`docker/Dockerfile`, `docker/docker-compose.prod.yml`, `.env.example`, `docs/OZIKORO-CUTOVER.md`, this
+section and `scripts/verify-round-360.mjs` — and nothing else. The shared index had held other rounds'
+staged reversals all day, so this commit was built from a private `GIT_INDEX_FILE` seeded with
+`read-tree HEAD`, the stat was read back before committing, and the shared index was re-synced to `HEAD`
+immediately afterwards so the next agent's `git add` cannot turn it into a revert.
+
+**The key that appears in this round's evidence does not exist any more in any usable sense:** it was
+generated by the instrument into `/tmp/rv360` for one run, it is a *test* key, it was never the host's,
+and no value of it appears in this document, in the commit, or in any file in this repository.
+`bash scripts/check-secrets.sh` passes, which is the machine-readable version of that sentence.
+
+---
+
 ## ROUND 361 — THE ARCHIVE COULD SAY "DO NOT REPUBLISH THIS" AND HAD NO WAY TO SAY "DO NOT READ THIS"; IT NOW HAS A SECOND MARK HELD BY THE `owner` ROLE ALONE, AND THE ONE DOOR THE SHARED ACCOUNT TABLE WOULD HAVE OPENED IS SHUT AND MEASURED
 
 ### 1. The four answers, and the grantor set the owner chose
@@ -26407,11 +26750,17 @@ it is a decision for the owner rather than a change taken quietly in a round abo
 
 ### 6. How many records are held by agreement
 
-**Zero.** Measured on the archive's own data, from a copy of the live cluster with 0057 applied:
+**Zero.** Measured twice, from the archive's own data: once against a copy of the live cluster with 0057
+applied, and once **on the served site**, where the sitemap is built with the new predicate in it — so the two
+numbers agreeing is itself the proof that nothing is being excluded for being held by agreement.
 
 ```
-this scratch cluster: ... of 1053 published records
-records held by agreement that are NOT this suite's fixture: 0 — none
+--- a copy of the live cluster, with 0057 applied ---
+published 1051   gated 0
+
+--- and on the served site, the same number twice ---
+/sitemap/histories                      ->  1,051 <url> entries
+published records the cluster holds     ->  1,051
 ```
 
 **The tier has no members, and that is stated rather than dressed up.** A tier with no members is a real state;

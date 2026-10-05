@@ -171,3 +171,54 @@ COPY --from=builder-ozikoro --chown=nextjs:nodejs /app/apps/ozikoro/.next/static
 COPY --from=builder-ozikoro --chown=nextjs:nodejs /app/apps/ozikoro/public ./apps/ozikoro/public
 
 CMD ["node", "apps/ozikoro/server.js"]
+
+# ---------------------------------------------------------------------------
+# The backup tools — `age`, the AWS CLI and the Postgres client, in one image
+#
+# THIS TARGET EXISTS BECAUSE ONE OF THE TWO SERVICES THAT NEEDS IT WAS ALREADY CALLING A TOOL ITS
+# IMAGE DID NOT CONTAIN.
+#
+# Measured this round by listing the file names in each upstream image's own layers (linux/arm64, the
+# architecture this host is), anonymously, with no credentials:
+#
+#   postgres:16-alpine        /usr/local/bin/pg_dump, pg_restore, psql, pg_isready
+#                             NO openssl CLI, NO gpg, NO age, NO aws
+#   amazon/aws-cli:2.37.9     /usr/local/bin/aws, /usr/bin/gpg
+#                             NO pg_restore, NO pg_dump, NO psql, NO openssl, NO age
+#
+# The second line is a fault rather than a gap: the `backup-upload` entrypoint runs
+# `pg_restore --list` on every dump before it uploads it, and that image has never contained
+# `pg_restore`. Nothing ever asked the image whether it had the tool, so the service starts cleanly,
+# prints its AWS CLI version, finds every dump unlistable — an exit 127 from the shell, not a verdict
+# on the file — marks each one `.rejected` after five attempts, and uploads nothing. **The pipeline
+# fails closed and it is inert, which is the worst of both: nothing leaks, and nothing leaves the
+# machine.** This stage is therefore not a convenience for adding encryption; it is the fix for a
+# call that was never possible, and the encryption rides in the same image.
+#
+# WHY `postgres:16-alpine` IS THE BASE AND NOT `alpine`. The dumper needs a `pg_dump` whose version
+# is never older than the server's, or `pg_dump` refuses outright with a version mismatch. Building
+# from the SAME TAG the `postgres` service runs makes the two the same image, so they cannot drift, at
+# the cost of carrying a server this target never starts. A hand-picked Alpine
+# `postgresql16-client` package would be frozen at whatever the Alpine branch held and could fall
+# behind the server image on a later pull.
+#
+# WHY `age` AND NOT `openssl`. `openssl` was the first candidate because it is "everywhere" — and it
+# is not in `postgres:16-alpine`, so an image change is needed either way and that argument buys
+# nothing. What is left is the cryptography: `age` is authenticated encryption (X25519 +
+# ChaCha20-Poly1305), so a ciphertext that has been altered or truncated fails to decrypt and says
+# so; `openssl enc -aes-256-cbc` has no MAC at all even with `-pbkdf2` and an explicit `-iter`, so a
+# damaged file decrypts to garbage and the only thing that ever notices is `pg_restore` at restore
+# time. `gpg --symmetric` would be defensible cryptography and needs a passphrase in the environment
+# and a keyring in the image; `age` needs one 32-byte key and no keyring.
+#
+# THE PACKAGES COME FROM THE ALPINE 3.20 INDEX AND ARE NOT VERSION-PINNED HERE. Measured against
+# pkgs.alpinelinux.org for branch v3.20, x86_64, on 2026-10-05: `age` 1.2.1-r0 and `aws-cli` 2.15.57-r0,
+# both in `community`. Pinning `=1.2.1-r0` would make a security update to `age` require an edit to
+# this file before it could reach the backup, which is the wrong trade for a tool whose whole job is
+# to be trustworthy. What replaces the pin is the assertion at the start of both entrypoints: each
+# logs `age --version` and `aws --version`, so the versions that actually ran are lines in the log
+# rather than assumptions about the build.
+# ---------------------------------------------------------------------------
+FROM postgres:16-alpine AS backup-tools
+
+RUN apk add --no-cache age aws-cli

@@ -895,6 +895,185 @@ not be reached for. It is listed so that "we have no other option" is never said
 
 ---
 
+### 4a. The encrypted database backup: the key, and what a lost key costs
+
+**This section is new in round 360, and it has to say first that this document did not describe the
+database backup pipeline at all.** Every "dump" above is the *WordPress* SQL dump (`§3.4`), a different
+artefact with a different lifecycle. The production database backup — `backup` and `backup-upload` in
+`docker/docker-compose.prod.yml`, dumping to `backupdata` and uploading to `backups/ozituma/` in R2 —
+was documented only in that compose file's own comments. **It is here now because the key's offline
+copy is an operator step, and an operator step that lives in a compose comment is an operator step
+nobody performs.** It sits beside the rollback deliberately: this is the other thing that has to be
+right on the day something has gone wrong.
+
+#### Why it changed, in one measurement
+
+`media.ozituma.com` is the R2 bucket's custom domain and it serves objects **anonymously**. Measured
+this round, with no credentials at all:
+
+```bash
+curl -sI https://media.ozituma.com/ozikoro/9274-osm-intl8aa250x200@2x.png
+# HTTP/2 200
+# content-type: image/png
+# content-length: 47361
+```
+
+The R2 endpoint's own door refuses the same object (`400`, round 353), so the bucket is private in
+front of one door and open behind another. A dump holds **every account row, every session, every
+password hash and every audit entry**, and `backups/ozituma/ozituma-<timestamp>.dump` is a key someone
+can guess. Dumps are now named `ozituma-<timestamp>.dump.age` and are encrypted with `age` inside the
+pipe that produces them, so a guessed key returns ciphertext. **That is the whole fix**: the public
+front door stops mattering, because the bytes behind it are useless without the identity below.
+
+#### The command
+
+Nothing to install: `age` is in the image both backup services run, built by `docker/Dockerfile`'s
+`backup-tools` target from `postgres:16-alpine` plus the Alpine `age` and `aws-cli` packages. The
+dumper runs this on every pass, and it is written out here so that what happens nightly is not a
+mystery:
+
+```bash
+# what the dumper does, once a day, on the host, in /opt/ozituma/app
+docker compose -f docker/docker-compose.prod.yml logs --tail 20 backup
+#   backup: ok /backups/ozituma-2026-10-06T03-00-00Z.dump.age (…) — marked .verified for backup-upload
+
+# and what the uploader does, every minute, until it succeeds
+docker compose -f docker/docker-compose.prod.yml logs --tail 20 backup-upload
+#   upload: ok backups/ozituma/ozituma-2026-10-06T03-00-00Z.dump.age (… , read back from R2, decrypted
+#           and listed) — marked .uploaded
+```
+
+The pipeline's own rules, in the file those commands read: the dump is verified by **decrypting it and
+listing it** (`pg_restore --list`) before it is given its final name; the uploader repeats both checks
+on the local file *and* on the object it pulls back out of R2; and no plaintext dump is ever written to
+the volume. A pass that cannot encrypt produces no `*.dump.age` file at all — the failure mode is a
+missing backup, loudly logged, and never a plaintext one quietly uploaded.
+
+#### Where the key lives
+
+The identity is `BACKUP_AGE_IDENTITY` (private, `AGE-SECRET-KEY-1…`) and the recipient is
+`BACKUP_AGE_RECIPIENT` (public, `age1…`). They are read from `/opt/ozituma/.env`, which is mode 600
+root:root and **written at boot from the `APP_SECRET` JSON in AWS Secrets Manager** — see
+`infrastructure/ozituma-stack.yaml`. Both names are listed under both `backup` and `backup-upload` in
+the compose file, because *compose passes a service only the variables it names* (`AGENTS.md`), and the
+symptom of forgetting is a service that starts cleanly and does nothing.
+
+So there are three copies, and the host's is the least important of them:
+
+| # | where | what it survives | who puts it there |
+|---|---|---|---|
+| 1 | `/opt/ozituma/.env` on the host | a container restart, a `docker compose up` | written at boot from copy 2 |
+| 2 | the `APP_SECRET` JSON in AWS Secrets Manager | the host being rebuilt or replaced | **the operator, once, by hand** |
+| 3 | off the box — printed, or a password manager, or a sealed envelope | the AWS account, the laptop, and everything else | **the operator, once, by hand** |
+
+#### If the key is lost
+
+**Every dump it encrypted is unreadable forever.** `age` has no recovery path and no back door: without
+the identity there is no way to read the file, by design. There is no tool, no Cloudflare support
+route, no AWS support route and no future round of this project that can produce one. An encrypted
+backup with no key is not a backup; it is a file.
+
+The reverse is also true and worth saying: **a key that is leaked is not a leak of the dumps.** The
+identity reads; it does not let anyone write a dump the dumper would accept as its own, and it is not
+the credential to the bucket.
+
+#### The host steps, numbered, because they are the point of this section
+
+1. Generate the key on the host, in `/opt/ozituma/app`:
+
+   ```bash
+   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint age-keygen backup
+   ```
+
+2. Put the `# public key:` line into the `APP_SECRET` secret as `BACKUP_AGE_RECIPIENT`, and the
+   `AGE-SECRET-KEY-1…` line as `BACKUP_AGE_IDENTITY`. **Never the other way round** — a recipient
+   pasted into the identity variable is a private key written into a transcript, which
+   `AGENTS.md` records as the incident that cost a full credential rotation on 2026-10-05. The names
+   only; never print the values into a session.
+
+3. Make copy 3 off the box — printed, or the password manager, or a sealed envelope — and **label it
+   `ozituma backup key`**, because a bare `age` key on a piece of paper is unidentifiable in a year.
+
+4. Rebuild `.env` from the secret and confirm the two halves match before you trust a night's run:
+
+   ```bash
+   sudo install -m 600 /dev/null /opt/ozituma/.env   # then re-run the boot step, or re-apply the stack
+   cd /opt/ozituma/app
+   docker compose -f docker/docker-compose.prod.yml up -d backup backup-upload
+   docker compose -f docker/docker-compose.prod.yml logs --tail 5 backup      # must NOT say REFUSING TO START
+   docker compose -f docker/docker-compose.prod.yml logs --tail 5 healthwatch | grep -i backup
+   ```
+
+5. **One-time cleanup, only if an earlier revision ever uploaded a plaintext dump.** It could not have:
+   the old uploader image had no `pg_restore`, so it refused every dump. Confirm anyway, and delete
+   only after listing:
+
+   ```bash
+   # list first. Any *.dump key here (no .age) is plaintext and readable by anyone.
+   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+     aws s3api list-objects-v2 --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
+       --prefix "$BACKUP_UPLOAD_PREFIX" --query "Contents[].Key" --output text'
+   # then, for each plaintext key you saw, and not before:
+   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+     aws s3api delete-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" --key "$BACKUP_UPLOAD_PREFIX/<the key>"'
+   ```
+
+#### Restoring one, which is the only reason any of this exists
+
+Run on the host, in `/opt/ozituma/app`. `--entrypoint sh` is passed because this service's own
+entrypoint is the upload loop, and `docker compose run` uses an entrypoint unless it is replaced.
+
+```bash
+# 1. list what is there, then fetch one dump by its own timestamped name
+docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+  aws s3api list-objects-v2 --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
+    --prefix "$BACKUP_UPLOAD_PREFIX" --query "Contents[].Key" --output text'
+docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+  aws s3api get-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
+    --key "$BACKUP_UPLOAD_PREFIX/ozituma-2026-10-06T03-00-00Z.dump.age" /dev/stdout' > /tmp/restore.dump.age
+
+# 2. DECRYPT IT. A wrong key fails here and says so — there is no way to mistake that for a good dump.
+docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+  umask 077; printf "%s\n" "$BACKUP_AGE_IDENTITY" > /tmp/k
+  age -d -i /tmp/k /dev/stdin' < /tmp/restore.dump.age > /tmp/restore.dump
+
+# 3. read what it holds BEFORE touching the database
+docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+  pg_restore --list < /tmp/restore.dump | head -40
+
+# 4. put it back. --clean --if-exists makes this a restore OVER the live database, not a merge into it;
+#    --no-owner because the restore may run as a different role than the dump was taken by.
+docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+  pg_restore --clean --if-exists --no-owner -U ozituma -d ozituma < /tmp/restore.dump
+```
+
+The round trip this describes was taken locally in round 360 — encrypt, decrypt, list, and a real
+restore into a second database — and the numbers are in `docs/OZIKORO-REMAINING.md` ROUND 360. **What
+was not taken is any of it against R2**, because the S3 credential is on the host and not in this
+checkout.
+
+#### The monitor
+
+`healthwatch` reads the backup volume read-only on every pass and logs its verdict. It did **not** look
+at the backups at all until round 360, which meant nothing watched the one thing whose absence is
+discovered on the worst day. It now says one of:
+
+```bash
+docker compose -f docker/docker-compose.prod.yml logs --tail 50 healthwatch | grep -i backup
+#   healthwatch: backup ok — … is fresh, decrypts and lists, and was read back out of R2 after upload
+#   healthwatch: BACKUP ALARM — there is no encrypted dump in /backups at all. …
+#   healthwatch: BACKUP ALARM — the newest encrypted dump is … and it is more than 26 hours old. …
+#   healthwatch: BACKUP ALARM — … arrived and is NOT marked .verified with a later timestamp, which means
+#                the dumper could not decrypt it and list it. A wrong or lost key produces exactly this …
+#   healthwatch: BACKUP WARNING — … decrypts and lists, but no confirmed upload to R2 is marked beside it.
+```
+
+**The alarm is a line in that container's log and it does not page anybody.** Nothing on this host does.
+Wiring it to something that reaches a person is outstanding, and it is the one gap that makes the rest
+of this section less than it looks.
+
+---
+
 ## 5. What could not be established, and why
 
 Stated rather than substituted. Each entry names what is missing and what would settle it.
