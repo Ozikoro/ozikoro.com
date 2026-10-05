@@ -1,0 +1,205 @@
+# Ozituma — TLS termination and reverse proxy for two applications.
+#
+# TLS uses a Cloudflare Origin CA certificate rather than Let's Encrypt. The
+# domain is proxied by Cloudflare, so the certificate only ever has to be trusted
+# by Cloudflare, and an Origin CA cert is issued for up to 15 years with no
+# renewal job to run. That removes the whole class of failure where an unrenewed
+# certificate takes the site down.
+#
+# Cloudflare's SSL mode must be "full (strict)" to match. Anything less and the
+# Cloudflare-to-origin hop is unverified.
+#
+# TWO SITES, TWO SERVICES
+#
+# ozituma.com is the dictionary. learn.ozituma.com is Ozituma Learn, the courses.
+# They run as separate containers from the same image, which is §6.1's decision:
+# independent release cycles and a clean boundary, so a change to the lesson
+# player cannot take the dictionary down.
+#
+# WHAT THIS FILE DELIBERATELY DOES NOT DO
+#
+# It does not send both hostnames to one upstream, and it does not rewrite paths.
+# An earlier version did both, because the courses were once served by the
+# dictionary's own process and the app worked out which site it was from the Host
+# header. That machinery is gone: each site now names the container that serves
+# it, and a routing rule with no remaining reason to exist is a rule that
+# eventually becomes wrong without anybody noticing.
+
+{
+	admin off
+	# Structured logs to stdout, where the container logging driver collects them.
+	log {
+		output stdout
+		format json
+	}
+}
+
+# The policy both sites share. Headers, compression and the health-check
+# exemption are identical either side, and two hand-maintained copies would
+# drift — with the copy that drifted being the one nobody looked at.
+#
+# The UPSTREAM is deliberately not in here. A snippet that hard-codes one
+# container is precisely how the dictionary ended up serving the courses.
+(ozituma_common) {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# The framework is not something to advertise.
+		-Server
+	}
+
+	# Health checks must never be cached, or an unhealthy origin can keep
+	# reporting healthy to whatever is watching it.
+	@health path /api/health
+	header @health Cache-Control "no-store"
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# What every proxied request carries, so the app sees the real client and the
+# real scheme rather than the container network's view of them.
+(ozituma_proxy_headers) {
+	header_up X-Real-IP {remote_host}
+	# The app generates canonical URLs from OZITUMA_SITE_URL, so the host must
+	# survive the hop intact. Caddy preserves Host by default; this makes it
+	# explicit because the shared session cookie depends on the host being right.
+	header_up Host {host}
+	header_up X-Forwarded-Host {host}
+	header_up X-Forwarded-Proto {scheme}
+}
+
+# Canonical host for the dictionary. www redirects to the apex so there is one
+# address for the dictionary and no duplicate content for search engines.
+www.{$OZITUMA_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	redir https://{$OZITUMA_DOMAIN}{uri} permanent
+}
+
+# The dictionary.
+{$OZITUMA_DOMAIN} {
+	import ozituma_common
+
+	# ozituma.com/learn -> academy.ozikoro.com/courses
+	#
+	# The courses left Ozituma entirely. They are the Academy's now, at academy.ozikoro.com, and
+	# learn.ozituma.com is gone — so this rule pointed at a host that no longer answers and the
+	# dictionary's own "Learn Igbo" menu entry led to nothing.
+	#
+	# IT DOES NOT CARRY THE PATH ANY MORE. The old rule appended the remainder, so /learn/igbo went
+	# to /igbo on the other host. The Academy's addresses are its own — courses live under /courses
+	# and its Igbo course is /courses/igbo-language-foundations — so appending would land every
+	# visitor on a 404. /learn is a doorway, not a prefix.
+	@learn path_regexp learn ^/learn(?:/.*)?$
+	redir @learn https://academy.ozikoro.com/courses permanent
+
+	# Practice belongs to the Academy now, at its mastery section.
+	#
+	# It is the same reviewed words, but with a schedule that remembers them, XP and a streak —
+	# none of which the dictionary has any business holding. The path was public and may be
+	# bookmarked, so it redirects rather than 404s. No query is carried over: the old page took
+	# ?mode= and ?language=, and neither means anything to the Academy's mastery.
+	@practice path /practice
+	redir @practice https://academy.ozikoro.com/mastery permanent
+
+	reverse_proxy web:3000 {
+		import ozituma_proxy_headers
+	}
+}
+
+# learn.ozituma.com IS GONE, and so is this block.
+#
+# The courses are the Academy's, at academy.ozikoro.com, which has its own block above. Serving this
+# name would mean Caddy requesting a certificate for a host that no longer resolves, and leaving a
+# second address for the same courses is the drift this split was meant to remove.
+
+# ---------------------------------------------------------------------------
+# The Academy - academy.ozikoro.com
+#
+# The learning layer, and the successor to the retired learn.ozituma.com. A third
+# site on the same proxy, the same certificate and the same container network.
+#
+# No `www` block: a course address is something a learner is handed, and a second
+# spelling of it that redirects would only ever be a way for a shared link to
+# look wrong.
+#
+# THE CERTIFICATE DOES NOT NAME THIS HOST. /opt/ozituma/certs/origin.pem is
+# issued for *.ozituma.com only. The Cloudflare zone is on `full`, which does not
+# validate the origin certificate, so this serves - and it stops being safe the
+# moment anybody raises the zone to `full (strict)`. The fix is one Origin CA
+# certificate naming *.ozikoro.com; until then, do not raise the zone.
+# ---------------------------------------------------------------------------
+academy.ozikoro.com {
+	import ozituma_common
+
+	# No page may be cached at the edge. The Academy sends no Cache-Control of
+	# its own, and an origin that says nothing lets Cloudflare apply its own
+	# default and cache the HTML - the failure the dictionary's notes record,
+	# where a visitor is served an old page and only a hard reload shows the
+	# truth.
+	header Cache-Control "private, no-cache, no-store, max-age=0, must-revalidate"
+
+	# Build assets are the exception, and the only one. Nitro writes the client
+	# bundle to .output/public/assets/, and every name carries a content hash.
+	@immutable path /assets/* /brand/* /favicon.svg /favicon.ico /apple-touch-icon.png
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	reverse_proxy academy:3000 {
+		import ozituma_proxy_headers
+	}
+}
+
+# ---------------------------------------------------------------------------
+# The archive — ozikoro.com
+#
+# A second site on the same proxy, the same certificate and the same container network. It is the
+# project the other two belong to, and it is served from the same database they are.
+# ---------------------------------------------------------------------------
+
+# www redirects to the apex, as the dictionary does, so there is one address for the archive.
+www.{$OZIKORO_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+	redir https://{$OZIKORO_DOMAIN}{uri} permanent
+}
+
+{$OZIKORO_DOMAIN} {
+	tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin.key
+
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	@health path /api/health
+	header @health Cache-Control "no-store"
+
+	# As for the dictionary: no page may be cached at the edge. The archive sends `no-store` itself, and
+	# this makes it not depend on the app remembering — which is the failure the note above records.
+	header Cache-Control "private, no-cache, no-store, max-age=0, must-revalidate"
+
+	# Build assets are the exception, and the only one.
+	@immutable path /_next/static/* /assets/* /fonts/* /design/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	reverse_proxy ozikoro:3000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
