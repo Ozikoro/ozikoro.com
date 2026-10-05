@@ -128,11 +128,49 @@ one to work from:
 > *"everything about learn.ozituma.com should be removed entire. we have a new academy coming up which is
 > academy.ozikoro.com, which will replace learn.ozituma.com."*
 
-**`academy.ozikoro.com` IS NOT LIVE AND MUST NOT BE BROUGHT LIVE FROM THIS REPOSITORY YET.** It is not a
-record in the `ozikoro.com` zone (`1ebe8c1f9ce3dcec95448b6d93d63e00`), whose apex still points at cPanel. Do
-not create the DNS record, do not deploy to it, and do not point a served link at it — **a link to a host
-with no record in its zone is a link to nothing.** The archive's own `/academy/` page is the interim
-destination and it says the academy is being prepared.
+**⚠️ `academy.ozikoro.com` IS LIVE. EVERY PREVIOUS VERSION OF THIS FILE SAID THE OPPOSITE AND WAS WRONG.**
+
+This section used to read *"`academy.ozikoro.com` IS NOT LIVE AND MUST NOT BE BROUGHT LIVE FROM THIS
+REPOSITORY … It is not a record in the `ozikoro.com` zone … do not create the DNS record, do not deploy to
+it."* **Measured on 2026-10-05, all of that is false:**
+
+```
+academy.ozikoro.com   resolves to 104.21.8.6, 172.67.156.151 (Cloudflare)
+                      → 200, 34,814 bytes, <title>Ozikoro Academy — Igbo language, history and culture</title>
+on the host           ozituma-academy-1   ozikoro-academy:latest   Up (healthy)
+docker/docker-compose.prod.yml   an `academy:` service, image ozikoro-academy:latest, sharing the
+                                 dictionary's own database and `account` table
+docker/Caddyfile                 an `academy.ozikoro.com { … }` block, reverse_proxy academy:3000
+```
+
+**It has a record. It resolves. It answers 200. It has been running for hours.** The archive's own
+`/academy/` page still says the academy is being prepared, and **that page is now the thing that is wrong.**
+
+**What went wrong, because it is the failure mode this repository keeps producing:** an authoritative
+statement stopped being true, nothing re-measured it, and **every agent for a day read it and obeyed it.**
+*An agent that had "cleaned up" a link to `academy.ozikoro.com` on the strength of this file would have
+broken a working site.* **So: when this file makes a claim about production, measure it before acting on
+it, and correct this file when it is wrong — as it was here.**
+
+**AND THE THING TO KNOW INSTEAD.** The host runs **three** applications from one compose file and one
+Caddy: `ozituma.com` (the dictionary), `academy.ozikoro.com` (Ozituma Academy), and — once deployed —
+`ozikoro.com` (the archive). **The academy shares the `account` table with the dictionary**, which is why
+it names the same `DATABASE_URL`. Do not remove, replace or "tidy" the `academy` service, its Caddy block,
+or its image: it is live, and 246 uncommitted files on that host are its and the dictionary's.
+
+### The academy's certificate is unvalidated, and the fix is named
+
+**From the host's own `docker/Caddyfile`, written by whoever built it:**
+
+> *"THE CERTIFICATE DOES NOT NAME THIS HOST. `/opt/ozituma/certs/origin.pem` is issued for `*.ozituma.com`
+> only. The Cloudflare zone is on `full`, which does not validate the origin certificate, so this serves —
+> and it stops being safe the moment anybody raises the zone to `full (strict)`. **The fix is one Origin CA
+> certificate naming `*.ozikoro.com`; until then, do not raise the zone.**"*
+
+**So the Cloudflare-to-origin hop for every `*.ozikoro.com` hostname is encrypted but unauthenticated** —
+*any certificate the origin presents is accepted.* **The fix is one certificate; the interim rule is that
+the zone must not be raised to `full (strict)` until it is issued, because raising it first would take the
+academy offline rather than secure it.**
 
 - **ozituma.com** — the dictionary. Next.js on the EC2 host, PostgreSQL, its own scrypt auth and
   `ozituma_session` cookies. Unchanged.
@@ -154,8 +192,11 @@ destination and it says the academy is being prepared.
 | The bridge and the mirror | **DELETED in the same change as their caller**, which was the rule this file set: `apps/web/app/api/learn-bridge/account/route.ts`, `packages/db/src/supabase-mirror.ts` and its call in `registerAccount`, `packages/db/src/test-learn.ts`, the `import:learn` scripts and the `LEARN_BRIDGE_SECRET` compose variable. |
 | The course tables and `import:learn` | The imported data is gone with the project. `data/learn/igbo.json` — the **authored** curriculum, and the importer that loads it — were **kept**, because they are the Academy's inheritance rather than the retired host's plumbing. |
 
-**Still not to be done from here:** create the `academy.ozikoro.com` record or deploy to it. It has no
-record in the `ozikoro.com` zone, and a link to a host with no record is a link to nothing.
+**⚠️ THE PARAGRAPH THAT USED TO BE HERE WAS FALSE, and it is recorded rather than deleted so the next
+agent knows it was there.** It read: *"Still not to be done from here: create the `academy.ozikoro.com`
+record or deploy to it. It has no record in the `ozikoro.com` zone, and a link to a host with no record is
+a link to nothing."* **The academy has a record, resolves, and serves — see the live measurements above.**
+The paragraph was obeyed for a day and would have caused a working site to be "tidied" away.
 
 ### The Academy's host, and how a retired link is handled
 
