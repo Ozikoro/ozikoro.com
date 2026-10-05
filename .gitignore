@@ -166,3 +166,8 @@ apps/media/lexicon/
 # Python bytecode from running the TTS worker. Compiled output, never source.
 __pycache__/
 *.pyc
+
+# Scratch directories an agent may create when setting incomplete work aside.
+# Their contents are recoverable from git history — they are never deliverables.
+.incomplete-*/
+.removed-*/
