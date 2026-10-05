@@ -27418,3 +27418,235 @@ identical 63 differing 0 missing 0
 | `docs/OZIKORO-REMAINING.md` | this record |
 
 **No other file was touched, and nothing under `apps/ozikoro/public/design/` was.**
+
+## ROUND 365 — EVERY REFERENCE TO WIKIPEDIA LEFT THE IGBO CALENDAR PAGE, THE TWO TABLES BUILT AROUND IT WENT WITH IT, AND THE ARCHIVE'S OWN RECORDS NOW CARRY THE ACCOUNT
+
+**The owner rejected this page twice, and this round is the second rejection taken seriously.** His words:
+*"you have not fucking fixed the scattered igbo calendar page. also, you need to reduce some of the long words
+that are unnecessary, design it very well, and remove everything about wikipedia there. the right sources are
+fine"* — after round 363 had already cut five sections and left two tables and 61 references to one Wikipedia
+article standing. **That is the state he rejected**, and the two tables and the source section are what this
+round removed.
+
+Everything here is serve-time in `packages/ozikoro/src/design-fill.ts`. The design deliverable was not edited:
+**`identical 63 differing 0 missing 0`** against `design/calm-comfort-construct/public/design` after the round
+as before it.
+
+### 1. The page, measured before and after, by one method
+
+Every number below comes from `scripts/count-visible-words.mjs` — the served HTML with `<script>`, `<style>`,
+`<noscript>`, `<template>`, `<svg>`, comments and `<head>` removed, then tags replaced by spaces and entities
+decoded. **The method is written down because the round before this one counted the appendix at 2,341 words
+"because the two tables are the bulk and both were kept", and a count whose method is unstated cannot be
+argued with.** The script is new in this round and committed with it.
+
+| | before | after |
+|---|---|---|
+| `/igbo-calendar/` total visible words | **2,640** | **883** |
+| — head and the calendar a reader came for | 157 | 149 |
+| — everything after "Community context matters" | **2,326** | **636** |
+| `Wikipedia` (case-insensitive) | **15** | **0** |
+| `the article` (case-insensitive) | **46** | **0** |
+
+**Same method, the pages he compares this one to**, measured from the same server in the same request batch:
+
+| page | visible words |
+|---|---|
+| `/cultural-calendar/` | **421** |
+| `/market-days/` | **788** |
+| `/igbo-calendar/` | **883** |
+
+`/market-days/` carries the same account — the fill serves both screens — so its 788 words are this round's
+`/igbo-calendar/` appendix plus the design's smaller basis note. **The page is 2.1× `/cultural-calendar/`, and
+that gap is the thirteen month names and the attribution for them, which `/cultural-calendar/` does not have.**
+
+### 2. The sections, before and after
+
+**Before**, from the served page at the start of the round:
+
+```
+     157  head and the calendar (h1, day cards, lookup, upcoming, month view)
+   2,326  after "Community context matters"
+          ├─   158  Community context matters
+          ├─   977  The year and its months                ← the month table, 13 rows with descriptions
+          ├─   769  What the archive can substantiate…     ← the claims table, 11 rows
+          ├─   403  Where this account comes from…         ← the Wikipedia source paragraph
+          └─   142    What this page has not done
+```
+
+**After:**
+
+```
+     149  head and the calendar (unchanged; the design's own)
+     103  Community context matters          ← the design's note, plus the Nri statement, reworded
+     426  The year and its months            ← 3 paragraphs and the thirteen names
+     209  What this account is, and where it comes from
+```
+
+**Nine headings became two inside the account, and the account's own headings are now the calendar's** — what
+the year is, and where the account comes from. **The design's own 22 headings are untouched**, which is why the
+parity check still reports `14 design sections, 9 headings` for the route: `check-design-parity.mjs` compares
+the fill's output against the design screen, and none of the design's markup moved.
+
+### 3. Every source still on the page, with the claim it carries
+
+| source | the claim it carries |
+|---|---|
+| **Onwuejeogwu (1981)**, *An Igbo Civilization: Nri Kingdom and Hegemony* | the thirteen month names. **The archive does not hold this book and the page says so in the same sentence.** |
+| *Traditional Igbo calendar and lunar/solar alignments* (archive record) | the four market days; Eke east, Orie west, Afọ north, Nkwọ south; seven sets of four days to the month |
+| *Iguaro: The Igbo Calendar, Culture, and Cosmology* (archive record) | thirteen months of 28 days; the extra day at the end of Ọnwa Ụzọ Alụsị; the Eze Nri counting the months and proclaiming the year; that the calendar varies across communities |
+| *Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri* (archive record) | the same proclamation as it is held at Nri |
+| *Symbolism of the Four Market Days in Igbo Culture* (archive record) | the four days |
+| *Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture* (archive record) | named as part of the set, in the note under the month list |
+| **the archive owner** (named as such) | *Eken* as another name for Eke, "the archive owner's own reading, recorded here as his" |
+
+**⚠️ EVERY ONE OF THE FIVE RECORDS WAS OPENED AND READ BEFORE IT WAS CITED, RATHER THAN TAKEN FROM THE LIST OF
+TITLES THE OLD PAGE NAMED.** That is what made the claims attributable at all, and it changed two things:
+
+* **the month names' source is now the archive's own record, not a tertiary source describing a book.** The
+  record *Iguaro* gives all thirteen names with the same approximate Gregorian ranges the removed article's
+  table carried, and *Igu Aro* names Onwuejeogwu (1981) in its own reference list. So the names and their
+  ranges survive **and are better sourced than they were**, which is why the table could stay while its
+  scaffolding went.
+* **the claims that are now unsupported were visible as such.** Where the record says the same thing in
+  different words — the calendar varying by community, the 28-day month, the 364 days — those are stated from
+  the record. Where it does not, the claim is gone (§4).
+
+**AND THE RECORDS' OWN LIMIT IS ON THE PAGE.** Every one of their pages states that the archive records no
+period and no source type for it, or for any of its 1,051 published entries; the page says so too, so a reader
+who follows a title finds the account and not a citation the archive has not done the work to give.
+
+### 4. Every claim dropped because its only support was the tertiary source
+
+One line each. **The list is longer than the keep list and that is the point of it** — these were printed on the
+page by round 363 inside a table of outcomes, which is a record of a claim rather than a licence to print it.
+
+| claim | why it could not stand |
+|---|---|
+| the thirteen months' **descriptions** — Ọnwa Mbụ's new year and the 2012 Ịgụ Arọ date; Ọnwa Ife Eke's "Ugani"; Ọnwa Anọ's Ekeleke dance; Ọnwa Agwụ's Ịgọchi na mmanwụ; Ọnwa Alọm Chi's kola and motherhood; Ọnwa Ilọ Mmụọ's Ọnwa Asatọ; Ọnwa Ana's rituals for Ala; Ọnwa Ajana's and Ọnwa Ede Ajana's Okike rituals; Ọnwa Ụzọ Alụsị's offering | they are the removed source's "Months and meanings" text. The archive's own record has similar notes but **they are that record's words, and this archive does not print a source's words unquoted**. The names survive; the prose does not. |
+| the Gregorian equivalents **as a conversion** | the record's ranges are printed and marked approximate; **no reckoning that turns a Gregorian date into an Igbo one is held here**, and the page prints none |
+| the correspondence between the four days and the **four cardinal points, attributed to Isichei (1997)** | the correspondence is printed — **it is in the archive's own record** — but Isichei (1997) is a work this archive does not hold and whose page no longer exists here. The claim moved to the record that carries it; **the citation to a work nobody here has read was dropped with it** |
+| the **eight-day cycle** (*Aṅụ Magazine* no. 1, 1979) | one 1979 magazine reference for a claim nothing in the archive supports. No record, no page. |
+| **Udeani (2007)** for the priests or *Dibia* as the traditional timekeepers | the work is not held here and the claim rests on it alone. |
+| naming a child after the day of birth (**Udeani 2007**) | same. |
+| **Akubue (2013)** for Ịgụ Arọ and Emume Ọnwa-asatọ | the festival's account survives from the archive's own records; **this citation and its Emume Ọnwa-asatọ detail went**, because nothing here can carry them |
+| **Anizoba (2010)** for the date of Imöka | a date from a work nobody here has read. |
+| the date **18 February** for Ịgụ Arọ | one year's date, 2012, from *The Nigerian Voice* of 21 March 2012. A lunar festival is not fixed to one Gregorian day, and the archive holds the news report nowhere. |
+| **the Nri calendar's year number** — 2012 as its 1,013th year | one news report of one year. The page does not repeat a year as a fact. |
+| the **day-spirits** being fishmongers created by Chineke to establish a social system | the removed source gave it no reference at all, and the archive's rule is that it does not describe a people's origin. |
+| the **"needs more citations" maintenance banner** and the **revision id 1370565297** | they are facts about the removed source, and the source is gone. |
+| the **"neither universal nor synchronized"** quotation | a page cannot quote a source it has removed. **The fact is kept and re-stated as the archive's own** (§5). |
+| **Ugani**, **Ekeleke**, **Ịgọchi na mmanwụ**, **Imöka**, **Önwa Asatọ**, **Aṅụ Magazine** | each appears only inside a dropped description. Every one is asserted absent in the test. |
+
+**⚠️ AND THE ONE UNATTRIBUTED CLAIM THAT PREDATED THE TERTIARY SOURCE WAS KEPT AND RE-ATTRIBUTED, NOT DROPPED.**
+`Eken` — the owner's own reading — had its only statement of origin in the claims table's row for the four
+days. Removing the table would have left a name on a day card that nothing on the page accounts for, which is
+the fault the table existed to prevent. **It is now said in the account: "it is the archive owner's own
+reading, recorded here as his."** The owner asked for the name in those words, so cutting it was not the
+option; re-attributing it was.
+
+### 5. The long-word pass, quoted before and after
+
+The register he objected to is the citation defence. Each of these is off the page:
+
+| before, verbatim | after |
+|---|---|
+| *"as this page presents them"* | "The four market days and the thirteen months are the Nri reckoning" |
+| *"which the article states … and says may differ from other Igbo calendars in naming, rituals and ceremonies"* | "Other communities keep other reckonings, which the records say themselves" |
+| *"the article's own caveat on itself is part of the assessment rather than a detail beside it"* | gone; the sentence it introduced is gone |
+| *"Keeping the two apart is the difference between 'the Igbo calendar has 13 months called these' and 'Nri calls its months these…'"* | gone |
+| *"The article sets the system out in its own words: 'The calendar has 13 months…' In its terms: a week, izu, holds four days…"* (a 15-line block quotation and its gloss) | "The four market days are Eke, Orie, Afọ and Nkwọ, and the four together are the market week. Seven of those weeks make a month of 28 days, and thirteen months make the year: 364 days." |
+| *"The extra day in the last month is an intercalary day — a day put in outside the ordinary count so that a count of whole weeks keeps its place against the solar year"* | "the extra day at the end of the last month, Ọnwa Ụzọ Alụsị" |
+| *"is neither universal nor synchronized, so various groups will be at different stages of the week, or even year"* | "the calendar varies with each community's own reading of the moon, and the four-day market week is the part they share" |
+| *"The sentence that matters most in the article is the one that agrees with this page."* | gone; the agreement is not a fact about the calendar |
+| *"What this page can say is that the article says Nri reckons the year in these thirteen months, and that Nri is not all of Igboland."* | "The four market days and the thirteen months are the Nri reckoning as those records set it out." |
+| *"AND NO CLAIM LOST ITS SOURCE WITH ITS SECTION."* (and the 200-word works list under it) | gone; the claims that had no other source are gone with it |
+| *"Where the check was made, so that it can be repeated … The check was made against the archive's own catalogued article data for these five by name, and not against a live query."* | "The records behind this account are … Each page states that the archive records no period and no source type for it, or for any of its published entries." |
+
+**⚠️ AND THE PRECISION WAS KEPT WHERE THE WORDS WERE CUT.** "The reckoning is neither universal nor
+synchronised" became two short statements rather than one vague one — *other communities keep other
+reckonings*, and *the calendar varies with each community's own reading of the moon* — because the
+qualification is the half that stops the first half claiming the Nri account for all of Igboland. **"No
+festival date here, no eight-day cycle, no year number, no conversion"** is a list of four specific omissions,
+not a softened sentence. The page still says what it cannot back, in the same paragraph, in fewer words.
+
+### 6. The design pass
+
+* **Nine headings to two, and both are the calendar's.** The account is now: what the year is, then what the
+  account is and where it comes from. The design's own structure — hero, four day cards, lookup, next ten,
+  month view, full-year grid, basis note — is untouched, and `check-design-parity.mjs` still reports
+  `ok /igbo-calendar 14 design sections, 9 headings`.
+* **The month table is a list, not a control panel.** Round 364's version made each month a `<button>` with an
+  `aria-controls` panel beneath it, plus an inline toggle script — 2 KB of a page's own JavaScript to open
+  descriptions that are now gone. **A control that announces a state it does not have is worse than no
+  control**, which is this file's own standard, so the buttons, the panels, the `aria-expanded` attributes and
+  the script all went. Thirteen plain `<tr>` rows remain.
+* **No decoration was added.** Every CSS declaration in the block is the design's own tokens; the rules that
+  styled the removed controls (the pill tag, the button, the note row) went with them. The section carries no
+  colour, no shadow and no card the design does not draw.
+* **The hero lede was corrected rather than left.** It promised "the thirteen months and their sources, and
+  what this archive can and cannot substantiate of the account behind them" — **and this round removed the
+  table that last clause offered.** A front door pointing at a section that is not there is worse than the
+  underselling the line was added to fix, so it now says what is below: *"the Nri year those days make up, its
+  thirteen months, and the archive's own records behind them."*
+
+### 7. The gate
+
+* `npm run typecheck` from the repository root: **exit 0**.
+* `node --test src/design-fill.test.ts`: **95 pass, 0 fail**. Six tests about this page were rewritten rather
+  than deleted, and **each rewrite is an inversion or a re-pointing, not a relaxation**:
+
+  | test | what changed |
+  |---|---|
+  | *the account's sections…* | the heading list went from three to two and now asserts the claims table and the source section **absent by name**, plus exactly **one** `<table>` in the account |
+  | *the expandable year control…* | the thirteen month **buttons and their panels are asserted absent**, and the thirteen month **rows asserted present**, so the trim cannot take the content with the controls |
+  | *the archive's own rules…* | asserts the four specific omissions, **and that `fishmongers`, `1,013` and the eight-day cycle are gone**, because a dropped claim that kept its sentence is the fault |
+  | *the archive's own records…* | the five records asserted by name **with their claims**, and `Wikipedia` / `the article` / `the article's` / the revision / the maintenance banner / `Aṅụ Magazine` / `Isichei (1997)` / `Udeani (2007)` / `Akubue (2013)` / `Anizoba (2010)` / `The Nigerian Voice` / `Imöka` / `Ugani` / `Ekeleke` / `Ịgọchi na mmanwụ` asserted **absent** |
+  | *the Nri account…* | the first half re-pointed to the new wording; **the second half now asserts the archive's own statement and the quotation's absence** |
+  | *the fourth day variant…* | `Eken`'s attribution followed the claim from the removed table into the account, and the test asserts it there |
+  | *the other screen…* | three assertions about sentences this round removed are replaced by the Nri statement, which both screens share |
+  | *no markdown…* | re-pointed at the two `<strong>` elements the account actually carries |
+* `scripts/check-design-parity.mjs`: **`ok /igbo-calendar 14 design sections, 9 headings`**. Two routes still
+  fail — `/towns` (missing h1) and `/topics` (missing h2 "s") — **both pre-existing and recorded in round 361
+  as not that round's**.
+* `bash scripts/serve-review.sh`: build 74 s, restart 4 s, artefact complete (52 design screens), **READY**.
+
+### 8. The parity output, verbatim
+
+```
+identical 63 differing 0 missing 0
+```
+
+### 9. What does not work, and what this round did not verify
+
+* **The page is 883 words and `/cultural-calendar/` is 421.** He asked for the page to be arranged "like
+  others", and this is arranged like them — a lede, the calendar, a short account, done — **but it is still
+  2.1× the page he holds it up against, and the difference is the thirteen month names and their attribution.**
+  I did not cut those: the owner has twice said the material is "the right sources" and the months are the
+  calendar's own content. **If he wants it at `/cultural-calendar/`'s size the months have to go, and that is a
+  decision for him rather than one I can take behind his instruction.**
+* **Two parity failures above are not this round's** and were not touched: `/towns` and `/topics`.
+* **Nothing was exercised in a browser.** Every number here is against the server's HTML. The month grid, the
+  "next ten" list and the full-year grid are drawn by `market-days.js`, so the cycle as a reader sees it after
+  the script runs was **not** measured, and the design's `days` array is untouched.
+* **`scripts/count-visible-words.mjs` is new in this round and had two faults of its own before it was used to
+  justify anything** — both are recorded in it rather than quietly fixed. The first version counted the
+  `<h3>`s inside the design's `<noscript>` fallback as sections while excluding their text from the page total,
+  which made the section rows sum to 45% more than the page; the second built its heading marker out of
+  `\u0001` control characters inside a `RegExp` string, which matched nothing and silently degraded to a single
+  "whole page" row. **Both were caught by requiring the rows to sum to the total** — which is why that check is
+  in the script.
+* The `design/` directory is byte-identical to the design deliverable, so the markup this round rewrites is
+  still the source of truth for the next round: **if the design's month-row markup changes, the fill's
+  replacement matches nothing and the test fails rather than the table disappearing silently.**
+
+### 10. The files this round changed
+
+| file | what |
+|---|---|
+| `packages/ozikoro/src/design-fill.ts` | `igboCalendarAddendum` rewritten (thirteen names, three paragraphs, no table scaffold); the Nri paragraph in the basis note reworded off the removed source; the hero lede corrected; the Eken attribution moved into the account; the month toggle script, the claims table and the source section deleted |
+| `packages/ozikoro/src/design-fill.test.ts` | six tests about this page rewritten as inversions or re-pointings; the removed apparatus asserted absent by name |
+| `scripts/count-visible-words.mjs` | **new**: the measurement the counts above come from, with its own method and its two caught faults recorded |
+| `docs/OZIKORO-REMAINING.md` | this record |
+
+**No other file was touched, and nothing under `apps/ozikoro/public/design/` was.**

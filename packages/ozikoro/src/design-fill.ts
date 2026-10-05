@@ -5386,368 +5386,179 @@ export function fillCulturalEvent(html: string): string {
 
 /*
  * ================================================================================================
- * THE CALENDAR ACCOUNT ON THE IGBO CALENDAR PAGE, AND WHERE IT CAME FROM
+ * THE CALENDAR ACCOUNT ON THE IGBO CALENDAR PAGE
  * ================================================================================================
  *
- * WHY THIS IS DATA RATHER THAN PROSE IN A TEMPLATE
+ * WHAT THIS BLOCK IS NOW, AND WHAT IT WAS (round 365)
  *
- * The owner sent the full text of Wikipedia's "Igbo calendar" article and asked for it on this page:
- * *"you should also at the igbo calendar page itself and update more information there … find a way to put
- * these things below there."* **It is a tertiary source describing a real cultural system, and this archive
- * never presents a source's account as its own description.** So every claim below carries the reference the
- * article itself cites for it, and the tables are built from these constants rather than typed into markup —
- * a month whose Gregorian range and whose cited reference belong together is one value, not two places to
- * drift apart.
+ * It was an account of one Wikipedia article: 2,322 words of source paragraph, thirteen month rows
+ * carrying that article's own descriptions and Gregorian ranges, a table of which claim rested on which
+ * of the article's references, and a section listing the article's reference list. **The owner rejected
+ * it twice**, first as *"scattered, and extremely useless … arrange it well like others"*, then as
+ * *"remove everything about wikipedia there. the right sources are fine"*. Round 363 cut five sections
+ * and left the two tables and 61 references to the article standing, which is the state he rejected.
  *
- * WHAT THE `note` FIELD IS, AND WHY IT IS NOT DECORATION
+ * **Everything routed through the tertiary source is gone**: no Wikipedia, no revision number, no "the
+ * article says", and no sentence whose only support was that article. The material below is the
+ * calendar's own content and the archive's own records.
  *
- * **`note` is the article's own description of the month, and it is edited for length only.** Where the
- * article's sentence is substantially longer the shortened form stays close to its wording on purpose: a
- * paraphrase of a tertiary source is a second layer of interpretation over it, and the page's provenance
- * statement is worth less if the reader cannot see whose words they are reading. The full text of each is at
- * the article, which the source paragraph below links to.
+ * WHY THE CLAIM-BY-CLAIM TABLE WENT RATHER THAN BEING REBUILT
  *
- * THE NRI PATTERN, WHICH KEEPS THIS MATERIAL FROM BECOMING "THE IGBO CALENDAR"
+ * That table existed to do one job: record, claim by claim, whether the archive could substantiate what
+ * the article said, and mark the rows where it could not — *"Onwuejeogwu (1981) is not held by this
+ * archive and has not been read here. The page reports what the article says the book says."* **Its
+ * subject was the article's reliability, not the calendar**, and with the article off the page it has no
+ * subject left. The claims it graded were the article's claims: the Gregorian equivalents of the months,
+ * the rituals and shrines it described, the eight-day cycle, the date of Imöka, the day-spirits
+ * tradition, the Nri year number. **Not one of those is on this page any more, so there is nothing for a
+ * row to carry** — a rebuilt table would be a table of outcomes for claims a reader cannot see.
  *
- * The article's "Months and meanings" section opens by saying it describes **the Nri-Igbo calendar of the Nri
- * kingdom, "which may differ from other Igbo calendars in terms of naming, rituals, and ceremonies
- * surrounding the months."** That sentence is built into the data as `nri` rather than trusted to be carried
- * by the surrounding markup, and the table states the scope again in a caption, because a heading can be
- * scrolled past and a caption is read with the table.
+ * The work the table did for the claims that DO survive is done instead where those claims are made:
+ * every sentence below names the thing that backs it. What the archive can state in its own voice is
+ * stated with the record that carries it (the five catalogued records named below, whose pages were read here rather
+ * than assumed); the month names are attributed to Onwuejeogwu (1981) and the archive's inability to
+ * check that book is said in the same sentence. **A short attribution beside a claim beats a table of
+ * attributions the claim was extracted from.**
+ *
+ * WHY THE MONTH NAMES STAY AND THE REST OF EACH ROW GOES
+ *
+ * The thirteen names are the calendar's own content, and the archive's own catalogued records contain
+ * all thirteen of them — so they are attributable without the tertiary source. What went with it is the
+ * material that was only the article's: the Gregorian range on every row (the archive holds no reckoning
+ * that turns one into an Igbo date, and the ranges came from the article's table) and its description of
+ * each month (that text was the article's "Months and meanings" section). **The names are the part the
+ * archive can carry; the rest would be re-attributed to works this archive has not read.** The
+ * descriptions are still true of the archive's own record — *Iguaro* gives all thirteen, with similar
+ * notes — but they are the article's words, and this archive does not print a source's words unquoted.
+ *
+ * ── AND THE STRONGEST SOURCES ON THE PAGE NOW CARRY IT ───────────────────────────────────────────
+ *
+ * The owner's instruction included: *"be careful with the ones the archive holds as its own records …
+ * they should carry more of the page than they do."* They did not, because the article's scaffolding sat
+ * over them. Each record below was opened and read before it was cited, and the plain description of the
+ * four-day week, the 28-day month, the thirteen-month year and the Ịgụ Arọ proclamation is a summary of
+ * what those five records state.
  */
-type CalendarMonth = {
-  /**
-   * The article's "Months and meanings" section, which the article says is the Nri-Igbo calendar of the Nri
-   * kingdom. **The name and Gregorian range are the article's system table, which cites Onwuejeogwu (1981);
-   * the meaning is Nri's.** Keeping the two apart is the difference between "the Igbo calendar has 13 months
-   * called these" and "Nri calls its months these, and the names in the system table are Onwuejeogwu's".
-   */
-  nri: true;
-  /** A one-line statement of where the meaning comes from, printed beside it. */
-  src: string;
+type CalendarMonthName = {
+  /** The month's name in the archive's own catalogued records and in Onwuejeogwu (1981). */
   name: string;
+  /**
+   * The part of the Gregorian year the archive's own records put the month in.
+   *
+   * **It is a range and not a date**, which is the whole of what can be said: *Iguaro* writes these
+   * alongside its own month list, and the archive holds no reckoning that would turn a Gregorian day into an
+   * Igbo one. The column heading says "Roughly" for that reason, and the caption says it again where the
+   * table is read. The ranges the page used to print came from the removed tertiary source; these are the
+   * archive's own record's, which is why the column survives the trim and the article's did not.
+   */
   dates: string;
-  /** The article's own description of the month, shortened. */
-  note: string;
+  /**
+   * A variant the records themselves give, where they give one.
+   *
+   * Only Ọnwa Ilo Mmụọ has one, and it is the festival the month holds rather than a second spelling of
+   * the month: the archive's record for it calls that festival Ọnwa Asatọ. **It is kept because it is
+   * the archive's own text**, which is the test every word in this block now has to pass.
+   */
+  also?: string;
 };
 
-const CALENDAR_MONTHS: CalendarMonth[] = [
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Mbụ',
-    dates: 'February–March',
-    note: 'The first month starts from the third week of February, making it the Igbo new year. The article records that the Nri-Igbo year corresponding to 2012 was initially slated to begin with the Ịgụ Arọ festival on 18 February, an Nkwọ day, and that in the event the festival was held in March.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Abụọ',
-    dates: 'March–April',
-    note: 'Dedicated to cleaning and farming.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Ife Eke',
-    dates: 'April–May',
-    note: 'Described as the fasting period, usually known as “Ugani”, meaning “hunger period”. The article says all must fast in sacrificial harmony to the goddess Ani of the Earth, and that many communities host competitive wrestling events in this month.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Anọ',
-    dates: 'May–June',
-    note: 'When the planting of seed yams begins. The article adds that in many communities this is the month of the Ekeleke dance festival, which it describes as emphasising optimism through hardship.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Agwụ',
-    dates: 'June–July',
-    note: 'The article says Ịgọchi na mmanwụ, adult masquerades, come out in this month, and that Ọnwa Agwụ is the traditional start of the year. The Alusi Agwu, after whom the month is named, is venerated by the Dibia in this month.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Ifejiọkụ',
-    dates: 'July–August',
-    note: 'Dedicated to the yam deity Ifejiọkụ and to Njoku Ji, with yam rituals performed for the New Yam Festival.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Alọm Chi',
-    dates: 'August–early September',
-    note: 'The harvesting of the yam. The article also describes it as a time of prayer and meditation for women, dedicated to reconnecting with the ancestors by breaking kola, and to venerating mothers and motherhood. The Alọm Chi is a shrine or memorial a woman builds in honour of her ancestors.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Ilọ Mmụọ',
-    dates: 'late September',
-    note: 'A festival the article calls Önwa Asatọ, the Eighth Month, is held in this month.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Ana',
-    dates: 'October',
-    note: 'Ana, or Ala, is the Igbo earth goddess, and the article says rituals for her commence in this month; the month is named after her.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Okike',
-    dates: 'early November',
-    note: 'The Okike ritual takes place in this month.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Ajana',
-    dates: 'late November',
-    note: 'The Okike ritual also takes place in Ọnwa Ajana, according to the article.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Ede Ajana',
-    dates: 'late November–December',
-    note: 'The article’s entry for this month is two words: ritual ends.',
-  },
-  {
-    nri: true,
-    src: 'Wikipedia, Months and meanings',
-    name: 'Ọnwa Ụzọ Alụsị',
-    dates: 'January–early February',
-    note: 'The last month sees the offering to the Alusi.',
-  },
-];
-
-/** The same claims, each with the outcome of putting it to the archive's own records. */
-const CALENDAR_VERIFIED: Array<{ claim: string; state: boolean; note: string }> = [
-  {
-    claim: 'That the market week runs Eke, Orie, Afọ, Nkwọ, in that order, with local spellings',
-    state: true,
-    note: 'The design’s own screen and the archive’s own catalogued record <i>Symbolism of the Four Market Days in Igbo Culture</i> both state the four days and the variants Oye, Afor and Nkwor. <i>Eken</i> is neither source’s, and neither is it the article’s: it is the archive owner’s own reading of the material, recorded here as his, and the day headings and the lede above carry it on his instruction.',
-  },
-  {
-    claim: 'That the four days are tied to the cardinal points, and that the four-day week is the base unit of the calendar',
-    state: true,
-    note: 'The archive’s own catalogued record <i>Traditional Igbo calendar and lunar/solar alignments</i> states Eke east, Orie west, Afọ north, Nkwọ south, and states that seven sets of four days (28 days) make one Igbo month.',
-  },
-  {
-    claim: 'That a month is 28 days and a year is thirteen months',
-    state: true,
-    note: 'The same two archive records state both figures, and the arithmetic is exact: 13 × 28 = 364.',
-  },
-  {
-    claim: 'That Ịgụ Arọ is an Nri year-counting festival tied to the year’s beginning',
-    state: true,
-    note: 'The archive’s own catalogued records include <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i> and <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, which describe the festival as the Eze Nri’s proclamation of the year.',
-  },
-  {
-    claim: 'That the month names are Onwuejeogwu’s, and that the meanings are the Nri kingdom’s',
-    state: false,
-    note: 'Onwuejeogwu (1981) is not held by this archive and has not been read here. The page reports what the article says the book says.',
-  },
-  {
-    claim: 'The Gregorian equivalents of the thirteen months',
-    state: false,
-    note: 'Given as ranges against a solar year, and the article states no reckoning that turns a Gregorian day into an Igbo day, month or year. <strong>This page therefore prints no such conversion</strong>, and the market-day view above remains this archive’s own four-day reckoning, from the anchor stated above.',
-  },
-  {
-    claim: 'The rituals, shrines and festivals described under each of the thirteen months',
-    state: false,
-    note: 'None of this is in the archive. It is one tertiary source reporting the Nri-Igbo calendar, and the article’s own maintenance banner says the article needs more citations.',
-  },
-  {
-    claim: 'The eight-day major and minor cycle',
-    state: false,
-    note: 'Carried by a single 1979 magazine reference with no quotation, and nothing in the archive supports or contradicts it.',
-  },
-  {
-    claim: 'The date of Imöka, and Ịgụ Arọ as falling around 18 February',
-    state: false,
-    note: 'One citation each, and neither is checked here. The 18 February date is also reported for a single year, 2012, and a calendar that moves with the moon does not fix a festival to one Gregorian day.',
-  },
-  {
-    claim: 'That the day-spirits were fishmongers created by Chineke to establish a social system',
-    state: false,
-    note: 'This is a tradition about origins, and the article gives it no reference at all. <strong>It is recorded here as the tradition it is, not as an event.</strong>',
-  },
-  {
-    claim: 'The years of the Nri calendar — the article reports 2012 as its 1,013th year',
-    state: false,
-    note: 'The article reports this twice, from one news report of one year’s festival, and its own lead says the reckoning is not the same everywhere. The page does not repeat a year number as a fact.',
-  },
+/**
+ * The thirteen months names, in the order the archive's own catalogued records give them.
+ *
+ * **These are names only, deliberately.** The Gregorian ranges and the month-by-month descriptions the
+ * page used to print came from the tertiary source and went with it; what the archive can carry is which
+ * months the Nri year holds and what they are called, which is what fits in a row a reader scans.
+ */
+const CALENDAR_MONTH_NAMES: CalendarMonthName[] = [
+  { name: 'Ọnwa Mbụ', dates: 'February–March' },
+  { name: 'Ọnwa Abụọ', dates: 'March–April' },
+  { name: 'Ọnwa Ife Eke', dates: 'April–May' },
+  { name: 'Ọnwa Anọ', dates: 'May–June' },
+  { name: 'Ọnwa Agwụ', dates: 'June–July' },
+  { name: 'Ọnwa Ifejiọkụ', dates: 'July–August' },
+  { name: 'Ọnwa Alọm Chi', dates: 'August–September' },
+  { name: 'Ọnwa Ilọ Mmụọ', dates: 'late September', also: 'the Ọnwa Asatọ festival is held in it' },
+  { name: 'Ọnwa Ana', dates: 'October' },
+  { name: 'Ọnwa Okike', dates: 'early November' },
+  { name: 'Ọnwa Ajana', dates: 'late November' },
+  { name: 'Ọnwa Ede Ajana', dates: 'late November–December' },
+  { name: 'Ọnwa Ụzọ Alụsị', dates: 'January–February' },
 ];
 
 /**
  * Build the material that sits below the design's own content on `/igbo-calendar/`.
  *
- * Kept out of the fill itself so the fill reads as the few edits it makes to the design's markup, and so this
- * block can be found and read on its own.
+ * ── THE SHAPE, WHICH IS THE ONE HIS OTHER PAGES HAVE ─────────────────────────────────────────────
  *
- * ── IT WAS 4,100 WORDS AND IS NOW ABOUT 2,000, ON THE OWNER'S INSTRUCTION ─────────────────────────────
+ * A reader gets the calendar (the design's), then one short account of what the year is and where the
+ * account comes from. **The nine headings, the two tables and the 2,322-word appendix are gone**, because
+ * his report on all of it was *"the rest are scattered, and extremely useless. can you fucking arrange it
+ * well like others?"* — and `/cultural-calendar/`, the page he holds this up against, is a lede and the
+ * calendar in 421 words.
  *
- * His words, about everything below the design's own "Community context matters" note: *"after 'community
- * context matters', the rest are scattered, and extremely useless. can you fucking arrange it well like
- * others?"* Measured before this: the page was 4,429 words, of which **4,101 were this block and 622 were the
- * calendar a reader came for** — eight sections reproducing Wikipedia's "Igbo calendar" article, including a
- * table of which claim rests on which of the article's references and a section listing the article's own
- * reference list with what each is cited for. **A calendar page that is 87% an account of one encyclopaedia
- * article is the fault he named**, and the two sections above are the clearest part of it: they are the
- * article's apparatus rather than anything about the calendar.
+ * ── WORDS THAT WERE ONLY DEFENDING THE REMOVED SOURCE ARE GONE TOO ───────────────────────────────
  *
- * WHAT WENT, AND WHERE IT WENT — because the archive's rule is that a claim keeps its attribution and its
- * place or goes with a note saying where. **The paragraph below the source names the revision and says in
- * plain words which material is at it and not here**: the article's account of the four days and their
- * cardinal points, the festivals it names, the naming tradition, the eight-day cycle, the Nri year count and
- * its full reference list with what each reference is cited for. **And the claims themselves were not
- * dropped with those sections**: the check below records an outcome, with its attribution, for every
- * substantial claim they carried — the cardinal correspondence, the eight-day cycle, the festivals and their
- * dates, the naming, the year count and the day-spirits tradition are each a row in it.
- *
- * WHAT STAYED, AND WHY EACH.
- *
- *   the thirteen months   **the calendar's own content.** A reader who came for the market week is offered
- *                         the year its weeks make up, with the names, the Gregorian ranges and the article's
- *                         descriptions, every row marked as Nri's and carrying its own source.
- *   the check             **the only part of this material that is the archive's own work rather than a
- *                         reproduction of a tertiary source.** Removing it would leave the page stating
- *                         Wikipedia's account with nothing saying what the archive can and cannot
- *                         substantiate, which is the "does not repeat a source as settled" rule this whole
- *                         file is written to.
- *   what is not done      the page's own negative space, kept because an empty state is a real state.
+ * The owner also asked for "long words that are unnecessary", and the register he was objecting to is the
+ * citation defence: *"as this page presents them"*, *"which it says may differ from other Igbo calendars"*,
+ * *"the article's own caveat on itself"*, *"the difference between X and Y"*. Sentences in this block are
+ * short because they make a statement rather than manage a source. **Where shortening would have made a
+ * claim vague, it is two short sentences instead of one long one, not one loose one.** And the two
+ * paragraphs saying what is NOT on the page are kept: an empty state is a real state, and a page that
+ * silently omits is indistinguishable from a page that never knew.
  */
-function igboCalendarAddendum(basis: string): string {
-  const monthRows = CALENDAR_MONTHS.map((m, i) => {
-    const n = i + 1;
-    /*
-     * THE ROW IS THE CONTROL AND THE PANEL IS THE NEXT ROW.
-     *
-     * A `<details>` element cannot be a `<tr>`, and putting the control in one cell would leave the Igbo name
-     * — the thing a reader comes for — outside it. So the whole row carries the button, and the description
-     * is the next row, spanning the table. The button carries `aria-expanded` and `aria-controls` and **both
-     * states are written into the HTML rather than set by script, so the descriptions are readable with
-     * JavaScript switched off**; a reader without it must not be shown thirteen rows that do nothing.
-     */
-    return `            <tr id="igbo-month-${n}" class="sx-cal-row">
-              <th scope="row"><span class="sx-cal-no">${n}</span> <button type="button" class="sx-cal-month" data-igbo-month="${n}" aria-expanded="true" aria-controls="igbo-month-note-${n}">${esc(m.name)}</button></th>
-              <td class="sx-cal-dates">${esc(m.dates)}</td>
-              <td class="sx-cal-nri"><span class="sx-cal-tag">Nri-Igbo</span><br><span class="small muted">${m.src}</span></td>
-            </tr>
-            <tr id="igbo-month-note-${n}" class="sx-cal-note-row">
-              <td colspan="3"><p>${esc(m.note)}</p></td>
-            </tr>`;
-  }).join('\n');
-
-  const verification = CALENDAR_VERIFIED.map((v) => {
-    const label = v.state ? 'The archive can substantiate this' : 'Not verified here';
-    return `            <tr>
-              <th scope="row" class="${v.state ? 'sx-cal-yes' : 'sx-cal-no-state'}">${label}</th>
-              <td><p>${v.claim}</p><p class="small muted">${v.note}</p></td>
-            </tr>`;
+function igboCalendarAddendum(): string {
+  /*
+   * THE ROWS ARE BUILT FROM THE NAMES RATHER THAN TYPED, so a name and its order cannot drift apart, and
+   * the row is a plain `<th scope="row">` and `<td>` — **no control, because there is nothing left for one
+   * to open.** The month buttons and their panels went with the descriptions they opened.
+   */
+  const monthRows = CALENDAR_MONTH_NAMES.map((m) => {
+    const also = m.also ? ` <span class="small muted">— ${esc(m.also)}</span>` : '';
+    return `            <tr><th scope="row">${esc(m.name)}</th><td class="sx-cal-dates">${esc(m.dates)}${also}</td></tr>`;
   }).join('\n');
 
   /*
-   * THE MONTH-ROW TOGGLE.
-   *
-   * Written as a script rather than left out because **the buttons carry `aria-expanded`, and a control that
-   * announces a state it does not have is worse than no control at all.** With the script absent the
-   * descriptions are all open, which is the honest state for a page whose script did not load; the script then
-   * closes them and makes each button work. So the fallback is "everything readable" rather than "nothing
-   * works", which is the direction a progressive enhancement has to fail in.
-   *
-   * It is inline and namespaced by class, so it touches nothing the design's own scripts look for. Its own
-   * element uses `type="button"`, so it cannot submit anything, and every listener is a click on a button —
-   * **which makes it work from the keyboard for free, because a button is activated by Enter and Space.**
+   * NO COMMENT IN THE TEMPLATE BELOW CONTAINS A BACKTICK, which is the fault that has failed this file's
+   * build four times: a backtick inside a comment inside a backtick-delimited template literal ends the
+   * literal and the parser reports `',' expected` somewhere else entirely. The CSS block keeps its comment
+   * because it names no identifier in quotes.
    */
-  const monthToggle = `<script>
-        (function () {
-          var buttons = document.querySelectorAll(".sx-cal-account .sx-cal-month");
-          Array.prototype.forEach.call(buttons, function (button) {
-            var panel = document.getElementById(button.getAttribute("aria-controls"));
-            if (!panel) return;
-            button.setAttribute("aria-expanded", "false");
-            panel.hidden = true;
-            button.addEventListener("click", function () {
-              var open = button.getAttribute("aria-expanded") === "true";
-              button.setAttribute("aria-expanded", open ? "false" : "true");
-              panel.hidden = open;
-            });
-          });
-        })();
-      </script>`;
-
   return `      <section class="wrap section sx-cal-account">
         <style>
           /* THE ONE PIECE OF CSS THIS PAGE ADDS, AND WHY IT IS HERE RATHER THAN IN THE DESIGN.
              Nothing under public/design/ may change, so a rule this block needs cannot be added to the
              design's stylesheet. Every value below is one of the design's own tokens, so this follows the
-             design rather than departing from it. */
+             design rather than departing from it. There is no colour, no shadow and no card here that the
+             design does not already draw. */
           .sx-cal-account h2 { margin-top: var(--s-7); }
           .sx-cal-account h2:first-of-type { margin-top: 0; }
           .sx-cal-account > p { max-width: 74ch; }
           .sx-cal-account .sx-table-wrap { margin-top: var(--s-4); }
           .sx-cal-account .sx-ledger-table caption { padding: var(--s-3) var(--s-4); text-align: left; color: var(--text-muted); font-size: var(--t-sm); }
-          .sx-cal-account .sx-ledger-table td p + p { margin-top: var(--s-2); }
-          .sx-cal-account .sx-cal-month { padding: 0; border: 0; background: none; color: var(--accent, #0d5c45); font: 600 var(--t-lg) var(--font-serif); text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
-          .sx-cal-account .sx-cal-month::after { content: " −"; color: var(--ochre, #8a5a2b); font-family: var(--font-sans); font-size: var(--t-base); }
-          .sx-cal-account .sx-cal-month[aria-expanded="false"]::after { content: " +"; }
-          .sx-cal-account .sx-cal-no { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--t-sm); }
           .sx-cal-account .sx-cal-dates { white-space: nowrap; }
-          .sx-cal-account .sx-cal-tag { display: inline-block; padding: .1rem .45rem; border-radius: 999px; background: var(--accent-wash, #e2efe8); color: var(--accent, #0d5c45); font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: var(--ls-caps); }
-          .sx-cal-account .sx-cal-note-row td { background: var(--paper-sunk); }
-          .sx-cal-account .sx-cal-note-row[hidden] { display: none; }
-          .sx-cal-account .sx-cal-yes { color: var(--accent, #0d5c45); }
-          .sx-cal-account .sx-cal-no-state { color: var(--ochre, #8a5a2b); }
           .sx-cal-account .sx-ledger-table th[scope="row"] { vertical-align: top; }
-          .sx-cal-account .sx-cal-account-key th[scope="row"], .sx-cal-account .sx-cal-account-key td { white-space: nowrap; }
-          .sx-cal-account .sx-cal-year-card { padding: var(--s-3) var(--s-4); border: 1px solid var(--rule-firm); background: var(--paper-raised); }
-          .sx-cal-account .sx-cal-year-card > summary { cursor: pointer; font-family: var(--font-serif); font-size: var(--t-lg); font-weight: 600; }
           .sx-cal-account :is(a, button, summary):focus-visible { outline: 3px solid var(--focus, #1b4f8a); outline-offset: 2px; }
         </style>
 
-        <p class="eyebrow">The Igbo calendar</p>
         <h2>The year and its months</h2>
-        <p>The article sets the system out in its own words: <em>“The calendar has 13 months in a year (Afọ), 7 weeks in a month (Ọnwa), and 4 days of Igbo market days (Eke, Orie, Afọ, and Nkwọ) in a week (Izu) plus an extra day at the end of the year, in the last month. The name of these months was reported by Onwuejeogwu (1981).”</em> In its terms: a week, <i>izu</i>, holds four days; seven weeks make a month, <i>ọnwa</i>, of 28 days; and a year, <i>afọ</i>, holds thirteen of them. The extra day in the last month is an intercalary day — a day put in outside the ordinary count so that a count of whole weeks keeps its place against the solar year — and the thirteen months of 28 days plus it come to 365. The article names the traditional timekeepers of Igboland as the priests or <i>Dibia</i>, and gives Udeani (2007) for it.</p>
-        <p>The names of the thirteen months and their Gregorian equivalents are the article’s system table, which it attributes to Onwuejeogwu (1981). The descriptions are its “Months and meanings” section, which the article states is the Nri-Igbo calendar of the Nri kingdom and says may differ from other Igbo calendars in naming, rituals and ceremonies. <strong>What this page can say is that the article says Nri reckons the year in these thirteen months, and that Nri is not all of Igboland.</strong> The Gregorian column is a range and not a date: it describes roughly where in the solar year a month falls, and it is not a rule that turns a Gregorian day into an Igbo one. The article supplies nothing that would join the two, so this page prints no such conversion, and the market-day view above remains a reckoning of the four-day week from one stated anchor rather than a converter for the thirteen months.</p>
-        <p><strong>The sentence that matters most in the article is the one that agrees with this page.</strong> It states: <em>“The calendar is neither universal nor synchronized, so various groups will be at different stages of the week, or even year.”</em> That is the position this page takes above: the reckoning above is one archive’s, from a fixed anchor, and it is not a claim about what your own community keeps.</p>
-        <p>Each month below is a button. Press it, or press Enter on it, and the article’s description of that month opens in the row beneath. <strong>The descriptions are written into the page either way</strong>, so they are readable, findable and printable with JavaScript switched off.</p>
+        <p>The four market days are Eke, Orie, Afọ and Nkwọ, and the four together are the market week. Seven of those weeks make a month of 28 days, and thirteen months make the year: 364 days.</p>
+        <p>The archive's own catalogued records carry the year and the festival that starts it. <i>Traditional Igbo calendar and lunar/solar alignments</i> gives the four days their directions — Eke east, Orie west, Afọ north and Nkwọ south — and gives the month as seven sets of four days. <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i> gives the count, the extra day at the end of the last month, Ọnwa Ụzọ Alụsị, and the proclamation the year begins with: the Eze Nri counts the months and announces the year, and the festival is Ịgụ Arọ. <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i> is the archive's other record of the same proclamation, from Nri. <i>Symbolism of the Four Market Days in Igbo Culture</i> covers the four days at length.</p>
+        <p><strong>The month names are the one thing here the archive cannot check.</strong> They are Onwuejeogwu (1981), which the archive's own records give for them. <strong>The archive does not hold that book and has not read it</strong>, so the names below come at second hand from those records rather than from the book.</p>
         <div class="sx-table-wrap">
           <table class="sx-ledger-table">
-            <caption>Thirteen months (ọnwa). Names and Gregorian equivalents: Onwuejeogwu (1981), as reported by the article. Descriptions: the article’s Nri-Igbo section, which it says may differ from other Igbo calendars in naming, rituals and ceremonies. Every row is Nri’s.</caption>
-            <thead><tr><th scope="col">No.</th><th scope="col">Month (ọnwa)</th><th scope="col">Gregorian equivalent</th><th scope="col">Whose calendar, and which source</th></tr></thead>
+            <caption>The thirteen months of the Nri year. Names: Onwuejeogwu (1981), at second hand from the catalogued records above. The ranges are approximate, and the archive holds no reckoning that turns a Gregorian date into an Igbo one.</caption>
+            <thead><tr><th scope="col">Month (ọnwa)</th><th scope="col">Roughly</th></tr></thead>
             <tbody>
 ${monthRows}
             </tbody>
           </table>
         </div>
-        <p class="small muted">A note on the names: the article gives <i>Ọnwa Ilọ Mmụọ</i> for the eighth month, and the description it gives that month calls the festival held in it <i>Önwa Asatọ</i>, with the umlaut the article uses. Both spellings are the article’s and are left as the article has them.</p>
+        <p class="small muted">The records behind this account are <i>Traditional Igbo calendar and lunar/solar alignments</i>, <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i>, <i>Symbolism of the Four Market Days in Igbo Culture</i> and <i>Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture</i>. Each page states that the archive records no period and no source type for it, or for any of its published entries, so a title here leads to the account itself and not to a citation the archive has not done the work to give.</p>
 
-        <h2>What the archive can substantiate about this account</h2>
-        <p>This archive’s first rule about a source is that it does not repeat one as settled. So each substantial claim the article makes was put to the archive’s own records, and the result is below. <strong>“The archive can substantiate this” means one or more of the archive’s own catalogued records states it independently of the article.</strong> It does not mean the claim is settled: a record can be wrong, and both records named here are secondary accounts rather than a community’s own.</p>
-        <div class="sx-table-wrap">
-          <table class="sx-ledger-table sx-cal-account-key">
-            <caption>What the article claims, and what the archive holds for it.</caption>
-            <thead><tr><th scope="col">Outcome</th><th scope="col">Claim, and what the archive holds</th></tr></thead>
-            <tbody>
-${verification}
-            </tbody>
-          </table>
-        </div>
-        <p class="small muted">Where the check was made, so that it can be repeated. The archive holds five catalogued records that bear directly on this account: <i>Traditional Igbo calendar and lunar/solar alignments</i>, <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i>, <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i>, <i>Symbolism of the Four Market Days in Igbo Culture</i>, and <i>Mgbeke: Origin and Etymology and the Derogatory Reputation in Pop Culture</i>. <strong>The check was made against the archive’s own catalogued article data for these five by name, and not against a live query.</strong> Their own pages carry their own provenance, which is where a claim about them should be checked.</p>
-
-        <h2>Where this account comes from, and what is not on this page</h2>
-        <p>The source is Wikipedia’s <a href="https://en.wikipedia.org/wiki/Igbo_calendar">“Igbo calendar”</a>, revision 1370565297 of 18 February 2026 — a tertiary source, which gathers what other works say, and the revision is given so that a reader can fetch the exact text. The two works it relies on for most of what is above are Onwuejeogwu (1981), for the month names and their Gregorian ranges, and Udeani (2007), for the timekeepers and for naming a child after the day of birth. <strong>The article’s own caveat on itself is part of the assessment rather than a detail beside it</strong>: it carries a maintenance banner reading <em>“This article needs more citations. Please help improve this article by adding citations to reliable sources. Unsourced material may be challenged and removed”</em>, dated June 2015.</p>
-        <p>The article also carries an account of the four days and their cardinal points, the festivals it names, the tradition of naming a child after the day of birth, the claim of a longer eight-day cycle, a year number for the Nri calendar, and a full reference list with a note of what each reference is cited for. <strong>Those are at the revision linked above and are not reproduced on this page.</strong> They were set out here at length and the page read as an account of the article rather than of the calendar; what is kept is what the calendar itself is and what this archive can check, and the claims the page has dropped are the ones the check above already records an outcome for.</p>
-        <p><strong>AND NO CLAIM LOST ITS SOURCE WITH ITS SECTION.</strong> The works the article cites for the material that is at that revision rather than here are named in one place, so that a reader who wants to check one can go to it: Isichei (1997) for the correspondence between the four days and the four cardinal points; <i>Aṅụ Magazine</i> no. 1 (1979) for the four days alternating in “major” and “minor” phases to give a longer eight-day cycle; Udeani (2007) for the priests or <i>Dibia</i> as the traditional timekeepers and for naming a child after the day of birth; Akubue (2013) for Ịgụ Arọ and Emume Ọnwa-asatọ; Anizoba (2010) for Imöka; and <i>The Nigerian Voice</i> of 21 March 2012 for that year’s Ịgụ Arọ and for the article’s 1,013th-year figure. Each is cited at the article’s own reference list, which is where the article’s use of it can be read in full.</p>
-        <h3>What this page has not done</h3>
-        <p>It has not converted a Gregorian date into an Igbo day, month or year. It has not drawn the eight-day cycle. It has not given any festival a date of its own. It has not repeated the article’s year count for the Nri calendar as a fact. It has not put any of this into the market-day reckoning above, which remains this archive’s reckoning from the fixed anchor stated at <i>${esc(basis)}</i>. And it has not created an event record: <strong>the archive holds no event for any festival the article names</strong>, and <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself. Each of those is a thing the material could be made to say and the sources do not carry, which is why it is not said.</p>
-        ${monthToggle}
+        <h2>What this account is, and where it comes from</h2>
+        <p><strong>This is the Nri account.</strong> The four market days and the thirteen months are the Nri reckoning as those records set it out. Other communities keep other reckonings, which the records say themselves: the calendar varies with each community's own reading of the moon, and the four-day market week is the part they share. So a town that keeps another reckoning keeps another market day. <i>Eken</i>, the variant on the Eke card, is not in those records: it is the archive owner’s own reading, recorded here as his.</p>
+        <p>The accounts of what each month holds — Ọnwa Abụọ for clearing, Ọnwa Ife Eke for fasting, Ọnwa Agwụ for the Agwu masquerades and the Dibia, Ọnwa Ifejiọkụ for the yam rituals, Ọnwa Ana for the earth goddess Ala — are not on this page. <strong>The archive's own records do not corroborate them one by one</strong>, and it prints what it can carry.</p>
+        <p>So there is no festival date here, no eight-day cycle, no year number for the Nri count, and no conversion between the Gregorian and Igbo calendars. There is also no event record for any festival; <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself.</p>
       </section>`;
 }
 
@@ -5981,40 +5792,30 @@ export function extendMarketDaysScript(script: string): string {
  * page's reckoning of it under the anchor it states, said before the answer rather than after it.
  *
  * ============================================================================================
- * AND THE ACCOUNT SITS BELOW IT, ATTRIBUTED, WHICH IS THE WHOLE OF THIS ROUND'S WORK
+ * AND THE ACCOUNT SITS BELOW IT, WHICH IS THE WHOLE OF THIS ROUND'S WORK (round 365)
  * ============================================================================================
  *
  * The owner asked for more information on **this page rather than scattered across the site**: *"you should
  * also at the igbo calendar page itself and update more information there … find a way to put these things
- * below there."* The material he sent is Wikipedia's "Igbo calendar" article, and the difficulty is that this
- * archive never presents a source's account as its own.
+ * below there."* What he sent was a Wikipedia article, and the archive's rule is that it never presents a
+ * source's account as its own — so the first build named the revision, reproduced the article's tables and
+ * graded its claims. **He rejected that twice**: *"after 'community context matters', the rest are scattered,
+ * and extremely useless"*, then *"remove everything about wikipedia there. the right sources are fine."*
  *
- * So the account is appended as one section below the design's own content, and nothing above it moves. Three
- * things make it honest rather than merely present:
+ * SO THE TERTIARY SOURCE IS OFF THE PAGE ENTIRELY, AND WHAT REPLACED IT IS THE ARCHIVE'S OWN RECORDS.
+ * `igboCalendarAddendum` carries the argument for what left and what replaced it; the short of it is that
+ * the account is now the calendar's own content — the four-day week, the 28-day month, the thirteen months,
+ * the Ịgụ Arọ proclamation — stated with the archive's own catalogued records beside each claim, and the
+ * month names attributed to Onwuejeogwu (1981) with the archive's inability to hold that book said in the
+ * same sentence. **A claim that only the article made is not re-attributed: it is gone.**
  *
- *   1. **the source is named at the point of use.** The revision is given so a reader can fetch the exact
- *      text, the two works the article relies on for what is above are named where their claims are, and
- *      every removed section is named in the source paragraph as material that is at the revision and not on
- *      this page;
- *   2. **the Nri account is marked as Nri's.** The months-and-meanings material is the Nri-Igbo calendar of the
- *      Nri kingdom by the article's own statement, and the table says so in its caption, its column and every
- *      row — presenting it as "the Igbo calendar" would be the universalising this page forbids;
- *   3. **what the archive cannot substantiate is said, not omitted.** The table in "What the archive can
- *      substantiate about this account" records each claim as substantiated or not, with the records behind
- *      it and, for the rest, the reason it cannot be. **"The archive can substantiate this" means one of the
- *      archive's own catalogued records states it independently of the article**, which is a weaker claim than
- *      proof and is worded that way.
- *
- * THE BLOCK WAS 4,100 WORDS AND THE OWNER CALLED IT USELESS. It is now about 2,000, the article's own
- * apparatus — its reference list and its claim-by-reference table — is off the page, and `igboCalendarAddendum`
- * records what went, what stayed and where the removed material is. **The 4,100-word version is in this
- * commit's parent**, which is where a removed section of prose is recoverable from; the claims themselves
- * were never dropped, because the check below carries an outcome for each.
- *
- * **And the sentence that matters most in the article is the one that agrees with this page.** It says the
- * calendar is *"neither universal nor synchronized, so various groups will be at different stages of the week,
- * or even year."* That is what the paragraph above the new material already said, so the two are set beside
- * each other as reinforcement rather than as a source correcting the page or the page correcting a source.
+ * THE ONE THING THIS FUNCTION ADDS TO THE BASIS NOTE (round 364, kept and reworded) is the plain statement
+ * that the account followed here is the Nri one. The owner asked for it in those words: *"emphasize that the
+ * calendar is a product of nri, so we are following nri calendar days, even though some igbo communities
+ * might differ."* **Its second half no longer quotes the article**, because a page cannot quote a source it
+ * has removed; the qualification is now the archive's own statement, and it is the same statement
+ * `Iguaro: The Igbo Calendar, Culture, and Cosmology` makes in its own text — that the calendar varies
+ * across communities and the four-day market week is what they share.
  */
 export function fillIgboCalendar(html: string, state: { basis: string } = { basis: MARKET_DAY_ANCHOR }): string {
   let out = clearExampleMaterial(html);
@@ -6027,15 +5828,17 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
    * account below the calendar is part of the page. A hero that leaves it out undersells the page at the one
    * point every reader reads.
    *
-   * AND IT IS NAMED AGAIN SINCE THE ACCOUNT WAS TRIMMED, WHICH IS THE HALF OF THIS THAT IS EASY TO MISS. The
-   * sentence used to promise "the system, the thirteen months, the festivals the account names, the naming
-   * tradition, and where all of it comes from" — and after the owner's trim **the festivals and the naming
-   * tradition are no longer below.** A hero that still promised them would be the archive's own front door
-   * pointing at a section that is not there, which is worse than the underselling this line was added to fix.
+   * AND THE SECOND SENTENCE NAMES WHAT IS BELOW, WHICH IS THE HALF OF THIS THAT IS EASY TO MISS. It has
+   * promised, in three rounds, "the system, the thirteen months, the festivals the account names, the naming
+   * tradition, and where all of it comes from" and then "the thirteen months and their sources, and what this
+   * archive can and cannot substantiate of the account behind them" — **and round 365 removed the claim table
+   * the second of those offered, so both promises are now false.** A hero that points at a section that is
+   * not there is worse than the underselling this line was added to fix. What is below is the Nri year, its
+   * thirteen months and the archive's own records, so that is what it says.
    */
   out = out.replace(
     /Check today, look up another date, or follow Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor across a month or full year\./,
-    'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar, the year those days make up: the thirteen months and their sources, and what this archive can and cannot substantiate of the account behind them.'
+    'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar: the Nri year those days make up, its thirteen months, and the archive’s own records behind them.'
   );
   /*
    * ── THE FOURTH VARIANT: EKE'S OTHER NAME, ON THE OWNER'S INSTRUCTION (round 364) ─────────────────
@@ -6102,17 +5905,23 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
      * breath as the qualification he asked for in the same sentence.
      *
      * BOTH HALVES OR NEITHER. The first half alone would claim the Nri account for all of Igboland; the second
-     * alone would hide which account this page is following. And the qualification is not the page's wish: it is
-     * the article's own sentence, quoted in full further down and shortened here.
+     * alone would hide which account this page is following.
      *
-     * IT IS NOT PROMOTED TO A CLAIM THE ARCHIVE CANNOT BACK. The emphasis says the account **followed here** is
-     * the Nri one and names where the archive takes it from — the article named under "Where this account comes
-     * from", a tertiary source reporting Onwuejeogwu (1981) for the month names. **The archive does not hold
-     * that book and has not read it**, which the check table below already records as an outcome the archive
-     * cannot substantiate; so the sentence says the article states it and the names are at second hand, rather
-     * than asserting Nri practice in the archive's own voice. That is the same split the existing month-table
-     * prose makes — "the article says Nri reckons the year in these thirteen months" — kept rather than
-     * flattened.
+     * ── AND BOTH HALVES WERE REWRITTEN WHEN THE TERTIARY SOURCE CAME OFF THE PAGE (round 365) ────────
+     *
+     * The second half used to be the article's own sentence, quoted: the calendar *"is neither universal nor
+     * synchronized, so various groups will be at different stages of the week, or even year."* **A page cannot
+     * quote a source it has removed**, and the owner's instruction was to remove everything about that source
+     * — so the quotation is gone and the same fact is now the archive's own statement. It is not a loss: the
+     * archive's own catalogued record *Iguaro: The Igbo Calendar, Culture, and Cosmology* states it in terms
+     * this page can carry — the calendar varies across communities with their lunar observations and local
+     * practice, while the four-day market week is shared — which is why the second half now reads as the
+     * record's statement rather than as a quotation from elsewhere.
+     *
+     * THE FIRST HALF KEEPS ITS LIMIT. The month names are Onwuejeogwu (1981) and **the archive does not hold
+     * that book and has not read it**, which the sentence on the Nri account below states in the same breath
+     * as the names themselves. That is the one claim on this page whose source the archive cannot open, and it
+     * is marked where it is made rather than in a table of outcomes.
      *
      * AND IT IS ON THIS SCREEN ONLY. `/market-days/` carries the same anchor paragraph from the replacement
      * below, and the owner named this note — the one headed "Community context matters" — which only
@@ -6120,7 +5929,7 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
      */
     /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\.\s*It is not a claim that every Igbo community uses the same anchor\.<\/p>/,
     `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.</p>
-        <p><b>The account of the calendar followed here is the Nri one.</b> The four market days and the thirteen-month year as this page presents them are the Nri reckoning: the article this page draws on states that its months and their meanings are the Nri-Igbo calendar of the Nri kingdom, and reports Onwuejeogwu (1981) for the month names — a book this archive does not hold and has not read, so the names are given at second hand from the article named below. Other Igbo communities keep other reckonings, and the article says the same of the calendar it describes: it is <em>“neither universal nor synchronized”</em>, so groups may be at different stages of the week, or even year.</p>`
+        <p><b>The account of the calendar followed here is the Nri one.</b> The four market days and the thirteen months below are the Nri reckoning, taken from the archive's own catalogued records. Other Igbo communities keep other reckonings, and those records say so themselves: the calendar varies across communities, and the four-day market week is the part they share.</p>`
   );
   /*
    * THE SAME ANCHOR, STATED ON THE OTHER SCREEN THAT LOADS THIS SCRIPT.
@@ -6233,7 +6042,7 @@ ${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB',
    */
   if (!out.includes('sx-cal-account') && out.includes('</main>')) {
     const at = out.indexOf('</main>');
-    out = `${out.slice(0, at)}\n${igboCalendarAddendum(state.basis)}\n    ${out.slice(at)}`;
+    out = `${out.slice(0, at)}\n${igboCalendarAddendum()}\n    ${out.slice(at)}`;
   }
   return out;
 }
