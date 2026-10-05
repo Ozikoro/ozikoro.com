@@ -74,7 +74,22 @@ const ROUTES = [
   ['/documents', 'documents'],
   ['/listen', 'listen'],
   ['/material-culture', 'material-culture'],
-  ['/towns', 'towns'],
+  /*
+   * ⚠️ `/clan-towns`, NOT `/towns`. THE OWNER RENAMED THE REGISTER AND THIS MAP DID NOT FOLLOW.
+   *
+   * He asked for it in his own words — *"add them all to the /towns page, and maybe rename it to
+   * /clan-towns to accommodate both. there's a reason the towns section have an option to select
+   * ethnicities, clans, tribes, and towns"* — so `/towns`, `/towns/`, `/towns.html` and `/clans/` are all
+   * 301s into `/clan-towns/`, which is the page.
+   *
+   * **A CHECK THAT FETCHES A 301 IS NOT COMPARING THE PAGE.** It was reading the redirect's body — or
+   * whatever the fetch followed it to — while naming the route `/towns`, so the route it reported and the
+   * page it measured were not the same thing. *The five mismatches below are left standing rather than
+   * declared omitted*, because the page's own header records the owner's instruction for the finder and does
+   * not account for the renamed h1 or for the five classes: whether those are a redesign he asked for or an
+   * unfinished one is his to say, not mine to quieten.
+   */
+  ['/clan-towns', 'towns'],
   ['/igbo-calendar', 'igbo-calendar'],
   ['/cultural-calendar', 'cultural-calendar'],
   ['/cite', 'cite'],
