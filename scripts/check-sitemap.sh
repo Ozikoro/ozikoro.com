@@ -69,15 +69,22 @@ while IFS= read -r p; do
   esac
   code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$BASE$p")
 
-  /*
-   * `000` is curl reporting NO RESPONSE — a timeout or a dropped connection — and it is not the same
-   * as a page being broken. Measured on a full run of all 14,667 paths: 31 came back `000` and every
-   * one of them returned 200 when requested again on its own. They were the dev server dropping
-   * requests under a long sequential run, not defects.
-   *
-   * Retried twice before being believed, because treating "we do not know" as "broken" is the exact
-   * false-positive this project has produced more than a dozen times.
-   */
+  #
+  # `000` is curl reporting NO RESPONSE — a timeout or a dropped connection — and it is not the same
+  # as a page being broken. Measured on a full run of all 14,667 paths: 31 came back `000` and every
+  # one of them returned 200 when requested again on its own. They were the dev server dropping
+  # requests under a long sequential run, not defects.
+  #
+  # Retried twice before being believed, because treating "we do not know" as "broken" is the exact
+  # false-positive this project has produced more than a dozen times.
+  #
+  # ⚠️ AND THESE LINES WERE A C-STYLE BLOCK COMMENT (`/* … */`) UNTIL ROUND 256, WHICH IS NOT A SHELL
+  # COMMENT — `/*` is a GLOB. Bash expanded it against the filesystem root and tried to execute the
+  # results, so a run asked for 300 pages printed `scripts/check-sitemap.sh: line 80: apps/: is a
+  # directory` and then checked EIGHT. **The condition it instruments — 2.4, that a crawler's pages
+  # resolve — reported `Every sampled page resolved` on an eighth of the sample it was asked for, and
+  # read as a pass.** The `/*)` on line 67 above is a `case` pattern and is correct; only this was not.
+  #
   if [ "$code" = "000" ]; then
     sleep 1
     code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 "$BASE$p")
