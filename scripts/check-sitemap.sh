@@ -40,10 +40,36 @@ fi
 # Parsed in python3, NOT sed. macOS ships BSD sed, where `\?` is not supported — the first version's
 # `sed 's|https\?://[^/]*||'` silently failed to strip the origin, left whole `<loc>` elements as
 # "paths", and reported all 40 samples broken.
-PATHS=$(python3 - "$SM" <<'PYEOF'
-import re, sys
-xml = open(sys.argv[1], encoding='utf-8').read()
-for loc in re.findall(r'<loc>([^<]+)</loc>', xml):
+#
+# ⚠️ AND IT FOLLOWS THE INDEX NOW, WHICH IT DID NOT UNTIL ROUND 257. `/sitemap.xml` is a
+# `<sitemapindex>` naming eight sub-sitemaps, so reading its `<loc>` values gave their URLs and the
+# check tested THOSE EIGHT PATHS while its own header said it covered "what is LISTED". Measured: the
+# eight sub-sitemaps hold **15,016 pages** — pages 12 · histories 1051 · topics 14 · subjects 10175 ·
+# media 3494 · places 268 · publications 1 · researchers 1 — so the check was sampling 8 of 15,016 and
+# closing `Every sampled page resolved`. **A pass on half a percent of the input, described as a pass on
+# the input.** Every sub-sitemap is fetched from `$BASE`, not from the origin the XML names, so the check
+# still tests the build in front of it rather than the live site.
+PATHS=$(python3 - "$SM" "$BASE" <<'PYEOF'
+import re, sys, urllib.request
+
+index_path, base = sys.argv[1], sys.argv[2].rstrip('/')
+xml = open(index_path, encoding='utf-8').read()
+locs = re.findall(r'<loc>([^<]+)</loc>', xml)
+
+if '<sitemapindex' in xml:
+    pages = []
+    for sm in locs:
+        path = re.sub(r'^https?://[^/]+', '', sm)
+        try:
+            with urllib.request.urlopen(base + path, timeout=180) as r:
+                sub = r.read().decode('utf-8', 'replace')
+        except Exception as exc:
+            sys.stderr.write('  ! could not read %s: %s\n' % (path, exc))
+            continue
+        pages.extend(re.findall(r'<loc>([^<]+)</loc>', sub))
+    locs = pages
+
+for loc in locs:
     print(re.sub(r'^https?://[^/]+', '', loc))
 PYEOF
 )
