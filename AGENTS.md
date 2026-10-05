@@ -369,6 +369,45 @@ important line in it and must survive any change to the script.
   licence permits publication. See `docs/DATA-SOURCES.md`.
 - Never commit third-party scans, corpora or media. See `.gitignore`.
 
+## Do not print a secret's value to find out what it is called
+
+**This rule exists because breaking it cost a full rotation of the production
+host's credentials on 2026-10-05.** An agent needed to know how the host was
+configured, reached it over SSM, and ran a command that printed `/opt/ozituma/.env`
+in full. The names answered the question. **The values went into the session
+transcript — a ~130 MB file on a laptop that is also sent to the model provider and
+is inside whatever backs that laptop up** — and every credential below had to be
+treated as disclosed:
+
+| what was printed | what it opens |
+|---|---|
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | read, overwrite and delete every object in the media bucket |
+| `POSTGRES_PASSWORD`, `DATABASE_URL` | the whole archive and account table — every hash, session and audit row — read and write |
+| `GITHUB_TOKEN` | push access to the repository |
+| `OZITUMA_ZOHO_KEY`, `OZITUMA_SMTP_*`, `RESEND_API_KEY` | send mail as the domain — which is how an account is taken over |
+| `PAYSTACK_*`, `NOWPAYMENTS_*` | move money, if live |
+| `CPANEL_PASSWORD` (this checkout's `.env.local`) | full control of the legacy WordPress host |
+
+**So, on any host, in any session:**
+
+- **Read a secret's NAME, never its VALUE.** `docker compose config --environment`,
+  `grep -oE '^[A-Z_]+=' .env`, `systemctl show -p Environment` — all of these answer
+  "what is configured" without answering "what is the secret". **Ask for the value
+  only when a value is genuinely required to complete the task, and say why first.**
+- **If a value does reach the context, that is a rotation, not an apology.** Report
+  which value, where it landed, and what it opens — and do not attempt to delete it
+  from a transcript that has already been written and sent.
+- **Rotating is always two steps in this order: create the new credential at its
+  source, then put it where the application reads it, then revoke the old one.**
+  Revoking first is an outage. `POSTGRES_PASSWORD` additionally needs the change in
+  the database and in `.env` together, with a restart, because the app
+  authenticates with it.
+- **A host's `.env` is not a configuration file to be read, it is a credential
+  store to be used.** The application container reads it; a person does not need to.
+
+**Secrets Manager is a separate concern with its own rule — see Secret Safety below.
+It does not cover the host's `.env`, which is where these were.**
+
 <!-- BEGIN AWS Agent Toolkit rules -->
 
 # AWS Guidance
