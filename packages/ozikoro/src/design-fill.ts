@@ -1820,23 +1820,51 @@ export function fillArticle(html: string, a: RealArticle): string {
     : `<p class="small muted sx-article-entities">The archive holds no clan, town or place recorded for this entry. A link is made when the record's own title names one that the dictionary already holds, so a record that names none opens no register page.</p>`;
 
   /*
-   * THE PERIOD AND THE SOURCE, WHICH NO RECORD IN THE ARCHIVE CAN FILL.
+   * THE RECORD'S OWN LINKS, AND WHY THEY NOW SIT BELOW THE OPENING RATHER THAN INSIDE IT.
    *
-   * The design draws a `chip-period` and a `chip-oral` on its archive screen; it draws neither on an
-   * article, and it draws no shape at all for "this is recorded nowhere" — so the sentence is the honest
-   * form, in the same words the archive's own filter rail uses for the same two absences, and it goes away
-   * by itself when the reason for it does. See `RealArticle.archiveTotals`.
+   * They used to be injected after the byline, which put them INSIDE `div.sx-article-title`. The owner
+   * saw the result and said so: *"the added clan did destroyed the design … position the clan well so it
+   * will not have to be on the top, but below."* He is right, and the design says the same thing:
+   * `article.html`'s `.sx-article-title` holds exactly three things — the eyebrow, the `h1` and the
+   * byline — and `.sx-article-image` is its next sibling. A fourth child changes the measure the two
+   * columns are cut to, which is why the title stopped occupying its space and ran to the left.
+   *
+   * So they go into the reading column, above the prose: the first thing a reader meets after the
+   * opening. That is "below" by any reading of the instruction, and it is the column that already
+   * carries the record's own apparatus — `sx-story-record`, the listen panel, the provenance.
+   *
+   * ⚠️ AND THE SENTENCE THAT USED TO TRAVEL WITH THEM IS GONE, ON HIS INSTRUCTION.
+   *
+   * It read: *"The archive records no period and no source type for this entry, or for any of its 1,051
+   * published entries: 0 carry either. Dating and sourcing are editorial work, and this line disappears
+   * when it is done rather than being approximated now."* He quoted it back by hand and said *"please
+   * remove this words part."* It was a note to the archive's own editors sitting in a reader's view of an
+   * article, and it was emitted on EVERY article, because no record in the archive carries a period or a
+   * source type.
+   *
+   * ⚠️ THE FACT IT STATED IS STILL TRUE AND HAS NOT BEEN DELETED FROM THE PROJECT. `archiveTotals` still
+   * measures it — and the archive's own filter rail still states the same two absences where a reader is
+   * choosing how to search. What has stopped is repeating it beneath the byline of every history: a
+   * reader who came to read one article does not need the corpus's data-quality position in the middle of
+   * its opening.
    */
-  const missing = a.archiveTotals.withPeriod === 0 && a.archiveTotals.withSource === 0
-    ? `<p class="small muted sx-article-completeness">The archive records no period and no source type for ` +
-      `this entry, or for any of its ${esc(n(a.archiveTotals.published))} published entries: 0 carry ` +
-      `either. Dating and sourcing are editorial work, and this line disappears when it is done rather ` +
-      `than being approximated now.</p>`
-    : '';
-
-  // The record's own links go under the byline, which is where a reader looks for what a record is.
-  if (chips + missing) {
-    out = out.replace(/(<p class="sx-article-byline">[\s\S]*?<\/p>)/, `$1${chips}${missing}`);
+  if (chips) {
+    /*
+     * ⚠️ THE SELECTOR IS `<div class="sx-page">`, NOT `.sx-reading-columns` FOLLOWED BY IT.
+     *
+     * The first version of this used `/(<div class="sx-reading-columns">\s*<div class="sx-page">)/` and
+     * inserted NOTHING — `out.replace` returns the string unchanged when the pattern does not match, so
+     * the failure was silent and the record's own clan simply disappeared from the page. The design's
+     * frame is `<div class="sx-reading-columns"><aside>…</aside><div class="sx-page">`: the ASIDE comes
+     * between the two, so a pattern requiring them to be adjacent can never match.
+     *
+     * `sx-page` is the right target and is the design's own class. The chips land at its top, above the
+     * listen panel and above the prose — the first thing a reader meets after the opening.
+     *
+     * `chips` already carries its own `<div class="chips sx-article-entities">` (or the fallback
+     * paragraph), so it is inserted as it is; wrapping it again would nest the class twice.
+     */
+    out = out.replace(/(<div class="sx-page">)/, `$1${chips}`);
   }
 
   // The eyebrow: the record's topic and the archive's own description of its standing.
@@ -5460,6 +5488,23 @@ type CalendarMonthName = {
    * the archive's own text**, which is the test every word in this block now has to pass.
    */
   also?: string;
+  /**
+   * What the archive can say about this month's meaning, printed in the panel the month's button opens.
+   *
+   * **Every one of these is a finding, not a definition**, and none of them is a meaning copied from
+   * anywhere. Two shapes appear here and each says which it is:
+   *
+   *   - the archive's own record *Iguaro* carries a note for the month, and the panel says what that
+   *     record carries, names it, and says in the same breath that the record's own account is not
+   *     independent of the source this page removed — because it names that source in its own reference
+   *     list and its month notes are that source's account in other words;
+   *   - the record carries nothing that belongs to the month alone, and the panel says so.
+   *
+   * **Nothing is paraphrased into the archive's voice as its own finding.** The first shape is a report
+   * about a record; the second is an empty state. Neither is a meaning the archive can stand behind, which
+   * is why no panel says "this month means" anything.
+   */
+  note: string;
 };
 
 /**
@@ -5470,19 +5515,72 @@ type CalendarMonthName = {
  * months the Nri year holds and what they are called, which is what fits in a row a reader scans.
  */
 const CALENDAR_MONTH_NAMES: CalendarMonthName[] = [
-  { name: 'Ọnwa Mbụ', dates: 'February–March' },
-  { name: 'Ọnwa Abụọ', dates: 'March–April' },
-  { name: 'Ọnwa Ife Eke', dates: 'April–May' },
-  { name: 'Ọnwa Anọ', dates: 'May–June' },
-  { name: 'Ọnwa Agwụ', dates: 'June–July' },
-  { name: 'Ọnwa Ifejiọkụ', dates: 'July–August' },
-  { name: 'Ọnwa Alọm Chi', dates: 'August–September' },
-  { name: 'Ọnwa Ilọ Mmụọ', dates: 'late September', also: 'the Ọnwa Asatọ festival is held in it' },
-  { name: 'Ọnwa Ana', dates: 'October' },
-  { name: 'Ọnwa Okike', dates: 'early November' },
-  { name: 'Ọnwa Ajana', dates: 'late November' },
-  { name: 'Ọnwa Ede Ajana', dates: 'late November–December' },
-  { name: 'Ọnwa Ụzọ Alụsị', dates: 'January–February' },
+  {
+    name: 'Ọnwa Mbụ',
+    dates: 'February–March',
+    note: 'The year starts here. The archive\'s record <i>Iguaro</i> gives the month as the one the Iguaro ritual opens, when the Eze Nri proclaims the planting season and communities prepare their farms; the archive\'s other Nri record, <i>Igu Aro</i>, states the same proclamation, so it is said plainly rather than reported. The year number and the single date that record offers are not carried by anything else here, and are not printed.',
+  },
+  {
+    name: 'Ọnwa Abụọ',
+    dates: 'March–April',
+    note: 'The archive\'s record <i>Iguaro</i> gives this month for clearing and cleaning the land and for purification before planting. It is that record\'s note, and no other record here states it.',
+  },
+  {
+    name: 'Ọnwa Ife Eke',
+    dates: 'April–May',
+    note: 'The archive\'s record <i>Iguaro</i> gives this month as a fast with sacrifices to Ana, the earth, and as the month of the wrestling some communities hold. The older account\'s word for the fast is not in this record, so it is not on the page.',
+  },
+  {
+    name: 'Ọnwa Anọ',
+    dates: 'May–June',
+    note: 'The archive\'s record <i>Iguaro</i> gives this month as the beginning of seed-yam planting, and names the dance festival some communities hold in it. It is that record\'s note alone.',
+  },
+  {
+    name: 'Ọnwa Agwụ',
+    dates: 'June–July',
+    note: 'The archive\'s record <i>Iguaro</i> gives this month as Agwụ\'s, when the Dibia honour him with herbs and charms and masquerades perform. It is the only account of the month here.',
+  },
+  {
+    name: 'Ọnwa Ifejiọkụ',
+    dates: 'July–August',
+    note: 'The archive\'s record <i>Iguaro</i> gives the yam rituals for Ifejiọkụ and Njoku Ji in this month, and the New Yam Festival at their end. The festival itself is named in other records here; the pairing with this month is this record\'s alone.',
+  },
+  {
+    name: 'Ọnwa Alọm Chi',
+    dates: 'August–September',
+    note: 'The archive\'s record <i>Iguaro</i> gives the yam harvest in this month, and gives the month to women\'s communion with their ancestors, to breaking kola and to motherhood. One record states it.',
+  },
+  {
+    name: 'Ọnwa Ilọ Mmụọ',
+    dates: 'late September',
+    also: 'the Ọnwa Asatọ festival is held in it',
+    note: 'The archive\'s record <i>Iguaro</i> gives the Ọnwa Asatọ festival in this month, which the range column already carries. The archive\'s record of the Omabe festival at Nsukka names the same month beside a masquerade photograph, so the month is carried twice here — and what the month means is still stated nowhere.',
+  },
+  {
+    name: 'Ọnwa Ana',
+    dates: 'October',
+    note: 'The archive\'s record <i>Iguaro</i> gives the rituals for Ana, the earth, in this month and says the month is named after her. One record states both.',
+  },
+  {
+    name: 'Ọnwa Okike',
+    dates: 'early November',
+    note: 'The archive\'s record <i>Iguaro</i> gives creation rituals in this month. The archive\'s record of an Okike instrument and its record of Nkpor\'s agricultural rites say nothing about this month, and nothing is taken from them.',
+  },
+  {
+    name: 'Ọnwa Ajana',
+    dates: 'late November',
+    note: 'The owner asked for this month by name, so here is exactly what the archive holds for it. One record states anything about the month: <i>Iguaro</i>, which gives it as a continuation of the creation rituals and as preparation for the year\'s end. <strong>That record is not independent of the account this page removed</strong> — the removed source is in its own reference list and its month notes are that account in other words — so its note is not printed as the meaning of the month. The archive\'s other records that name <i>Ajana</i> give the name to the earth and say nothing about the month. A meaning that cannot be sourced is not printed.',
+  },
+  {
+    name: 'Ọnwa Ede Ajana',
+    dates: 'late November–December',
+    note: 'The archive\'s record <i>Iguaro</i> gives this month as the closing rituals of the agricultural and spiritual year. The removed account\'s entry for the month was two words; the record\'s is a sentence, and one record is all there is.',
+  },
+  {
+    name: 'Ọnwa Ụzọ Alụsị',
+    dates: 'January–February',
+    note: 'The archive\'s record <i>Iguaro</i> gives this month as the offerings to the alusi that close the year and prepare the next, and names it as the month the extra day is added to. The count and the extra day are stated above; the offering is one record\'s note.',
+  },
 ];
 
 /**
@@ -5508,14 +5606,56 @@ const CALENDAR_MONTH_NAMES: CalendarMonthName[] = [
  */
 function igboCalendarAddendum(): string {
   /*
-   * THE ROWS ARE BUILT FROM THE NAMES RATHER THAN TYPED, so a name and its order cannot drift apart, and
-   * the row is a plain `<th scope="row">` and `<td>` — **no control, because there is nothing left for one
-   * to open.** The month buttons and their panels went with the descriptions they opened.
+   * THE ROW IS THE CONTROL AND THE PANEL IS THE NEXT ROW — the shape round 365 deleted, recovered.
+   *
+   * A `<details>` element cannot be a `<tr>`, and putting the control in one cell would leave the Igbo name
+   * — the thing a reader comes for — outside it. So the whole row carries the button and the panel is the
+   * next row, spanning the table. The button carries `aria-expanded` and `aria-controls`, and **both states
+   * are written into the HTML rather than set by script, so the panels are readable with JavaScript switched
+   * off**; a reader without it must not be shown thirteen controls that do nothing.
+   *
+   * WHY `aria-expanded` STARTS AT `true` HERE AND THE SCRIPT CLOSES IT. The no-script state has to be the
+   * honest one: with no script the panel is visible, so the control's state is "expanded" and that is what
+   * the markup says. The script then closes each panel and flips the attribute, so the two can never
+   * disagree — the fault this shape exists to avoid is a control announcing a state it does not have.
    */
-  const monthRows = CALENDAR_MONTH_NAMES.map((m) => {
+  const monthRows = CALENDAR_MONTH_NAMES.map((m, i) => {
+    const n = i + 1;
     const also = m.also ? ` <span class="small muted">— ${esc(m.also)}</span>` : '';
-    return `            <tr><th scope="row">${esc(m.name)}</th><td class="sx-cal-dates">${esc(m.dates)}${also}</td></tr>`;
+    return `            <tr id="igbo-month-${n}" class="sx-cal-row">
+              <th scope="row"><span class="sx-cal-no">${n}</span> <button type="button" class="sx-cal-month" data-igbo-month="${n}" aria-expanded="true" aria-controls="igbo-month-note-${n}">${esc(m.name)}</button></th>
+              <td class="sx-cal-dates">${esc(m.dates)}${also}</td>
+            </tr>
+            <tr id="igbo-month-note-${n}" class="sx-cal-note-row">
+              <td colspan="2"><p>${m.note}</p></td>
+            </tr>`;
   }).join('\n');
+
+  /*
+   * THE MONTH-ROW TOGGLE, RECOVERED FROM THE VERSION THAT WORKED AND KEPT AT THE SAME SHAPE.
+   *
+   * It is inline and namespaced by class, so it touches nothing the design's own scripts look for. Every
+   * listener is a click on a `<button type="button">`, **which makes it work from the keyboard for free,
+   * because a button is activated by Enter and Space** — no keydown handler, no focus management and no
+   * hover is involved. The script does nothing to a button whose `aria-controls` names no element, so a
+   * panel removed from the markup leaves a control reporting the no-script state rather than a broken one.
+   */
+  const monthToggle = `<script>
+        (function () {
+          var buttons = document.querySelectorAll(".sx-cal-account .sx-cal-month");
+          Array.prototype.forEach.call(buttons, function (button) {
+            var panel = document.getElementById(button.getAttribute("aria-controls"));
+            if (!panel) return;
+            button.setAttribute("aria-expanded", "false");
+            panel.hidden = true;
+            button.addEventListener("click", function () {
+              var open = button.getAttribute("aria-expanded") === "true";
+              button.setAttribute("aria-expanded", open ? "false" : "true");
+              panel.hidden = open;
+            });
+          });
+        })();
+      </script>`;
 
   /*
    * NO COMMENT IN THE TEMPLATE BELOW CONTAINS A BACKTICK, which is the fault that has failed this file's
@@ -5537,6 +5677,12 @@ function igboCalendarAddendum(): string {
           .sx-cal-account .sx-ledger-table caption { padding: var(--s-3) var(--s-4); text-align: left; color: var(--text-muted); font-size: var(--t-sm); }
           .sx-cal-account .sx-cal-dates { white-space: nowrap; }
           .sx-cal-account .sx-ledger-table th[scope="row"] { vertical-align: top; }
+          .sx-cal-account .sx-cal-month { padding: 0; border: 0; background: none; color: var(--accent, #0d5c45); font: 600 var(--t-lg) var(--font-serif); text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+          .sx-cal-account .sx-cal-month::after { content: " −"; color: var(--ochre, #8a5a2b); font-family: var(--font-sans); font-size: var(--t-base); }
+          .sx-cal-account .sx-cal-month[aria-expanded="false"]::after { content: " +"; }
+          .sx-cal-account .sx-cal-no { color: var(--text-muted); font-family: var(--font-mono); font-size: var(--t-sm); }
+          .sx-cal-account .sx-cal-note-row td { background: var(--paper-sunk); }
+          .sx-cal-account .sx-cal-note-row[hidden] { display: none; }
           .sx-cal-account :is(a, button, summary):focus-visible { outline: 3px solid var(--focus, #1b4f8a); outline-offset: 2px; }
         </style>
 
@@ -5544,9 +5690,10 @@ function igboCalendarAddendum(): string {
         <p>The four market days are Eke, Orie, Afọ and Nkwọ, and the four together are the market week. Seven of those weeks make a month of 28 days, and thirteen months make the year: 364 days.</p>
         <p>The archive's own catalogued records carry the year and the festival that starts it. <i>Traditional Igbo calendar and lunar/solar alignments</i> gives the four days their directions — Eke east, Orie west, Afọ north and Nkwọ south — and gives the month as seven sets of four days. <i>Iguaro: The Igbo Calendar, Culture, and Cosmology</i> gives the count, the extra day at the end of the last month, Ọnwa Ụzọ Alụsị, and the proclamation the year begins with: the Eze Nri counts the months and announces the year, and the festival is Ịgụ Arọ. <i>Igu Aro: The Sacred Proclamation of the Igbo Lunar Year from Nri</i> is the archive's other record of the same proclamation, from Nri. <i>Symbolism of the Four Market Days in Igbo Culture</i> covers the four days at length.</p>
         <p><strong>The month names are the one thing here the archive cannot check.</strong> They are Onwuejeogwu (1981), which the archive's own records give for them. <strong>The archive does not hold that book and has not read it</strong>, so the names below come at second hand from those records rather than from the book.</p>
+        <p><strong>What each month means is not defined here, and every month opens to say why.</strong> One record of the archive's own does give a note for all thirteen months, <i>Iguaro</i> — and that record carries the account this page removed in its own reference list, so its notes are that account in other words, not an independent source. <strong>A meaning this page cannot source is not printed as one.</strong> What each month does carry is named in its own panel, and the month the owner asked about says so at length.</p>
         <div class="sx-table-wrap">
           <table class="sx-ledger-table">
-            <caption>The thirteen months of the Nri year. Names: Onwuejeogwu (1981), at second hand from the catalogued records above. The ranges are approximate, and the archive holds no reckoning that turns a Gregorian date into an Igbo one.</caption>
+            <caption>The thirteen months of the Nri year. Names: Onwuejeogwu (1981), at second hand from the catalogued records above. The ranges are approximate, and the archive holds no reckoning that turns a Gregorian date into an Igbo one. Open a month for what the archive holds for it.</caption>
             <thead><tr><th scope="col">Month (ọnwa)</th><th scope="col">Roughly</th></tr></thead>
             <tbody>
 ${monthRows}
@@ -5557,9 +5704,10 @@ ${monthRows}
 
         <h2>What this account is, and where it comes from</h2>
         <p><strong>This is the Nri account.</strong> The four market days and the thirteen months are the Nri reckoning as those records set it out. Other communities keep other reckonings, which the records say themselves: the calendar varies with each community's own reading of the moon, and the four-day market week is the part they share. So a town that keeps another reckoning keeps another market day. <i>Eken</i>, the variant on the Eke card, is not in those records: it is the archive owner’s own reading, recorded here as his.</p>
-        <p>The accounts of what each month holds — Ọnwa Abụọ for clearing, Ọnwa Ife Eke for fasting, Ọnwa Agwụ for the Agwu masquerades and the Dibia, Ọnwa Ifejiọkụ for the yam rituals, Ọnwa Ana for the earth goddess Ala — are not on this page. <strong>The archive's own records do not corroborate them one by one</strong>, and it prints what it can carry.</p>
+        <p><strong>The month list above is where the answers are.</strong> Each month opens to say what the archive holds for it and which record that is; the months whose meanings this page cannot source say so there rather than staying silent. <strong>The archive's own records do not corroborate the months' meanings one by one</strong>, and a page that cannot say where a meaning came from does not print it.</p>
         <p>So there is no festival date here, no eight-day cycle, no year number for the Nri count, and no conversion between the Gregorian and Igbo calendars. There is also no event record for any festival; <a href="/cultural-calendar/">the cultural calendar</a> says the same of itself.</p>
-      </section>`;
+      </section>
+      ${monthToggle}`;
 }
 
 /**

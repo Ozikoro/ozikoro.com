@@ -1,0 +1,54 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Read document — Ozikoro Research Library</title><meta name="description" content="Read an Ozikoro research publication or PDF document inside the site, with download, print, citation and sharing options."><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;600&display=swap"><link rel="stylesheet" href="../styles/main.css"><link rel="stylesheet" href="../styles/showcase.css"></head><body><a class="skip" href="#viewer">Skip to document</a><p class="example-flag">Design demonstration — the file shown is a labelled sample PDF, not a research record.</p><div class="platform-bar"><div class="wrap"><ul><li><a href="home.html" class="here">ozikoro.com — archive &amp; research</a></li><li><a href="https://ozituma.com/">ozituma.com — dictionary</a></li><li><a href="https://learn.ozituma.com/">learn.ozituma.com — Learn Igbo</a></li></ul><a class="sx-top-date" href="igbo-calendar.html" aria-label="Open Igbo calendar"><b data-market-day>Market day</b><span data-modern-date>Today</span></a></div></div><header class="masthead"><div class="wrap"><a class="wordmark" href="home.html"><b>Ozikoro</b><span>Research Library</span></a><nav class="nav" aria-label="Primary"><ul><li><a href="archive-index.html">Histories</a></li><li><a href="watch.html">Watch</a></li><li><a href="collections.html">Explore</a></li><li><a href="documents.html" aria-current="page">Documents</a></li><li><a href="researcher-profile.html">Researchers</a></li><li><a href="about.html">About</a></li></ul></nav></div></header>
+<main id="viewer" class="sx-viewer-page">
+<div class="wrap sx-viewer-head">
+<nav aria-label="Breadcrumb" class="small"><a href="documents.html">Documents</a> / <span data-doc-kind>Research paper</span></nav>
+<p class="eyebrow" data-doc-eyebrow>Peer-reviewed article · Open access</p>
+<h1 data-doc-title>Market week and ritual office: reading testimony against the administrative return</h1>
+<p class="sx-viewer-byline" data-doc-by>Chinwe Ị̀kẹ̀jìànị̀ and Emeka Ǹwàchukwu · 2026</p>
+</div>
+<div class="wrap sx-viewer-layout">
+<section class="sx-viewer-frame" aria-label="Document preview">
+<div class="sx-viewer-toolbar">
+<span class="sx-pdf-chip">PDF</span><span class="small" data-doc-pages>Sample file</span>
+<span class="sx-viewer-tools">
+<a class="btn btn-gold btn-sm" data-doc-download href="../downloads/research-download-demonstration.pdf" download>Download</a>
+<a class="btn btn-quiet btn-sm" data-doc-open href="../downloads/research-download-demonstration.pdf" target="_blank" rel="noopener">Full screen</a>
+<button class="btn btn-quiet btn-sm" type="button" data-doc-print>Print</button>
+</span>
+</div>
+<object class="sx-viewer-object" data-doc-object data="../downloads/research-download-demonstration.pdf#view=FitH" type="application/pdf" aria-label="PDF preview">
+<div class="sx-viewer-fallback"><p>Your browser cannot show PDFs inside the page.</p><a class="btn btn-gold" href="../downloads/research-download-demonstration.pdf" download>Download the PDF</a></div>
+</object>
+</section>
+<aside class="sx-viewer-side">
+<div class="sx-viewer-card"><p class="eyebrow">Record</p>
+<dl><dt>Reference</dt><dd class="mono" data-doc-ref>OZ-P-2026-0041</dd><dt>Type</dt><dd data-doc-type>Journal article</dd><dt>Access</dt><dd>Open · downloadable</dd><dt>Licence</dt><dd>CC BY 4.0</dd><dt>Language</dt><dd>English</dd></dl></div>
+<div class="sx-viewer-card"><p class="eyebrow">Cite</p><p class="cite-block small" data-doc-cite>Ị̀kẹ̀jìànị̀, C. &amp; Ǹwàchukwu, E. (2026) "Market week and ritual office." Ozikoro Research Library.</p><button class="btn btn-quiet btn-sm" type="button" data-doc-copycite>Copy citation</button> <a class="btn btn-quiet btn-sm" href="cite.html">Citation guide</a></div>
+<div class="sx-viewer-card"><p class="eyebrow">Share</p><div class="row"><button class="btn btn-quiet btn-sm" type="button" data-doc-copylink>Copy link</button><a class="btn btn-quiet btn-sm" href="publication.html">Full record</a></div><p class="small" data-doc-status aria-live="polite"></p></div>
+<div class="sx-viewer-card"><p class="eyebrow">More in the library</p><ul class="stack small"><li><a href="document-viewer.html?doc=guide">Ozikoro archive record guide</a></li><li><a href="document-viewer.html?doc=finding">Collection finding-aid pattern</a></li><li><a href="documents.html#locked">Restricted works</a></li></ul></div>
+</aside>
+</div>
+</main>
+<footer class="site-foot"><div class="wrap"><div class="legal"><span>© 2026 Ozi Ikoro Limited.</span><span><a href="documents.html">Documents</a> · <a href="cite.html">Citation guide</a></span></div></div></footer>
+<script>
+(() => {
+  const docs = {
+    research: { file: '../downloads/research-download-demonstration.pdf' },
+    guide: { file: '../downloads/archive-guide-demonstration.pdf', kind: 'PDF document', eyebrow: 'Archive guide · Sample file', title: 'Ozikoro archive record guide', by: 'Ozikoro editorial desk · Sample', ref: 'OZ-G-0001', type: 'Archive guide', cite: 'Ozikoro (2026) "Ozikoro archive record guide." Ozikoro Research Library.' },
+    finding: { file: '../downloads/archive-guide-demonstration.pdf', kind: 'PDF document', eyebrow: 'Document record · Sample file', title: 'Collection finding-aid pattern', by: 'Ozikoro editorial desk · Sample', ref: 'OZ-G-0002', type: 'Finding aid', cite: 'Ozikoro (2026) "Collection finding-aid pattern." Ozikoro Research Library.' }
+  };
+  const d = docs[new URLSearchParams(location.search).get('doc')] || docs.research;
+  const set = (k, v) => { const el = document.querySelector(`[data-doc-${k}]`); if (el && v) el.textContent = v; };
+  ['kind','eyebrow','title','by','ref','type','cite'].forEach(k => set(k, d[k]));
+  if (d.title) document.title = d.title + ' — Ozikoro Research Library';
+  const obj = document.querySelector('[data-doc-object]');
+  if (obj.getAttribute('data').split('#')[0] !== d.file) { const n = obj.cloneNode(true); n.setAttribute('data', d.file + '#view=FitH'); obj.replaceWith(n); }
+  document.querySelectorAll('[data-doc-download],[data-doc-open],.sx-viewer-fallback a').forEach(a => a.href = d.file);
+  const status = document.querySelector('[data-doc-status]');
+  const copy = async (t, msg) => { try { await navigator.clipboard.writeText(t); status.textContent = msg; } catch { status.textContent = 'Copy unavailable — select the text instead.'; } };
+  document.querySelector('[data-doc-copylink]').onclick = () => copy(location.href, 'Link copied.');
+  document.querySelector('[data-doc-copycite]').onclick = () => copy(document.querySelector('[data-doc-cite]').textContent, 'Citation copied.');
+  document.querySelector('[data-doc-print]').onclick = () => { const w = window.open(d.file); w && w.addEventListener('load', () => w.print()); };
+})();
+</script>
+<script src="../market-days.js" defer></script></body></html>
