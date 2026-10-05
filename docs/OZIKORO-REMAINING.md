@@ -28379,6 +28379,17 @@ right.
   `/tmp/pre-corpus-2026-10-05T18-55-50Z.dump` was deliberately kept. **The clutter the brief warned about is
   unchanged, and it cost this round a measurement:** the first `pg_restore --list` attempt returned one
   line, which read as a corrupt dump and was in fact the container being unable to see `/tmp` at all.
+* **⚠️ AND ONE TEMPORARY BUCKET FROM EARLIER IN THIS SESSION IS STILL IN THE ACCOUNT.** The brief stated that
+  `ozikoro-deploy-transfer-793264561107` *"was created, used and deleted earlier in this session"*. **It was
+  not deleted.** Measured this round: created `2026-10-05T16:42:29Z`, holding one object
+  `sync-1791218554.tgz` (2,692,606 bytes, written `16:42:42Z`), all four Block Public Access settings on, and
+  a bucket policy granting `s3:GetObject` **and `s3:PutObject`** to
+  `arn:aws:iam::793264561107:user/ozituma-ses`. **It was left alone rather than deleted**, because it is not
+  this round's bucket and only its owner knows whether a transfer is still in flight. **It wants deleting,
+  and it is recorded here so that "the temporary bucket was deleted" is not a claim this file repeats
+  without a measurement** — which is the fault this document has now recorded in four other shapes. This
+  round's own bucket, `ozikoro-corpus-transfer-793264561107`, was deleted with its object and
+  `head-bucket` returns `404`.
 * **No DNS record, no Cloudflare setting and nothing under `apps/ozikoro/public/design/` was read, written
   or changed.** The parity script prints **`identical 64 differing 0 missing 0`** after this round — **and
   the count is 64, not the 63 that every earlier round in this file records.** The deliverable tree holds
