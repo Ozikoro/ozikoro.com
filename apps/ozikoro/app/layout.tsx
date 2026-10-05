@@ -59,8 +59,55 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const pathname = (await headers()).get('x-pathname') ?? '/';
 
   if (hasOwnChrome(pathname)) {
+    /*
+     * ── THE BACK OFFICE IS A DESIGN SCREEN TOO, AND IT WAS THE ONE PLACE THE DESIGN WAS NOT LINKED ────
+     *
+     * The owner: *"i clicked on it to see the admin, and it was completely scattred. this is not exactly as
+     * it was in the demo."* It was not, and this is half the reason.
+     *
+     * `public/design/screens/dashboard-admin.html` draws the administration as `div.sx-dashboard` — a
+     * 16rem night rail beside a main column, a sticky `header.sx-dash-top`, a `section.sx-metrics` of four
+     * figures and a `div.sx-work-grid` of two panels. Those are all rules in `showcase.css`.
+     *
+     * **Measured on the served page before this change: the only stylesheet on `/admin/` was the
+     * application's own `globals.css`.** `main.css`, `showcase.css` and `a11y.css` were linked on the
+     * public pages and on the fifty-two design screens, and not here — so `/admin/` could not have looked
+     * like the design however its markup was written, and it did not. *A page whose classes come from a
+     * stylesheet it does not load is a page laid out by the browser's defaults, which is exactly what
+     * "scattered" describes.*
+     *
+     * The two conditions are the design's own, mounted by every other page of this site: link the
+     * deliverable's stylesheets as delivered, and `a11y.css` last so its corrections are not overridden.
+     *
+     * ⚠️ NOT ON `/signin` OR `/design`* — those share this branch because they share its reason (a Next
+     * layout cannot ask for the path, so the path arrives as a header), and neither is the administration.
+     * `/design-screen/…` also starts with `/design` and returns its own whole document, so a head injected
+     * here would be discarded anyway.
+     */
+    const backOffice = pathname.startsWith('/admin');
+
     return (
       <html lang="en">
+        <head>
+          {backOffice ? (
+            <>
+              <link rel="stylesheet" href="/design/styles/main.css" />
+              <link rel="stylesheet" href="/design/styles/showcase.css" />
+              <link rel="stylesheet" href="/a11y.css" />
+              {/*
+                The design's own faces, for the same reason the public pages load them: the type scale and
+                the `--font-serif` headings are part of what the dashboard looks like, and the fallback
+                stack renders the Igbo dotted vowels differently from Noto.
+              */}
+              <link rel="preconnect" href="https://fonts.googleapis.com" />
+              <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+              <link
+                rel="stylesheet"
+                href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;600&display=swap"
+              />
+            </>
+          ) : null}
+        </head>
         <body>{children}</body>
       </html>
     );
@@ -104,15 +151,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           approximated. The apple-touch icon points at the same file, because there is one icon in the
           deliverable and inventing a second would be inventing artwork.
 
-          `/apple-touch-icon.png` is the one format a platform requires and the ICO does not provide: the
-          touch icon must be a PNG. **The design's ICO holds a single 256×256 PNG and nothing else** — one
-          directory entry, no mask, no second size — so that embedded image is served at the touch-icon
-          path, byte for byte, with no conversion and no re-drawing. The link below names the ICO for
-          browsers that accept it and the PNG for the ones that do not.
+          ⚠️ **BUT THE DESIGN'S FAVICON IS NOT OZIKORO'S MARK, AND THIS FILE USED TO SERVE IT ANYWAY.**
+          `design/calm-comfort-construct/public/favicon.ico` holds a single 256×256 PNG of the **Lovable**
+          logo — the tool the design screens were drawn in — and the paragraph that used to sit here argued
+          for copying it byte for byte, on the grounds that drawing a second icon *"would be inventing
+          artwork"*. **The owner reported the result in his own words: "why is the favicon of the website
+          showing the loveable logo instead of ozikoro.com logo?"** *A visitor's browser tab showed the
+          build tool's brand rather than the archive's.*
+
+          **AND THE PREMISE WAS FALSE. Nothing had to be invented, because Ozikoro's own mark already
+          exists and the archive already serves it:** `/media/ozikoro/486-cropped-Ozi-Ikoro-Icon-Yellow-1.png`
+          — the same gold sun the masthead draws, 512×512, 15,175 bytes, held in this repository at
+          `data/media/ozikoro-wp/`. **The three files below are that image at the sizes a platform asks for,
+          and nothing in them is drawn, recoloured or composed by this application.**
+
+          *The ICO carries five PNG entries — 16, 32, 48, 64 and 256 — because one size is a compromise:
+          a 16 px tab icon and a 256 px taskbar icon are different problems, and an ICO can answer both.
+          `/favicon.png` is a 32×32 copy for browsers that prefer a PNG with an explicit type, and
+          `/apple-touch-icon.png` is 180×180, which is what iOS asks for and what an ICO cannot provide.
+          The PNG links come first so a modern browser takes the one it can size best; the ICO stays for
+          the ones that ask for `/favicon.ico` unprompted, which no markup can prevent.*
         */}
+        <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="shortcut icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         {/*
           Accessibility corrections, linked LAST so the design's own tokens cannot override them.
           See the file for what it corrects, the measurement that found it, and why that value.
@@ -207,23 +270,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Link href="/about">About</Link>
                 </li>
                 {/*
-                  THE SWITCH, THEN THE ACCOUNT. The control opens the list of workspaces this account may
-                  enter and marks the one it is in; the account link beside it is the one-click way to the
-                  workspace itself. A reader with nothing elevated gets no control and only the account or
-                  the way in — which is the state the site was in before, and the state the brief requires.
+                  THE SWITCH STANDS WHERE THE ACCOUNT ITEM STANDS, WHICH IS ONE ITEM AND NOT TWO.
+
+                  It used to be added *beside* the account link, so a signed-in reader with an elevated
+                  workspace got eight items where a signed-out one got seven — and the eighth was a
+                  `details` whose summary named the person and the role and ran to several hundred pixels.
+                  That is what wrapped the bar. The owner's instruction is the fix for both halves:
+                  *"the thing was showing 'Signed in as Idenze Ezeme · Owner' when 'My Account' was enough."*
+
+                  So the control is the account item now, its summary reads `My Account`, and the link to
+                  the reader's own workspace is the first entry inside the panel it opens — the room the
+                  signed-in bar takes is the room the signed-in bar took before the switch existed, and
+                  nothing was removed to get there. **A plain reader, who sees no switch at all, keeps the
+                  plain account link exactly as it was.**
                 */}
-                {modeSwitch.length > 0 && (
+                {modeSwitch.length > 0 ? (
                   <li className="nav-modes-item" dangerouslySetInnerHTML={{ __html: modeSwitch }} />
+                ) : (
+                  <li className="nav-account">
+                    {workspace.signedIn ? (
+                      <Link href={workspace.primaryHref}>
+                        {workspace.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace'}
+                      </Link>
+                    ) : (
+                      <Link href="/signin">Sign in / Sign up</Link>
+                    )}
+                  </li>
                 )}
-                <li className="nav-account">
-                  {workspace.signedIn ? (
-                    <Link href={workspace.primaryHref}>
-                      {workspace.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace'}
-                    </Link>
-                  ) : (
-                    <Link href="/signin">Sign in / Sign up</Link>
-                  )}
-                </li>
               </ul>
             </nav>
           </div>
