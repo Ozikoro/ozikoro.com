@@ -131,7 +131,22 @@ async function servePublishedPage(db: Db, slug: string): Promise<Response | null
   }
 
   const body = page?.body_html ?? '';
-  if (!page || body.trim() === '') return null;
+
+  /*
+   * A PAGE WITH NO CONTENT IS STILL A PAGE.
+   *
+   * This condition used to read `!page || body.trim() === ''`, which conflated two different facts: no row,
+   * and a row whose body is empty. The owner's rule is that a record keeps the address it was published
+   * at, and `/construction/` was published at that address — row 1052, `wp_post_id` 11024, status
+   * published, `is_page` true, and a body of zero characters. The live WordPress site answered it 200,
+   * putting its theme's chrome around the empty body. Here it returned null, which the caller turns into a
+   * 404, so a page the archive holds was reported as missing.
+   *
+   * The renderer below already handles an empty body correctly: the content becomes the empty string and
+   * hasHeading is false, so the page is served with its own title and no body — which is what the record
+   * actually is. Only the absence of a row may return null.
+   */
+  if (!page) return null;
 
   const resolveImage = await mediaUrlResolver(db);
   const content = rewriteBodyImages(body, resolveImage);
