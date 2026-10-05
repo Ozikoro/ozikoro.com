@@ -70,7 +70,7 @@ const ROUTE = {
   'documents': '/documents', 'folklore': '/folklore', 'igbo-calendar': '/igbo-calendar',
   'ledger': '/ledger', 'listen': '/design-screen/[screen]', 'material-culture': '/material-culture',
   'oral-recordings': '/oral-recordings', 'photographs': '/photographs', 'projects': '/projects',
-  'publications': '/publications', 'topics': '/topics', 'towns': '/towns', 'watch': '/watch',
+  'publications': '/publications', 'topics': '/topics', 'watch': '/watch',
   'cultural-calendar': '/cultural-calendar', 'archive-index': '/archive', 'type-test': '/type-test',
   '404': '/not-found.tsx', 'upload': '/submit',
   /*
@@ -85,6 +85,21 @@ const ROUTE = {
 const ALIAS = {
   'article': ['/[slug]', 'the article detail route, which serves every published entry'],
   'town': ['/town/[slug]', 'one town, under the towns index'],
+  /*
+   * THE REGISTER IS ONE PAGE AT `/clan-towns/`, AND THAT IS THE OWNER'S OWN INSTRUCTION.
+   *
+   * The owner: *"add them all to the /towns page, and maybe rename it to /clan-towns to accommodate…"* So
+   * `/clan-towns/` is canonical and `/towns`, `/towns/`, `/towns.html` and `/clans/` are 301s into it, and
+   * `designScreenLinks` resolves the name `towns.html` to `/clan-towns/` at serve time because the design
+   * deliverable names it 17 times across 14 files and cannot be edited.
+   *
+   * ⚠️ THIS MAP SAID `'towns': '/towns'` AND SO REPORTED `MISSING towns — /towns — no page.tsx or route.ts`
+   * ON EVERY RUN. That was true of the file tree and false about the site: the address 301s to a page that
+   * exists. **A checker that reports a deliberate redirect as a missing screen is worse than one that stays
+   * quiet**, because it teaches its reader to skim the red. The screen is not missing; it is served under a
+   * name the owner chose.
+   */
+  'towns': ['/clan-towns', 'the register, renamed by the owner from /towns to /clan-towns; the old address 301s'],
   'project': ['/projects', 'a single project, under the projects index'],
   'publication': ['/publications/[slug]', 'one publication, under the publications index'],
   'researcher-profile': ['/researchers/[slug]', 'one researcher, under the researchers index'],
