@@ -99,6 +99,23 @@ export * from './dashboard-modes.ts';
 export * from './design-override.ts';
 export * from './design-override-store.ts';
 /*
+ * THE DESIGN EDITOR'S OWN LOGIC — which control a token gets, and whether a value survives it.
+ *
+ * Separate from `design-override.ts` because it answers a different question: that module knows what the
+ * design's tokens ARE, and this one knows which of them a colour picker can honestly be offered and what a
+ * font chooser may name. The page renders what this returns, so the decision is testable without a browser
+ * and without a database.
+ */
+export * from './design-editor.ts';
+/*
+ * THE SITE'S OWN ICON — the mark in a browser tab, stored in `site_setting` and served from `/favicon.ico`.
+ *
+ * Its own module rather than another key inside `seo-verification.ts` because the reach is the whole point:
+ * `/favicon.ico` is the one address a browser asks for unprompted, which is how an icon set here reaches the
+ * fifty-three design screens and the 1,051 articles that never run `app/layout.tsx`.
+ */
+export * from './site-icon.ts';
+/*
  * THE SITE-VERIFICATION TOKENS — the owner's own, held in `site_setting`, emitted by `seoHead` into every
  * page's `<head>`. Exported beside the head builder rather than inside it because the catalogue of engines,
  * the paste reader and the table are what the administration's screen is built from, and none of those needs
@@ -106,6 +123,26 @@ export * from './design-override-store.ts';
  */
 export * from './seo-verification.ts';
 export * from './seo-head.ts';
+/*
+ * THE SITE'S OWN SEARCH-ENGINE IDENTITY, AND THE REDIRECTS A MOVED ADDRESS LEAVES BEHIND.
+ *
+ * Its own module beside `seo-verification.ts` because it is the same kind of thing — rows in `site_setting`
+ * under the `seo.` prefix, read at serve time by the one head builder — and a different kind of thing from
+ * `seo.ts`, which is the sitemap and the indexable-URL enumeration. What it carries: the site name, the title
+ * separator, the title template and its variables, the front page's own title and meta description, and the
+ * redirect map a permalink change writes into. **The permalink write path lives here rather than in
+ * `seo-records.ts`** because changing an address is a redirect decision and not a search-result one; see the
+ * header of `site-seo.ts`, and `changeRecordPermalink`.
+ */
+export * from './site-seo.ts';
+/*
+ * THE ENTITIES WORDPRESS STORED AS LITERAL TEXT, DECODED BACK TO THE CHARACTERS THEY NAME.
+ *
+ * Exported from the barrel because the repair is not a rendering concern: the entity is in the column, and
+ * every consumer — the page, the head, the PDF, the search index, the sitemap, an export — reads it from
+ * there. See `stored-entities.ts` for why it decodes to a fixed point and why `body_html` is refused.
+ */
+export * from './stored-entities.ts';
 export * from './spoken.ts';
 export * from './narration.ts';
 /*
