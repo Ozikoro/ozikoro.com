@@ -29,7 +29,6 @@
  * transitions, and they are kept: they are the state machine those rows belong to, and they were here
  * already.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   PUBLICATION_TRANSITIONS,
@@ -108,9 +107,9 @@ export default async function ReviewQueuePage({
   return (
     <>
       <Head title="Review queue">
-        <Link className="btn btn--sm" href="/admin/archive/">
+        <a className="btn btn--sm" href="/admin/archive/">
           Editorial queue
-        </Link>
+        </a>
       </Head>
 
       {notices.saved ? <div className="notice notice--success" role="status"><div><p className="notice__body">{notices.saved}</p></div></div> : null}
@@ -191,9 +190,9 @@ export default async function ReviewQueuePage({
                       )}
                     </td>
                     <td>
-                      <Link className="btn btn--sm" href={`/admin/archive/${article.id}`}>
+                      <a className="btn btn--sm" href={`/admin/archive/${article.id}`}>
                         Open the record
-                      </Link>
+                      </a>
                     </td>
                   </tr>
                 ))}
@@ -202,13 +201,13 @@ export default async function ReviewQueuePage({
 
             <nav className="row" style={{ marginTop: '1rem' }} aria-label="Pagination">
               {page > 1 ? (
-                <Link className="btn btn--sm" href={query({ page: String(page - 1) })}>← Previous</Link>
+                <a className="btn btn--sm" href={query({ page: String(page - 1) })}>← Previous</a>
               ) : <span />}
               <span className="small muted">
                 page {page} of {lastPage} · {articleQueue.total.toLocaleString('en-GB')} waiting
               </span>
               {page < lastPage ? (
-                <Link className="btn btn--sm" href={query({ page: String(page + 1) })}>Next →</Link>
+                <a className="btn btn--sm" href={query({ page: String(page + 1) })}>Next →</a>
               ) : <span />}
             </nav>
           </>

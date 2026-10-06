@@ -14,7 +14,6 @@
  * they have here, and the revision itself is read through `/admin/archive/orphan-revisions/<parent>/<id>`
  * below.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import { listOrphanRevisionGroups, revisionArchiveTotals } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
@@ -37,7 +36,7 @@ export default async function OrphanRevisions() {
   return (
     <>
       <Head title="Revisions of records the archive does not hold">
-        <Link className="btn btn--sm" href="/admin/archive">Back to the queue</Link>
+        <a className="btn btn--sm" href="/admin/archive">Back to the queue</a>
       </Head>
 
       <Card title="The revision archive, as a whole">
@@ -68,9 +67,9 @@ export default async function OrphanRevisions() {
                     {g.carryingUniqueText > 0 ? ` · ${g.carryingUniqueText} carrying unique text` : ''}
                   </div>
                   <p className="history__what">
-                    <Link href={`/admin/archive/orphan-revisions/${g.wpParentPostId}`}>
+                    <a href={`/admin/archive/orphan-revisions/${g.wpParentPostId}`}>
                       {g.titles.length > 0 ? g.titles.join(' · ') : `Revisions of post ${g.wpParentPostId}`}
-                    </Link>
+                    </a>
                   </p>
                 </li>
               ))}

@@ -21,12 +21,21 @@
  * addresses. An editor who can work the editorial queues is not thereby entitled to a count of the archive's
  * accounts, so those two cards appear only for an account that holds the capability — and the query is not
  * run for anyone else either, rather than being run and then hidden.
+ *
+ * ⚠️ **EVERY CARD'S LINK IS A PLAIN `<a>`, NOT `next/link`, AND THE OWNER ASKED FOR THAT.** *"i want every
+ * page one clicks on the dashboards to be loading fully, instead of doing like it was cached already."* These
+ * cards carry counts of what other screens have just written — the review backlog, the trash, the claims —
+ * so an in-place swap from a cached React payload can show the figure from before the write. The reason, the
+ * correctness argument and the cost are written down once, above `railNav` in `layout.tsx`; **the public
+ * archive keeps its client-side navigation and was not touched.**
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
+  GRANT_ACCESS_CAPABILITY,
   capabilitiesFor,
   countContributorClaims,
+  countDesignOverrides,
+  countTrash,
   getArticleStatusCounts,
   getAuditOverview,
   getEditorialProgress,
@@ -34,9 +43,11 @@ import {
   getMediaStats,
   getRightsProgress,
   getUserOverview,
+  institutionalAccessOverview,
   listArticleClaims,
   narrationCounts,
   queueCounts,
+  recordSeoStats,
   spotifyConnectionView,
   VERIFY_ENGINES,
   loadSeoVerification,
@@ -63,6 +74,15 @@ export default async function Page() {
   const db = await getDb();
   const capabilities = await capabilitiesFor(db, account.account.id);
   const maySeeAccounts = capabilities.has('manage_users');
+  /*
+   * THE ONE CARD THE LAYOUT HIDES FROM AN EDITOR, ASKED ABOUT RATHER THAN ASSUMED.
+   *
+   * `grant_institutional_access` is held by the `owner` role and no other (migration 0057), and
+   * `app/admin/layout.tsx` draws its nav entry only for an account that holds it. **The card follows the same
+   * capability rather than the same role name**, so the day the table says something else is the day this
+   * follows it — and the query below is not run for anyone else, rather than being run and then hidden.
+   */
+  const mayGrantAccess = capabilities.has(GRANT_ACCESS_CAPABILITY);
 
   const [
     articles,
@@ -77,6 +97,10 @@ export default async function Page() {
     users,
     audit,
     graph,
+    recordSeo,
+    designOverrides,
+    trash,
+    access,
   ] = await Promise.all([
     getArticleStatusCounts(db),
     getEditorialProgress(db),
@@ -95,6 +119,18 @@ export default async function Page() {
      * count that only an administrator could see would describe a screen the editor cannot reach.
      */
     getEntityGraphState(db),
+    /*
+     * THE THREE COUNTS ADDED WITH THEIR CARDS, EACH FROM THE FUNCTION ITS OWN SCREEN USES.
+     *
+     * A card that counted for itself would be a second answer to a question the screen already answers, and
+     * the two would disagree the first time a filter changed — which is the fault the header of this file
+     * names. So each figure below is read from the same function its screen calls, and nothing here writes a
+     * query of its own.
+     */
+    recordSeoStats(db),
+    countDesignOverrides(db),
+    countTrash(db),
+    mayGrantAccess ? institutionalAccessOverview(db) : Promise.resolve(null),
   ]);
 
   /*
@@ -171,9 +207,9 @@ export default async function Page() {
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/reviews">
+          <a className="btn btn--primary" href="/admin/reviews">
             Review queue
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -192,9 +228,9 @@ export default async function Page() {
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/archive">
+          <a className="btn btn--primary" href="/admin/archive">
             Editorial queue
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -215,9 +251,9 @@ export default async function Page() {
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/entities">
+          <a className="btn btn--primary" href="/admin/entities">
             Knowledge graph
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -237,12 +273,12 @@ export default async function Page() {
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/media">
+          <a className="btn btn--primary" href="/admin/media">
             Media register
-          </Link>
-          <Link className="btn" href="/admin/rights">
+          </a>
+          <a className="btn" href="/admin/rights">
             Rights queue
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -258,9 +294,9 @@ export default async function Page() {
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/claims">
+          <a className="btn btn--primary" href="/admin/claims">
             Claims
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -277,9 +313,9 @@ export default async function Page() {
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/audio">
+          <a className="btn btn--primary" href="/admin/audio">
             Audio review queue
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -303,9 +339,9 @@ export default async function Page() {
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/pronunciation">
+          <a className="btn btn--primary" href="/admin/pronunciation">
             Pronunciations and credits
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -316,9 +352,9 @@ export default async function Page() {
         </p>
         <AtAGlance rows={[['Connection', spotify.label]]} />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/spotify">
+          <a className="btn btn--primary" href="/admin/spotify">
             Spotify connection
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -337,9 +373,9 @@ export default async function Page() {
             ]}
           />
           <p className="actions">
-            <Link className="btn btn--primary" href="/admin/users">
+            <a className="btn btn--primary" href="/admin/users">
               User table
-            </Link>
+            </a>
           </p>
         </Card>
       ) : null}
@@ -357,31 +393,127 @@ export default async function Page() {
             ]}
           />
           <p className="actions">
-            <Link className="btn btn--primary" href="/admin/audit">
+            <a className="btn btn--primary" href="/admin/audit">
               Audit trail
-            </Link>
+            </a>
           </p>
         </Card>
       ) : null}
 
       <Card title="Search engines">
         <p>
-          Where the owner pastes the verification code Google Search Console, Bing Webmaster Tools and Yandex
-          Webmaster issue. Paste the tag or just the token, and the archive writes it into the head of{' '}
-          <b>every page</b> — the front page, every record, every topic, the documents page.
+          Everything a search engine is told about this archive. It began as one screen where the owner pastes the
+          verification code Google Search Console, Bing Webmaster Tools and Yandex Webmaster issue — and the
+          owner’s report was that not everything Yoast shows was there and that it must not all be on one page,
+          so it is now <b>six</b>: the addresses and permalinks, the homepage title and the site name, the social
+          card, the structured data, robots.txt and the sitemap and the redirects, and the tokens themselves.
         </p>
         <AtAGlance
           rows={[
             ['Engines with a token stored', `${verification.length} of ${VERIFY_ENGINES.length + 1}`],
             ['Verification tags served now', `${tags.length}${tags.length === 0 ? ' — nothing is claimed yet, and no empty tag is written' : `: ${tags.map((tag) => tag.replace(/^<meta name="([^"]+)".*$/, '$1')).join(', ')}`}`],
+            ['The sections', 'Permalinks · Titles & meta · Social · Schema · Tools · Verification'],
           ]}
         />
         <p className="actions">
-          <Link className="btn btn--primary" href="/admin/seo">
+          <a className="btn btn--primary" href="/admin/seo">
             Search engines
-          </Link>
+          </a>
         </p>
       </Card>
+
+      {/*
+        ── THE SEARCH RESULT FOR ONE RECORD, WHICH IS THE THING THE OWNER REACHES FOR MOST OFTEN ──────────
+        Every record writes its own title and description from the record itself, which is the default and
+        stays the default. This is the screen that overrules it for one record and takes the overrule back, and
+        it carries the same counts the other cards do so the reader does not have to open it to find out
+        whether anything has been written. `manage_design` is what gates it, so the card is drawn for everyone
+        the layout admits — exactly like the two above it — and the page's own guard is what refuses.
+      */}
+      <Card title="Record search results">
+        <p>
+          The title and meta description an editor writes for <b>one</b> record, replacing the record&rsquo;s
+          own words in the head and in the social card. <strong>It changes no record and no address</strong> —
+          the visible heading and the canonical are the record&rsquo;s own, and a record with nothing written
+          here is served exactly as it always was.
+        </p>
+        <AtAGlance
+          rows={[
+            ['Published records', num(recordSeo.records)],
+            ['With a written title', num(recordSeo.withTitle)],
+            ['With a written description', num(recordSeo.withDescription)],
+            ['With any override', `${num(recordSeo.withEither)} of ${num(recordSeo.records)}`],
+          ]}
+        />
+        <p className="actions">
+          <a className="btn btn--primary" href="/admin/seo-records">
+            Record search results
+          </a>
+        </p>
+      </Card>
+
+      <Card title="The design">
+        <p>
+          The owner&rsquo;s own edits to the design&rsquo;s screens — a colour, a line of text, an image, a link
+          — applied on top of the delivered page rather than written into it, so every one of them is
+          reversible and attributable. <b>The deliverable itself is never edited</b>, and the count below is
+          how many edits are standing.
+        </p>
+        <AtAGlance rows={[['Edits applied over the design', num(designOverrides)]]} />
+        <p className="actions">
+          <a className="btn btn--primary" href="/admin/design">
+            The design
+          </a>
+        </p>
+      </Card>
+
+      <Card title="Trash">
+        <p>
+          Deleted records stay recoverable until somebody destroys them for good, and the two acts are
+          different: <b>an editor restores anything</b>, while destroying it needs the one permission the owner
+          withheld. A record waiting here is out of the archive&rsquo;s reach and not out of its keeping.
+        </p>
+        <AtAGlance
+          rows={[
+            ['Records in the trash', num(trash.articles)],
+            ['Media in the trash', num(trash.media)],
+          ]}
+        />
+        <p className="actions">
+          <a className="btn btn--primary" href="/admin/trash">
+            Trash
+          </a>
+        </p>
+      </Card>
+
+      {/*
+        ── INSTITUTIONAL ACCESS, WHICH IS THE ONE CARD AN EDITOR DOES NOT GET A COUNT OF ────────────────
+        The tier is granted by the `owner` role and by no other, so the card is drawn only for an account that
+        holds the capability — and the query is not run for anybody else, rather than being run and then
+        hidden. It sits beside the accounts and the audit trail because it is the same class of fact: who may
+        see what, and who decided.
+      */}
+      {mayGrantAccess && access ? (
+        <Card title="Institutional access">
+          <p>
+            The records that cannot be read at all without an agreement, and the agreements that open them.
+            <strong> An editor can read and work the archive without this and is not shown the count</strong>,
+            because signing an access instrument is the proprietor&rsquo;s act rather than an operator&rsquo;s.
+          </p>
+          <AtAGlance
+            rows={[
+              ['Agreements in force', num(access.live)],
+              ['Withdrawn', num(access.withdrawn)],
+              ['Records held by agreement', `${num(access.gated)} (${num(access.gatedPublished)} published)`],
+            ]}
+          />
+          <p className="actions">
+            <a className="btn btn--primary" href="/admin/access">
+              Institutional access
+            </a>
+          </p>
+        </Card>
+      ) : null}
 
       <Card title="Coming to this area" quiet>
         <p>

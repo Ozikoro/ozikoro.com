@@ -236,6 +236,20 @@ export interface WpUserRecord {
   avatarUrls: Record<string, string>;
   /** Present on the users endpoint only; not a credential. */
   link: string;
+  /**
+   * The WordPress role(s) the person held on ozikoro.com: `administrator`, `editor`, `author`,
+   * `contributor`, `subscriber`.
+   *
+   * ⚠️ **THIS FIELD WAS BEING DROPPED, AND THAT IS THE FAULT THE OWNER REPORTED AS "i did not see the
+   * wordpress 15 users".** The users endpoint returns `roles` as an array; `normaliseUser` below did not map
+   * it, so `data/ozikoro-wp/users.json` never carried it and nothing downstream could ever show what any of
+   * the fifteen *was*. The array is kept whole rather than flattened to its first element, because WordPress
+   * allows more than one and picking one here would be the extractor inventing an answer.
+   *
+   * It is a fact about the old site and **not an access level**: it grants no capability and creates no
+   * account. `ozikoro_contributor.wp_role` is where the archive records it (migration 0059).
+   */
+  roles: string[];
 }
 
 export interface WpTaxonomyRecord {
@@ -316,6 +330,11 @@ function normaliseUser(raw: Record<string, unknown>): WpUserRecord {
     url: String(raw.url ?? ''),
     avatarUrls: (raw.avatar_urls ?? {}) as Record<string, string>,
     link: String(raw.link ?? ''),
+    /*
+     * Kept verbatim from the endpoint, not interpreted. An empty array is a real answer — the endpoint can
+     * return a user with no role — and it must not be confused with a role nobody recorded.
+     */
+    roles: Array.isArray(raw.roles) ? raw.roles.map(String) : [],
   };
 }
 

@@ -17,7 +17,6 @@
  * it**, and an operator who cannot see `ozikoro_claim` cannot tell an empty register from an unimplemented
  * one. Both are shown, each named for the table it reads.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import { listArticleClaims, listContributorClaims } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
@@ -48,7 +47,7 @@ export default async function ClaimsQueuePage({
   return (
     <>
       <Head title="Claims">
-        <Link className="btn btn--sm" href="/admin">Overview</Link>
+        <a className="btn btn--sm" href="/admin">Overview</a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} />
@@ -157,7 +156,7 @@ export default async function ClaimsQueuePage({
                   </td>
                   <td className="small">
                     {claim.articleSlug ? (
-                      <Link href={`/admin/archive/${claim.articleId}`}>{claim.articleTitle ?? claim.articleSlug}</Link>
+                      <a href={`/admin/archive/${claim.articleId}`}>{claim.articleTitle ?? claim.articleSlug}</a>
                     ) : (
                       `record ${claim.articleId}`
                     )}

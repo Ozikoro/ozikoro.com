@@ -26,7 +26,6 @@
  * who does rather than offering a button that would be refused. **That is presentation, not authorisation**:
  * the route checks the same capability again, and a hidden button has never been a permission.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   allowanceFrom,
@@ -135,9 +134,9 @@ export default async function AudioReviewPage({
   return (
     <>
       <Head title="Audio review">
-        <Link className="btn btn--sm" href="/admin">
+        <a className="btn btn--sm" href="/admin">
           Overview
-        </Link>
+        </a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} info={notices.info} />
@@ -198,7 +197,7 @@ export default async function AudioReviewPage({
                   {num(item.estimatedCredits)} credits · roughly {clock(item.durationSeconds)} read aloud
                 </p>
                 <p className="history__detail">
-                  <Link href={`/${item.articleSlug}/`}>View the record</Link>
+                  <a href={`/${item.articleSlug}/`}>View the record</a>
                   {item.decisionNote ? ` · ${item.decisionNote}` : ''}
                 </p>
 
@@ -284,7 +283,7 @@ export default async function AudioReviewPage({
                   <strong>{item.title}</strong>
                 </p>
                 <p className="history__detail">
-                  <Link href={`/${item.articleSlug}/`}>View the record — it shows NO player until this is approved</Link>
+                  <a href={`/${item.articleSlug}/`}>View the record — it shows NO player until this is approved</a>
                 </p>
 
                 {item.storageKey ? (
@@ -418,7 +417,7 @@ export default async function AudioReviewPage({
                   <strong>{item.title}</strong>
                 </p>
                 <p className="history__detail">
-                  <Link href={`/${item.articleSlug}/`}>View the record</Link>
+                  <a href={`/${item.articleSlug}/`}>View the record</a>
                   {item.storageKey ? ` · our file: ${item.storageKey}` : ' · this archive holds no file'}
                 </p>
                 {item.externalUrl ? (

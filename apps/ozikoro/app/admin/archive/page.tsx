@@ -10,7 +10,6 @@
  * credibility is thinnest: an entry with no source looks incomplete, and the design says so on the
  * page. Closing that gap is this queue's whole purpose.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import { getEditorialProgress, listEditorialQueue } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
@@ -55,9 +54,9 @@ export default async function ArchiveQueue({
   return (
     <>
       <Head title="Editorial queue">
-        <Link className="btn btn--sm" href="/admin">
+        <a className="btn btn--sm" href="/admin">
           Back to overview
-        </Link>
+        </a>
       </Head>
 
       <Card title="What the archive still needs">
@@ -111,7 +110,7 @@ export default async function ArchiveQueue({
               {items.map((item) => (
                 <tr key={item.id}>
                   <td>
-                    <Link href={`/admin/archive/${item.id}`}>{item.title}</Link>
+                    <a href={`/admin/archive/${item.id}`}>{item.title}</a>
                     <div className="history__when">
                       {item.authorName ?? 'no author'} · {item.url}
                     </div>
@@ -131,15 +130,15 @@ export default async function ArchiveQueue({
 
         <nav className="row" style={{ marginTop: '1rem' }} aria-label="Pagination">
           {page > 1 ? (
-            <Link className="btn btn--sm" href={`/admin/archive?gap=${gap}${search ? `&q=${encodeURIComponent(search)}` : ''}&page=${page - 1}`}>
+            <a className="btn btn--sm" href={`/admin/archive?gap=${gap}${search ? `&q=${encodeURIComponent(search)}` : ''}&page=${page - 1}`}>
               ← Previous
-            </Link>
+            </a>
           ) : <span />}
           <span className="small muted">page {page}</span>
           {items.length === PAGE_SIZE ? (
-            <Link className="btn btn--sm" href={`/admin/archive?gap=${gap}${search ? `&q=${encodeURIComponent(search)}` : ''}&page=${page + 1}`}>
+            <a className="btn btn--sm" href={`/admin/archive?gap=${gap}${search ? `&q=${encodeURIComponent(search)}` : ''}&page=${page + 1}`}>
               Next →
-            </Link>
+            </a>
           ) : <span />}
         </nav>
       </Card>

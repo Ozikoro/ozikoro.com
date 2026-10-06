@@ -4,7 +4,6 @@
  * The sibling of `./[id]/revisions/[revisionId]/page.tsx` for the 74 revisions that have no article to
  * be opened from. Same sanitiser, same refusal to print a missing body as if it were empty text.
  */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import { getArticleRevision, sanitiseArchiveHtml } from '@ozikoro/platform';
@@ -43,9 +42,9 @@ export default async function ReadOrphanRevision({
   return (
     <>
       <Head title={revision.title?.trim() || `Revision ${revision.wpRevisionId ?? revision.id}`}>
-        <Link className="btn btn--sm" href={`/admin/archive/orphan-revisions/${parentPostId}`}>
+        <a className="btn btn--sm" href={`/admin/archive/orphan-revisions/${parentPostId}`}>
           Back to the list
-        </Link>
+        </a>
       </Head>
 
       <Card title="What this revision is">

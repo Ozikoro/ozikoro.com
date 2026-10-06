@@ -12,7 +12,6 @@
  * The form is deliberately blunt about the default: every permission starts unchecked, so an editor
  * who saves without thinking permits nothing rather than everything.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   PERMISSION_BASIS_LABEL,
@@ -67,7 +66,7 @@ export default async function RightsPage({
   return (
     <>
       <Head title="Media rights">
-        <Link className="btn btn--sm" href="/admin">Overview</Link>
+        <a className="btn btn--sm" href="/admin">Overview</a>
       </Head>
 
       <Notices saved={params.saved} error={params.error} />
@@ -169,7 +168,7 @@ export default async function RightsPage({
                       {item.licence ? <div className="history__when">{item.licence}</div> : null}
                     </td>
                     <td>
-                      <Link className="btn btn--sm" href={`/admin/rights/?filter=${filter}&item=${item.mediaId}`}>Edit</Link>
+                      <a className="btn btn--sm" href={`/admin/rights/?filter=${filter}&item=${item.mediaId}`}>Edit</a>
                     </td>
                   </tr>
                 ))}
@@ -256,7 +255,7 @@ export default async function RightsPage({
 
           {focusItem ? (
             <p className="small">
-              <Link href={`/documents/${focusItem.slug}/`}>Open the item to look at it</Link>
+              <a href={`/documents/${focusItem.slug}/`}>Open the item to look at it</a>
             </p>
           ) : null}
 

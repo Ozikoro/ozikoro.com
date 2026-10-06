@@ -31,7 +31,6 @@
  * itself has no write path anywhere in the archive: 3,443 objects against 3,488 rows, and 307 files with no
  * row at all whose keys were deliberately not invented.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   countMediaRegister,
@@ -125,9 +124,9 @@ export default async function MediaRegisterPage({
   return (
     <>
       <Head title="Media register">
-        <Link className="btn btn--sm" href="/admin/rights/">
+        <a className="btn btn--sm" href="/admin/rights/">
           Rights queue
-        </Link>
+        </a>
       </Head>
 
       <Card title="What the archive holds">
@@ -234,12 +233,12 @@ export default async function MediaRegisterPage({
                             Open the file
                           </a>
                         ) : null}
-                        <Link className="btn btn--sm btn--primary" href={`/admin/media/${item.id}`}>
+                        <a className="btn btn--sm btn--primary" href={`/admin/media/${item.id}`}>
                           Edit the record
-                        </Link>
-                        <Link className="btn btn--sm" href={`/admin/rights/?filter=all&item=${item.id}`}>
+                        </a>
+                        <a className="btn btn--sm" href={`/admin/rights/?filter=all&item=${item.id}`}>
                           Record rights
-                        </Link>
+                        </a>
                       </div>
                     </td>
                   </tr>
@@ -249,11 +248,11 @@ export default async function MediaRegisterPage({
 
             <nav className="row" style={{ marginTop: '1rem' }} aria-label="Pagination">
               {page > 1 ? (
-                <Link className="btn btn--sm" href={query({ page: String(page - 1) })}>← Previous</Link>
+                <a className="btn btn--sm" href={query({ page: String(page - 1) })}>← Previous</a>
               ) : <span />}
               <span className="small muted">page {page} of {lastPage}</span>
               {page < lastPage ? (
-                <Link className="btn btn--sm" href={query({ page: String(page + 1) })}>Next →</Link>
+                <a className="btn btn--sm" href={query({ page: String(page + 1) })}>Next →</a>
               ) : <span />}
             </nav>
           </>
@@ -266,7 +265,7 @@ export default async function MediaRegisterPage({
           <strong>Edit the record</strong> opens one item&apos;s own name, caption, alternative text,
           description, creator and credit, behind <span className="mono">edit_entity</span> — the same
           permission that edits a history. Recording a permission is a different job, on a different
-          capability, and lives in the <Link href="/admin/rights/">rights queue</Link>.
+          capability, and lives in the <a href="/admin/rights/">rights queue</a>.
         </p>
         <p>
           <strong>No file is uploaded, replaced or deleted anywhere.</strong> There are 3,443 objects in the

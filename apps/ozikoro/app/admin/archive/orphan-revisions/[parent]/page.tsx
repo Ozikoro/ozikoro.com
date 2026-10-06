@@ -1,5 +1,4 @@
 /** The revisions of one WordPress parent post the archive does not hold. See the index for why. */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import { listOrphanRevisions } from '@ozikoro/platform';
@@ -51,7 +50,7 @@ export default async function OrphanRevisionList({ params }: { params: Promise<{
   return (
     <>
       <Head title={`Revisions of WordPress post ${parentPostId}`}>
-        <Link className="btn btn--sm" href="/admin/archive/orphan-revisions">Back to the list</Link>
+        <a className="btn btn--sm" href="/admin/archive/orphan-revisions">Back to the list</a>
       </Head>
 
       <Card title={`${revisions.length} revisions of a parent the archive does not hold`}>
@@ -68,9 +67,9 @@ export default async function OrphanRevisionList({ params }: { params: Promise<{
                 {r.carriesUniqueText ? ' · carries text found nowhere else' : ''}
               </div>
               <p className="history__what">
-                <Link href={`/admin/archive/orphan-revisions/${parentPostId}/${r.id}`}>
+                <a href={`/admin/archive/orphan-revisions/${parentPostId}/${r.id}`}>
                   {r.title?.trim() || `${r.wordCount} words`}
-                </Link>
+                </a>
               </p>
               <p className="history__detail">
                 {r.wordCount} words · {bytes(r.bodyBytes)}

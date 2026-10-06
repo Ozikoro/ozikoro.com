@@ -21,7 +21,6 @@
  * `.help` sentence where the list is empty. **A dedicated trash screen is a design decision for the owner**;
  * this is the archive's list vocabulary rather than a new one.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   TRASH_PURGE_CAPABILITY,
@@ -63,8 +62,8 @@ export default async function TrashPage({
   return (
     <>
       <Head title="Trash">
-        <Link className="btn btn--sm" href="/admin/archive">Editorial queue</Link>
-        <Link className="btn btn--sm" href="/admin/media">Media register</Link>
+        <a className="btn btn--sm" href="/admin/archive">Editorial queue</a>
+        <a className="btn btn--sm" href="/admin/media">Media register</a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} info={notices.info} />
@@ -167,11 +166,11 @@ export default async function TrashPage({
 
           <nav className="row" style={{ marginTop: '1rem' }} aria-label="Pagination">
             {page > 1 ? (
-              <Link className="btn btn--sm" href={`/admin/trash?page=${page - 1}`}>← Previous</Link>
+              <a className="btn btn--sm" href={`/admin/trash?page=${page - 1}`}>← Previous</a>
             ) : <span />}
             <span className="small muted">page {page} of {lastPage}</span>
             {page < lastPage ? (
-              <Link className="btn btn--sm" href={`/admin/trash?page=${page + 1}`}>Next →</Link>
+              <a className="btn btn--sm" href={`/admin/trash?page=${page + 1}`}>Next →</a>
             ) : <span />}
           </nav>
         </Card>

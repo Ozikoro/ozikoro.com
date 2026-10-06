@@ -11,7 +11,6 @@
  * **rendering it raw would make the admin the one place in this application where stored HTML is
  * trusted.** The text is not altered for display beyond that: no tidying, no rewriting.
  */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import { getArticleFacets, getArticleRevision, sanitiseArchiveHtml } from '@ozikoro/platform';
@@ -57,8 +56,8 @@ export default async function ReadRevision({
   return (
     <>
       <Head title={revision.title?.trim() || `Revision ${revision.wpRevisionId ?? revision.id}`}>
-        <Link className="btn btn--sm" href={`/admin/archive/${articleId}/revisions`}>Back to the history</Link>
-        <Link className="btn btn--sm" href={`/admin/archive/${articleId}`}>Back to the record</Link>
+        <a className="btn btn--sm" href={`/admin/archive/${articleId}/revisions`}>Back to the history</a>
+        <a className="btn btn--sm" href={`/admin/archive/${articleId}`}>Back to the record</a>
       </Head>
 
       <Card title="What this revision is">

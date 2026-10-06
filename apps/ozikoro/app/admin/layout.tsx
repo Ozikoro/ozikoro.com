@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import type { Metadata } from 'next';
@@ -88,9 +87,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </header>
         <p className="actions">
-          <Link className="btn" href="/">
+          <a className="btn" href="/">
             Back to Ozikoro
-          </Link>
+          </a>
         </p>
       </div>
     );
@@ -134,6 +133,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
    */
   const sections: { href: string; label: string }[] = [
     { href: '/admin', label: 'Overview' },
+    /*
+     * POSTS AND PAGES, AS TWO SECTIONS RATHER THAN ONE SCREEN WITH A SWITCH.
+     *
+     * The owner's instruction was to build "add new posts and pages" and to reproduce WordPress's Classic
+     * Editor, and WordPress's admin menu draws Posts and Pages as two menus with their own submenus. The
+     * schema agrees with the screen: `ozikoro_article.is_page` is a column, every archive query filters on
+     * it, and a page is site content where a post is a filed record. So the rail carries them separately,
+     * and each section's own submenu — All Posts / Add New / Categories / Tags, and All Pages / Add New —
+     * is drawn by `app/admin/classic-editor/screens.tsx` on the screens themselves.
+     *
+     * They sit directly under the Overview and ABOVE the editorial queue, because they are the two things
+     * a person comes to this back office to write. Nothing else in this list moved.
+     */
+    { href: '/admin/posts', label: 'Posts' },
+    { href: '/admin/pages', label: 'Pages' },
     { href: '/admin/archive', label: 'Editorial queue' },
     { href: '/admin/entities', label: 'Knowledge graph' },
     { href: '/admin/reviews', label: 'Review queue' },
@@ -178,14 +192,40 @@ export default async function AdminLayout({ children }: { children: React.ReactN
    * instruction would have made it admin-only; that instruction was withdrawn, and a parallel round that
    * decided otherwise is flagged in the round's report so the two agree.
    *
-   * `/admin/seo/` is where the owner pastes the verification tokens Google, Bing and Yandex issue, and the
-   * page itself is gated on `manage_design` — the same capability — so the link is drawn for everyone the
-   * layout admits, exactly like "The design", because the page's own guard is what refuses a caller without
-   * the capability; a hidden link is presentation, not authorisation.
+   * `/admin/seo/` IS NOW AN AREA RATHER THAN A PAGE, AND THIS LINK STILL POINTS AT ITS INDEX.
+   *
+   * It began as one screen where the owner pastes the verification tokens Google, Bing and Yandex issue. The
+   * owner's report — *"everything must not show on same page"* — split it into six: the permalink, the homepage
+   * title and site name, the social card, the structured data, robots.txt/the sitemap/redirects, and the tokens
+   * themselves. **The label and the address are unchanged on purpose**: this rail is a way into the area, the
+   * index is where a reader chooses a section, and moving the entry point would be a second change on top of
+   * the one that was asked for. The index and every section are gated on `manage_design` — the same capability
+   * — so the link is drawn for everyone the layout admits, exactly like "The design", because each page's own
+   * guard is what refuses a caller without the capability; a hidden link is presentation, not authorisation.
    */
   sections.push(
     { href: '/admin/design', label: 'The design' },
     { href: '/admin/seo', label: 'Search engines' },
+    /*
+     * THE PER-RECORD SEO OVERRIDE, BESIDE THE SITE-WIDE ONE RATHER THAN BEHIND IT.
+     *
+     * The search-engine area is where the owner sets what a crawler is told about the WHOLE SITE — its name,
+     * the front page's title, the redirects, the tokens that verify the domain; `/admin/seo-records/` is where
+     * an editor writes the title and meta description for ONE record. **They are two questions about two
+     * different things**, which is why the second is a screen of its own rather than four more fields in the
+     * first: a verification token is a credential kept out of the audit trail, a title and description are
+     * written to be read and are recorded with their values.
+     *
+     * It is gated on `manage_design`, the same capability `/admin/seo/` and `/admin/design/` ask for, so the
+     * link is drawn for everyone this layout admits and the page's own guard is what refuses a caller without
+     * the capability — exactly as the two entries above it work. A hidden link is presentation, not
+     * authorisation.
+     *
+     * ⚠️ **THE TWO ADDRESSES ARE A PREFIX PAIR, AND `isHere` BELOW IS NOW WRITTEN FOR THAT.** `/admin/seo` is a
+     * prefix of `/admin/seo-records`, so the old `here.startsWith(href)` lit "Search engines" while the record
+     * editor was open. The comparison now requires a segment boundary — see its own note.
+     */
+    { href: '/admin/seo-records', label: 'Record search results' },
     { href: '/admin/spotify', label: 'Spotify' }
   );
 
@@ -196,14 +236,53 @@ export default async function AdminLayout({ children }: { children: React.ReactN
    * set by the middleware and already used above for the sign-in return address.
    */
   const here = requestedPath.replace(/\?.*$/, '').replace(/\/+$/, '') || '/admin';
-  const isHere = (href: string) => href === here || (href !== '/admin' && here.startsWith(href));
+  /*
+   * `isHere` MARKS ONE ENTRY, AND THE SEGMENT BOUNDARY IS WHAT KEEPS IT TO ONE.
+   *
+   * It was `here.startsWith(href)`, which is right for a child (`/admin/archive/<id>` marks `Editorial queue`)
+   * and wrong the moment one section's address is a PREFIX of another's — `/admin/seo` is a prefix of
+   * `/admin/seo-records`, so opening the record editor lit "Search engines" instead. The `+ '/'` term requires
+   * the match to end at a path boundary, so `seo-records` no longer answers for `seo` while a genuine child
+   * still answers for its parent.
+   */
+  const isHere = (href: string) =>
+    href === here || (href !== '/admin' && here.startsWith(`${href}/`));
 
+  /*
+   * ── PLAIN `<a>` IN THE RAIL, ON PURPOSE, AND THIS IS THE ONE PLACE THE REASON IS WRITTEN DOWN ─────────
+   *
+   * The owner: *"i want every page one clicks on the dashboards to be loading fully, instead of doing like it
+   * was cached already. full loading is better."* `next/link` swaps the page in place from a React payload the
+   * App Router already holds, so the click appears instant and the screen is assembled on the client. **These
+   * are screens that read what other screens wrote** — edit a record, then open the audit trail; publish a
+   * draft, then open the archive list — so an in-place swap can show the state from before the write, which is
+   * exactly how a working feature comes to look broken. An ordinary `<a href>` asks the server for the
+   * document, the server renders it from the database as it is at that moment, and **what is on the screen is
+   * what the server now holds.**
+   *
+   * ⚠️ **THE COST IS STATED RATHER THAN HIDDEN.** A full load re-fetches everything the layout provides —
+   * this rail, the account's capabilities, the workspace list — on every click, so a dashboard click is
+   * slower and hits the database more than it did. That is the trade the owner asked for and it is measured:
+   * see the round's report for the before and after.
+   *
+   * ⚠️ **IT IS SCOPED TO THE BACK OFFICE, NOT TO THE SITE.** Every link under `app/admin/` was converted —
+   * 110 of them in 26 files — and **nothing under `app/` outside `admin/` was touched**, so the public
+   * archive (the 1,000-plus records and the design's screens) keeps its client-side navigation and its speed.
+   * `next/link` is not disabled anywhere, no cache is switched off site-wide, and no `staleTimes` was set:
+   * this is a per-navigation choice and nothing else. `app/admin/design/` is excluded — it imports no `Link`
+   * and another agent is rebuilding it this round.
+   *
+   * ⚠️ **AND THE DATA LAYER WAS CHECKED FIRST, BECAUSE A FULL LOAD OVER A CACHED QUERY IS STILL STALE.** Every
+   * page under `app/admin/` already declares `export const dynamic = 'force-dynamic'`; there is no
+   * `revalidate` export, no `unstable_cache`, no `cache()` wrapper and no cached `fetch` on these routes. So
+   * the navigation was the only cache in the path, and fixing it was enough.
+   */
   const railNav = (
     <nav className="sx-dash-nav" aria-label="Sections">
       {sections.map((section) => (
-        <Link key={section.href} href={section.href} aria-current={isHere(section.href) ? 'page' : undefined}>
+        <a key={section.href} href={section.href} aria-current={isHere(section.href) ? 'page' : undefined}>
           {section.label}
-        </Link>
+        </a>
       ))}
     </nav>
   );
@@ -222,9 +301,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       */}
       <div className="sx-dashboard">
         <aside className="sx-dash-side">
-          <Link className="sx-dash-brand" href="/">
+          <a className="sx-dash-brand" href="/">
             Ozikoro
-          </Link>
+          </a>
           <p className="small" style={{ marginTop: 'var(--s-1)', color: 'var(--on-night-muted)' }}>
             Administration
           </p>
@@ -248,15 +327,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
                 Your workspaces
               </p>
               {workspaces.map((mode) => (
-                <Link key={mode.mode} href={dashboardModeHref(mode)}>
+                <a key={mode.mode} href={dashboardModeHref(mode)}>
                   {mode.label}
-                </Link>
+                </a>
               ))}
             </nav>
           )}
           {/* The design's rail ends with this, and so does this one. */}
           <nav className="sx-dash-nav" aria-label="Return">
-            <Link href="/">Return to public site</Link>
+            <a href="/">Return to public site</a>
           </nav>
         </aside>
         <main className="sx-dash-main" id="main">
@@ -267,9 +346,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           */}
           <nav className="sx-mobile-dashnav" aria-label="Sections">
             {sections.map((section) => (
-              <Link key={section.href} href={section.href} aria-current={isHere(section.href) ? 'page' : undefined}>
+              <a key={section.href} href={section.href} aria-current={isHere(section.href) ? 'page' : undefined}>
                 {section.label}
-              </Link>
+              </a>
             ))}
           </nav>
           <header className="sx-dash-top">

@@ -30,7 +30,6 @@
  * **the unattributed changes are the ones an audit trail exists to surface**, and the overview counts them
  * separately so the number is visible without opening the table.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import { getAuditOverview, listAuditTrail } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
@@ -204,9 +203,9 @@ export default async function AuditPage({
   return (
     <>
       <Head title="Audit trail">
-        <Link className="btn btn--sm" href="/admin">
+        <a className="btn btn--sm" href="/admin">
           Overview
-        </Link>
+        </a>
       </Head>
 
       <Card title="What the trail holds">
@@ -326,11 +325,11 @@ export default async function AuditPage({
 
               <nav className="row" style={{ marginTop: '1rem' }} aria-label="Pagination">
                 {page > 1 ? (
-                  <Link className="btn btn--sm" href={query({ page: String(page - 1) })}>← Previous</Link>
+                  <a className="btn btn--sm" href={query({ page: String(page - 1) })}>← Previous</a>
                 ) : <span />}
                 <span className="small muted">page {page} of {lastPage}</span>
                 {page < lastPage ? (
-                  <Link className="btn btn--sm" href={query({ page: String(page + 1) })}>Next →</Link>
+                  <a className="btn btn--sm" href={query({ page: String(page + 1) })}>Next →</a>
                 ) : <span />}
               </nav>
             </>
@@ -338,7 +337,7 @@ export default async function AuditPage({
 
           {filtered ? (
             <p className="help">
-              <Link href="/admin/audit">Clear the filter</Link> to see the whole trail.
+              <a href="/admin/audit">Clear the filter</a> to see the whole trail.
             </p>
           ) : null}
         </Card>

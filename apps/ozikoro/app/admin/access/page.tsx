@@ -31,7 +31,6 @@
  * rather than drawing an empty table**: a tier with no members is a real state, and the number is the fact
  * the owner asked for.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   ACCESS_TIERS,
@@ -75,8 +74,8 @@ export default async function InstitutionalAccessPage({
   return (
     <>
       <Head title="Institutional access">
-        <Link className="btn btn--sm" href="/admin/audit">Audit trail</Link>
-        <Link className="btn btn--sm" href="/admin/rights">Media rights</Link>
+        <a className="btn btn--sm" href="/admin/audit">Audit trail</a>
+        <a className="btn btn--sm" href="/admin/rights">Media rights</a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} info={notices.info} />

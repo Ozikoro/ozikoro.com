@@ -1,5 +1,3 @@
-import Link from 'next/link';
-
 /**
  * The shared pieces of the Ozikoro administrator's area.
  *
@@ -108,14 +106,23 @@ export function AtAGlance({ rows }: { rows: [string, React.ReactNode][] }) {
   );
 }
 
+/**
+ * The sub-navigation a screen draws for its own sections.
+ *
+ * ⚠️ **PLAIN `<a>`, NOT `next/link`, AND THAT IS THE OWNER'S INSTRUCTION RATHER THAN AN OVERSIGHT.** *"i want
+ * every page one clicks on the dashboards to be loading fully, instead of doing like it was cached already."*
+ * The reason, the correctness argument behind it and the cost are written down once, above `railNav` in
+ * `layout.tsx`; every link under `app/admin/` follows it. **The public archive does not** — these are the
+ * back office's screens, which read what other back-office screens have just written.
+ */
 export function Tabs({ tabs, active }: { tabs: { href: string; label: string }[]; active: string }) {
   return (
     <nav className="admin-nav" aria-label="Sections">
       <div className="admin-nav__inner">
         {tabs.map((tab) => (
-          <Link key={tab.href} href={tab.href} aria-current={tab.href === active ? 'page' : undefined}>
+          <a key={tab.href} href={tab.href} aria-current={tab.href === active ? 'page' : undefined}>
             {tab.label}
-          </Link>
+          </a>
         ))}
       </div>
     </nav>

@@ -23,7 +23,6 @@
  * been lost, and **nothing was discarded on the strength of that mark**: every revision is stored and
  * every revision is listed. `?unique=1` narrows the list, it does not define it.
  */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import { countArticleRevisions, getArticleFacets, listArticleRevisions } from '@ozikoro/platform';
@@ -73,8 +72,8 @@ export default async function RecordRevisions({
   return (
     <>
       <Head title={`${facets.title} — revision history`}>
-        <Link className="btn btn--sm" href={`/admin/archive/${articleId}`}>Back to the record</Link>
-        <Link className="btn btn--sm" href={`/${facets.slug}/`}>View the record</Link>
+        <a className="btn btn--sm" href={`/admin/archive/${articleId}`}>Back to the record</a>
+        <a className="btn btn--sm" href={`/${facets.slug}/`}>View the record</a>
       </Head>
 
       <Card title={`${totals.total} revisions, ${bytes(totals.bodyBytes)} of text`}>
@@ -90,12 +89,12 @@ export default async function RecordRevisions({
           {uniqueOnly ? (
             <>
               Showing only the revisions carrying text found nowhere else.{' '}
-              <Link href={link(1).replace('&unique=1', '')}>Show every revision</Link>.
+              <a href={link(1).replace('&unique=1', '')}>Show every revision</a>.
             </>
           ) : (
             <>
               Showing every revision.{' '}
-              <Link href={`${link(1)}&unique=1`}>Show only the ones carrying unique text</Link>.
+              <a href={`${link(1)}&unique=1`}>Show only the ones carrying unique text</a>.
             </>
           )}
         </p>
@@ -112,9 +111,9 @@ export default async function RecordRevisions({
                   {r.carriesUniqueText ? ' · carries text found nowhere else' : ''}
                 </div>
                 <p className="history__what">
-                  <Link href={`/admin/archive/${articleId}/revisions/${r.id}`}>
+                  <a href={`/admin/archive/${articleId}/revisions/${r.id}`}>
                     {r.title?.trim() || `${r.wordCount} words`}
-                  </Link>
+                  </a>
                 </p>
                 <p className="history__detail">
                   {r.wordCount} words · {bytes(r.bodyBytes)}
@@ -128,9 +127,9 @@ export default async function RecordRevisions({
         {pages > 1 ? (
           <p className="help">
             Page {page} of {pages}.{' '}
-            {page > 1 ? <Link href={link(page - 1)}>Previous</Link> : null}
+            {page > 1 ? <a href={link(page - 1)}>Previous</a> : null}
             {page > 1 && page < pages ? ' · ' : null}
-            {page < pages ? <Link href={link(page + 1)}>Next</Link> : null}
+            {page < pages ? <a href={link(page + 1)}>Next</a> : null}
           </p>
         ) : null}
       </Card>

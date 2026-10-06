@@ -55,6 +55,21 @@ export interface UserOverview {
   /** Articles attributed to a byline with no account, which is where the archive cannot answer its author. */
   articlesByUnlinkedBylines: number;
   articles: number;
+  /** One row per WordPress role, so the page can state what the fifteen *were* and not only that they exist. */
+  wpRoles: WpRoleCount[];
+}
+
+/**
+ * How many bylines held one WordPress role, and how much they wrote between them.
+ *
+ * `role` is null for a byline whose WordPress role has not been read into this database. **That is a real
+ * bucket and it is reported rather than dropped**: the counts of every bucket plus the nulls add up to
+ * `contributors`, so the page can account for the whole table without inventing a role for anybody.
+ */
+export interface WpRoleCount {
+  role: string | null;
+  contributors: number;
+  articles: number;
 }
 
 export interface ContributorRow {
@@ -68,6 +83,15 @@ export interface ContributorRow {
   /** The name on the account, when there is one, so a mismatch with the byline is visible. */
   accountName: string | null;
   claimStatus: string | null;
+  /**
+   * The role this person held on ozikoro.com — `administrator`, `editor`, `author`, `contributor` or
+   * `subscriber`.
+   *
+   * ⚠️ **IT IS NOT AN ACCESS LEVEL AND MUST NEVER BE RENDERED AS ONE.** It records what the old site said
+   * about the person; it grants no capability and creates no account. `accountId` is the only column on this
+   * row that says anything about signing in, and for most bylines it is null.
+   */
+  wpRole: string | null;
 }
 
 /** The platform roles as the database spells them, most senior first. Ranked by `account.role`, not by hand. */
@@ -375,7 +399,7 @@ export async function listContributors(
   const counted = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_contributor k ${where}`, params);
 
   const rows = await db.rows<Record<string, unknown>>(
-    `select k.id, k.slug, k.display_name, k.bio, k.account_id,
+    `select k.id, k.slug, k.display_name, k.bio, k.account_id, k.wp_role,
             coalesce(nullif(m.display_name, ''), a.display_name, a.email) as account_name,
             a.email as account_email,
             (select count(*)::int from ozikoro_article ar where ar.author_id = k.id) as articles,
@@ -405,13 +429,16 @@ function normaliseContributor(row: Record<string, unknown>): ContributorRow {
     accountEmail: row.account_email ? String(row.account_email) : null,
     accountName: row.account_name ? String(row.account_name) : null,
     claimStatus: row.claim_status ? String(row.claim_status) : null,
+    wpRole: row.wp_role === null || row.wp_role === undefined || String(row.wp_role).trim() === ''
+      ? null
+      : String(row.wp_role),
   };
 }
 
 /** The bylines already linked to one account, for that account's own page. */
 export async function getAccountBylines(db: Db, accountId: number): Promise<ContributorRow[]> {
   const rows = await db.rows<Record<string, unknown>>(
-    `select k.id, k.slug, k.display_name, k.bio, k.account_id,
+    `select k.id, k.slug, k.display_name, k.bio, k.account_id, k.wp_role,
             a.display_name as account_name, a.email as account_email,
             (select count(*)::int from ozikoro_article ar where ar.author_id = k.id) as articles,
             null::text as claim_status
@@ -439,6 +466,25 @@ export async function getUserOverview(db: Db): Promise<UserOverview> {
        where k.account_id is null) as articles_by_unlinked_bylines,
       (select count(*)::int from ozikoro_article) as articles
   `);
+
+  /*
+   * THE ROLE BREAKDOWN, AS A SECOND QUERY RATHER THAN A WINDOW FUNCTION.
+   *
+   * It is grouped by `wp_role` and left-joined to the articles, so a byline that has written nothing is
+   * counted as a contributor with zero records rather than dropped — **`inner join` here would have made a
+   * byline with no published work disappear from the page that exists to list every byline.** `nulls last`
+   * keeps "not recorded" at the bottom, where it reads as the gap it is rather than as the least senior role.
+   */
+  const roleRows = await db.rows<Record<string, unknown>>(`
+    select k.wp_role as role,
+           count(distinct k.id)::int as contributors,
+           count(a.id)::int as articles
+      from ozikoro_contributor k
+      left join ozikoro_article a on a.author_id = k.id
+     group by k.wp_role
+     order by k.wp_role nulls last, k.wp_role
+  `);
+
   return {
     accounts: Number(row?.accounts ?? 0),
     activeAccounts: Number(row?.active_accounts ?? 0),
@@ -448,5 +494,10 @@ export async function getUserOverview(db: Db): Promise<UserOverview> {
     contributorsWithoutAccount: Number(row?.contributors_without_account ?? 0),
     articlesByUnlinkedBylines: Number(row?.articles_by_unlinked_bylines ?? 0),
     articles: Number(row?.articles ?? 0),
+    wpRoles: roleRows.map((r) => ({
+      role: r.role === null || r.role === undefined ? null : String(r.role),
+      contributors: Number(r.contributors ?? 0),
+      articles: Number(r.articles ?? 0),
+    })),
   };
 }

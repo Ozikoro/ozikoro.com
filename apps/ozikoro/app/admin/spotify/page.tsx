@@ -28,7 +28,6 @@
  * button. A GET link that started an authorisation could be triggered by any image tag on any
  * page on the internet, and a link that disconnected an account could be triggered the same way.
  */
-import Link from 'next/link';
 import type { Metadata } from 'next';
 import { getDb } from '@ozituma/db/client';
 import { spotifyConnectionView, type SpotifyEventRow } from '@ozikoro/platform';
@@ -159,9 +158,9 @@ export default async function Page({
   return (
     <>
       <Head title="Spotify">
-        <Link className="btn btn--sm" href="/admin">
+        <a className="btn btn--sm" href="/admin">
           Back to administration
-        </Link>
+        </a>
       </Head>
 
       <Notices saved={saved} error={params.error} />

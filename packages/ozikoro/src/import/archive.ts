@@ -96,6 +96,26 @@ interface UserRow {
   url: string;
   avatarUrls: Record<string, string>;
   link: string;
+  /** The WordPress role(s), when the extraction kept them. Absent on an export made before that was fixed. */
+  roles?: string[];
+}
+
+/**
+ * The single WordPress role to record for a byline, from the array the endpoint returns, or null.
+ *
+ * WordPress allows several roles and precedence is by capability level, so the most senior one present is
+ * the answer — which is WordPress's own ranking, written out rather than inferred. **`subscriber` is in the
+ * list because WordPress has it, not because any of the fifteen holds it**; none does. A user whose array
+ * names no built-in role yields null, and null means "not recorded" rather than "no role".
+ */
+const WP_ROLE_PRECEDENCE = ['administrator', 'editor', 'author', 'contributor', 'subscriber'] as const;
+
+function wpRoleOf(roles: string[] | undefined): string | null {
+  if (!Array.isArray(roles)) return null;
+  for (const role of WP_ROLE_PRECEDENCE) {
+    if (roles.includes(role)) return role;
+  }
+  return null;
 }
 
 interface TaxonomyRow {
@@ -285,7 +305,7 @@ export interface ImportReport {
   labels: number;
   media: number;
   articles: number;
-  /** Records imported from `drafts.json`, all as `review`. Zero when that file is absent. */
+  /** Records imported from `drafts.json`, all as `draft`. Zero when that file is absent. */
   drafts: number;
   /** The recovered drafts by their real WordPress status, so the split is visible not assumed. */
   draftsByStatus: Record<string, number>;
@@ -362,10 +382,22 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
   // -------------------------------------------------------------------------
   // Contributors
   // -------------------------------------------------------------------------
+  /*
+   * ⚠️ `wp_role` IS INSERTED AND DELIBERATELY NOT UPDATED, AND THE OMISSION IS THE POINT.
+   *
+   * The extraction that produced `data/ozikoro-wp/users.json` on disk predates the fix to `normaliseUser`,
+   * so that file carries no `roles` and this import would write NULL for every byline. An update list that
+   * included `wp_role` would therefore **wipe the roles the dump backfill had already recorded**, every
+   * time the import was re-run. Insert-and-never-clobber means a fresh database gets whatever the export
+   * knows, and a database that has been backfilled from the dump keeps it.
+   *
+   * The roles for the fifteen WordPress users come from the dump, not from this file:
+   * `packages/ozikoro/src/ops/backfill-contributor-roles.ts`.
+   */
   report.contributors = await upsertBatch(
     db,
     'ozikoro_contributor',
-    ['wp_user_id', 'slug', 'display_name', 'bio', 'website', 'avatar_url'],
+    ['wp_user_id', 'slug', 'display_name', 'bio', 'website', 'avatar_url', 'wp_role'],
     users.map((u) => [
       u.wpId,
       u.slug,
@@ -373,6 +405,7 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
       u.description || null,
       u.url || null,
       u.avatarUrls?.['96'] ?? u.avatarUrls?.['48'] ?? null,
+      wpRoleOf(u.roles),
     ]),
     'wp_user_id',
     ['slug', 'display_name', 'bio', 'website', 'avatar_url']
@@ -489,6 +522,12 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
    */
   const takenSlugs = new Set<string>();
   const preparedArticles: { row: unknown[]; labelIds: number[]; featuredWp: number }[] = [];
+  /*
+   * The drafts' final addresses, kept so they can be checked against the DATABASE before a write.
+   * `takenSlugs` only knows about the rows in the files this run loaded, which is not the same set as
+   * the rows in the table — see the guard below.
+   */
+  const preparedDrafts: { wpId: number; slug: string }[] = [];
 
   /*
    * Pages are carried too, because their content is the owner's own words (About US, Authors,
@@ -508,13 +547,27 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
      */
     const draft = article as Partial<DraftRow>;
     const isDraft = typeof draft.wpStatus === 'string';
-    let slug = article.slug || `article-${article.wpId}`;
+    /*
+     * A PUBLISHED RECORD KEEPS ITS WORDPRESS SLUG BYTE FOR BYTE; A DRAFT'S WAS MINTED BY THE WRITE
+     * PATH'S OWN RULE IN `recovered.ts` AND IS TAKEN AS GIVEN HERE.
+     *
+     * The published branch is deliberately NOT passed through `slugForTitle`: 1,051 records are live at
+     * these addresses and re-slugging one would move a URL that search engines and readers already
+     * hold. Their slugs came from WordPress and that is the authority for them.
+     *
+     * A draft arrives already slugged — `recovered.ts` keeps a real WordPress slug verbatim and derives
+     * one with `authoring.ts`'s `slugForTitle` only where WordPress gave none. The fallback below is the
+     * archive's own placeholder for a piece with neither (`draft-<id>`, exactly what `createPiece`
+     * writes), not a third slug rule.
+     */
+    let slug = article.slug || (isDraft ? `draft-${article.wpId}` : `article-${article.wpId}`);
     if (takenSlugs.has(slug)) {
       const resolved = `${slug}-${article.wpId}`;
       report.conflicts.push({ slug, reason: `slug already used; stored as ${resolved}` });
       slug = resolved;
     }
     takenSlugs.add(slug);
+    if (isDraft) preparedDrafts.push({ wpId: article.wpId, slug });
 
     preparedArticles.push({
       row: [
@@ -534,13 +587,35 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
         null,
         /*
          * Published content stays published, because it already was — setting anything else would
-         * take 1,051 live pages off the internet on the day of the migration. A recovered draft
-         * lands as `review`, never `published`: it was never public, and an unpublished draft is
-         * not for the public site. Its real WordPress status is kept on the row below.
+         * take 1,051 live pages off the internet on the day of the migration.
+         *
+         * A RECOVERED DRAFT LANDS AS `draft`, WHICH IS THE STATUS IT ACTUALLY CARRIED.
+         *
+         * It is not `published` (it was never public) and it is not `review` either, which is where it
+         * used to land. `review` is this archive's OWN editorial queue — the status the Blogger ingest
+         * puts unvetted outside material in, so an editor knows it has not been looked at. A WordPress
+         * draft is a different thing: it is the author's own unfinished work, and the owner asked for
+         * the drafts to be drafts. One word here, and it is the whole of the difference.
+         *
+         * WordPress's other unpublished statuses (`pending`, `private`, `future`) mean the same thing to
+         * this schema — not on the public site — and there are none in the file; `draftsByStatus` in the
+         * report proves that rather than leaving it asserted. Mapping all of them to `draft` is why the
+         * value is a constant and not `draft.wpStatus`: the archive's CHECK constraint has no
+         * `pending`/`private`/`future`, and inventing one would be a schema change, not an import.
          */
-        isDraft ? 'review' : 'published',
+        isDraft ? 'draft' : 'published',
         isDraft ? null : article.publishedAt ? new Date(`${article.publishedAt}Z`).toISOString() : null,
-        article.modifiedAt ? new Date(`${article.modifiedAt}Z`).toISOString() : null,
+        /*
+         * THE DATE IS WORDPRESS'S, IN GMT, AND NOT THE DAY OF THE IMPORT.
+         *
+         * A draft has no publication date, so the date the back office shows for it is this one —
+         * `list-table.tsx` renders "Last saved <modified_at>" — and taking `raw.modified` (the site's
+         * local clock) instead of `modified_gmt` would print a time that is off by the site's offset.
+         * `DraftRow` therefore carries `modifiedGmt` and it is used when present.
+         */
+        isDraft
+          ? draft.modifiedGmt ? new Date(`${draft.modifiedGmt}Z`).toISOString() : null
+          : article.modifiedAt ? new Date(`${article.modifiedAt}Z`).toISOString() : null,
         article.seo?.title ?? null,
         article.seo?.description ?? null,
         article.seo?.canonical ?? null,
@@ -550,6 +625,61 @@ export async function importArchive(db: Db, options: { apply?: boolean } = {}): 
       labelIds: article.tagIds.map((id) => labelIdByWp.get(id)).filter((v): v is number => typeof v === 'number'),
       featuredWp: article.featuredMediaId,
     });
+  }
+
+  /*
+   * ── THE PRE-FLIGHT CHECK AGAINST THE DATABASE, WHICH THE IN-MEMORY SET CANNOT MAKE ────────────────
+   *
+   * `takenSlugs` knows only the rows in the files THIS run loaded. A draft's `wp_post_id` and its
+   * address are facts about the TABLE, and the two ways that goes wrong are both incidents rather than
+   * bugs:
+   *
+   *   1. **THE ID ALREADY EXISTS UNDER ANOTHER STATUS.** The upsert keys on `wp_post_id`, so importing
+   *      draft 1234 over a row that is `published` SETS THAT ROW TO `draft` — a live article disappears
+   *      from the site, from the sitemap and from every listing, silently, with the import reporting
+   *      success. `review` is allowed (that is where these 39 were first landed and the correction is
+   *      the point of this run); `draft` is allowed (a re-run). Anything else — `published`, `archived`,
+   *      `trashed` — is a human's decision about that record and this import must not overrule it, so it
+   *      REFUSES and names the rows.
+   *   2. **THE ADDRESS IS ALREADY HELD BY A DIFFERENT RECORD.** `slug` is `not null unique` across posts
+   *      and pages, so the write would abort mid-batch on a raw constraint error. Checked here so the
+   *      failure names the two records instead.
+   *
+   * It runs BEFORE the first write and throws rather than reporting, because a partial import that has
+   * already unpublished an article is not a state worth reaching a report from.
+   */
+  if (preparedDrafts.length > 0) {
+    const idPlaceholders = preparedDrafts.map((_, i) => `$${i + 1}`).join(', ');
+    const idParams = preparedDrafts.map((d) => d.wpId);
+    const existing = await db.rows<{ wp_post_id: number; status: string; is_page: boolean; slug: string }>(
+      `select wp_post_id, status, is_page, slug from ozikoro_article where wp_post_id in (${idPlaceholders})`,
+      idParams
+    );
+    const wrongStatus = existing.filter((r) => r.status !== 'draft' && r.status !== 'review');
+    const wasPage = existing.filter((r) => r.is_page);
+    if (wrongStatus.length > 0 || wasPage.length > 0) {
+      const detail = [...wrongStatus, ...wasPage]
+        .map((r) => `wp_post_id ${r.wp_post_id} is "${r.status}"${r.is_page ? ' and is a page' : ''} (/${r.slug}/)`)
+        .join('; ');
+      throw new Error(
+        `Refusing to import a WordPress draft over a record under another status: ${detail}. ` +
+        `An unpublished WordPress draft may only land on a row that is absent, draft, or review.`
+      );
+    }
+
+    const slugPlaceholders = preparedDrafts.map((_, i) => `$${i + 1}`).join(', ');
+    const taken = await db.rows<{ slug: string; wp_post_id: number }>(
+      `select slug, wp_post_id from ozikoro_article where slug in (${slugPlaceholders})`,
+      preparedDrafts.map((d) => d.slug)
+    );
+    const mine = new Map(preparedDrafts.map((d) => [d.slug, d.wpId]));
+    const stolen = taken.filter((r) => mine.get(String(r.slug)) !== Number(r.wp_post_id));
+    if (stolen.length > 0) {
+      throw new Error(
+        `Refusing to import: a draft's address is already held by another record — ` +
+        stolen.map((r) => `/${r.slug}/ is wp_post_id ${r.wp_post_id}`).join('; ')
+      );
+    }
   }
 
   const written = await upsertBatch(

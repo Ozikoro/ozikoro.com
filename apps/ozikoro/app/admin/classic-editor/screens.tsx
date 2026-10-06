@@ -21,7 +21,6 @@
  * shape, shown on every screen in the section. The shared rail carries the two top-level entries; this
  * carries what is under them.
  */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import {
@@ -76,9 +75,9 @@ export function ClassicRail({ kind, active }: { kind: PieceKind; active: string 
         <ul>
           {links.map((link) => (
             <li key={link.href}>
-              <Link href={link.href} aria-current={active === link.href ? 'page' : undefined}>
+              <a href={link.href} aria-current={active === link.href ? 'page' : undefined}>
                 {link.label}
-              </Link>
+              </a>
             </li>
           ))}
         </ul>
@@ -87,9 +86,9 @@ export function ClassicRail({ kind, active }: { kind: PieceKind; active: string 
         <p className="wprail__heading">{kind === 'post' ? 'Pages' : 'Posts'}</p>
         <ul>
           <li>
-            <Link href={kind === 'post' ? '/admin/pages' : '/admin/posts'}>
+            <a href={kind === 'post' ? '/admin/pages' : '/admin/posts'}>
               {kind === 'post' ? 'All Pages' : 'All Posts'}
-            </Link>
+            </a>
           </li>
         </ul>
       </div>
@@ -97,10 +96,10 @@ export function ClassicRail({ kind, active }: { kind: PieceKind; active: string 
         <p className="wprail__heading">The archive</p>
         <ul>
           <li>
-            <Link href="/admin/archive">Editorial queue</Link>
+            <a href="/admin/archive">Editorial queue</a>
           </li>
           <li>
-            <Link href="/admin/trash">Trash</Link>
+            <a href="/admin/trash">Trash</a>
           </li>
         </ul>
       </div>
@@ -138,17 +137,17 @@ function SectionHeader({
       <h1 className="wpadmin__title">
         {title}
         {action ? (
-          <Link className="page-title-action" href={action.href}>
+          <a className="page-title-action" href={action.href}>
             {action.label}
-          </Link>
+          </a>
         ) : null}
       </h1>
       <ul className="wpadmin__subsubsub">
         {subs.map((sub) => (
           <li key={sub.href}>
-            <Link href={sub.href} className={active === sub.href ? 'current' : undefined}>
+            <a href={sub.href} className={active === sub.href ? 'current' : undefined}>
               {sub.label}
-            </Link>
+            </a>
           </li>
         ))}
       </ul>

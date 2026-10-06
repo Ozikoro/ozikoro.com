@@ -23,7 +23,6 @@
  * that is `/admin/archive`. A graph builder that guessed them would be inventing history with a
  * progress bar.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import { getEntityGraphState } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
@@ -48,12 +47,12 @@ export default async function EntitiesPage({
   return (
     <>
       <Head title="The knowledge graph">
-        <Link className="btn btn--sm" href="/admin">
+        <a className="btn btn--sm" href="/admin">
           Back to overview
-        </Link>
-        <Link className="btn btn--sm" href="/admin/archive">
+        </a>
+        <a className="btn btn--sm" href="/admin/archive">
           Editorial queue
-        </Link>
+        </a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} />
@@ -97,7 +96,7 @@ export default async function EntitiesPage({
           <p className="help">
             The graph is empty, which is the state the archive has been in since the migration. No
             record can name a clan, a town or an ethnic group until an entity exists to point at, so
-            every one of those filters on <Link href="/archive">the archive index</Link> is
+            every one of those filters on <a href="/archive">the archive index</a> is
             genuinely empty rather than broken.
           </p>
         ) : (
@@ -151,7 +150,7 @@ export default async function EntitiesPage({
         <p className="help">
           Every entity created and every record linked writes an <code>ozikoro_audit</code> row
           naming the account that ran it. What that produced is readable on{' '}
-          <Link href="/admin/audit">the audit trail</Link>.
+          <a href="/admin/audit">the audit trail</a>.
         </p>
       </Card>
     </>

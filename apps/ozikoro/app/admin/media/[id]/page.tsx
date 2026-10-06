@@ -34,7 +34,6 @@
  *   A link to a record or an entity. There is no media-to-entity table in this schema at all, and the design
  *   draws no control for either relationship, so nothing is offered. See the report.
  */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import {
@@ -87,8 +86,8 @@ export default async function EditMediaRecord({
   return (
     <>
       <Head title={named.name}>
-        <Link className="btn btn--sm" href="/admin/media">Back to the register</Link>
-        <Link className="btn btn--sm" href={`/documents/${item.slug}/`}>Open the record</Link>
+        <a className="btn btn--sm" href="/admin/media">Back to the register</a>
+        <a className="btn btn--sm" href={`/documents/${item.slug}/`}>Open the record</a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} info={notices.info} />
@@ -96,7 +95,7 @@ export default async function EditMediaRecord({
       <Card title="What this record is">
         <p className="small muted">
           <span className="mono">{item.reference}</span> · {MEDIA_KIND_LABEL[item.kind] ?? item.kind} ·{' '}
-          <Link href={`/documents/${item.slug}/`}>/documents/{item.slug}/</Link>
+          <a href={`/documents/${item.slug}/`}>/documents/{item.slug}/</a>
           {item.held ? null : ' · the archive does not hold the file'}
         </p>
         <p className="help">
@@ -207,7 +206,7 @@ export default async function EditMediaRecord({
           <ul className="history">
             {using.map((a) => (
               <li key={a.slug}>
-                <Link href={`/${a.slug}/`}>{a.title}</Link>{' '}
+                <a href={`/${a.slug}/`}>{a.title}</a>{' '}
                 <span className="small muted">
                   {a.role === 'featured' ? '— its featured image' : '— shown in its text'}
                 </span>
@@ -240,9 +239,9 @@ export default async function EditMediaRecord({
           this page has touched it and this form cannot.
         </p>
         <p>
-          <Link className="btn btn--sm" href={`/admin/rights/?filter=all&item=${mediaId}`}>
+          <a className="btn btn--sm" href={`/admin/rights/?filter=all&item=${mediaId}`}>
             Open this item in the rights queue
-          </Link>
+          </a>
         </p>
       </Card>
 
@@ -264,7 +263,7 @@ export default async function EditMediaRecord({
           as video and 12 as documents. The video rows are <em>not</em> the films the Watch section plays:
           those are ids inside an article&apos;s body, extracted by
           <span className="mono"> extractArchiveFilms</span>, and the record that carries them is the article,
-          which is edited at <Link href="/admin/archive">the archive queue</Link>.
+          which is edited at <a href="/admin/archive">the archive queue</a>.
         </p>
       </Card>
     </>

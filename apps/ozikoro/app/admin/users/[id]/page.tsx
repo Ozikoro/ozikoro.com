@@ -23,7 +23,6 @@
  * the page is the actor's own, the endpoint refuses independently, and the reason is printed rather than left
  * as a mystery — **a disabled button with no explanation is indistinguishable from a broken page.**
  */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import {
@@ -149,9 +148,9 @@ export default async function UserDetailPage({
   return (
     <>
       <Head title={account.displayName}>
-        <Link className="btn btn--sm" href="/admin/users">
+        <a className="btn btn--sm" href="/admin/users">
           All accounts
-        </Link>
+        </a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} />
@@ -364,7 +363,7 @@ export default async function UserDetailPage({
               {bylines.map((byline) => (
                 <tr key={byline.id}>
                   <td>
-                    <Link href={`/author/${byline.slug}`}>{byline.displayName}</Link>
+                    <a href={`/author/${byline.slug}`}>{byline.displayName}</a>
                     <div className="history__when">{byline.slug}</div>
                   </td>
                   <td className="small">{byline.articles.toLocaleString('en-GB')} records</td>

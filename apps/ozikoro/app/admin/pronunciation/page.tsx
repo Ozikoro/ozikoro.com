@@ -23,7 +23,6 @@
  * figure is a figure that is wrong after the next publication and says nothing about when it was taken. A
  * page an editor opens a few times a day can afford a second to be right.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   GRADE_LABEL,
@@ -137,9 +136,9 @@ export default async function PronunciationPage({
   return (
     <>
       <Head title="Pronunciations and narration credits">
-        <Link className="btn" href="/admin/audio">
+        <a className="btn" href="/admin/audio">
           Audio review
-        </Link>
+        </a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} info={notices.info} />
@@ -388,7 +387,7 @@ export default async function PronunciationPage({
                     {row.where.map((place) => (
                       <li key={place.articleId}>
                         {place.slug ? (
-                          <Link href={`/${place.slug}`}>{place.title ?? place.slug}</Link>
+                          <a href={`/${place.slug}`}>{place.title ?? place.slug}</a>
                         ) : (
                           `article ${place.articleId}`
                         )}

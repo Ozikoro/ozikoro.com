@@ -10,7 +10,6 @@
  * 228 clans and their towns, and the plan is explicit that this must not be duplicated — so the
  * common case is choosing the record that already exists, and free text is the exception.
  */
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import {
@@ -87,8 +86,8 @@ export default async function EditRecord({
   return (
     <>
       <Head title={facets.title}>
-        <Link className="btn btn--sm" href="/admin/archive">Back to the queue</Link>
-        <Link className="btn btn--sm" href={`/${facets.slug}/`}>View the record</Link>
+        <a className="btn btn--sm" href="/admin/archive">Back to the queue</a>
+        <a className="btn btn--sm" href={`/${facets.slug}/`}>View the record</a>
       </Head>
 
       <Notices saved={notices.saved} error={notices.error} info={notices.info} />
@@ -233,7 +232,7 @@ export default async function EditRecord({
         </details>
         <p className="help">
           The record&apos;s own page is where the design&apos;s frame is applied to this text:{' '}
-          <Link href={`/${facets.slug}/`}>open /{facets.slug}/</Link>.
+          <a href={`/${facets.slug}/`}>open /{facets.slug}/</a>.
         </p>
       </Card>
 
@@ -342,7 +341,7 @@ export default async function EditRecord({
         {decisions.length === 0 ? (
           <p className="help">
             There is no decision available to a record that is {STATUS_LABEL[facets.status] ?? facets.status}.
-            A record in the trash is recovered from <Link href="/admin/trash">the trash</Link> rather than
+            A record in the trash is recovered from <a href="/admin/trash">the trash</a> rather than
             decided here, and a trashed record is not published by a status change.
           </p>
         ) : (
@@ -399,7 +398,7 @@ export default async function EditRecord({
             where they were — and restoring it returns it to the state it was in.
           </p>
           <p>
-            <Link className="btn btn--sm btn--primary" href="/admin/trash">Open the trash to restore it</Link>
+            <a className="btn btn--sm btn--primary" href="/admin/trash">Open the trash to restore it</a>
           </p>
         </Card>
       ) : (
@@ -606,9 +605,9 @@ export default async function EditRecord({
           the list.
         </p>
         <p>
-          <Link className="btn btn--sm" href={`/admin/archive/${articleId}/revisions`}>
+          <a className="btn btn--sm" href={`/admin/archive/${articleId}/revisions`}>
             Read the revision history
-          </Link>
+          </a>
         </p>
       </Card>
     </>

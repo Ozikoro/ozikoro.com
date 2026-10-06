@@ -3,12 +3,13 @@
  *
  * ── WHY THIS SCREEN EXISTS, AND WHY IT IS THE FIRST THING `/admin/seo/` SAYS IT HAS NOT GOT ──────
  *
- * `/admin/seo/` names its own gaps in a list, and the first of them is *"the per-record SEO title and meta
- * description editor (the archive writes its own title, description and canonical from the record itself)"*.
- * **That list stays on that screen and is not shortened by this file**, because the list is true: this screen
- * is one item of it, and the other six — the social-preview editor, the redirect manager, the robots.txt and
- * sitemap editors, the structured-data controls, the keyword and readability analysis and the internal-link
- * suggestions — are still not built and are still named there.
+ * `/admin/seo/` used to name its own gaps in a list, and the first of them was *"the per-record SEO title and
+ * meta description editor (the archive writes its own title, description and canonical from the record
+ * itself)"*. This screen is that item. **The list itself was not deleted — it is on the index, item by item,
+ * with what is now true of each** — and five of its eight entries have since been built: this editor, the
+ * permalink and redirect manager, the robots.txt and sitemap settings, the social card's defaults and the
+ * structured-data publisher. The index prints which is which, and this screen is the one for a single record's
+ * search result.
  *
  * ── WHAT IT SHOWS, AND WHY IT SHOWS THE RECORD'S OWN WORDS BESIDE THE OVERRIDE ───────────────────
  *
@@ -23,8 +24,10 @@
  *   * **The canonical URL is not editable.** The archive's addresses are permanent by contract; a canonical
  *     is a claim about which address is the real one, and an editable one would be a way to declare the
  *     archive's own record a duplicate of somewhere else. It is built from the record and shown read-only.
- *   * **No social-preview editor, no structured data, no redirect, no robots.txt or sitemap.** Each is named
- *     as unbuilt on `/admin/seo/` and none of them is a title or a description.
+ *   * **No social-preview image, no JSON-LD, no redirect, no robots.txt or sitemap.** All four now have a
+ *     screen of their own under `/admin/seo/`, and **none of them is a title or a description** — a social card
+ *     is built from this title and this description, and a redirect is a statement about an address rather than
+ *     about a search result. The index says which sections do what.
  *   * **Drafts are not listed.** A draft's search result does not exist, so offering to write one would be
  *     offering to write something with no effect. See `listRecordSeo` — the scope is a statement about what
  *     can be reached, not a permission.
@@ -37,7 +40,6 @@
  * one admits. The guard asks for the capability and never for a role, and the write path asks again in
  * `saveRecordSeo`, so this page is not what protects the table.
  */
-import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
 import {
   RECORD_SEO_CAPABILITY,
@@ -119,9 +121,9 @@ export default async function RecordSeoPage({
   return (
     <div className="admin-overview">
       <Head title="Record search results">
-        <Link className="btn btn-sm" href="/admin/seo">
+        <a className="btn btn-sm" href="/admin/seo">
           Search engines
-        </Link>
+        </a>
       </Head>
 
       <Notices saved={params.saved} error={params.error} info={params.info} />
@@ -143,12 +145,15 @@ export default async function RecordSeoPage({
           ]}
         />
         <p className="small muted" style={{ marginTop: '.6rem' }}>
-          <b>Not changed here, and named so nobody assumes it is:</b> the canonical address (built from the
-          record and shown read-only — this archive&rsquo;s addresses are permanent and an editable canonical
-          would be a way to declare a record a duplicate of somewhere else); the social-preview card; the
-          JSON-LD structured data; the redirect manager; <span className="mono">robots.txt</span> and the
-          sitemap. Each is named as unbuilt on{' '}
-          <Link href="/admin/seo">Search engines</Link>, and none of them is a title or a description. A
+          <b>Not changed here, and named so nobody assumes it is:</b> the record&rsquo;s <b>address</b> — an
+          editable canonical would be a way to declare a record a duplicate of somewhere else, and moving an
+          address is a redirect rather than a title, so it is on{' '}
+          <a href="/admin/seo/permalinks/">Permalinks</a>; and the <b>social card</b>, which is built from this
+          title and this description and is previewed on{' '}
+          <a href="/admin/seo/social/">Social</a>. The JSON-LD graph is on{' '}
+          <a href="/admin/seo/schema/">Schema</a> and <span className="mono">robots.txt</span>, the sitemap and
+          the redirect table are on <a href="/admin/seo/tools/">Tools</a>. <b>None of them is a title or a
+          description</b>, which is why they are not fields on this page. A
           length over {SEO_TITLE_ADVISED} characters for a title or {SEO_DESCRIPTION_ADVISED} for a
           description is <b>advice rather than a refusal</b> — the search engine truncates it, so it is
           saved and you are told.
@@ -169,9 +174,9 @@ export default async function RecordSeoPage({
             Search
           </button>
           {search || onlyOverridden ? (
-            <Link className="btn btn-quiet" href="/admin/seo-records">
+            <a className="btn btn-quiet" href="/admin/seo-records">
               Clear
-            </Link>
+            </a>
           ) : null}
         </form>
         <p className="help">
@@ -245,12 +250,12 @@ export default async function RecordSeoPage({
                       )}
                     </td>
                     <td>
-                      <Link
+                      <a
                         className={`btn btn-sm${isSelected ? ' btn--primary' : ''}`}
                         href={isSelected ? qs({}) : qs({ edit: String(row.id) })}
                       >
                         {isSelected ? 'Close' : 'Edit'}
-                      </Link>
+                      </a>
                     </td>
                   </tr>
                 );
@@ -386,7 +391,7 @@ export default async function RecordSeoPage({
           Every save and every removal writes a row to the audit trail: who, when, the record, and both values
           before and after. <b>The opposite of the verification tokens, deliberately</b> — those are
           credentials and{' '}
-          <Link href="/admin/seo">Search engines</Link> keeps their values out of the trail, while a title and
+          <a href="/admin/seo">Search engines</a> keeps their values out of the trail, while a title and
           a description are written to be read by anybody and are served to every crawler that asks. A trail
           that said &ldquo;the title was changed&rdquo; without saying what it was changed to could not answer
           the question the trail exists for.
