@@ -995,25 +995,29 @@ test('the Igbo calendar keeps every part of the design, and no account is added 
   assert.equal((out.match(/data-day-card=/g) ?? []).length, 4);
 
   /*
-   * THE ANCHOR CAVEAT IS STATED, AND IT NO LONGER CALLS THE PAGE'S OWN RECKONING A DEMONSTRATION.
+   * THE ANCHOR IS STATED, THE DESIGN'S OWN QUALIFICATION STANDS BESIDE IT, AND NOTHING IS AUTHORED.
    *
-   * This page carried the same self-explaining sentence the owner reported on `/cultural-calendar/`, and here it
-   * was longer: *"This page reckons the cycle from a fixed anchor: … It is this archive's demonstration of one
-   * reckoning, not a claim that every Igbo community uses the same one."* The fact is kept — communities do not
-   * all keep one anchor, so a town that keeps another keeps another market day — and the words about the build
-   * go. **The account below the design states the same qualification again, and neither copy may call it a
-   * demonstration**, which is asserted here and in the account's own test.
+   * The design writes two sentences: *"This prototype sets 1 January 2026 as Orie and repeats the four-day
+   * cycle. It is not a claim that every Igbo community uses the same anchor."* **Only the first is rewritten**,
+   * into the anchor this page actually reckons from, which is a value fill of the design's own slot; the second
+   * is the design's qualification and is served unchanged. An earlier round replaced BOTH and put a sentence of
+   * its own in their place — *"Communities do not all keep the same anchor, so a town that keeps another one
+   * keeps another market day."* — which is **prose the design does not contain.** It is asserted absent here so
+   * a later round cannot put it back, and the design's sentence is asserted present so a later round cannot
+   * decide the qualification is the fill's to write either.
    */
   assert.ok(out.includes(MARKET_DAY_ANCHOR), 'the page no longer names its anchor');
-  assert.match(out, /Communities do not all keep the same anchor, so a town that keeps another one keeps another market day\./);
+  assert.ok(
+    out.includes('It is not a claim that every Igbo community uses the same anchor.'),
+    'the design’s own qualification was removed rather than served'
+  );
+  assert.ok(
+    !out.includes('Communities do not all keep the same anchor'),
+    'the fill’s authored qualification is back on the page'
+  );
+  assert.ok(!out.includes('This prototype sets'), 'the design’s build-facing first sentence survived the fill');
   assert.ok(!out.includes("this archive's demonstration of one reckoning"), 'the page still calls its own reckoning a demonstration');
   assert.ok(!out.includes('design basis'), 'the design’s own “design basis” wording survived the fill');
-  /*
-   * AND THE DESIGN'S LEFTOVER DISCLAIMER GOES WITH IT. The design writes TWO sentences and the old pattern took
-   * only the first, so the served page said the same thing twice — the fill's sentence and then *"It is not a
-   * claim that every Igbo community uses the same anchor."* Measured on `/igbo-calendar/` before this fix.
-   */
-  assert.ok(!out.includes('It is not a claim that every Igbo community uses the same anchor'), 'the design’s duplicate disclaimer is still on the page');
 
   /*
    * ── AND THE ACCOUNT IS GONE, SO NOTHING IS ADDED BELOW THE DESIGN (round 366) ─────────────────────
@@ -1036,6 +1040,99 @@ test('the Igbo calendar keeps every part of the design, and no account is added 
     out.indexOf('<div class="sx-basis-note">') < out.lastIndexOf('</main>'),
     'the design’s own basis note must stay inside main'
   );
+});
+
+/*
+ * ================================================================================================
+ * THE CLASS-PARITY TEST: NOTHING ON THE SERVED PAGE THAT THE DESIGN DOES NOT DRAW (round 367).
+ * ================================================================================================
+ *
+ * ⚠️ **THIS IS THE TEST THE OWNER'S THIRD REPORT ASKED FOR, AND IT IS WRITTEN THIS WAY BECAUSE THE FAULT WAS
+ * COUNTED RATHER THAN FELT.** His words: *"i specifically told you that the github is updated, and that you
+ * should go copy the new design full for the igbo calendar page"* — and *"stop adding what i did not tell you,
+ * stop writing anything that i never told you."* Measured on `/igbo-calendar/` before this test existed, the
+ * served page carried **twelve `<article class="sx-cal-year-card">` elements inside a `<noscript>`** that the
+ * design does not draw, which was the whole of the difference in `sx-cal` elements between the two documents.
+ *
+ * **THE ASSERTION IS CLASS-BASED RATHER THAN SENTENCE-BASED, AND THAT IS THE POINT.** Every earlier round on this
+ * screen guarded a STRING it knew about — "Before production:", "Eken", the Nri `<b>` — and each time the next
+ * addition arrived in markup nobody had a string for. A class token is the one thing every element the fill
+ * could invent has to carry to be styled, so **the set of class tokens, and the count of each, is compared
+ * between the design and the served page.** A new wrapper, a new card, a new section or a duplicated container
+ * fails here whatever it is called and whatever it says.
+ *
+ * WHAT IT DOES NOT COVER, SAID RATHER THAN LEFT TO BE DISCOVERED:
+ *   * **SENTENCES.** A prose sentence inside an element the design also draws is invisible to a class count.
+ *     Those are guarded by the named assertions in the tests above and below, and the rule against writing them
+ *     is the owner's standing instruction — this test is a backstop, not a substitute.
+ *   * **THE ROUTE'S OWN SHELL.** `fillMasthead` and the platform bar add `masthead-account`, `nav-account`,
+ *     `grid-4`, `small` and `muted` to every screen site-wide, deliberately. They are not this fill's and are
+ *     not asserted against here; the test reads `fillIgboCalendar`'s own output.
+ *   * **RUN-TIME MARKUP.** `extendMarketDaysScript` builds `<details class="sx-cal-year-card">` in the browser,
+ *     so that class is the script's own and legitimately absent from the served HTML. **This test is about the
+ *     markup the server sends**, which is why a class that only exists at run time is not a failure here.
+ */
+test('the served calendar draws no class the design does not draw, and duplicates none of them', () => {
+  const design = screen('igbo-calendar');
+  const out = igbo();
+
+  /** Every class token in a document, with the number of times it is used. */
+  const classTokens = (html: string): Map<string, number> => {
+    const counts = new Map<string, number>();
+    for (const match of html.matchAll(/class="([^"]*)"/g)) {
+      for (const token of match[1]!.split(/\s+/)) {
+        if (token) counts.set(token, (counts.get(token) ?? 0) + 1);
+      }
+    }
+    return counts;
+  };
+
+  const inDesign = classTokens(design);
+  const served = classTokens(out);
+
+  // The design must actually carry classes, or the comparison below passes vacuously.
+  assert.ok(inDesign.size > 20, 'the design screen carried almost no classes, so this test would prove nothing');
+
+  /*
+   * ⚠️ NOTHING THE DESIGN DOES NOT DRAW. This is the assertion the twelve year cards failed.
+   */
+  const invented = [...served.keys()].filter((token) => !inDesign.has(token)).sort();
+  assert.deepEqual(invented, [], `the served page draws class(es) the design does not: ${invented.join(', ')}`);
+
+  /*
+   * ⚠️ AND NOTHING THE DESIGN DRAWS ONCE IS DRAWN TWICE. A wrapper added around a design element, or a second
+   * copy of a section, changes a count without introducing a new class name — so the counts are compared as
+   * well as the names. **A count that is LOWER is allowed and expected**: this fill removes the design's
+   * demonstration flag and its build-facing notes on purpose, and a class may go with them.
+   */
+  const grown = [...served.entries()]
+    .filter(([token, count]) => count > (inDesign.get(token) ?? 0))
+    .map(([token, count]) => `${token} (${inDesign.get(token) ?? 0} → ${count})`);
+  assert.deepEqual(grown, [], `the served page repeats class(es) the design draws once: ${grown.join(', ')}`);
+
+  /*
+   * AND THE `sx-cal` ELEMENTS SPECIFICALLY, COUNTED THE WAY THE REPORT COUNTED THEM. The year cards were the
+   * whole of the gap and they are named here as well as covered by the general rule above, because **a
+   * regression should say which element came back rather than only that some class appeared.**
+   */
+  const sxCalTokens = (html: string): Map<string, number> =>
+    new Map([...classTokens(html)].filter(([token]) => token.startsWith('sx-cal')));
+  const designSxCal = sxCalTokens(design);
+  const servedSxCal = sxCalTokens(out);
+  assert.deepEqual(
+    [...servedSxCal.keys()].filter((token) => !designSxCal.has(token)).sort(),
+    [],
+    'an sx-cal element the design does not draw is on the served page'
+  );
+  for (const [token, count] of servedSxCal) {
+    assert.ok(
+      count <= (designSxCal.get(token) ?? 0),
+      `${token}: the served page draws ${count}, the design draws ${designSxCal.get(token) ?? 0}`
+    );
+  }
+  // The specific element the third report measured, asserted by name.
+  assert.ok(!out.includes('sx-cal-year-card'), 'the year-card markup the design does not draw is back in the served HTML');
+  assert.ok(!out.includes('<noscript'), 'the fill is writing a <noscript> block into the design again');
 });
 
 test('the account’s sections are gone, and no appendix has returned in their place', () => {
@@ -1354,7 +1451,16 @@ test('the removed record citations are gone, and the Wikipedia apparatus with th
 test('the other screen that loads this script states its anchor too', () => {
   const out = fillIgboCalendar(screen('market-days'));
   assert.match(out, /This page reckons the cycle from a fixed anchor: 1 January 2026 taken as Orie, repeating the four-day cycle\./);
-  assert.match(out, /Communities do not all keep the same anchor, so a town that keeps another one keeps another market day\./);
+  /*
+   * AND THE DESIGN'S OWN SECOND SENTENCE IS SERVED RATHER THAN REPLACED (round 367). The fill used to swap both
+   * sentences for two of its own; only the build-facing first one is rewritten now, and the qualification stays
+   * in the design's words. **A fill that writes its own qualification here is the fault this asserts against.**
+   */
+  assert.ok(
+    out.includes('This is a design basis, not a claim that every Igbo community uses the same anchor.'),
+    'the design’s own qualification was removed rather than served'
+  );
+  assert.ok(!out.includes('Communities do not all keep the same anchor'), 'the fill’s authored qualification is back');
   assert.ok(!out.includes("this archive's demonstration of one reckoning"), 'the screen still calls its own reckoning a demonstration');
   /*
    * THE "BEFORE PRODUCTION" NOTE IS GONE FROM THIS SCREEN TOO, AND THIS ASSERTION IS INVERTED FOR IT.
@@ -1368,7 +1474,11 @@ test('the other screen that loads this script states its anchor too', () => {
   assert.ok(!out.includes('Before production:'), 'the design’s note-to-self is still being served on market-days');
   assert.ok(!out.includes('verify the anchor, the community basis, the timezone'), 'the rewording of the note-to-self survived');
   assert.ok(!out.includes('A production result should always name its verified calendar source'), 'the build-facing sentence in the closing note survived');
-  assert.match(out, /Market-day sequences can differ by community\. This page states the anchor it reckons from above/);
+  assert.match(out, /Market-day sequences can differ by community\.<\/p>/, 'the reader-facing sentence went with the build-facing one');
+  assert.ok(
+    !out.includes('This page states the anchor it reckons from above'),
+    'the fill’s authored replacement sentence is back on the page'
+  );
   assert.ok(!out.includes('The supplied helper sets'), 'the design is still talking about its own helper');
   /*
    * ── AND THE ACCOUNT IS GONE FROM THIS SCREEN TOO, BECAUSE IT WAS SHARED (round 366) ──────────────
@@ -1392,32 +1502,45 @@ test('the other screen that loads this script states its anchor too', () => {
 });
 
 /**
- * EKE'S OTHER NAME, AND THE PLACES THE OWNER ASKED FOR IT (round 364).
+ * EKE'S OTHER NAME IS OFF THE PAGE, BECAUSE THE DESIGN THE OWNER LATER SHIPPED DOES NOT DRAW IT (round 367).
  *
- * The design writes a variant for three of its four day cards and not for the fourth, and the owner's
- * instruction is that `Eken` be added *"same way you added for others"*. **So this test reads the design's own
- * markup first and asserts the bare card is still there to be matched** — a fill whose pattern no longer
- * matches anything is the fault this file keeps recording, and it fails by serving the design unchanged —
- * and then asserts the served card carries the variant in the same `<small>` form as the other three.
+ * Round 364 added `<small>Eken</small>` to the Eke card and `Eke/Eken` to the lede, on the owner's instruction
+ * *"also add that another word for 'eke' is 'eken' same way you added for others."* **That instruction was given
+ * to a design the owner has since replaced.** The order is measured, not assumed: `git merge-base --is-ancestor
+ * 78798a5 480dd4f` succeeds — the round that added `Eken` is an **ancestor** of the commit that brought the
+ * owner's updated design in — and that newer design writes the bare card and a lede naming three pairs.
+ *
+ * **So the assertions invert: the served card is the design's own, and neither string the fill used to write is
+ * on the page.** They are asserted by name rather than left to a diff, so a later round cannot quietly re-add
+ * either one. The three variants the DESIGN draws are still asserted present, because the fill must not be able
+ * to take those away either.
  */
-test('the fourth day variant is on the card and the lede, and its provenance note is deleted', () => {
+test('the Eke card and the lede are served exactly as the new design writes them', () => {
   const design = screen('igbo-calendar');
+  // The design's own markup, read first: a fill whose pattern has moved is the fault this file keeps recording.
   assert.ok(
     design.includes('<article data-day-card="Eke"><span>01</span><h2>Eke</h2></article>'),
-    'the design no longer writes the bare Eke card, so the fill’s replacement would match nothing'
+    'the design no longer writes the bare Eke card'
+  );
+  assert.ok(
+    design.includes('Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor'),
+    'the design no longer writes its own three variant pairs in the lede'
   );
 
   const out = igbo();
   assert.ok(
-    out.includes('<article data-day-card="Eke"><span>01</span><h2>Eke <small>Eken</small></h2></article>'),
-    'Eke still carries no variant'
+    out.includes('<article data-day-card="Eke"><span>01</span><h2>Eke</h2></article>'),
+    'the Eke card is not the design’s own any more'
   );
-  // In the same form as the other three, which is what the owner asked for.
+  assert.ok(!out.includes('<small>Eken</small>'), 'the Eken variant the new design does not draw is back on the card');
+  assert.ok(!out.includes('Eke/Eken'), 'the Eken pair the new design does not draw is back in the lede');
+  /*
+   * AND THE THREE VARIANTS THE DESIGN DOES DRAW SURVIVE, in the design's own `<small>` form — the control that
+   * proves the check above is about the fourth day rather than about variants in general.
+   */
   for (const [day, variant] of [['Orie', 'Oye'], ['Afọ', 'Afor'], ['Nkwọ', 'Nkwor']]) {
-    assert.ok(out.includes(`<h2>${day} <small>${variant}</small></h2>`), `${day} lost its variant`);
+    assert.ok(out.includes(`<h2>${day} <small>${variant}</small></h2>`), `${day} lost the variant the design draws`);
   }
-  // And the lede's list of pairs, which the design writes for three days, takes the fourth.
-  assert.ok(out.includes('follow Eke/Eken, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor'), 'the lede still lists Eke without its pair');
   /*
    * THE SELECT IS A VALUE LIST RATHER THAN A SPELLING LIST, AND IS DELIBERATELY LEFT ALONE. Its options are what
    * the design's `marketDay()` and the `?day=` comparison match a request against, so a variant there would be a
@@ -1430,18 +1553,16 @@ test('the fourth day variant is on the card and the lede, and its provenance not
   /*
    * ── AND ITS PROVENANCE SENTENCE WAS DELETED BY THE OWNER (round 365, then round 366) ─────────────
    *
-   * `Eken` is in neither the design, nor the archive's five catalogued records, nor the source the page used
-   * to draw on. It is the owner's own reading, and round 364 recorded that in the claims table's row for the
-   * four days — **the table round 365 removed, which took the only statement of where `Eken` came from with
-   * it.** Round 365 answered that by saying whose the name is where the name is: *"…is not in those records: it
-   * is the archive owner's own reading, recorded here as his."*
+   * `Eken` was in neither the design, nor the archive's five catalogued records, nor the source the page used to
+   * draw on. It was the owner's own reading, and round 364 recorded that in a claims table's row for the four
+   * days — **the table round 365 removed, and the sentence that replaced it the owner then deleted too** —
+   * *"i checked the calendar again, and these things are still there, so delete these immediately."*
    *
-   * ⚠️ **THE OWNER THEN DELETED THAT SENTENCE IN THE SAME INSTRUCTION THAT REMOVED THE ACCOUNT.** *"i checked
-   * the calendar again, and these things are still there, so delete these immediately."* So the assertion
-   * inverts: the attribution is asserted absent, and the name stays on the card because he asked for the name
-   * in those words. **The tension round 365 recorded is left standing and is recorded here rather than
-   * silently dropped** — the design carries the other three variants with no attribution either, and the
-   * fourth now sits the same way, which is the owner's own page and his own reading of it.
+   * ⚠️ **AND THE NAME ITSELF WENT IN ROUND 367, WHEN THE OWNER SHIPPED A DESIGN THAT DOES NOT DRAW IT.** So
+   * unlike the rounds before, nothing about `Eken` is served at all: the provenance sentence is asserted absent
+   * here as it was, and the variant is asserted absent in the test above. **A name with no record behind it and
+   * no design drawing it is exactly what must not be invented into the page** — see rule 2 of the brief and
+   * `docs/DATA-SOURCES.md` §5.
    */
   assert.ok(
     !out.includes('it is the archive owner’s own reading, recorded here as his'),
@@ -1451,36 +1572,45 @@ test('the fourth day variant is on the card and the lede, and its provenance not
 });
 
 /**
- * THE NRI ACCOUNT, SAID WHERE A READER MEETS THE CALENDAR (round 364).
+ * THE NRI RECKONING IS ON THE PAGE, AND IT IS THE DESIGN'S OWN STATEMENT OF IT (round 367).
  *
  * The owner: *"emphasize that the calendar is a product of nri, so we are following nri calendar days, even
- * though some igbo communities might differ."* Both halves are asserted, and so is the attribution — the
- * sentence must not promote what the archive actually holds (the article, a tertiary source, reporting
- * Onwuejeogwu 1981 for the month names) into something the archive asserts in its own voice.
+ * though some igbo communities might differ."* Round 364 answered that by appending a `<p>` to the basis note
+ * (`<b>The account of the calendar followed here is the Nri one.</b> …`) — **and the design the owner has since
+ * shipped says it itself**, in `sx-cal-months-meanings`: the eyebrow *"Nri-Igbo reckoning"* and the paragraph
+ * *"The month meanings below are in reference to the Nri-Igbo calendar of the Nri kingdom, which may differ from
+ * other Igbo calendars…"*. So the assertion inverts: the design's own statement is asserted present, and the
+ * fill's appended paragraph — an element the design does not draw — is asserted absent.
  */
-test('the Nri account is stated plainly under the basis note, with its qualification', () => {
+test('the Nri reckoning is stated, in the design’s own section rather than in a paragraph the fill added', () => {
   const out = igbo();
-  const heading = out.indexOf('Community context matters');
-  const sentence = out.indexOf('<b>The account of the calendar followed here is the Nri one.</b>');
-  assert.ok(heading !== -1 && sentence !== -1, 'the Nri statement is not on the page');
-  assert.ok(sentence > heading, 'the Nri statement must sit under the “Community context matters” heading');
-  assert.ok(sentence - heading < 400, 'the Nri statement must be in the basis note rather than further down');
-  // The first half: the account followed here is the Nri reckoning.
-  assert.match(out, /The four market days and the thirteen months below are the Nri reckoning/);
   /*
-   * ── AND THE SECOND HALF IS NOW THE ARCHIVE'S OWN STATEMENT (round 365) ──────────────────────────
+   * THE DESIGN'S OWN STATEMENT, WHICH IS WHAT A READER MEETS.
    *
-   * It used to be the tertiary source's sentence, quoted: the calendar *"is neither universal nor
-   * synchronized"*. **The owner removed the source, and a page cannot quote what it has removed**, so the
-   * qualification is re-stated from the archive's own catalogued record — which says the same thing, that the
-   * calendar varies across communities and the four-day market week is what they share.
-   *
-   * The assertion is rewritten rather than dropped, because **the qualification is the half that keeps the
-   * first half from claiming the Nri account for all of Igboland**, and losing it in a trim would be the
-   * failure this whole file is written against.
+   * Read out of the design first, so a design that rewords this section fails here rather than passing on a
+   * stale string, and asserted on the served page second.
    */
-  assert.match(out, /Other Igbo communities keep other reckonings/);
-  assert.match(out, /those records say so themselves: the calendar varies across communities, and the four-day market week is the part they share/);
+  const design = screen('igbo-calendar');
+  for (const own of [
+    'Nri-Igbo reckoning',
+    'The month meanings below are in reference to the Nri-Igbo calendar of the Nri kingdom',
+    'The thirteen months (Ọnwa) and their Gregorian equivalents',
+  ]) {
+    assert.ok(design.includes(own), `the design no longer states the Nri reckoning: ${own}`);
+    assert.ok(out.includes(own), `the served page lost the design’s own Nri statement: ${own}`);
+  }
+  /*
+   * AND THE FILL'S APPENDED PARAGRAPH IS GONE — asserted by name, in both halves plus the `<p>` that carried
+   * them, so a later round cannot quietly restore an element the design does not draw.
+   */
+  assert.ok(
+    !out.includes('<b>The account of the calendar followed here is the Nri one.</b>'),
+    'the fill’s appended Nri paragraph is back on the page'
+  );
+  assert.ok(
+    !out.includes('Other Igbo communities keep other reckonings'),
+    'the fill’s authored qualification sentence is back on the page'
+  );
   // The quotation that cannot stand is asserted gone, so it cannot return with a source that is not there.
   assert.ok(!out.includes('neither universal nor synchronized'), 'the removed source is still being quoted');
   /*
@@ -1498,8 +1628,8 @@ test('the Nri account is stated plainly under the basis note, with its qualifica
     'the removed month-names limit is back on the page'
   );
   /*
-   * AND IT IS ON THIS SCREEN ONLY. `/market-days/` keeps the anchor sentence and does not take an emphasis the
-   * owner asked for in the note headed "Community context matters", which only this screen has.
+   * AND IT IS ON THIS SCREEN ONLY. `/market-days/` keeps the anchor sentence and takes no Nri paragraph, because
+   * the section the design states it in exists only on `/igbo-calendar/`.
    */
   const sibling = fillIgboCalendar(screen('market-days'));
   assert.ok(

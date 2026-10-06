@@ -5989,136 +5989,83 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
     ''
   );
   /*
-   * THE HERO'S OWN DESCRIPTION OF WHAT THE PAGE HOLDS.
+   * ── THE HERO LEDE IS THE DESIGN'S, AND NOTHING IS APPENDED TO IT (round 367) ─────────────────────
    *
-   * It read "Check today, look up another date, or follow Eke, Orie, Afọ and Nkwọ across a month or full
-   * year." **That was the whole of the page when it was written and it is not the whole of it now** — the
-   * design's own thirteen-month section sits below the calendar. A hero that leaves it out undersells the
-   * page at the one point every reader reads.
+   * The fill used to run a replacement over the design's own lede and hand back the same sentence with a
+   * second one bolted on: *"Below the calendar: the Nri year those days make up, its thirteen months, and the
+   * archive's own records behind them."* The sentence was true, and **that is not the test.**
    *
-   * AND THE SECOND SENTENCE NAMES WHAT IS BELOW, WHICH IS THE HALF OF THIS THAT IS EASY TO MISS. It has
-   * promised, in three rounds, "the system, the thirteen months, the festivals the account names, the naming
-   * tradition, and where all of it comes from" and then "the thirteen months and their sources, and what this
-   * archive can and cannot substantiate of the account behind them" — **and round 365 removed the claim table
-   * the second of those offered, so both promises are now false.** A hero that points at a section that is
-   * not there is worse than the underselling this line was added to fix. What is below is the Nri year and
-   * its thirteen months, which the design draws, with the basis note above them saying they are the Nri
-   * reckoning taken from the archive's own catalogued records — so that is what it says. **It still holds
-   * after round 366 took the account's prose away, because the design's own section and the basis note are
-   * the two things it points at.**
+   * ⚠️ IT IS PROSE THE DESIGN DOES NOT CONTAIN, ADDED TO A SENTENCE THE DESIGN DOES. The owner has now named
+   * this fault three times — *"stop adding what i did not tell you, stop writing anything that i never told
+   * you"* — and on the calendar he named it in the same breath as the year cards below: the design is on
+   * GitHub, current, and *"you should go copy the new design full for the igbo calendar page."* **The design's
+   * lede already names the four days and the month and full-year views, and its own thirteen-month section
+   * carries the Nri reckoning a reader scrolls to.** So the lede is served exactly as the design wrote it, and
+   * the `out.replace` that extended it is gone rather than reworded.
    */
-  out = out.replace(
-    /Check today, look up another date, or follow Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor across a month or full year\./,
-    'Check today, look up another date, or follow Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor across a month or full year. Below the calendar: the Nri year those days make up, its thirteen months, and the archive’s own records behind them.'
-  );
   /*
-   * ── THE FOURTH VARIANT: EKE'S OTHER NAME, ON THE OWNER'S INSTRUCTION (round 364) ─────────────────
+   * ── EKE'S OTHER NAME CAME OFF THE CARD AND THE LEDE, BECAUSE THE NEW DESIGN DRAWS NEITHER (round 367) ──
    *
-   * His words: *"also add that another word for 'eke' is 'eken' same way you added for others."* **The design
-   * writes a variant for three of its four day cards and not for the fourth**, measured on `/igbo-calendar/`
-   * before this round:
+   * Round 364 added `<small>Eken</small>` to the Eke card and rewrote the lede's list to `Eke/Eken`, on the
+   * owner's instruction *"also add that another word for 'eke' is 'eken' same way you added for others."*
+   * **The instruction was to the design that existed then, and the owner has since replaced that design.**
    *
-   *     <article data-day-card="Eke"><span>01</span><h2>Eke</h2></article>                       ← no variant
-   *     <article data-day-card="Orie"><span>02</span><h2>Orie <small>Oye</small></h2></article>
-   *     <article data-day-card="Afọ"><span>03</span><h2>Afọ <small>Afor</small></h2></article>
-   *     <article data-day-card="Nkwọ"><span>04</span><h2>Nkwọ <small>Nkwor</small></h2></article>
+   * ⚠️ THE ORDER IS MEASURED RATHER THAN ASSUMED, BECAUSE IT IS THE WHOLE OF THE REASONING.
+   * `git merge-base --is-ancestor 78798a5 480dd4f` succeeds: the round that added `Eken` (78798a5) is an
+   * **ancestor** of `480dd4f`, the commit that brought the owner's updated design in. The design that arrived
+   * afterwards writes `<article data-day-card="Eke"><span>01</span><h2>Eke</h2></article>` with no variant and
+   * a lede reading `Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor` — **so the newer design supersedes the older
+   * instruction, which is the same rule this file follows everywhere else when a design update lands on top
+   * of a fill change** (see `2493838`, where the fill stopped drawing the months the new design draws itself).
    *
-   * So the card takes `<small>Eken</small>` in exactly the form the other three use, and the lede's list of
-   * variant pairs — which the design itself writes as "Eke, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor", in the
-   * sentence a reader meets first — takes the pair beside the other three rather than leaving Eke the only
-   * unpaired day there. **The design's own file is not edited**: `public/design/` is the source and this is a
-   * serve-time rewrite of it. Both strings are asserted against the design in `design-fill.test.ts`, so a
-   * design whose markup moves fails the suite instead of silently dropping the variant.
-   *
-   * WHERE THE NAME COMES FROM, SAID RATHER THAN ASSUMED. `Eken` appears nowhere in the design, nowhere in the
-   * archive's five catalogued records that bear on this account, and nowhere in the article the page draws on —
-   * checked rather than supposed. It is the owner's own statement about his archive, which is a source class
-   * this archive already uses: `docs/DATA-SOURCES.md` §5 records his own list as the corpus for the name
-   * material, "where the two overlap the owner's row wins". **So the variant goes up AND its provenance goes
-   * into the claim row that lists the other three** (`CALENDAR_VERIFIED` below), because a name on a day card
-   * that no row says who recorded is exactly the unattributed claim this page's check table exists to prevent.
-   *
-   * AND THE ONE PLACE IT IS DELIBERATELY NOT ADDED IS THE `<select>`. Its options are the four values a request
-   * is matched against — the design's `marketDay()` and the server-side `?day=` comparison take exactly one
-   * name each — so a variant there would be a choice that selects nothing rather than a second spelling. The
-   * same reasoning leaves the `days` array in `public/design/market-days.js` alone: that array **is** the
-   * reckoning, it is the design's, and it is not editable from here. The month grid and the upcoming lists the
-   * script draws therefore keep the canonical four, which is what a heading's `<small>` is a gloss on rather
-   * than a replacement for.
+   * So both replacements are gone, the lede keeps the design's own three pairs, and the Eke card keeps the
+   * bare heading the design writes. **Nothing is put in their place**: the design draws no variant for Eke and
+   * the archive holds no record of one, so the honest state is the design's own.
    */
-  out = out.replace(
-    /Eke, Orie\/Oye, Afọ\/Afor and Nkwọ\/Nkwor/g,
-    'Eke/Eken, Orie/Oye, Afọ/Afor and Nkwọ/Nkwor'
-  );
-  out = out.replace(
-    /<article data-day-card="Eke"><span>01<\/span><h2>Eke<\/h2><\/article>/,
-    '<article data-day-card="Eke"><span>01</span><h2>Eke <small>Eken</small></h2></article>'
-  );
   out = out.replace(
     /*
-     * BOTH OF THE DESIGN'S SENTENCES GO, AND THE SECOND ONE IS WHY THIS PATTERN IS NOT THE OLD ONE.
+     * ── THE DESIGN'S OWN TWO SENTENCES, WITH ONLY ITS FIRST REWRITTEN (round 367) ────────────────────
      *
-     * The design writes two: *"This prototype sets 1 January 2026 as Orie and repeats the four-day cycle. It is
-     * not a claim that every Igbo community uses the same anchor."* **The old pattern replaced only the first**,
-     * so the served page carried the new sentence AND the design's leftover disclaimer right after it —
-     * measured on `/igbo-calendar/`: "…not a claim that every Igbo community uses the same one. It is not a
-     * claim that every Igbo community uses the same anchor." The same thing twice, the second time in the
-     * design's own voice. The pattern now takes the pair, so the replacement is the whole of what a reader reads
-     * there.
+     * The design writes: *"This prototype sets 1 January 2026 as Orie and repeats the four-day cycle. It is
+     * not a claim that every Igbo community uses the same anchor."* The first sentence is the design describing
+     * its own build — "prototype", and a date set by whoever drew the screen — so it is the one rewritten in
+     * place, into the anchor this page actually reckons from, which arrives as `state.basis`.
      *
-     * ── AND THE NRI STATEMENT JOINS IT, ON THE OWNER'S INSTRUCTION (round 364) ───────────────────────
+     * ⚠️ **THE SECOND SENTENCE IS THE DESIGN'S AND STAYS.** An earlier round replaced BOTH and put a
+     * fill-authored qualification in its place: *"Communities do not all keep the same anchor, so a town that
+     * keeps another one keeps another market day."* **That is prose the design does not contain, written where
+     * the design already says the same thing in its own words** — the fault the owner has now named three
+     * times. The design's own sentence carries the qualification, so nothing is authored beside it.
      *
-     * His words: *"and emphasize that the calendar is a product of nri, so we are following nri calendar days,
-     * even though some igbo communities might differ."* The material was already on the page, distributed
-     * through the month table's caption, its column, every row, and the check table — and **his complaint was
-     * that it is not said plainly where a reader meets the calendar.** The note under "Community context
-     * matters" is where the design itself states the basis, so the plain statement goes there, in the same
-     * breath as the qualification he asked for in the same sentence.
-     *
-     * BOTH HALVES OR NEITHER. The first half alone would claim the Nri account for all of Igboland; the second
-     * alone would hide which account this page is following.
-     *
-     * ── AND BOTH HALVES WERE REWRITTEN WHEN THE TERTIARY SOURCE CAME OFF THE PAGE (round 365) ────────
-     *
-     * The second half used to be the article's own sentence, quoted: the calendar *"is neither universal nor
-     * synchronized, so various groups will be at different stages of the week, or even year."* **A page cannot
-     * quote a source it has removed**, and the owner's instruction was to remove everything about that source
-     * — so the quotation is gone and the same fact is now the archive's own statement. It is not a loss: the
-     * archive's own catalogued record *Iguaro: The Igbo Calendar, Culture, and Cosmology* states it in terms
-     * this page can carry — the calendar varies across communities with their lunar observations and local
-     * practice, while the four-day market week is shared — which is why the second half now reads as the
-     * record's statement rather than as a quotation from elsewhere.
-     *
-     * THE FIRST HALF KEEPS ITS LIMIT. The month names are Onwuejeogwu (1981) and **the archive does not hold
-     * that book and has not read it**, which the sentence on the Nri account below states in the same breath
-     * as the names themselves. That is the one claim on this page whose source the archive cannot open, and it
-     * is marked where it is made rather than in a table of outcomes.
-     *
-     * AND IT IS ON THIS SCREEN ONLY. `/market-days/` carries the same anchor paragraph from the replacement
-     * below, and the owner named this note — the one headed "Community context matters" — which only
-     * `/igbo-calendar/` has. The sibling's basis note still states the anchor and that communities differ.
+     * ⚠️ AND THE `<p>` OF THE NRI ACCOUNT THAT WAS APPENDED HERE IS GONE (round 367). Round 364 added it on the
+     * owner's instruction — *"emphasize that the calendar is a product of nri…"* — and **the design the owner
+     * has since shipped says it itself**: `sx-cal-months-meanings` opens with the eyebrow *"Nri-Igbo
+     * reckoning"* and the paragraph *"The month meanings below are in reference to the Nri-Igbo calendar of the
+     * Nri kingdom…"*. The fill's paragraph restated what the design now draws, and the appended `<p>` was an
+     * element the design does not draw. See the `Eken` note above for the same chronology — `78798a5` is an
+     * ancestor of `480dd4f`.
      */
-    /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\.\s*It is not a claim that every Igbo community uses the same anchor\.<\/p>/,
-    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.</p>
-        <p><b>The account of the calendar followed here is the Nri one.</b> The four market days and the thirteen months below are the Nri reckoning, taken from the archive's own catalogued records. Other Igbo communities keep other reckonings, and those records say so themselves: the calendar varies across communities, and the four-day market week is the part they share.</p>`
+    /This prototype sets 1 January 2026 as Orie and repeats the four-day cycle\./,
+    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}.`
   );
   /*
-   * THE SAME ANCHOR, STATED ON THE OTHER SCREEN THAT LOADS THIS SCRIPT.
+   * THE SAME ANCHOR, ON THE OTHER SCREEN THAT LOADS THIS SCRIPT — AND THE SAME RULE, ITS FIRST SENTENCE ONLY.
    *
    * `/market-days.html` is a SEPARATE, OLDER SCREEN with its own basis note: *"The supplied helper sets 1
    * January 2026 as Orie and repeats the four-day cycle. This is a design basis, not a claim that every Igbo
    * community uses the same anchor."* — and **"the supplied helper" is the design talking about its own file
-   * rather than the page talking to a reader.** It states the same demonstration in different words, so it is
-   * given the same attribution this fill already gives `/igbo-calendar/`, and both screens then state the
-   * anchor in one form.
+   * rather than the page talking to a reader**, so that one sentence is rewritten in place exactly as it is on
+   * `/igbo-calendar/`.
    *
-   * Two sentences rather than one, because the two screens were written differently and **a replacement that
-   * silently matches nothing is the fault this file keeps recording** — each string is read from the screen it
-   * belongs to, and the test asserts that both are replaced.
+   * ⚠️ **THE DESIGN'S SECOND SENTENCE IS LEFT STANDING HERE TOO (round 367)**, for the reason given above: it
+   * is the design's, and the fill's job is not to author a replacement. The two screens are still matched
+   * separately rather than by one loose pattern, because **a replacement that silently matches nothing is the
+   * fault this file keeps recording** — each string is read from the screen it belongs to, and the test
+   * asserts that both are rewritten.
    */
   out = out.replace(
-    /The supplied helper sets 1 January 2026 as Orie and repeats the four-day cycle\. This is a design basis, not a claim that every Igbo community uses the same anchor\./,
-    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}. Communities do not all keep the same anchor, so a town that keeps another one keeps another market day.`
+    /The supplied helper sets 1 January 2026 as Orie and repeats the four-day cycle\./,
+    `This page reckons the cycle from a fixed anchor: ${esc(state.basis)}.`
   );
   /*
    * ── AND THE NOTE-TO-SELF COMES OFF BOTH SCREENS ──────────────────────────────────────────────────
@@ -6157,41 +6104,44 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
    * `/market-days/` carries a second note after its month view: *"Market-day sequences can differ by
    * community. A production result should always name its verified calendar source."* **The first sentence is
    * for the reader and the second is for the build** — "a production result" is this archive talking about
-   * its own deployment, exactly as "Before production:" was. So the second sentence goes and the first stays,
-   * with the fact the second was protecting stated for a reader instead: this page does name its anchor, in
-   * the basis note above, and a town that keeps another one keeps another market day.
+   * its own deployment, exactly as "Before production:" was. So the second sentence goes and the first stays.
+   *
+   * ⚠️ **AND NOTHING IS WRITTEN IN ITS PLACE (round 367).** The fill used to substitute a sentence of its own
+   * here — *"This page states the anchor it reckons from above, and a town that keeps another anchor keeps
+   * another market day."* — which is prose the design does not contain, and on this screen it was redundant as
+   * well: the design's own basis note above already ends *"…not a claim that every Igbo community uses the same
+   * anchor."* **A removal needs no replacement**, which is the rule the "Before production:" paragraphs follow.
    */
   out = out.replace(
     /<p>Market-day sequences can differ by community\. A production result should always name its verified calendar source\.<\/p>/,
-    '<p>Market-day sequences can differ by community. This page states the anchor it reckons from above, and a town that keeps another anchor keeps another market day.</p>'
+    '<p>Market-day sequences can differ by community.</p>'
   );
 
   /*
-   * THE FULL YEAR, WHICH THE OWNER ASKED TO BE CLICKABLE, AND THE ONE THING THE FILL MAKES TRUE RATHER THAN
-   * LEAVES TO THE SCRIPT.
+   * ── THE TWELVE YEAR CARDS CAME OFF THE PAGE, ON THE OWNER'S INSTRUCTION (round 367) ──────────────
    *
-   * The design already draws the year grid inside a `<details>`, so the control is native, keyboard-operable
-   * and works without JavaScript — but **the grid inside it is built by `market-days.js`, so with JavaScript
-   * off the element the owner asked to expand expands onto nothing.** The design's own quicklink lands on an
-   * empty panel. So the twelve months of the year are written into the markup as well: each states how many
-   * days it has and that every date in it falls on one of the four days under the anchor stated on the page.
-   * That is the shape of a year, not a day-by-day cycle — **computing the cycle in TypeScript would be a
-   * second reckoning of the one cycle this page already reckons once**, and two reckonings drift.
+   * This point used to splice a `<noscript>` into `.sx-year-controls` carrying twelve
+   * `<article class="sx-cal-year-card">` elements, each with a sentence of the fill's own prose — *"31 days.
+   * Every date in this month falls on one of Eke, Orie, Afọ and Nkwọ under the anchor stated above. The
+   * day-by-day grid for each month is drawn by this page's own script."*
    *
-   * The script replaces the container's contents when it runs, so a reader with JavaScript gets the full grid
-   * and the per-month expansion, and a reader without it gets the year's shape and the anchor it is reckoned
-   * from, which is more than an empty box and no less honest than the grid.
+   * ⚠️ **THE DESIGN DRAWS NONE OF IT, AND THAT IS THE WHOLE OF THE OWNER'S COMPLAINT.** His words: *"i
+   * specifically told you that the github is updated, and that you should go copy the new design full for the
+   * igbo calendar page"*; *"stop adding what i did not tell you, stop writing anything that i never told
+   * you."* Measured on the served page, those twelve articles were **the entire difference in `sx-cal`
+   * elements between the design and `/igbo-calendar/`**, and they were four kilobytes of markup written on
+   * every request. The design draws the year grid as `<div class="sx-year-grid" data-year-grid></div>` and
+   * builds it in `market-days.js`; a reader without that script gets the design's own empty container, which
+   * is the design's state and not the fill's to improve on.
+   *
+   * **The last sentence of each card is the tell**: *"drawn by this page's own script"* is the page describing
+   * its own machinery, which is the same class of sentence this function removes elsewhere ("Before
+   * production:", "This prototype", "the supplied helper"). It went with the cards.
+   *
+   * AND NOTHING REPLACES IT. `extendMarketDaysScript` still makes each month of the year grid an expandable
+   * `<details class="sx-cal-year-card">` at run time, so the class is still the script's own; what is gone is
+   * the fill writing that markup into the design's HTML.
    */
-  const yearCard = (name: string, days: number): string =>
-    `            <article class="sx-cal-year-card"><h3>${esc(name)}</h3><p class="small muted">${days} days. Every date in this month falls on one of Eke, Orie, Afọ and Nkwọ under the anchor stated above. The day-by-day grid for each month is drawn by this page’s own script.</p></article>`;
-  const yearNoScript =
-    `        <noscript>
-          <p class="small muted" style="margin-top:var(--s-4)">This page’s script is switched off, so the month-by-month grid cannot be drawn. What the year holds is still stated here, and the anchor it is reckoned from is stated above.</p>
-          <div style="display:grid;gap:var(--s-3);margin-top:var(--s-3)">
-${Array.from({ length: 12 }, (_, m) => yearCard(new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, m, 1))), new Date(Date.UTC(2026, m + 1, 0)).getUTCDate())).join('\n')}
-          </div>
-        </noscript>`;
-  out = out.replace(/(<div class="sx-year-controls">[\s\S]*?<\/div>)/, `$1\n${yearNoScript}`);
 
   /*
    * ── AND NOTHING IS ADDED BELOW THE DESIGN, BECAUSE THE ACCOUNT IS GONE (round 366) ────────────────
