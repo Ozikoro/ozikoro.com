@@ -32,6 +32,22 @@ const ROLE_LABEL: Record<string, string> = {
  *
  * Only administrators and the owner get in. An editor is a contributor who can edit and review,
  * and the review queue is theirs; this is not.
+ *
+ * ⚠️ AND THE REFUSAL IS A `redirect()`, NOT A RENDERED PAGE. **This was a disclosure, not a
+ * cosmetic choice.** The refusal used to `return` a "Not your door" page — and **a Next.js layout
+ * and its child page render CONCURRENTLY**, so returning from the layout does not stop the child:
+ * `GET /admin/users` answered 200 with the refusal *visible* and, **in the same response body, the
+ * serialized RSC payload of the users table — every account's name, email and role.** Measured with
+ * a contributor session; `GET /admin/words` carried its rows the same way. Any signed-in
+ * contributor could read the whole account list out of the page they were told they could not see.
+ *
+ * `redirect()` throws, and Next aborts the render with it — so the child never runs and nothing of
+ * it reaches the response. The destination is the one the refusal already named, which keeps the
+ * design's intent (send them to the dashboard that IS theirs) while removing the leak.
+ *
+ * ⚠️ THE SAME SHAPE MUST NOT BE REINTRODUCED. **A guard in a layout that `return`s instead of
+ * throwing does not guard anything** — it only changes what the page looks like while the data it
+ * was meant to hide is still serialized behind it.
  */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const current = await getCurrentAccount();
@@ -39,22 +55,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const { account } = current;
   const role = account.role;
   if (role !== 'admin' && role !== 'owner') {
-    return (
-      <main className="shell__content" style={{ maxWidth: '38rem', margin: '0 auto' }}>
-        <header className="page-header">
-          <div className="page-header__text">
-            <p className="page-header__kicker">Administration</p>
-            <h1 className="page-header__title">Not your door</h1>
-            <p className="page-header__lede">
-              This is the administrator&rsquo;s area. You are signed in as{' '}
-              {ROLE_LABEL[role] ?? role}, so your own dashboard is the contributor one — it has your
-              submissions and the review queue.
-            </p>
-          </div>
-        </header>
-        <p><Link className="btn btn--primary" href="/contribute">Go to your dashboard</Link></p>
-      </main>
-    );
+    // Throws, so the child page is never rendered and never serialized. See the note above.
+    redirect('/contribute?notice=admins-only');
   }
 
   const db = await getDb();
