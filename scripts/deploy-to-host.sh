@@ -120,16 +120,29 @@ echo "    tracked: ${#FILES[@]}"
 
 # Apply the exclusions in bash rather than in rsync syntax, so the same list is used here and in the
 # count above — two lists would drift.
+#
+# ⚠️ AND SKIP A TRACKED FILE THAT IS NOT ON DISK. `git ls-files` lists what the INDEX holds; a file
+# deleted from the working tree but not yet committed is still listed, and `cp` then fails with
+# "No such file or directory" — which is how `apps/ozikoro/app/robots.ts` announced itself. *That file
+# is genuinely gone: the SEO work replaced it with `app/robots.txt/route.ts`, and the archive serves
+# `robots.txt` from that route.* A deploy must carry what exists, not what was once recorded.
 KEEP=()
+SKIPPED_ABSENT=0
 for f in "${FILES[@]}"; do
   case "$f" in
     .next/*|.next-next/*|*/node_modules/*|node_modules/*) continue ;;
     data/media/*|data/sources/*|data/derived/*|.data/*) continue ;;
     *.tsbuildinfo) continue ;;
   esac
+  if [ ! -f "$f" ]; then
+    SKIPPED_ABSENT=$((SKIPPED_ABSENT + 1))
+    echo "    skipped (tracked but not on disk): $f"
+    continue
+  fi
   KEEP+=("$f")
 done
 echo "    travelling: ${#KEEP[@]}"
+[ "$SKIPPED_ABSENT" -gt 0 ] && echo "    absent-but-tracked skipped: $SKIPPED_ABSENT"
 
 # ── THE DESIGN DIRECTORY IS CALLED OUT SEPARATELY, BECAUSE IT IS THE ONE THAT WAS LOST ──────────
 #
