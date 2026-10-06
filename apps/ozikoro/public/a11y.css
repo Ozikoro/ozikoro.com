@@ -730,6 +730,99 @@
   }
 }
 
+/*
+ * ══ THE BRAND WAS GREEN ON THE READING PAGES, AND IT WAS THE ONE ELEMENT THE DESIGN FORGOT TO COLOUR ══
+ *
+ * The owner: *"when one is reading article, especially like folklores, and others on mobile, the ozikoro
+ * shows green and not even the logo. please make sure every single page, the logo is showing no green
+ * text"*. **He is describing the record and folklore reading pages exactly, and the cause is a gap in the
+ * design's markup rather than a rule of the design being overridden.**
+ *
+ * WHAT WAS PAINTED, MEASURED IN CHROME FROM THE VALUES IN FORCE
+ *
+ * On `/why-a-hawk-kills-chickens/` and `/folklore/`, at both 390 px and 1280 px, `Emulation.setDeviceMetrics`
+ * override and `CSS.forcePseudoState` driving real states:
+ *
+ *   `.sx-reader-header .wordmark`   default  rgb(13, 92, 69)   `#0d5c45`
+ *                                   hover    rgb(8, 64, 47)    `#08402f`
+ *                                   focus    rgb(13, 92, 69)   `#0d5c45`
+ *   the winning rule                `main.css:52  a { color: var(--link) }`, specificity (0,0,1),
+ *                                   `--link: var(--accent)` = `#0d5c45` (tokens.css:19,43)
+ *   the ground it is read on        `.sx-reader-header` = `var(--night)` `#0f0d0b` (showcase.css:287)
+ *
+ * **AND IT IS NOT ONLY THE WRONG BRAND, IT FAILS CONTRAST, AND ITS HOVER IS WORSE THAN ITS RESTING STATE:**
+ *
+ *   `#0d5c45` on `#0f0d0b`   2.43:1   (WCAG 2.1 AA needs 4.5:1 for normal text, 3:1 even for large text)
+ *   `#08402f` on `#0f0d0b`   1.65:1   ← the hover, i.e. the state a pointer user reaches *to confirm a link*
+ *
+ * WHY THE READING HEADER IS THE ODD ONE OUT, AND WHY NOTHING IS CONTRADICTED HERE
+ *
+ * The design colours its brand name through a `<b>`:
+ *
+ *   showcase.css:21   .wordmark b         { color: transparent; background: var(--gradient-gold);
+ *                                           background-clip: text }              ← the gold wordmark
+ *   showcase.css:289  .sx-reader-header .wordmark b { color: var(--gold-bright, #e8c766) }
+ *   main.css:99       .wordmark b         { color: var(--ink-strong) }             (the paper-ground base)
+ *
+ * **So the design's intent for this exact element is gold, and it says so in its own sheet.** But the
+ * markup has to carry the `<b>` for any of that to match, and **on two of the fifty-three screens it does
+ * not**:
+ *
+ *   design/screens/article.html   `<a class="wordmark" href="home.html">OZI IKORO <span>Archive</span></a>`
+ *   design/screens/folklore.html  `<a class="wordmark" href="home.html">OZI IKORO <span>Archive</span></a>`
+ *
+ * — where `home.html`, `folklore-reader.html`, `cultural-event.html` and every masthead screen write
+ * `<b>Ozikoro</b>` or `<b>OZI IKORO</b>` instead. **`OZI IKORO` is therefore a bare text node, and a bare
+ * text node takes its colour from the anchor** — which is `a { color: var(--link) }`, the green. The
+ * `<span>Archive</span>` beside it is fine (`showcase.css:290` colours it `--on-night-muted`, 8.74:1), which
+ * is why only the name read green and why the fault looks like a half-finished rule.
+ *
+ * **`article.html` is the record route's template and `folklore.html` is `/folklore/`, so these two design
+ * files are the whole of the fault** — measured: of fifty-three served pages, the brand is green on exactly
+ * those two and gold everywhere else. Every masthead page and `/watch/`, `/listen/`,
+ * `/folklore-reader/` and `/cultural-event/` were already correct at both widths.
+ *
+ * ⚠️ **THE FILL IS FAITHFUL AND IS NOT THE THING TO CHANGE.** It reproduces the design's markup character
+ * for character, and the markup it reproduces is the design's. Editing the fill to inject a `<b>` would put
+ * the application's markup and the deliverable's markup out of step on a screen the design drew
+ * deliberately, and it would fix only the two screens that exist today.
+ *
+ * SO THE GAP IS CLOSED FROM THIS SHEET, WITH THE DESIGN'S OWN COLOUR AND NO NEW ONE. This rule gives the
+ * anchor the colour the design already gives its `<b>`, so a bare wordmark is painted the same gold as a
+ * wrapped one and the two markups become visually identical. `--gold-bright` is not a value invented here:
+ * it is `showcase.css:289`'s own reader-header brand colour and the 45% stop of `--gradient-gold`.
+ *
+ *   `#e8c766` on `#0f0d0b`   11.82:1   ← replaces a 2.43:1 default and a 1.65:1 hover
+ *
+ * ⚠️ IT CHANGES NOTHING WHERE `<b>` IS ALREADY PRESENT, WHICH IS THE TEST THAT IT IS A CORRECTION AND NOT A
+ * REDESIGN. `.wordmark b` and `.wordmark span` both carry their own `color`, so they never inherit from the
+ * anchor; on the fifty-one screens that write `<b>` this rule is invisible. Measured after the change: the
+ * `<b>` is still gold at every width and on every page.
+ *
+ * ⚠️ AND HOVER AND `:focus-visible` WERE MEASURED RATHER THAN ASSUMED — the lesson `cfcf015` recorded, that a
+ * fix which repairs the default and breaks the focus ring is a new fault.
+ *
+ *   · HOVER DOES NOT MOVE THE COLOUR, AND THAT IS THE DESIGN'S OWN BEHAVIOUR. `a:hover` sets
+ *     `color: var(--link-hover)`, and **at (0,1,1) it is lighter than this rule at (0,2,0), so this rule
+ *     wins and the hover stays gold.** That is what a `<b>` wordmark already does — the `<b>` has its own
+ *     colour, so hovering it has never changed anything — and matching it is the point. It is also the only
+ *     defensible direction: the design's hover *was* the darker green at 1.65:1, i.e. hovering the brand made
+ *     it less legible than leaving it alone.
+ *   · THE FOCUS RING IS UNTOUCHED, BECAUSE IT IS AN OUTLINE AND NOT A COLOUR. `main.css:29`
+ *     `:focus-visible { outline: 3px solid var(--focus) }`, and `--focus` is this sheet's own `#5f6ad6`
+ *     (4.17:1 on `--night`) — the value the note at the top of this file measured for exactly these night
+ *     bars. **This rule changes `color` and nothing else, so the ring cannot be affected by it**, and it is
+ *     verified in the browser at both widths rather than argued from the declaration.
+ *
+ * The two selectors are given because both of the archive's headers are night bars with a gold brand —
+ * `.masthead` is `rgba(15,13,11,.92)` (showcase.css:12) and `.sx-reader-header` is `var(--night)` — and a
+ * bare wordmark in either would take the same green. **Today only the reader header has one; the masthead
+ * half is here so that the next bare wordmark is not a recurrence of this report.**
+ */
+.sx-reader-header .wordmark,
+.masthead .wordmark {
+  color: var(--gold-bright);
+}
 
 /*
  * ═══════════════════════════════════════════════════════════════════════════════════════════════════════
