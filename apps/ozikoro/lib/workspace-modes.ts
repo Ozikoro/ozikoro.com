@@ -128,5 +128,15 @@ export function switcherFor(viewer: WorkspaceViewer, currentMode: string | null)
     modes: viewer.modes,
     currentMode,
     adminHref: viewer.adminHref,
+    /*
+     * THE ACCOUNT LINK GOES INTO THE CONTROL, BECAUSE IN THE MASTHEAD THE CONTROL IS THE ACCOUNT ITEM.
+     *
+     * It used to be a separate `<li>` beside the switch, and a signed-in reader with an elevated workspace
+     * therefore got one more item than a signed-out one — which is the row that wrapped. It is carried
+     * here rather than assembled by each caller so the label rule ("My account" only when the destination
+     * really is the account) exists once.
+     */
+    accountHref: viewer.signedIn ? viewer.primaryHref : null,
+    accountLabel: viewer.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace',
   };
 }

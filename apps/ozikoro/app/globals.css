@@ -288,6 +288,28 @@ code {
   gap: 0.4rem 1.25rem;
 }
 
+/*
+ * AT A PHONE WIDTH THE LABEL COLUMN TAKES THE WHOLE LINE AND THE VALUE GETS ONE CHARACTER.
+ *
+ * `max-content` is there so a label never wraps, and on a wide page it is right. Measured on `/admin/` at
+ * 390 px: the longest label — *Published placements on an unchecked item* — needs about 250 px of the
+ * ~294 px the card has inside it, so the `1fr` value track was left about 40 px, and `.pairs dd`'s own
+ * `overflow-wrap: anywhere` then broke `3,494` into `3`, `,`, `4`, `9`, `4` on five lines. **A value the
+ * reader cannot read is worse than a wrapped label**, so below the design's own 40rem step the pair stacks.
+ * The design collapses its own `dl`s at exactly this width (`.sx-article-utility dl` in `showcase.css:450`),
+ * so this is its convention rather than a new one.
+ */
+@media (max-width: 40rem) {
+  .pairs {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.15rem;
+  }
+
+  .pairs dd {
+    margin-bottom: 0.6rem;
+  }
+}
+
 .pairs dt {
   color: var(--ink-faint);
   font-size: 0.875rem;
@@ -851,27 +873,16 @@ code {
 
    The control itself is the deliverable's own `sx-role-switch`, styled by the design's `showcase.css`,
    because the masthead it sits in is the design's night bar on the design screens AND on this
-   application's own chrome — the root layout links the same stylesheets. **Nothing about the control is
-   re-styled here; a second palette for it would be a second design.** What is here is the small amount
-   the design never had to answer: a `<details>` that must sit inside one flex item of a horizontal
-   navigation, and the administration's own row of workspace links.
+   application's own chrome — the root layout links the same stylesheets.
+
+   ⚠️ **THE ONE CORRECTION IT NEEDED IS NOT IN THIS FILE.** The design drew `.sx-role-switch` as a card,
+   because it drew it for a dashboard SIDEBAR: a `--s-5` top margin, a `--s-3`-padded bold summary, a gold
+   border and a `--night-2` fill. In a horizontal `nav.nav` that is a box standing in a row of links, and it
+   is wide enough to wrap the bar. **The masthead is also a design screen** — `/` is the design's `home`,
+   filled at serve time — and this stylesheet is not loaded there, so a correction written here would fix the
+   React pages and leave the front page broken. `apps/ozikoro/public/a11y.css` is the one sheet loaded on
+   both, and the rule is there beside the measurement that found it.
    --------------------------------------------------------------------------- */
-
-.nav-modes-item {
-  display: flex;
-  align-items: center;
-}
-
-.nav-modes-item summary {
-  cursor: pointer;
-  font-weight: 500;
-  color: var(--on-night);
-  padding-block: var(--s-1);
-}
-
-.nav-modes-item summary:hover {
-  color: var(--gold-bright);
-}
 
 .admin-workspaces {
   background: transparent;
@@ -891,4 +902,70 @@ code {
   border-top: 1px solid var(--rule);
   padding-top: 0.35rem;
   align-items: baseline;
+}
+
+/* ---------------------------------------------------------------------------
+   THE BACK OFFICE, IN THE DESIGN'S OWN DASHBOARD VOCABULARY
+
+   The owner: *"i clicked on it to see the admin, and it was completely scattred. this is not exactly as it
+   was in the demo."* The demo is `public/design/screens/dashboard-admin.html`: `div.sx-dashboard`, a
+   `aside.sx-dash-side` rail, a sticky `header.sx-dash-top`, `section.sx-metrics` and `div.sx-work-grid` —
+   all of them rules in the design's `showcase.css`, which `/admin/` did not load at all.
+
+   The root layout links those stylesheets on `/admin` now, and the administration's own markup is written
+   in those class names. **What is here is only the little the design never had to draw**, and every rule is
+   additive: no class the design defines is redefined, and nothing under `public/design/` is touched.
+
+   The application's own `.panel` / `.panel__head` / `.panel__body` / `.btn--primary` primitives stay where
+   they are and keep working — the pages that use them are unchanged. They are simply no longer what the
+   back office's *frame* is built from.
+   --------------------------------------------------------------------------- */
+
+/* The one card that is an aside rather than a work item. */
+.sx-panel--quiet .sx-panel-body {
+  color: var(--text-muted);
+  font-size: var(--t-sm);
+}
+
+/* The design's panels have no foot; the application's cards do. Drawn in the design's own terms. */
+.sx-panel-foot {
+  padding: var(--s-4);
+  border-top: 1px solid var(--rule);
+  background: var(--paper);
+  border-radius: 0 0 var(--r-md) var(--r-md);
+}
+
+/*
+ * THE LANDING PAGE'S CARDS, TWO UP AND THEN ONE.
+ *
+ * The design draws its modules as eleven link tiles in a three-up `sx-state-grid`. These cards are not
+ * tiles — each carries a paragraph and a table of real counts — so the same idea is drawn at the width the
+ * words need: **two columns where the design has columns, and one where it collapses.** Before this the
+ * eleven of them were a single 1112-px column of white cards four thousand pixels long, which is the
+ * "things stacked where the design has columns" the owner was describing.
+ *
+ * The page's own title row and metric row span the full width, so this one grid is the whole page rather
+ * than a wrapper nested inside it — that keeps the diff to the two lines that open and close it.
+ */
+.admin-overview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-5);
+  align-items: start;
+}
+
+.admin-overview > .sx-dash-title,
+.admin-overview > .sx-metrics {
+  grid-column: 1 / -1;
+}
+
+/* The title row carries its own bottom margin for the pages that are not a grid; here the gap is the space. */
+.admin-overview > .sx-dash-title {
+  margin-bottom: 0;
+}
+
+@media (max-width: 60rem) {
+  .admin-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

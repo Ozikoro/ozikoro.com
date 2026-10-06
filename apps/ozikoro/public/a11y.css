@@ -235,3 +235,199 @@
   flex: 0 0 auto;
   max-width: none;
 }
+
+/*
+ * ── THE BACK-OFFICE LINK ON A DASHBOARD RAIL WAS THE SAME COLOUR AS THE RAIL ─────────────────────────
+ *
+ * The owner: *"the dashboard where it was written 'The administration — the archive's back office' was
+ * invisible unless my cursor goes there"*.
+ *
+ * WHAT WAS PAINTED, MEASURED FROM THE VALUES IN FORCE
+ *
+ * The control is the rail's one back-office anchor, and the rail is night — `showcase.css:276` sets
+ *
+ *     aside.sx-dash-side { background: var(--night); color: var(--on-night) }
+ *
+ * while the anchor is dressed in `main.css`'s quiet-button class, which is written for paper:
+ *
+ *     main.css:130   .btn-quiet        { background: transparent; color: var(--ink); border-color: var(--rule-firm) }
+ *     main.css:131   .btn-quiet:hover  { background: var(--paper-sunk); color: var(--ink-strong) }
+ *
+ * So on that rail the pair was
+ *
+ *     resting   --ink        #1d1a16 text on --night      #0f0d0b ground   1.12:1
+ *     hover     --ink-strong #0f0d0b text on --paper-sunk #efe6d2 fill    15.63:1
+ *
+ * **The link was legible in exactly one state, and it is the state a keyboard user has to reach it to
+ * cause and a touch-screen reader can never cause.** 1.12:1 is not dim text; it is text the same colour
+ * as what is behind it.
+ *
+ * THE CORRECTION IS THE DESIGN'S OWN, NOT A NEW COLOUR
+ *
+ * `showcase.css` already corrects this class on the two other night grounds it lands on —
+ * `.sx-reg-search .btn-quiet { color: var(--on-night); … }` (line 671) and `.sx-viewer-page
+ * .btn-quiet { color: var(--cream); … }` (line 708). This is the third night ground and the one that was
+ * missed, so the rule is written the same way: the resting colour becomes the rail's own foreground
+ * (--on-night, **16.21:1** on --night) and the border the design's stronger-rule tone (--rule-firm,
+ * **9.59:1** on --night). No new value is introduced.
+ *
+ * THE HOVER IS THE DESIGN'S OWN, AND IT HAS TO BE WRITTEN OUT, WHICH WAS NOT OBVIOUS.
+ *
+ * `main.css:131` already gives this class a hover — `--paper-sunk` fill, `--ink-strong` text, 15.63:1 — and
+ * the intention was to leave it exactly as the design wrote it. **It does not survive the rule above**: the
+ * resting rule is `.sx-dash-side .sx-mode-admin .btn-quiet` (three classes) and the design's hover is
+ * `.btn-quiet:hover` (two), so the resting colour went on winning while the design's fill came through —
+ * **cream text on a cream pill, measured 1.05:1, which is the original fault one interaction later.**
+ *
+ * Forcing the pseudo-state in Chrome and reading what it painted is what found this; nothing in the markup
+ * or the diff shows it. So the hover is stated in the design's own values.
+ *
+ * ⚠️ SCOPED TO THE RAIL, BECAUSE THE SAME PARAGRAPH IS ALSO PUT ON PAPER. `fillModeSwitcher` places it
+ * either inside `aside.sx-dash-side` (the nine rail dashboards — night) or at the head of
+ * `<main class="wrap sx-section">` (the five rail-less dashboards — paper). On paper `--ink` is correct
+ * and must not be touched, which is why this is a descendant selector and not a rule on `.sx-mode-admin`.
+ */
+.sx-dash-side .sx-mode-admin .btn-quiet {
+  color: var(--on-night);
+  border-color: var(--rule-firm);
+}
+
+.sx-dash-side .sx-mode-admin .btn-quiet:hover {
+  color: var(--ink-strong);
+}
+
+/*
+ * ── THE SIGNED-IN ITEM IN THE MASTHEAD, WHICH WAS A DARK PANEL SITTING IN THE MENU ──────────────────
+ *
+ * The owner: *"when i signed in and went to the front page, it scattered the menu."*
+ *
+ * WHAT WAS PAINTED
+ *
+ * `renderModeSwitcher` reuses the deliverable's own `details.sx-role-switch`, and `showcase.css:280`
+ * draws that control as a card, because it was drawn for a dashboard SIDEBAR:
+ *
+ *     showcase.css:280  .sx-role-switch      { margin-top: var(--s-5); border: 1px solid rgba(201,168,76,.4);
+ *                                              border-radius: var(--r-md); background: var(--night-2) }
+ *     showcase.css:281  .sx-role-switch summary { padding: var(--s-3); color: var(--on-night); font-weight: 700 }
+ *     showcase.css:283  .sx-role-switch a    { display: block; padding: var(--s-2); font-size: var(--t-sm) }
+ *
+ * **In `nav.nav` that is a 1.5rem top margin, a 0.75rem-padded bold summary, a gold border and a
+ * night-2 fill — a box in a row of links.** `main.css:101` lets the row wrap, so a control several
+ * hundred pixels wide pushed `About` and the account item onto a second line. The measurement that
+ * matters is in the report; the cause is that one control was styled for the place it came from and not
+ * the place it was put.
+ *
+ * THE CORRECTION MAKES IT AN ITEM IN THE NAV, WHICH IS WHAT IT IS
+ *
+ * The summary is given `main.css`'s own `.nav a` metrics (1rem, --on-night, 2px transparent underline,
+ * --s-1 block padding) so it measures like the links beside it, and the panel is taken **out of flow**
+ * and anchored under the item. **An open menu must not reflow the bar it opened from** — that is the
+ * same fault one hover later, and it is why `position: absolute` rather than a taller `<li>`.
+ *
+ * The disclosure marker is redrawn rather than left as the platform's own triangle, because
+ * `::marker` is not styled consistently and the design's vocabulary is a chevron.
+ *
+ * ⚠️ ONLY `.nav-modes-item`. `.sx-role-switch` is also the rail control and the rail-less screens'
+ * control, where the design's own card styling is right — both are scoped separately below and neither
+ * is touched.
+ */
+.nav-modes-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.nav-modes-item .sx-role-switch {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.nav-modes-item .sx-role-switch > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  padding: var(--s-1) 0;
+  color: var(--on-night);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: inherit;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  list-style: none;
+  cursor: pointer;
+}
+
+/* Safari and Chrome both draw their own marker on a summary; the design's is a chevron. */
+.nav-modes-item .sx-role-switch > summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-modes-item .sx-role-switch > summary::after {
+  content: '';
+  width: 0.4em;
+  height: 0.4em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-0.15em) rotate(45deg);
+}
+
+/* The design's own hover for a nav link, so this item behaves like the ones beside it. */
+.nav-modes-item .sx-role-switch > summary:hover,
+.nav-modes-item .sx-role-switch[open] > summary {
+  color: var(--gold-bright);
+  border-bottom-color: var(--gold);
+}
+
+.nav-modes-item .sx-role-switch[open] > summary::after {
+  transform: translateY(0.1em) rotate(-135deg);
+}
+
+/*
+ * THE PANEL, ANCHORED. `right: 0` rather than `left: 0` because the item is the last thing in the row
+ * apart from nothing — a panel that grew to the right would leave the viewport on the archive's own
+ * 1440px bar, and one that grows left stays under the control it came from.
+ */
+.nav-modes-item .sx-role-switch > div {
+  position: absolute;
+  top: calc(100% + var(--s-3));
+  right: 0;
+  z-index: 60;
+  min-width: 16rem;
+  max-height: min(70vh, 30rem);
+  overflow: auto;
+  padding: var(--s-2);
+  border: 1px solid rgba(201, 168, 76, 0.4);
+  border-radius: var(--r-md);
+  background: var(--night-2);
+  box-shadow: var(--shadow-lift);
+}
+
+/*
+ * AT 40REM THE DESIGN TURNS THE MASTHEAD INTO A DISCLOSURE ITSELF — `showcase.css:658` hides `nav.nav`
+ * and shows it only on `.masthead.menu-open`, as a two-column grid of full-width rows. **A floating
+ * panel inside a grid cell is two panels fighting for the same pixels**, so at that width the panel goes
+ * back into flow and the summary takes the same row metrics as every other item in that menu.
+ */
+@media (max-width: 40rem) {
+  .nav-modes-item .sx-role-switch > summary {
+    display: block;
+    padding: 0.85rem 0.35rem;
+    font-size: 1rem;
+    border-bottom: 0;
+  }
+
+  .nav-modes-item .sx-role-switch > div {
+    position: static;
+    min-width: 0;
+    max-height: none;
+    margin: 0;
+    padding: var(--s-2) 0.35rem var(--s-3);
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+}
+

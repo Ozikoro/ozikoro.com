@@ -3,21 +3,37 @@ import Link from 'next/link';
 /**
  * The shared pieces of the Ozikoro administrator's area.
  *
- * Kept to the same vocabulary as the dictionary's admin (`apps/web/app/admin/ui.tsx`): a page
- * header, a panel with a head and body, notices, and a label/value list. The design brief says
- * the public site and the working back office are two designs for one institution and should
- * share a foundation, and reusing these primitives is the cheapest way to keep that true while
- * the public design is still being drawn.
+ * ── THESE ARE THE DESIGN'S OWN PRIMITIVES, WHICH THEY WERE NOT ───────────────────────────────────────────
+ *
+ * The owner: *"i clicked on it to see the admin, and it was completely scattred. this is not exactly as it was
+ * in the demo."* The demo is `public/design/screens/dashboard-admin.html`, and where it draws a card it draws
+ *
+ *     section.sx-panel > div.sx-panel-head > h2
+ *                      > div.sx-panel-body
+ *
+ * — `showcase.css:276`, from the same `.sx-` vocabulary as the rest of the dashboard. This file was written
+ * against a private set of `.panel__head` / `.panel__body` names in the application's own `globals.css`
+ * instead, so **every card in the back office was drawn by a stylesheet the design has never seen** and none of
+ * them matched the screen the owner was comparing against.
+ *
+ * The three primitives below are that same markup, one for one. `sx-panel` is the design's; the only class this
+ * file adds is `sx-panel--quiet`, for the one card that is an aside rather than a work item, and it is defined
+ * in `globals.css` beside the rest of the administration's own additions.
+ *
+ * Kept to the same vocabulary as the dictionary's admin (`apps/web/app/admin/ui.tsx`): a page header, a panel
+ * with a head and body, notices, and a label/value list. The design brief says the public site and the working
+ * back office are two designs for one institution and should share a foundation, and reusing these primitives
+ * is the cheapest way to keep that true.
  */
 
 export function Head({ title, children }: { title: string; children?: React.ReactNode }) {
   return (
-    <header className="page-header">
-      <div className="page-header__text">
-        <h1 className="page-header__title">{title}</h1>
+    <div className="sx-dash-title">
+      <div>
+        <h1>{title}</h1>
       </div>
-      {children ? <div className="page-header__actions">{children}</div> : null}
-    </header>
+      {children ? <div className="row">{children}</div> : null}
+    </div>
   );
 }
 
@@ -34,16 +50,14 @@ export function Card({
 }) {
   const id = title ? `panel-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}` : undefined;
   return (
-    <section className={`panel${quiet ? ' panel--quiet' : ''}`} aria-labelledby={id}>
+    <section className={`sx-panel${quiet ? ' sx-panel--quiet' : ''}`} aria-labelledby={id}>
       {title ? (
-        <div className="panel__head">
-          <h2 className="panel__title" id={id}>
-            {title}
-          </h2>
+        <div className="sx-panel-head">
+          <h2 id={id}>{title}</h2>
         </div>
       ) : null}
-      <div className="panel__body">{children}</div>
-      {foot ? <div className="panel__foot">{foot}</div> : null}
+      <div className="sx-panel-body">{children}</div>
+      {foot ? <div className="sx-panel-foot">{foot}</div> : null}
     </section>
   );
 }
