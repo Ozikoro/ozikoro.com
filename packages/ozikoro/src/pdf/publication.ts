@@ -275,6 +275,22 @@ export class ArticlePdf {
         .filter((key) => this.doc.usedIn(key).size > 0)
         .reduce((total, key) => total + (face(key)?.subset(this.doc.usedIn(key)).length ?? 0), 0),
       usesEmbeddedFonts: this.doc.usesEmbeddedFonts,
+      /**
+       * EVERY IMAGE THE DOCUMENT CARRIES, BY NAME — **so "the figures came through" is a count and not a
+       * claim.**
+       *
+       * This exists because of a fault measured on the live site rather than imagined: the production
+       * container has no media on its filesystem (`.dockerignore` excludes `data/media`, the image copies
+       * no `.data`, and the service mounts no volume), so `imageOf` finds nothing and
+       * `https://ozikoro.com/animal-totems-…/pdf` serves **18 pages with 2 image objects** where the same
+       * record renders **33 pages with 26** from this checkout. The document is valid, the layout is right,
+       * and twenty-four of its twenty-five photographs are simply absent — the one failure that looks like
+       * success, and the reason the publication cache refuses to store a render that is missing figures.
+       *
+       * The names are the writer's own keys, so a caller can separate the brand mark (`ozikoro-icon-…`)
+       * from the record's figures without a second rule about what a figure is.
+       */
+      images: [...this.doc.images.keys()],
     };
   }
 

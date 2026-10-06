@@ -38,6 +38,17 @@
  * a reader is halfway through downloading. A bucket lifecycle rule is the right tool if the archive ever
  * wants them gone.
  *
+ * ── AND A RENDER THAT IS MISSING ITS FIGURES IS NOT KEPT ────────────────────────────────────────────
+ *
+ * **In production the container has no media on its filesystem**, and that is measured rather than
+ * suspected: `https://ozikoro.com/animal-totems-…/pdf` serves **18 pages carrying 2 image objects** where
+ * this checkout renders **33 pages carrying 26** for the same record. Serving that is the state the site is
+ * already in; **keeping it would make it permanent**, because the key is the record's revision. So an
+ * incomplete render is served and not stored, the numbers are logged with a greppable prefix, and the cache
+ * therefore does not hit at all on a host that cannot reach its own media. That is the honest outcome: a
+ * cache that never hits is a missing optimisation, and a cache that freezes a document with twenty-four
+ * absent photographs is a defect.
+ *
  * ── AND IT CANNOT COST A READER THE DOCUMENT ────────────────────────────────────────────────────────
  *
  * A cache is an optimisation. Every storage call here is inside a `try`, and a store that is unreachable,
@@ -131,6 +142,38 @@ export async function publicationFor(slug: string): Promise<PublicationLookup | 
   const work = (async (): Promise<PublicationLookup | null> => {
     const built = await buildPublication(slug);
     if (!built) return null;
+    /*
+     * ── A RENDER THAT IS MISSING ITS FIGURES IS SERVED AND NOT KEPT ──────────────────────────────────
+     *
+     * This is the one place the cache could make something worse rather than faster, and it is a
+     * measurement rather than a precaution. **In production there is no media on the container's
+     * filesystem** — `.dockerignore` excludes `data/media`, the image copies no `.data`, and the service
+     * mounts no volume — so `imageOf` finds nothing and
+     * `https://ozikoro.com/animal-totems-in-igbo-culture-…/pdf` serves **18 pages carrying 2 image
+     * objects** where this checkout renders **33 pages carrying 26** for the same record. The document is
+     * valid, A4, and beautifully set; twenty-four of its twenty-five photographs are simply absent, which
+     * is the failure that looks like success.
+     *
+     * **Serving that is the state the site is already in. Storing it would make it permanent**: the key
+     * is derived from the record's revision, so a pictureless render kept today would still be the file
+     * served after the media was fixed, until somebody edited the record. So an incomplete render is
+     * served and NOT stored, the numbers are logged with a greppable prefix, and the moment the figures
+     * are reachable the next click stores the complete document.
+     *
+     * **AND NOTHING ABOUT A COMPLETE RENDER CHANGES.** The test is `dropped`, not the difference between
+     * `referenced` and `placed`: the layout suppresses a body figure whose bytes are identical to the
+     * featured image, deliberately, so `aya-adesuwa-the-ubulu-uku-bini-war` legitimately renders 2
+     * references as 1 placed figure with 0 dropped. **A drop is a failure; a suppression is a decision.**
+     */
+    if (built.figures.dropped > 0) {
+      console.warn(
+        `publication cache: NOT storing ${key} — ${built.figures.dropped} of ` +
+          `${built.figures.referenced} figure(s) the record references could not be read, so the document ` +
+          'is missing a picture. It is served; keeping it would make the missing figure permanent. ' +
+          'Check the media root and the storage configuration.'
+      );
+      return { pdf: built.pdf, title: built.title, pages: built.pages, key, source: 'built' };
+    }
     try {
       await storage.put(key, built.pdf, 'application/pdf');
     } catch (error) {

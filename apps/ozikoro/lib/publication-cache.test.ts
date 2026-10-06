@@ -22,6 +22,7 @@ import {
   PUBLICATION_RENDERER_VERSION,
   publicationCacheKey,
 } from './publication-key.ts';
+import { figureReferences } from './publication.ts';
 
 const REVISION = '2025-05-07T00:00:00.000Z';
 
@@ -65,4 +66,28 @@ test('the key names the renderer, so a layout change is a new document', () => {
   // The version is part of the hash's input, so a different version is a different digest. The value is
   // asserted here so that bumping it is a deliberate edit to a test as well as to the constant.
   assert.equal(PUBLICATION_RENDERER_VERSION, 'magazine-1');
+});
+
+/*
+ * THE FIGURE COUNT, WHICH IS WHAT STOPS THE CACHE FREEZING A DOCUMENT WITH NO PICTURES.
+ *
+ * In production the container cannot see its media, so every figure is dropped and the route still returns
+ * a valid A4 document. `publicationFor` refuses to store such a render — see the long note there — and the
+ * decision turns entirely on this count. **It is counted from the record's markup, not from the render**,
+ * because the render is the thing that is wrong: a block-count would report zero figures for a record with
+ * twenty-four of them.
+ */
+test('figures are counted from the markup, and the unit is the figure', () => {
+  assert.equal(figureReferences(''), 0);
+  assert.equal(figureReferences('<p>no pictures here</p>'), 0);
+  // A bare <img> has no caption and no measured size and the layout has never drawn one, so it is not a
+  // figure — the two sides agree by construction rather than by accident.
+  assert.equal(figureReferences('<p><img src="/media/ozikoro/1-a.jpg"></p>'), 0);
+  assert.equal(figureReferences('<figure><img src="/media/ozikoro/1-a.jpg"><figcaption>A</figcaption></figure>'), 1);
+  assert.equal(
+    figureReferences(
+      '<figure><img src="/media/ozikoro/1-a.jpg"></figure><p>x</p><figure><img src="/media/ozikoro/2-b.jpg"></figure>'
+    ),
+    2
+  );
 });

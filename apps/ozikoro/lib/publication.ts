@@ -160,18 +160,31 @@ function toJpeg(path: string, name: string): Buffer | null {
  * build:**
  *
  *     grep -c 'publication: dropped figure' <log>
+ *
+ * ── AND THE CALLER CAN NOW COUNT THEM, WHICH IS WHAT STOPS A DROP BEING MADE PERMANENT ───────────────
+ *
+ * `onDrop` is called for every figure this function refuses, so a build can report how many pictures it
+ * lost instead of only writing them to a log nobody reads. `publication-cache.ts` is the caller that needs
+ * it: it refuses to KEEP a render that dropped a figure, because in production the container cannot see its
+ * media at all and a kept render would freeze a pictureless document under the record's own revision.
+ * **The callback is threaded rather than held in a module variable** on purpose — two builds can interleave
+ * across the database awaits in `buildPublication`, and a shared counter would attribute one record's drops
+ * to another.
  */
-function imageOf(reference: string | null | undefined): Raster | null {
+function imageOf(reference: string | null | undefined, onDrop?: (reference: string) => void): Raster | null {
+  const drop = (reason: string): null => {
+    console.error(`publication: dropped figure — ${reason}`);
+    if (reference) onDrop?.(reference);
+    return null;
+  };
   if (!reference) return null;
   const name = storedName(reference);
   if (!name) {
-    console.error(`publication: dropped figure — no stored file matches ${reference}`);
-    return null;
+    return drop(`no stored file matches ${reference}`);
   }
   const path = join(MEDIA_ROOT, name);
   if (!existsSync(path)) {
-    console.error(`publication: dropped figure — ${name} is not in the media root`);
-    return null;
+    return drop(`${name} is not in the media root`);
   }
   const data: Buffer = readFileSync(path);
   if (isPng(data)) {
@@ -184,27 +197,25 @@ function imageOf(reference: string | null | undefined): Raster | null {
        * of noise, which nobody reports as a bug. The decoder refuses bit depths other than 8 and Adam7
        * interlacing by name.
        */
-      console.error(`publication: dropped figure — ${name} could not be decoded as PNG: ${String(error)}`);
-      return null;
+      return drop(`${name} could not be decoded as PNG: ${String(error)}`);
     }
   }
   if (!isJpeg(data)) {
     const converted = toJpeg(path, name);
     if (!converted) {
-      console.error(
-        `publication: dropped figure — ${name} is neither JPEG nor PNG and could not be converted. ` +
+      return drop(
+        `${name} is neither JPEG nor PNG and could not be converted. ` +
           'WebP needs a decoder this repository does not have (the PNG decoder is in-process; WebP is not), ' +
           'and `sips` is macOS-only. The figure is absent from the PDF; the page shows it normally.'
       );
-      return null;
     }
     const size = jpegSize(converted);
-    return size ? { data: converted, ...size } : null;
+    if (!size) return drop(`${name} converted to a JPEG whose dimensions could not be read`);
+    return { data: converted, ...size };
   }
   const size = jpegSize(data);
   if (!size) {
-    console.error(`publication: dropped figure — ${name} is a JPEG whose dimensions could not be read`);
-    return null;
+    return drop(`${name} is a JPEG whose dimensions could not be read`);
   }
   return { data, ...size };
 }
@@ -330,8 +341,12 @@ const clean = (s: string) =>
  *
  * **A heading stays a heading, a paragraph stays a paragraph, and an image keeps its own caption.** The
  * renderer is not allowed to reorder, summarise or merge any of it.
+ *
+ * `onDrop` is called with the reference of every figure whose file could not be read — see `imageOf`. It is
+ * optional so the existing callers and tests are unchanged, and it is the signal `publication-cache.ts`
+ * uses to refuse to KEEP a pictureless render.
  */
-export function toBlocks(html: string): Block[] {
+export function toBlocks(html: string, onDrop?: (reference: string) => void): Block[] {
   /*
    * THE REFERENCES ARE TAKEN OUT OF THE BODY, BECAUSE THE LAYOUT PRINTS THEM ITSELF.
    *
@@ -359,7 +374,7 @@ export function toBlocks(html: string): Block[] {
       const fig = m[3];
       const img = /<img[^>]*src="([^"]+)"[^>]*>/i.exec(fig);
       if (img) {
-        const picture = imageOf((img[1] as string).replace(/^\/media\//, ''));
+        const picture = imageOf((img[1] as string).replace(/^\/media\//, ''), onDrop);
         const caption = clean(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i.exec(fig)?.[1] ?? '') || null;
         if (picture) blocks.push({ kind: 'image', ...picture, caption, credit: null });
       }
@@ -454,7 +469,32 @@ export type PublicationResult = {
   pages: number;
   /** What was embedded, and which characters had no glyph. **Empty `missingGlyphs` is the proof.** */
   diagnostics: ReturnType<ArticlePdf['diagnostics']>;
+  /**
+   * HOW MANY FIGURES THE RECORD REFERENCES, AND HOW MANY REACHED THE FILE.
+   *
+   * **`referenced` is counted from the record's own markup and not from what was found**, which is the
+   * whole point: `toBlocks` emits an image block only for a figure whose file resolved, so a block count
+   * cannot tell a record with no pictures from a record whose pictures are all missing. The count here is
+   * of `<figure>` blocks that name an `<img>`, so a host that cannot reach its media produces
+   * `placed < referenced` and says so rather than producing an authoritative-looking pictureless document.
+   *
+   * This is a MEASUREMENT of the live archive, not a hypothetical: in production there is no media on the
+   * container's filesystem, and `https://ozikoro.com/animal-totems-…/pdf` serves 18 pages carrying 2 image
+   * objects where this checkout renders 33 pages carrying 26. See `diagnostics().images`.
+   */
+  figures: { referenced: number; placed: number; dropped: number };
 };
+
+/**
+ * The figures a record's own body references, counted from the markup rather than from the render.
+ *
+ * **`<figure>` is the unit because that is the unit the layout sets**: an `<img>` outside a figure has no
+ * caption and no measured size, and the renderer has never drawn one. So a bare `<img>` is not counted here
+ * either — the two agree by construction, and `placed` cannot exceed `referenced` on a complete render.
+ */
+export function figureReferences(bodyHtml: string): number {
+  return [...bodyHtml.matchAll(/<figure[^>]*>[\s\S]*?<img[^>]*>/gi)].length;
+}
 
 /** Build the publication for one published record, or null if there is no such record. */
 export async function buildPublication(slug: string): Promise<PublicationResult | null> {
@@ -481,7 +521,18 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
   const words = a.word_count ?? body.split(/\s+/).length;
   const fmt = (d: Date | null) =>
     d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : null;
-  const featuredImage = imageOf(a.featured_key);
+
+  /*
+   * EVERY FIGURE THIS BUILD LOSES, COLLECTED AS IT LOSES THEM.
+   *
+   * `imageOf` is the single place a picture disappears, and it is the same function for the featured image
+   * and for a figure in the body, so both are reported through the one callback. **A drop is a failure and
+   * not a decision** — a body figure whose bytes are identical to the featured image is suppressed by the
+   * layout on purpose and is not counted here, which is what makes this count usable as a completeness test.
+   */
+  const droppedFigures: string[] = [];
+  const noteDrop = (reference: string) => { droppedFigures.push(reference); };
+  const featuredImage = imageOf(a.featured_key, noteDrop);
 
   /*
    * THE ARTICLE'S OWN SOURCE RECORDS, WHICH ARE WHAT THE REFERENCES PAGE IS FOR.
@@ -523,7 +574,7 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
     updated: fmt(a.updated_at),
     readingMinutes: Math.max(1, Math.round(words / 220)),
     featured: featuredImage ? { ...featuredImage, caption: a.featured_caption } : null,
-    blocks: toBlocks(body),
+    blocks: toBlocks(body, noteDrop),
     references,
     referencesFromSources: fromSources.length > 0,
     tags: [],
@@ -533,5 +584,26 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
   const pdf = doc.render();
   const report = doc.diagnostics();
 
-  return { pdf, title: a.title, pages: report.pages, diagnostics: report };
+  /*
+   * THE FIGURES, COUNTED FROM THREE ANGLES THAT CANNOT AGREE BY ACCIDENT.
+   *
+   * `referenced` comes from the record's markup, `placed` from the file the writer produced, and `dropped`
+   * from the single function that loses a picture. **The brand mark is excluded from `placed`** because the
+   * logo is the template's furniture and not the record's picture, and so is `featured`, which is the cover
+   * panel's own object rather than a body figure.
+   *
+   * **`placed` CAN BE ONE LESS THAN `referenced` ON A COMPLETE RENDER, AND THAT IS NOT A FAULT.** The layout
+   * suppresses a body figure whose bytes are identical to the featured image, deliberately, because the same
+   * photograph printed twice on facing pages is a duplication rather than a figure. That is why the test a
+   * caller makes is `dropped`, and not the difference between the other two — measured on
+   * `aya-adesuwa-the-ubulu-uku-bini-war`, whose opening photograph is also its featured image: 2 referenced,
+   * 1 placed, 0 dropped.
+   */
+  const figures = {
+    referenced: figureReferences(body),
+    placed: report.images.filter((name) => !name.startsWith('ozikoro-icon') && name !== 'featured').length,
+    dropped: droppedFigures.length,
+  };
+
+  return { pdf, title: a.title, pages: report.pages, diagnostics: report, figures };
 }
