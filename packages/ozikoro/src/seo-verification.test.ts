@@ -311,7 +311,64 @@ test('every head builder in the app is given the verification tokens', async () 
    * the symptom would be a token on the front page and not on the 1,051 records — invisible in every test
    * that only builds a head. So each file that builds a head must also name `loadSeoVerification` (or be
    * handed it), and this fails by name if one does not.
+   *
+   * ── ⚠️ THIS MATCHES A CALL, NOT A MENTION, AND IT USED TO MATCH A MENTION ──────────────────────────
+   *
+   * The check was `source.includes('seoHead(')`, which is true of **a comment or a double-quoted read note that
+   * names the function** as well as of a call to it. That is fine until a screen documents where a value is read
+   * — `app/admin/seo/titles/` says *"packages/ozikoro/src/seo-head.ts — seoHead(), through resolveTitle()"* in a
+   * field's read note — and then a file that builds no head at all is reported as one that serves no
+   * verification tag. **A guard that fires on documentation is a guard that gets weakened the next time it is
+   * inconvenient**, so comments AND string literals are removed before the call pattern is tested. What is left
+   * is the code, and the three real call sites are still there.
+   *
+   * THE SCANNER IS DELIBERATELY SMALL. A regex cannot strip a string that contains a comment marker, which is
+   * exactly the shape this repository writes — `'compiled to ^(?:\\/([^\\/#\\?]+?))…'` — so this walks the
+   * characters once, tracking one quote at a time and honouring backslash escapes. It is not a parser; it is
+   * enough to tell a call from a sentence, and it errs by removing too much rather than too little, which is the
+   * safe direction for a guard that only ever reports a MISSING argument.
    */
+  const codeOnly = (source: string): string => {
+    let out = '';
+    let index = 0;
+    /** The quote character currently open, or null. */
+    let quote: string | null = null;
+    while (index < source.length) {
+      const here = source[index]!;
+      const next = source[index + 1];
+      if (quote) {
+        if (here === '\\') {
+          out += ' ';
+          index += 2;
+          continue;
+        }
+        if (here === quote) quote = null;
+        out += here === '\n' ? '\n' : ' ';
+        index += 1;
+        continue;
+      }
+      if (here === '/' && next === '/') {
+        while (index < source.length && source[index] !== '\n') index += 1;
+        continue;
+      }
+      if (here === '/' && next === '*') {
+        index += 2;
+        while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) index += 1;
+        index += 2;
+        continue;
+      }
+      if (here === '"' || here === "'" || here === '`') {
+        quote = here;
+        out += ' ';
+        index += 1;
+        continue;
+      }
+      out += here;
+      index += 1;
+    }
+    return out;
+  };
+
   const files: string[] = [];
   const walk = async (dir: string): Promise<void> => {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -323,8 +380,17 @@ test('every head builder in the app is given the verification tokens', async () 
   };
   await walk(APP_DIR);
 
-  const builders = files.filter((file) => /\bseoHead\(/.test(readFileSync(file, 'utf8')));
-  assert.ok(builders.length >= 3, `expected several callers of seoHead, found ${builders.length}`);
+  /**
+   * The head-building FUNCTIONS, and anything that takes a head. A picture of the call rather than of the
+   * word: `seoHead(` with a whitespace-tolerant run-up to the parenthesis, which is how every real call in this
+   * application is written.
+   */
+  const HEAD_CALL = /\b(seoHead|agreementRefusalDocument|withSeoHead)\s*\(/;
+  const builders = files.filter((file) => HEAD_CALL.test(codeOnly(readFileSync(file, 'utf8'))));
+  assert.ok(
+    builders.length >= 3,
+    `expected several callers of seoHead, found ${builders.length} — the call pattern may have stopped matching real call sites`
+  );
   for (const file of builders) {
     const source = readFileSync(file, 'utf8');
     assert.ok(

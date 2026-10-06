@@ -60,6 +60,7 @@ import {
 import { designScreenLinks, designScriptPaths } from './design-paths.ts';
 import { seoHead, withSeoHead } from './seo-head.ts';
 import type { SiteVerification } from './seo-verification.ts';
+import { EMPTY_SITE_SEO, type SiteSeo } from './site-seo.ts';
 
 // ---------------------------------------------------------------------------
 // The vocabulary
@@ -709,6 +710,15 @@ export function agreementRefusalDocument(
     path: string;
     withdrawn?: { revokedAt: string; reason: string } | null;
     verification?: readonly SiteVerification[];
+    /**
+     * The owner's own site identity, so a refusal says the site is called what the owner called it.
+     *
+     * A 403 is a page of this site and carries the same `og:site_name` and `WebSite` node every other page
+     * does; without this it would name the archive's own constant while the record one address away named the
+     * setting, which is a disagreement a crawler (and a reader) can see. Optional and defaulted, so every
+     * caller that does not pass it serves exactly what it served before.
+     */
+    site?: SiteSeo;
   }
 ): string {
   const copy = agreementRefusal(input);
@@ -778,7 +788,8 @@ export function agreementRefusalDocument(
         ],
       },
       ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css'],
-      input.verification ?? []
+      input.verification ?? [],
+      input.site ?? EMPTY_SITE_SEO
     )
   );
 }

@@ -1,5 +1,6 @@
 import { SITE_ORIGIN } from './seo.ts';
 import { verificationTags, type SiteVerification } from './seo-verification.ts';
+import { EMPTY_SITE_SEO, resolveTitle, type SiteSeo } from './site-seo.ts';
 
 /**
  * The document head, generated for every page the archive serves.
@@ -67,6 +68,22 @@ import { verificationTags, type SiteVerification } from './seo-verification.ts';
  * **Nothing here is invented.** Every value comes from the record or is omitted.
  */
 
+/**
+ * The two constants the whole head is written against, **and both are now defaults rather than the last word.**
+ *
+ * ── WHAT CHANGED, AND WHAT DID NOT ──────────────────────────────────────────────────────────────────
+ *
+ * `SITE_NAME` was read in exactly two places in this file: `og:site_name` and the `name` of the `WebSite` node.
+ * `PUBLISHER` was read in two: the `name` of the `Organization` node and the `citation_publisher` Highwire tag.
+ * **Both are still read here and neither value changed** — what changed is that `seoHead`'s fourth parameter can
+ * supply a stored one, from `/admin/seo/titles/` and `/admin/seo/schema/`. A caller that does not pass it gets
+ * these constants, which is what every caller did before the parameter existed.
+ *
+ * **SO THESE MUST NOT BE DELETED OR EDITED TO FOLLOW A SETTING.** They are the empty state: the value the
+ * archive serves when nothing is stored, and the value a route that has not been extended still serves. The
+ * defaults they mirror in `site-seo.ts` are asserted equal to them by `site-seo.test.ts`, because two copies of
+ * a default that drift is one more way for two pages to disagree about what the site is called.
+ */
 export const PUBLISHER = 'Ozi Ikoro Limited';
 export const SITE_NAME = 'Ozikoro';
 
@@ -162,16 +179,69 @@ export const DESIGN_THEME_HREF = '/design-theme.css';
  *
  * `verification` is the owner's site-verification tokens, and it is emitted as `<meta name="…" content="…">`
  * pairs directly after `robots`. An empty list emits nothing; see the header.
+ *
+ * ── `site`, WHICH IS THE OWNER'S OWN SITE IDENTITY, AND WHAT ITS ABSENCE MEANS ───────────────────────
+ *
+ * The fourth parameter is what `/admin/seo/titles/` writes: the site name, the separator, the title template
+ * and the front page's own title and description. **It defaults to `EMPTY_SITE_SEO`, and every field of that
+ * is either the constant this module already carried (`SITE_NAME`) or null**, so a caller that does not pass
+ * it — and every caller before this parameter existed — serves byte-for-byte what it served before. That is
+ * asserted in `site-seo.test.ts`, not asserted here.
+ *
+ * `record.path === '/'` is what makes a page the front page, and it is read rather than a second parameter
+ * because the path is already the field that decides the canonical, the `@id` and the Open Graph URL. A page
+ * whose canonical is `/` is the front page; there is no such thing as a page whose canonical is `/` and which
+ * is not.
  */
 export function seoHead(
   record: SeoRecord,
   styles: string[],
-  verification: readonly SiteVerification[] = []
+  verification: readonly SiteVerification[] = [],
+  site: SiteSeo = EMPTY_SITE_SEO
 ): string {
   const url = `${SITE_ORIGIN}${record.path}`;
-  const title = clamp(record.title, 60);
+  const isHome = record.path === '/';
+
+  /*
+   * THE TITLE THE OWNER WROTE, THE TEMPLATE HE WROTE, OR THE RECORD'S OWN — decided in one function so the
+   * `<title>`, `og:title`, the Twitter card, the citation tag and the JSON-LD `name` cannot disagree about what
+   * the page is called. A template that names a variable this record has no value for leaves the gap empty and
+   * `resolveTitle` reports which ones; see `site-seo.ts`.
+   */
+  const resolved = resolveTitle({
+    recordTitle: record.title,
+    isHome,
+    site,
+    variables: {
+      sitedesc: site.tagline,
+      category: record.topics?.[0] ?? null,
+      date: record.published ? record.published.slice(0, 10) : null,
+      reference: record.reference ?? null,
+    },
+  });
+  /* A page with no title is the one outcome worse than a bad one, so an empty resolution falls back to the path. */
+  const pageTitle = resolved.title.length > 0 ? resolved.title : record.path;
+  const title = clamp(pageTitle, 60);
+  const siteName = site.siteName;
+  /*
+   * THE PUBLISHER, WHICH IS THE ONE STRUCTURED-DATA FIELD THE OWNER CAN SET. `PUBLISHER` — Ozi Ikoro Limited
+   * — is the default and is what every caller that does not pass `site` still uses, so the empty state is
+   * byte-for-byte the graph this function has always emitted.
+   */
+  const publisherName = site.publisherName;
+  /*
+   * THE FRONT PAGE'S OWN DESCRIPTION, WHEN ONE IS STORED. It replaces the route's own description on `/`
+   * alone, and a null leaves the previous behaviour exactly as it was.
+   */
+  const ownDescription = isHome && site.homeDescription ? site.homeDescription : record.description;
+  /*
+   * THE FALLBACK DESCRIPTION IS BUILT FROM THE RECORD'S OWN TITLE AND NOT FROM THE RENDERED ONE, which is what
+   * makes it byte-for-byte the sentence this function has always written. A title template that added the site
+   * name would otherwise lengthen a fallback description for a record that has no standfirst — a change to the
+   * page that nobody asked for, caused by a setting about titles.
+   */
   const description = clamp(
-    record.description ?? `${record.title} — a record in the Ozikoro archive of Igbo and African histories.`,
+    ownDescription ?? `${record.title} — a record in the Ozikoro archive of Igbo and African histories.`,
     158
   );
 
@@ -179,7 +249,7 @@ export function seoHead(
     {
       '@type': 'Organization',
       '@id': `${SITE_ORIGIN}/#organization`,
-      name: PUBLISHER,
+      name: publisherName,
       url: `${SITE_ORIGIN}/`,
       /*
        * The sites are one publisher, and saying so is what lets a search engine connect them.
@@ -196,7 +266,7 @@ export function seoHead(
       '@type': 'WebSite',
       '@id': `${SITE_ORIGIN}/#website`,
       url: `${SITE_ORIGIN}/`,
-      name: SITE_NAME,
+      name: siteName,
       publisher: { '@id': `${SITE_ORIGIN}/#organization` },
       inLanguage: 'en',
       potentialAction: {
@@ -251,7 +321,7 @@ export function seoHead(
   }
 
   const og: string[] = [
-    `<meta property="og:site_name" content="${esc(SITE_NAME)}">`,
+    `<meta property="og:site_name" content="${esc(siteName)}">`,
     `<meta property="og:locale" content="en">`,
     `<meta property="og:type" content="${OG_TYPE[record.kind]}">`,
     `<meta property="og:title" content="${esc(title)}">`,
@@ -276,13 +346,13 @@ export function seoHead(
    * value and skipped when it does not, because a `citation_author` with nothing in it is worse than none.
    */
   const citation: string[] = [];
-  if (record.title) citation.push(`<meta name="citation_title" content="${esc(record.title)}">`);
+  if (pageTitle) citation.push(`<meta name="citation_title" content="${esc(pageTitle)}">`);
   if (record.author) citation.push(`<meta name="citation_author" content="${esc(record.author)}">`);
   if (record.published) {
     citation.push(`<meta name="citation_publication_date" content="${esc(record.published.slice(0, 10))}">`);
   }
   citation.push(`<meta name="citation_public_url" content="${esc(url)}">`);
-  citation.push(`<meta name="citation_publisher" content="${esc(PUBLISHER)}">`);
+  citation.push(`<meta name="citation_publisher" content="${esc(publisherName)}">`);
   citation.push(`<meta name="citation_language" content="en">`);
   if (record.reference) citation.push(`<meta name="citation_technical_report_number" content="${esc(record.reference)}">`);
 
@@ -310,7 +380,7 @@ export function seoHead(
 
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(record.title)}</title>
+<title>${esc(pageTitle)}</title>
 <meta name="description" content="${esc(description)}">
 <link rel="canonical" href="${esc(url)}">
 ${robots}
@@ -321,7 +391,7 @@ ${sheets}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400;1,600&family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Noto+Sans+Mono:wght@400;600&display=swap">
-<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@graph': nodes })}</script>`;
+<script type="application/ld+json">${jsonLdScript({ '@context': 'https://schema.org', '@graph': nodes })}</script>`;
 }
 
 /**
@@ -343,6 +413,28 @@ ${sheets}
  * A `<base>` is not part of the head's *metadata* — it is a resolution rule for the rest of the document — so
  * it is carried across and the generated head is inserted after it.
  */
+export function jsonLdScript(node: unknown): string {
+  /*
+   * ── A JSON-LD SCRIPT IS PARSED FOR `</script>` BEFORE IT IS PARSED AS JSON ────────────────────────────
+   *
+   * The HTML parser ends a `<script>` element at the first `</script` in its text, whatever the JavaScript or
+   * JSON inside it means by those characters. So a record whose title contained `</script><h1>…` would end the
+   * structured-data block **and the rest of the string would be markup** — which is the classic injection, in
+   * the one place an escaping function does not usually reach.
+   *
+   * `JSON.stringify` does not escape `<`, and it does not have to: `<` is legal inside a JSON string. This
+   * escapes the four characters that can matter as `\uXXXX`, which is the same JSON string to any JSON parser
+   * and is no longer `<` to the HTML parser. **The data is unchanged and the document cannot be broken out of.**
+   *
+   * It is the second layer under `cleanSettingValue`'s refusal of `<>` in a title, and it is here because the
+   * graph also carries values that never went through that function — a record's own title, an author's name, a
+   * topic, an image caption read from the database.
+   */
+  return JSON.stringify(node).replace(/[<>&\u2028\u2029]/g, (character) =>
+    `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`
+  );
+}
+
 export function withSeoHead(html: string, head: string): string {
   const base = html.match(/<base\s[^>]*>/)?.[0] ?? '';
   return html.replace(

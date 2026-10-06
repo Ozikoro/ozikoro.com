@@ -24,6 +24,9 @@ import { getDb } from '@ozituma/db/client';
 import {
   imageNode,
   loadSeoVerification,
+  loadSiteSeoSettings,
+  redirectFor,
+  siteSeoFrom,
   mediaPath,
   mediaUrlResolver,
   placeNode,
@@ -613,6 +616,47 @@ export async function GET(
    * dashboard and for every viewer who is not signed in, which is the same condition the switch itself uses.
    */
   let modeCookie: string | null = null;
+
+  /*
+   * ── AN ADDRESS THE OWNER HAS REDIRECTED IS ANSWERED BEFORE THE SCREEN IS BUILT ─────────────────────
+   *
+   * `/admin/seo/tools/` owns the redirect table, and `middleware.ts` can hold none of it: **this middleware runs
+   * in Next's edge runtime, before routing and outside the Node process, and `@electric-sql/pglite` needs
+   * `node:fs` and a WebAssembly build the edge runtime does not have.** A database read there would not be slow,
+   * it would not run — the reasoning is already written beside `RETIRED_AUTHOR_ADDRESSES`, which is a constant
+   * for exactly that reason. So the stored table is read HERE, where there is a Node process and a cluster, and
+   * the redirect is a 301 with an empty body.
+   *
+   * THE ADDRESS IS TAKEN FROM THE REQUEST, and that matters: `/about/` is rewritten by the middleware to
+   * `/design-screen/about`, and `name` is `about` either way. `x-pathname` is the header the middleware already
+   * sets on every request it passes (see its own comment, "tell the layout which path it is rendering"), so it
+   * is the reader's address rather than this route's, and it is what a redirect table keyed on reader addresses
+   * must be looked up with.
+   *
+   * THE DASHBOARDS ARE DELIBERATELY EXEMPT. A stored redirect for a reader address must never move an
+   * authenticated workspace, and a workspace is reached through `?mode=` and a cookie rather than by its
+   * address — redirecting one would be an outage for the person working in it.
+   */
+  const publicPath = request.headers.get('x-pathname');
+  if (publicPath && !name.startsWith('dashboard')) {
+    try {
+      const stored = await redirectFor(await getDb(), publicPath);
+      if (stored) {
+        return new Response(null, {
+          status: 301,
+          headers: { location: stored.to, 'cache-control': 'no-store' },
+        });
+      }
+    } catch (error) {
+      /*
+       * A REDIRECT TABLE THAT CANNOT BE READ MUST NOT COST THE PAGE. The read degrades to "no redirect", which
+       * is the state the archive served before the table existed; a throw here would turn every design screen
+       * into "Not found" for as long as the cluster was busy.
+       */
+      console.error('design-screen: could not read the redirect table:', String(error).slice(0, 200));
+    }
+  }
+
   try {
     html = await readFile(join(SCREEN_DIR, `${name}.html`), 'utf8');
 
@@ -2260,8 +2304,18 @@ export async function GET(
    * which is what makes a token reach fifty-two screens and an article from ONE stored row rather than two
    * mechanisms. A failure here degrades to no tokens (`loadSeoVerification` catches its own error), because a
    * settings row that cannot be read must not cost a page its head.
+   *
+   * ── AND THE OWNER'S OWN SITE IDENTITY, WHICH IS THE SAME SHAPE OF READ ────────────────────────────
+   *
+   * `/admin/seo/titles/` writes the site name, the separator, the title template and the front page's own
+   * title and meta description into `site_setting`, and **THIS IS WHERE THEY REACH EVERY DESIGN SCREEN,
+   * INCLUDING `/`** — the front page is this route's `home` screen (the middleware rewrites `/` to
+   * `/design-screen/home`), so the homepage title is read here or it is not read at all. A failure degrades to
+   * `EMPTY_SITE_SEO`, which is exactly the head this route served before the settings existed.
    */
-  const verification = await loadSeoVerification(await getDb());
+  const db = await getDb();
+  const verification = await loadSeoVerification(db);
+  const siteSettings = await loadSiteSeoSettings(db);
 
   html = withSeoHead(
     html,
@@ -2297,7 +2351,17 @@ export async function GET(
          */
         ...(name === 'watch-video' ? ['/watch-video.css'] : []),
       ],
-      verification
+      verification,
+      /*
+       * THE OWNER'S OWN SITE IDENTITY — THE SITE NAME, THE SEPARATOR, THE TITLE TEMPLATE AND THE FRONT PAGE'S
+       * OWN TITLE AND DESCRIPTION. `EMPTY_SITE_SEO` when nothing is stored, which serves exactly the head this
+       * route served before the settings existed. See `seoHead`'s fourth parameter.
+       *
+       * `/` IS THIS ROUTE'S `home` SCREEN — the middleware rewrites the root to `/design-screen/home` — so
+       * **this call is the one place a homepage title reaches `/`.** `seoHead` recognises it by
+       * `record.path === '/'`, which is the condition this route already uses for the canonical.
+       */
+      siteSeoFrom(siteSettings)
     )
   );
 

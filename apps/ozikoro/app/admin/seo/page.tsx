@@ -1,215 +1,98 @@
 /**
- * /admin/seo — the owner's own search-engine settings, and the screen Yoast's "Site verification" tab is.
+ * `/admin/seo/` — the search-engine area's index: six sections, and the honest list of what is not here.
  *
- * ── WHAT HE ASKED FOR, AND WHAT THIS ANSWERS ─────────────────────────────────────────────────────────
+ * ── WHY THE TOKEN FORM MOVED OFF THIS PAGE ───────────────────────────────────────────────────────────
  *
- *   "i gave you yoast seo premium to replicate it's functions. now i want to see the seo in my dashboard
- *    and it it function like the original yoast so i can see where to add google web master search engine
- *    code, yandex, bing and others"
+ * The owner's report has two halves. The first is that not everything Yoast shows was here; **the second is
+ * *"everything must not show on same page"*.** This page was two cards and 336 lines — the per-engine token
+ * rows and a paragraph of gaps — so a reader could not find the permalink, the homepage title or the site name
+ * because they did not exist, and could not see the sitemap or the redirects because they were named in prose
+ * at the bottom of a paste form.
  *
- * One field per engine, a paste, and a line that says exactly what the archive now writes into the `<head>` of
- * every page. **The token is the only thing stored; the tag is written by the archive**, which is what keeps a
- * paste from becoming markup. Pasted whole tags are accepted and the token is read out of them, because that
- * is what the engine's own screen puts on the clipboard.
+ * The tokens are now at `/admin/seo/verification/`, **unchanged** — same form, same endpoint, same gate, same
+ * audit trail. What is here is the index: where each section is, and what it does or does not do.
  *
- * ── WHY THE SCREEN SHOWS THE TAG THAT WILL BE EMITTED RATHER THAN A SCREENSHOT OF IT ─────────────────
+ * ── THE GAP LIST IS STILL HERE, AND IT IS STILL TRUE ─────────────────────────────────────────────────
  *
- * A settings page that says "saved" and shows nothing is the fault this archive has already been bitten by in
- * the design editor: a value stored, served, applied and invisible. So each row prints the exact `<meta>`
- * element it produces, built by calling `seoHead` — **the same function every page's head goes through** —
- * and extracting the verification tags from its output. It is the real markup from the real builder, not a
- * description of it. Where no token is stored the row prints why there is nothing rather than an empty tag:
- * **a `<meta content="">` claims a verification that cannot succeed, so the absence has to look like an
- * absence.**
+ * The old page's own list said, in its own words, *"Not built here, and named so nobody assumes it is"* — eight
+ * items. **It is printed below, item by item, with what is now true of each**, because a screen that claimed
+ * completeness while omitting half is the fault this whole round exists to prevent. Five of the eight are now
+ * built and say where; three are not, and say why they are not rather than being quietly dropped.
  *
- * ── AND THE CAPABILITY, STATED ON THE PAGE AS WELL AS IN THE ENDPOINT ─────────────────────────────────
+ * ── THE CAPABILITY ──────────────────────────────────────────────────────────────────────────────────
  *
- * `manage_design`. The full reasoning is in `app/api/admin/seo/route.ts`; the short of it is that this is the
- * capability the owner's other site-wide, reader-visible setting is already gated on, that migration 0055's
- * rule ("an editor may do everything except delete trash") already decided the site's own face is an editor's
- * to change, and that a `manage_seo` a role held differently from `manage_design` does not exist. The guard is
- * on the capability and never on a role, so the day the table says something else is the day this follows it.
+ * `manage_design`, asked at every section screen as well as here. A screen that only lists where things are
+ * would be harmless without it — **but the counts on it are read from the database and one of them counts
+ * stored redirects**, so it is gated like its sections rather than leaking a count through an index.
  */
 import { getDb } from '@ozituma/db/client';
 import {
-  OTHER_ENGINE_ID,
-  VERIFY_ENGINES,
-  VERIFY_TOKEN_MAX,
-  engineById,
+  loadRedirects,
   loadSeoVerification,
-  seoHead,
+  loadSiteSeoSettings,
+  siteSeoFrom,
   verificationTags,
-  type SiteVerification,
 } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
 import { AtAGlance, Card, Head, Notices } from '../ui';
+import { SEO_SECTIONS, seoSectionHref } from './sections';
 
-/* THE CAPABILITY THIS SCREEN IS GATED ON. Named once, so the guard and the sentence below cannot disagree. */
+/* THE CAPABILITY THIS SCREEN IS GATED ON, as a literal so `check:capabilities` can read it out of this file. */
 const CAPABILITY = 'manage_design';
 
 export const dynamic = 'force-dynamic';
 
-/** The engines drawn, the catch-all last. */
-const ENGINES = [...VERIFY_ENGINES, engineById(OTHER_ENGINE_ID)!];
-
 /**
- * The exact markup the archive emits for one token, **built by the real head builder.**
+ * THE EIGHT THINGS THE OLD SCREEN SAID IT DID NOT HAVE, EACH WITH WHAT IS TRUE OF IT NOW.
  *
- * The record here is a deliberately minimal one — a path, a title and a kind — because the verification tags
- * do not depend on the record at all: they are a fact about the site. That is the point of showing it: what
- * the owner is looking at is what a crawler will read on every page, and the record it is demonstrated on is
- * the front page rather than a fabricated article.
+ * **THIS IS THE LIST, UPDATED RATHER THAN DELETED.** The old text is quoted so a reader who saw the previous
+ * version can find what they were reading; `where` says where the thing now lives, or `null` when it is still
+ * not built — and `why` is then the reason rather than a promise.
  */
-function emittedTag(entry: { metaName: string; token: string }): string {
-  const head = seoHead(
-    { path: '/', title: 'Ozikoro', description: null, kind: 'page' },
-    [],
-    [{ engineId: 'preview', metaName: entry.metaName, token: entry.token, label: null, actorId: null, actorName: null, updatedAt: null }]
-  );
-  const tags = verificationTags([
-    { engineId: 'preview', metaName: entry.metaName, token: entry.token, label: null, actorId: null, actorName: null, updatedAt: null },
-  ]);
-  /*
-   * THE ASSERTION IS THAT THE BUILDER ACTUALLY PUT IT IN. `verificationTags` is one function and the head
-   * builder calls it, so this cannot disagree today — but a screen that printed a tag it had composed itself
-   * would keep printing it after the builder stopped emitting it, which is exactly the "stored but not served"
-   * fault in the other direction. So the row's markup is taken FROM the head, and the locally built tag is
-   * only a fallback for a head that somehow has none.
-   */
-  const inHead = tags.find((tag) => head.includes(tag));
-  return inHead ?? tags[0] ?? '';
-}
+const FORMER_GAPS: { item: string; where: string | null; why: string }[] = [
+  {
+    item: 'the per-record SEO title and meta description editor',
+    where: '/admin/seo-records/',
+    why: 'Built, on its own screen, reached from here and from the back office. The record’s own title and standfirst are the default; an override replaces them in the head and not in the visible heading.',
+  },
+  {
+    item: 'the social-preview editor for Open Graph and Twitter cards',
+    where: '/admin/seo/social/',
+    why: 'Built to the scale the archive can honestly offer: the front page’s own card and a preview of what each kind of page produces. A per-record card IMAGE is the record’s featured image, chosen where the record is edited.',
+  },
+  {
+    item: 'the redirect manager (redirects live in code and in the middleware)',
+    where: '/admin/seo/tools/',
+    why: 'Built, in the database. The middleware still cannot read it — it runs in the edge runtime and PGlite needs `node:fs` — so the table is read in the routes that serve a page, which the Tools section states in the same words.',
+  },
+  {
+    item: 'the `robots.txt` and `sitemap.xml` editors (both are generated)',
+    where: '/admin/seo/tools/',
+    why: 'Built, and deliberately bounded: the archive’s own six robots disallows cannot be removed from a screen, and the sitemap’s sections can be listed or withheld but never invented.',
+  },
+  {
+    item: 'schema/structured-data controls (JSON-LD is generated per record kind)',
+    where: '/admin/seo/schema/',
+    why: 'The one control worth having is built — the publisher named in the `Organization` node — and the screen names what every kind of page declares itself to be. Re-typing a node is not offered, because an `Article` an owner could call a `Recipe` is a page lying to a machine.',
+  },
+  {
+    item: 'the keyword and readability analysis',
+    where: null,
+    why: 'Not built, and it cannot be built honestly here: this archive has no keyphrase field, and a readability score is a measurement of a text in a language whose rules the archive has not encoded — the interface is English but every record is titled in a language this tooling would mis-score.',
+  },
+  {
+    item: 'the internal-link suggestions',
+    where: null,
+    why: 'Not built. It would need the body text of all 1,057 records analysed per request, and the archive’s related-reading block already fills the slot it would fill — from the record’s own topic, which is a fact rather than a suggestion.',
+  },
+  {
+    item: 'the content-type defaults',
+    where: '/admin/seo/titles/',
+    why: 'The title template and its variables are the one default that was missing and is now here. There is no post-type archive to configure: this archive serves records, pages and registers, not WordPress post types, and a screen offering a default per type would be a screen offering settings for a taxonomy that does not exist.',
+  },
+];
 
-/** How long a token is, and where it ends, so the owner can tell two tokens apart at a glance. */
-function shorten(token: string): string {
-  if (token.length <= 18) return token;
-  return `${token.slice(0, 10)}…${token.slice(-6)} (${token.length} characters)`;
-}
-
-function when(value: string | null): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function EngineRow({
-  engine,
-  stored,
-}: {
-  engine: { id: string; label: string; metaName: string; source: string; note: string };
-  stored: SiteVerification | undefined;
-}) {
-  const host = engine.source ? new URL(engine.source).host : null;
-  return (
-    <div style={{ borderTop: '1px solid var(--rule)', padding: '.9rem 0' }}>
-      <h3 style={{ margin: '0 0 .2rem' }}>
-        {engine.label}{' '}
-        {stored ? (
-          <span style={{ color: '#2f5d3a', fontWeight: 600, fontSize: '.78rem' }}>verified — a tag is served</span>
-        ) : (
-          <span style={{ color: '#4a4a4a', fontWeight: 600, fontSize: '.78rem' }}>nothing stored</span>
-        )}
-      </h3>
-      <p className="small muted" style={{ margin: '0 0 .4rem' }}>
-        {engine.note}
-        {engine.source ? (
-          <>
-            {' '}Where the token comes from:{' '}
-            <a href={engine.source} target="_blank" rel="noreferrer">
-              {host}
-            </a>
-            .
-          </>
-        ) : null}
-      </p>
-
-      <form method="post" action="/api/admin/seo">
-        <input type="hidden" name="action" value="set" />
-        <input type="hidden" name="engine" value={engine.id} />
-        <input type="hidden" name="returnTo" value="/admin/seo/" />
-        <label className="small" htmlFor={`token-${engine.id}`}>
-          Paste the tag or the token {host ? `${host} gave you` : 'the platform gave you'}
-          {engine.metaName ? (
-            <>
-              {' '}
-              — the archive emits it as <code>name=&quot;{engine.metaName}&quot;</code>
-            </>
-          ) : (
-            <> — name the tag&rsquo;s <code>name</code> attribute below if the platform gave only a token</>
-          )}
-        </label>
-        <textarea
-          id={`token-${engine.id}`}
-          name="token"
-          rows={2}
-          defaultValue=""
-          placeholder={
-            engine.metaName
-              ? `<meta name="${engine.metaName}" content="…">  —  or just the token`
-              : '<meta name="example-site-verification" content="…">'
-          }
-          style={{ width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: '.85rem' }}
-        />
-        {engine.id === OTHER_ENGINE_ID ? (
-          <p className="small" style={{ margin: '.3rem 0 0' }}>
-            <label>
-              The tag&rsquo;s <code>name</code> attribute
-              <input
-                type="text"
-                name="metaName"
-                placeholder="example-site-verification"
-                style={{ width: '22rem', marginLeft: '.4rem', fontFamily: 'ui-monospace, monospace' }}
-              />
-            </label>
-          </p>
-        ) : null}
-        <div style={{ display: 'flex', gap: '.4rem', marginTop: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <button className="btn" type="submit">
-            {stored ? 'Replace the token' : 'Save the token'}
-          </button>
-          <span className="small muted">
-            Stored against {engine.label}; used on every page of the archive.
-          </span>
-        </div>
-      </form>
-
-      {stored ? (
-        <>
-          <p className="small" style={{ margin: '.5rem 0 .2rem' }}>
-            In force now, {shorten(stored.token)} — set by {stored.actorName ?? 'an account with no name'} on {when(stored.updatedAt)}.
-          </p>
-          <p className="small" style={{ margin: '0 0 .4rem' }}>
-            Every page serves exactly this, and nothing else from your paste:
-          </p>
-          <pre
-            className="small"
-            style={{ margin: '0 0 .4rem', padding: '.5rem', background: 'var(--paper-sunk, #f2ece0)', overflowX: 'auto' }}
-          >
-            <code>{emittedTag(stored)}</code>
-          </pre>
-          <form method="post" action="/api/admin/seo">
-            <input type="hidden" name="action" value="remove" />
-            <input type="hidden" name="engine" value={engine.id} />
-            <input type="hidden" name="returnTo" value="/admin/seo/" />
-            <button className="btn btn-quiet" type="submit">
-              Clear it — stop claiming this engine&rsquo;s verification
-            </button>
-            <span className="small muted" style={{ marginLeft: '.5rem' }}>
-              The row goes; the audit trail keeps the fact that it was there.
-            </span>
-          </form>
-        </>
-      ) : (
-        <p className="small muted" style={{ margin: '.3rem 0 0' }}>
-          Nothing is stored for {engine.label}, so no tag is emitted for it — not an empty one. The archive
-          never writes <code>&lt;meta content=&quot;&quot;&gt;</code>: a tag with no content claims a
-          verification that cannot succeed.
-        </p>
-      )}
-    </div>
-  );
-}
-
-export default async function SeoPage({
+export default async function SeoIndexPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -222,13 +105,16 @@ export default async function SeoPage({
   };
 
   const db = await getDb();
-  const stored = await loadSeoVerification(db);
-  const byEngine = new Map(stored.map((entry) => [entry.engineId, entry]));
-  const other = byEngine.get(OTHER_ENGINE_ID);
-
-  /* Every tag the archive will serve, in the order `seoHead` writes them. */
-  const tags = verificationTags(stored);
-  const covered = stored.length;
+  const settings = await loadSiteSeoSettings(db);
+  const site = siteSeoFrom(settings);
+  const verification = await loadSeoVerification(db);
+  const tags = verificationTags(verification);
+  const redirects = await loadRedirects(db);
+  const movedRecords = new Set(
+    Object.values(redirects)
+      .filter((entry) => entry.kind === 'permalink-change' && entry.articleId)
+      .map((entry) => entry.articleId)
+  ).size;
 
   return (
     <div className="admin-shell">
@@ -240,95 +126,72 @@ export default async function SeoPage({
 
       <Notices saved={one('saved')} error={one('error')} />
 
-      <Card title="Where to paste the code your search engine gave you">
+      <Card title="Where each part of the archive’s search presence is">
         <p>
-          Google Search Console, Bing Webmaster Tools, Yandex Webmaster and the rest each ask you to prove the
-          site is yours. They give you a small piece of code — usually a <code>&lt;meta&gt;</code> tag, and
-          sometimes just a token — and they check for it on a page of the site. <b>Paste it below and it is put
-          into the head of every page of the archive</b>, which is what the check is looking for.
+          The things a search engine reads about this archive are in six places rather than on one page, so a
+          setting you are looking for is a section you can name. <b>Nothing here is a preview of something
+          else</b> — each section writes the value the served page reads, and where a setting cannot reach a
+          page, the section says so in its own words.
         </p>
-        <p className="small muted">
-          <b>Paste the whole tag or just the token — both work.</b> If you paste a tag the archive reads the
-          token out of it and writes the tag itself, safely, so nothing of your paste is stored as markup. If
-          you paste a tag belonging to a different engine than the row you are in, the archive stores it
-          against the right one and tells you. <b>A token is under {VERIFY_TOKEN_MAX} characters</b> — it is the
-          value of one tag&rsquo;s <code>content</code> attribute, and a value with a quote or an angle bracket
-          in it is refused rather than written into a page.
-        </p>
+        <dl className="pairs">
+          {SEO_SECTIONS.map((section) => (
+            <div key={section.slug}>
+              <dt>
+                <a href={seoSectionHref(section.slug)}>{section.title}</a>
+              </dt>
+              <dd>
+                {section.summary}{' '}
+                {section.built ? (
+                  <span className="small muted">Built.</span>
+                ) : (
+                  <span className="small muted">Not built here — see below.</span>
+                )}
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </Card>
+
+      <Card title="What is in force right now">
         <AtAGlance
           rows={[
-            ['Engines with a token stored', `${covered} of the ${ENGINES.length} below`],
-            ['Engines with nothing stored', `${ENGINES.length - covered} — no tag is emitted for those, which is the correct state until you verify one`],
-            ['Where they are kept', 'the database (site_setting), applied at serve time by the head builder'],
-            ['Where they appear', 'the <head> of every page — the front page, every record, every topic, the documents page'],
+            ['Site name a crawler is told', site.anySet && site.siteName ? site.siteName : `${site.siteName} — the archive’s own default, nothing stored`],
+            ['Homepage title', site.homeTitle ?? 'the archive’s own, nothing stored'],
+            ['Title template', site.titleTemplate ?? 'none — every page serves its own title, as it always has'],
+            ['Title separator', site.separator],
+            ['Verification tags served', tags.length === 0 ? 'none — no engine has a token stored, and no empty tag is written' : `${tags.length}`],
+            ['Redirects stored', Object.keys(redirects).length === 0 ? 'none — every address serves its own page' : `${Object.keys(redirects).length}, of which ${movedRecords} ${movedRecords === 1 ? 'is a record that was moved' : 'are records that were moved'}`],
             ['Signed in as', `${account.account.displayName ?? account.account.email}, holding ${CAPABILITY.replace(/_/g, ' ')}`],
-            ['Left to do', 'nothing here changes titles, descriptions or the sitemap; see below for what this is not'],
           ]}
         />
       </Card>
 
-      <Card title={`The tags in force — ${covered === 0 ? 'none yet' : `${tags.length} tag${tags.length === 1 ? '' : 's'}`}`}>
-        {covered === 0 ? (
-          <p>
-            <b>Nothing is stored, so the archive serves no verification tag at all.</b> That is the state
-            before anything is pasted, and it is a real state rather than a broken one: no empty
-            <code>&lt;meta name=&quot;…&quot; content=&quot;&quot;&gt;</code> is written, because a tag with no
-            content tells a search engine a verification failed rather than that none was attempted.
-          </p>
-        ) : (
-          <>
-            <p className="small muted">
-              These are built by the archive&rsquo;s own head builder — the same function every page&rsquo;s
-              head goes through — so what you read here is what a crawler reads.
-            </p>
-            <pre className="small" style={{ padding: '.6rem', background: 'var(--paper-sunk, #f2ece0)', overflowX: 'auto' }}>
-              <code>{tags.join('\n')}</code>
-            </pre>
-          </>
-        )}
+      <Card title="The list this screen used to carry, and what is true of each item now">
+        <p className="small muted">
+          This page said, in its own words: <i>“Not built here, and named so nobody assumes it is.”</i> The
+          list is kept rather than deleted, <b>because the fault it exists to prevent is a screen claiming
+          completeness while omitting half</b> — and the half that is now built is named with the address that
+          built it, so the claim can be checked by opening it.
+        </p>
+        <dl className="pairs">
+          {FORMER_GAPS.map((gap) => (
+            <div key={gap.item}>
+              <dt>
+                {gap.where ? <a href={gap.where}>{gap.item}</a> : gap.item}{' '}
+                <span className="small muted">{gap.where ? 'built' : 'still not built'}</span>
+              </dt>
+              <dd className="small">{gap.why}</dd>
+            </div>
+          ))}
+        </dl>
       </Card>
 
-      <Card title="One row per engine">
-        {ENGINES.map((engine) => (
-          <EngineRow
-            key={engine.id}
-            engine={engine}
-            stored={engine.id === OTHER_ENGINE_ID ? other : byEngine.get(engine.id)}
-          />
-        ))}
-      </Card>
-
-      <Card title="What this is, and what it is not">
-        <p>
-          This is <b>Yoast&rsquo;s &ldquo;Site verification&rdquo; tab</b>, and it is deliberately only that.
-          The archive never had a place to put a verification token, so none of its pages could be verified;
-          now there is, and the tokens reach every page through the one head builder.
-        </p>
+      <Card title="Changing any of this is an administrative act, and it is recorded" quiet>
         <p className="small muted">
-          <b>Not built here, and named so nobody assumes it is:</b> the per-record SEO title and meta
-          description editor (the archive writes its own title, description and canonical from the record
-          itself); the social-preview editor for Open Graph and Twitter cards (they are emitted, but not
-          editable here); the redirect manager (redirects live in code and in the middleware); the
-          `robots.txt` and `sitemap.xml` editors (both are generated — the sitemap from
-          <code>listIndexableUrls</code>); schema/structured-data controls (the JSON-LD graph is generated per
-          record kind); the keyword and readability analysis; the internal-link suggestions; and the
-          content-type defaults. Each of those is a separate decision and none of them is a verification
-          token.
-        </p>
-        <p className="small muted">
-          <b>And the honest limit of this screen:</b> storing a token does not make an engine verify the site.
-          The token has to match the one the engine issued, and the engine has to be able to fetch a page —
-          which is a question about the live site and its DNS rather than about this screen.
-        </p>
-      </Card>
-
-      <Card title="Changing a token is an administrative act, and it is recorded" quiet>
-        <p className="small muted">
-          Every save and every clear writes a row to the audit trail: who did it, when, which engine, and how
-          long the token was. <b>The token itself is not written into the audit trail</b> — that trail is
-          readable by anyone holding <code>view audit</code>, and a verification token is a credential:
-          anybody who can read it can claim to be this site to Google. The value is on this screen, behind the
-          same permission that let you set it.
+          Every save and every clear in the six sections writes a row to the audit trail: who did it, when,
+          which setting, and what it said before. <b>One value is deliberately kept out of that trail</b> — a
+          site-verification token, which is a credential anybody holding <code>view audit</code> could use to
+          claim to be this site. It stays on its own screen, behind the same permission that let you set it.
         </p>
       </Card>
     </div>

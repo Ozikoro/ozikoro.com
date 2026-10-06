@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb, type Db } from '@ozituma/db/client';
-import { fillArticle, loadSeoVerification, mediaPath, mediaUrlResolver, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, redirectFor, siteSeoFrom, mediaPath, mediaUrlResolver, resolveRecordSeo, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import { hasCapability } from '@/lib/access';
 
@@ -128,6 +128,8 @@ async function servePublishedPage(db: Db, slug: string): Promise<Response | null
           path: `/${slug}/`,
           withdrawn,
           verification: await loadSeoVerification(db),
+          // The refusal is a page of this site, so it wears the owner's own site name like every other page.
+          site: siteSeoFrom(await loadSiteSeoSettings(db)),
         }),
         { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
       );
@@ -190,7 +192,14 @@ ${content}
         ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css'],
         // A published WordPress page is a page of this site like any other, so it carries the same
         // verification tokens: a crawler that reaches it must read the same claim about the domain.
-        await loadSeoVerification(db)
+        await loadSeoVerification(db),
+        /*
+         * AND THE OWNER'S OWN SITE IDENTITY — the site name, the separator and the title template. A published
+         * WordPress page is a page of this site, so its title is built by the same template every other page's
+         * is; `EMPTY_SITE_SEO` when nothing is stored, which is exactly the head this route served before the
+         * setting existed.
+         */
+        siteSeoFrom(await loadSiteSeoSettings(db))
       )
     ),
     { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
@@ -202,6 +211,32 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   const clean = slug.replace(/\/$/, '');
 
   const db = await getDb();
+
+  /*
+   * ── AN ADDRESS THIS RECORD WAS MOVED AWAY FROM KEEPS RESOLVING, AND THIS IS WHERE ─────────────────
+   *
+   * *"Every record keeps the address it was published at"* is the archive's own rule, and a permalink change
+   * written on `/admin/seo/permalinks/` honours it by storing a 301 rather than by leaving the old address to
+   * 404. **THIS IS WHERE THAT 301 IS SERVED**, and it runs before the topic lookup, before the access-tier
+   * check and before the record is read — because a redirect is a statement about the address and not about
+   * the page, and answering it from the record would mean reading a record in order to say "not this address".
+   *
+   * THE ORDER IS THE WHOLE OF THE SAFETY. `changeRecordPermalink` writes the redirect BEFORE it moves the slug,
+   * so there is no instant in which the old address resolves to nothing; and this read is the first thing the
+   * route does, so there is no address it can reach later that this misses.
+   *
+   * A REDIRECT TABLE THAT CANNOT BE READ LEAVES THE ADDRESS AS IT IS. The failure is logged and the request
+   * falls through to the routes below, which is the behaviour this route had before the table existed — a
+   * cluster that is briefly busy must not turn a record's own page into a 500.
+   */
+  try {
+    const moved = await redirectFor(db, clean);
+    if (moved) {
+      return new Response(null, { status: 301, headers: { location: moved.to, 'cache-control': 'no-store' } });
+    }
+  } catch (error) {
+    console.error('[ozikoro/slug] could not read the redirect table:', String(error).slice(0, 200));
+  }
 
   // A category address is a topic, not an article. Same rule as the page this replaces.
   const topic = await db.one<{ slug: string }>(`select slug from ozikoro_topic where slug = $1`, [clean]);
@@ -246,6 +281,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
           path: `/${clean}/`,
           withdrawn,
           verification: await loadSeoVerification(db),
+          // The refusal is a page of this site, so it wears the owner's own site name like every other page.
+          site: siteSeoFrom(await loadSiteSeoSettings(db)),
         }),
         { status: 403, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } }
       );
@@ -570,14 +607,51 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
       filled = filled.replace(TOOLS, `${TOOLS}<a class="btn btn-sm" href="/${clean}/pdf">Download PDF</a>`);
     }
 
+    /*
+     * ── THE EDITOR'S OWN SEARCH RESULT FOR THIS RECORD, IF ONE WAS WRITTEN ──────────────────────────────
+     *
+     * `/admin/seo-records/` is where an editor writes a title and a meta description for one record, and **the
+     * two lines below are where they reach a crawler** — the only place they do. A record with no row is
+     * served exactly as it was before that screen existed, which is what makes this safe to have landed on a
+     * live archive.
+     *
+     * WHY IT IS RESOLVED HERE AND NOT INSIDE `seoHead`. `seoHead` is pure and synchronous and has no database,
+     * which is what makes it testable without a cluster; the site verification tokens are passed in for the
+     * same reason.
+     */
+    const recordSeo = resolveRecordSeo({
+      articleTitle: row.title,
+      standfirst: row.standfirst,
+      override: await loadRecordSeo(db, row.id),
+    });
+
     html = withSeoHead(
       filled,
       seoHead(
         {
           path: `/${clean}/`,
     // The frame's "Historical context" line. The archive's own summary, or a plain statement that it holds none.
-          title: article.title,
-          description: row.standfirst ?? null,
+          /*
+           * THE EDITOR'S OVERRIDE IF THERE IS ONE, THE RECORD'S OWN WORDS OTHERWISE.
+           *
+           * `/admin/seo-records/` is where an editor writes a title and a meta description for one record, and
+           * **THIS IS WHERE THEY REACH A CRAWLER** — the only place. `resolveRecordSeo` decides both fallbacks
+           * in one function, so the `<title>`, the meta description, the Open Graph card, the Twitter card and
+           * the Highwire citation metadata cannot disagree about what this record is called, which they would
+           * if each read `row` directly. A record with no override is served exactly as it was before that
+           * screen existed, which is what makes this safe to have landed on a live archive.
+           *
+           * It is read here rather than inside `seoHead` because `seoHead` is pure and synchronous and has no
+           * database — the same reason the site verification tokens are passed in.
+           *
+           * ⚠️ **THE OVERRIDE IS THE SEARCH RESULT AND NOT THE READING PAGE, WHICH IS THE WORDPRESS BEHAVIOUR
+           * AND THE DELIBERATE ONE.** `row.title` still fills the article's `<h1>` and every reference to it
+           * through `fillArticle` above; an overridden title changes the head and does NOT rewrite the heading
+           * a reader came to read. An archive whose articles were re-titled by an SEO field would be an
+           * archive whose headlines changed under its authors, which this project does not do.
+           */
+          title: recordSeo.title,
+          description: recordSeo.description,
           kind: 'article',
           published: article.published,
           updated: article.updated,
@@ -598,7 +672,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
          * verification that reached the screens and not the records would be a verification of the wrong
          * site — see the note on `seoHead`'s third parameter.
          */
-        await loadSeoVerification(db)
+        await loadSeoVerification(db),
+        /*
+         * AND THE OWNER'S OWN SITE IDENTITY, SO A RECORD'S SEARCH RESULT WEARS THE SAME TEMPLATE AS EVERY OTHER
+         * PAGE'S. `title` above is already the record's own title or the editor's override — `resolveRecordSeo`
+         * decided that — and this is what turns it into the line the template asks for, with `%%title%%`,
+         * `%%sitename%%` and `%%sep%%` supplied from the setting.
+         *
+         * **THE RECORD'S VISIBLE `<h1>` IS UNTOUCHED**, which is the same boundary `resolveRecordSeo` keeps:
+         * a setting about search results does not rewrite a headline an author wrote. `EMPTY_SITE_SEO` when
+         * nothing is stored, so a record with no setting is served byte-for-byte as before.
+         */
+        siteSeoFrom(await loadSiteSeoSettings(db))
       )
     );
 

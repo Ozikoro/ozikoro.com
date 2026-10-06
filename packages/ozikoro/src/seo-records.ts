@@ -21,8 +21,11 @@
  * omission: this archive's addresses are permanent by contract (the owner's rule is that a record keeps its
  * address), a canonical is a machine-readable claim about which address is the real one, and letting an
  * editor point it at a second address would be a way to declare a duplicate of the archive's own record.
- * Nor is the social-preview card, the JSON-LD graph, robots.txt, the sitemap or the redirect table: each is
- * named as unbuilt on `/admin/seo/` and none of them is this.
+ * Nor is the social-preview card, the JSON-LD graph, robots.txt, the sitemap or the redirect table: **all five
+ * now have a section of their own under `/admin/seo/`** — the card's defaults on `social`, the graph's
+ * publisher on `schema`, and the rest on `tools` — and none of them is this. A card is built from the title and
+ * the description this module resolves; a redirect is a statement about an ADDRESS, and it is written by
+ * `site-seo.ts`'s `changeRecordPermalink` rather than by anything here.
  *
  * ── AN ABSENT OVERRIDE AND AN EMPTY FIELD ARE THE SAME THING, AND THAT IS ENFORCED ───────────────
  *
