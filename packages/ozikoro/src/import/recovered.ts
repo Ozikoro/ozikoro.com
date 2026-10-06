@@ -38,6 +38,8 @@
  */
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+// The write path's own slug rule. Imported, never copied — see the note beside `normaliseDraft`.
+import { slugForTitle } from '../authoring.ts';
 import { OUT_DIR, WP_API, WP_ORIGIN } from './wordpress.ts';
 
 /** Raw authenticated REST responses, as WordPress returned them. */
@@ -126,36 +128,23 @@ export interface WpUserMetaRow {
 // Normalisation
 // ---------------------------------------------------------------------------
 
-/**
- * A slug from a title, for the drafts WordPress never gave one.
+/*
+ * THE SLUG RULE IS THE BACK OFFICE'S OWN, IMPORTED RATHER THAN RE-IMPLEMENTED.
  *
- * WordPress leaves `slug` empty on an unpublished post — the slug is minted at publication — so a
- * draft arrives with no address at all and its `link` is the `?p=<id>` form. A slug is needed
- * because the archive's articles table requires one and because the editorial screen links by it.
+ * This file used to carry a local `slugFromTitle`. It was not wrong about any of the 39 titles it
+ * ran on, and that is exactly what made it dangerous: **it is a second rule beside
+ * `authoring.ts`'s, and two rules that agree today drift apart the first time one is edited.**
+ * `ozikoro_article.slug` is `not null unique` across posts AND pages, and both are served from the
+ * same root address by `app/[slug]/route.ts`, so a draft address and an address an editor types are
+ * one namespace and must be minted by one rule. The rule lives in `authoring.ts` (`slugForTitle`),
+ * which is the write path; this import calls it.
  *
- * It is derived from the title, never invented: the same title always produces the same slug, and
- * the WordPress id is kept on the row, so nothing here is guesswork about what the piece is.
+ * Measured before the swap, so the change is known to be a no-op on the data rather than hoped to
+ * be: for the 36 drafts WordPress gave no slug to, the old local rule and `slugForTitle` produce
+ * the SAME string. The three that differ — 5839, 5855, 5867 — are the three that arrived with a real
+ * WordPress slug, and a real slug is never re-derived by either rule. So all 39 addresses are
+ * unchanged by this edit; only the code that produces them moved to one place.
  */
-export function slugFromTitle(title: string, wpId: number): string {
-  let slug = '';
-  try {
-    slug = decodeURIComponent(title);
-  } catch {
-    slug = title;
-  }
-  slug = slug
-    .normalize('NFKD')
-    // Strip the combining marks the decomposition just produced, so "Igbo-Ukwu" and accented
-    // forms both reduce to the ASCII a URL can carry.
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[\u200b-\u200f\u2060\ufeff]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 80);
-  // A title with nothing URL-safe in it still needs a stable address.
-  return slug || `untitled-${wpId}`;
-}
 
 /** Read a WordPress `{ raw, rendered }` value, preferring the editable form. */
 function fieldValue(value: unknown): string {
@@ -164,6 +153,42 @@ function fieldValue(value: unknown): string {
     const v = value as Record<string, unknown>;
     if (typeof v.raw === 'string' && v.raw !== '') return v.raw;
     if (typeof v.rendered === 'string') return v.rendered;
+  }
+  return '';
+}
+
+/**
+ * The BODY, in the form the 1,057 published records hold — WordPress's `rendered`, not `raw`.
+ *
+ * ⚠️ **THIS IS NOT A STYLE CHOICE, AND PREFERRING `raw` PUT LITERAL SHORTCODE TEXT IN FRONT OF A READER.**
+ *
+ * The public route the archive was first extracted through exposes only `content.rendered`, so all 1,057
+ * published bodies are the RENDERED form: WordPress's own renderer has already expanded `[caption]`,
+ * `[embed]` and the rest into `<figure>`/`<img>` markup. **The served-article pipeline therefore does not
+ * strip shortcodes** — `apps/ozikoro/app/[slug]/route.ts` runs `rewriteBodyImages` → `sanitiseArchiveHtml`
+ * → `tidyBody`, and only the ARCHIVE's own read path (`prepareArchiveHtml`) calls `stripShortcodes`. It has
+ * never needed to, because nothing it served had any.
+ *
+ * A draft does. WordPress hands drafts over through the authenticated route, where `context=edit` exposes
+ * BOTH `raw` and `rendered`, and this file preferred `raw`. Measured on draft 10779 through the exact
+ * pipeline the article page runs, with only the media resolver stubbed:
+ *
+ *     raw       ->  3 literal `[caption id="attachment_10770" …]` shortcodes survive to the page
+ *     rendered  ->  0 shortcodes; 3 <figure> elements carrying the images, which the pipeline rewrites
+ *
+ * So a draft stored from `raw` would, on the day it is published, print its own shortcode syntax where the
+ * photograph should be — on the one route a reader actually opens. The archive stores what WordPress
+ * serves, "verbatim, sanitised at render time"; `rendered` is what WordPress serves.
+ *
+ * The TITLE deliberately still comes from `raw` (see `fieldValue`): a slug is derived from it, and
+ * `title.rendered` carries HTML entities (`&#038;`) whose digits would end up in the address.
+ */
+function renderedBody(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (value && typeof value === 'object') {
+    const v = value as Record<string, unknown>;
+    if (typeof v.rendered === 'string' && v.rendered !== '') return v.rendered;
+    if (typeof v.raw === 'string') return v.raw;
   }
   return '';
 }
@@ -185,7 +210,9 @@ function asNumberArray(value: unknown): number[] {
 export function normaliseDraft(raw: Record<string, unknown>): WpDraftRecord {
   const meta = (raw.meta ?? {}) as Record<string, unknown>;
   const title = fieldValue(raw.title);
-  const content = fieldValue(raw.content);
+  // The body is the RENDERED form, so that it is the same shape as the 1,057 published bodies. See
+  // `renderedBody` for the measurement that makes this load-bearing rather than tidy.
+  const content = renderedBody(raw.content);
   const wpId = Number(raw.id);
   const rawSlug = String(raw.slug ?? '').trim();
   const status = String(raw.status ?? 'draft') as UnpublishedStatus;
@@ -197,8 +224,18 @@ export function normaliseDraft(raw: Record<string, unknown>): WpDraftRecord {
 
   return {
     wpId,
-    // A draft usually has no slug; the fallback is derived from the title, never invented.
-    slug: rawSlug || slugFromTitle(title, wpId),
+    /*
+     * A REAL WORDPRESS SLUG IS KEPT VERBATIM; ONLY A MISSING ONE IS DERIVED.
+     *
+     * 36 of the 39 drafts have no slug — WordPress mints it at first save of the address — and those
+     * get one from the title by the back office's own `slugForTitle`. Three (5839, 5855, 5867) DO
+     * carry a slug, and re-deriving it would silently move an address WordPress had already assigned.
+     * `authoring.ts` states the same rule for the editor's typed slug: "A real slug is never touched".
+     *
+     * `draft-<id>` is the archive's own placeholder for a piece with no title to derive one from
+     * (`createPiece` writes exactly that), not a new fallback invented here.
+     */
+    slug: rawSlug || slugForTitle(title) || `draft-${wpId}`,
     url: String(raw.link ?? ''),
     title,
     contentHtml: content,
@@ -420,8 +457,8 @@ export async function exportRecovered(): Promise<RecoveredExport> {
       'The public REST API refuses status=draft and status=any with rest_invalid_param, and its users endpoint lists only users with published posts.',
       'These records come from an authenticated session. Nothing was written to the live site; every request was a GET.',
       'WordPress exposes no password hashes through any endpoint, so account identities are imported and credentials are not. No account is created here.',
-      'Drafts are imported with status review, never published: an unpublished draft is not for the public site.',
-      'A draft normally has no slug — WordPress mints it at publication — so the slug here is derived from the title and the WordPress id is preserved.',
+      'Drafts are imported as drafts, never published and never in review: an unpublished draft is not for the public site, and its own WordPress status says what it is.',
+      'A draft normally has no slug — WordPress mints it at publication — so a missing one is derived from the title by authoring.ts slugForTitle, the same rule the back office uses. A slug WordPress did give is kept verbatim. The WordPress id is preserved either way.',
     ],
   };
   await writeJson('cms-manifest.json', manifest);

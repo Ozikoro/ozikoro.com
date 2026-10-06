@@ -12,6 +12,8 @@
  * Run with: npm -w @ozikoro/platform run test:archive
  */
 import { getDb, closeDb } from '@ozituma/db/client';
+import { importArchive } from './import/archive.ts';
+import { listIndexableUrls } from './seo.ts';
 import {
   RESERVED_ARCHIVE_SLUGS,
   countArticles,
@@ -81,16 +83,16 @@ if (ARCHIVE_PRESENT) {
    * Blogger source is also held in review and carries a null wp_post_id; it has its own assertions
    * below, and folding it in here would make this count read 563 instead of the 39 being claimed.
    */
-  const recovered = await db.one<{ review_count: number; dated: number }>(`
+  const recovered = await db.one<{ draft_count: number; dated: number }>(`
     select
-      count(*) filter (where status = 'review' and wp_post_id is not null) as review_count,
-      count(*) filter (where status = 'review' and wp_post_id is not null and published_at is not null) as dated
+      count(*) filter (where status = 'draft' and wp_post_id is not null) as draft_count,
+      count(*) filter (where status = 'draft' and wp_post_id is not null and published_at is not null) as dated
     from ozikoro_article
   `);
   assert(
-    'the recovered drafts are held as review, and there are 39 of them',
-    Number(recovered?.review_count) === 39,
-    `${recovered?.review_count} in review`
+    'the recovered drafts are held as drafts, and there are 39 of them',
+    Number(recovered?.draft_count) === 39,
+    `${recovered?.draft_count} as draft`
   );
   assert(
     'and none of them claims a publication date',
@@ -219,9 +221,9 @@ console.log('\n--- the unpublished drafts recovered from WordPress ---');
  * Blogger source is also held in review and has a null wp_post_id, and those records are asserted in
  * their own section below rather than being counted as WordPress drafts.
  */
-const drafts = await db.rows<{ wp_post_id: string; body_html: string; author_id: string | null }>(
-  `select wp_post_id, body_html, author_id from ozikoro_article
-    where status = 'review' and wp_post_id is not null order by wp_post_id`
+const drafts = await db.rows<{ wp_post_id: string; slug: string; body_html: string; author_id: string | null }>(
+  `select wp_post_id, slug, body_html, author_id from ozikoro_article
+    where status = 'draft' and wp_post_id is not null order by wp_post_id`
 );
 assert('all 39 unpublished posts arrived', drafts.length === 39, `${drafts.length} records`);
 assert(
@@ -235,6 +237,85 @@ assert(
   emptyDrafts.length === 1 && Number(emptyDrafts[0]?.wp_post_id) === 6868,
   emptyDrafts.map((d) => d.wp_post_id).join(', ') || 'none'
 );
+
+/*
+ * ── THE THREE THINGS AN IMPORTED DRAFT IS REQUIRED TO BE, ASKED OF THE REAL QUERIES ───────────────
+ *
+ * These are the assertions the owner's instruction actually reduces to — "keep every one a draft" — and
+ * each is asked of the code that would otherwise expose it rather than of a restatement of that code:
+ *
+ *   1. **NOT PUBLICLY READABLE.** The two queries below are the public route's own, copied from
+ *      `apps/ozikoro/app/[slug]/route.ts` character for character. A test that wrote its own
+ *      `status = 'published'` filter would pass while the route served the draft.
+ *   2. **ABSENT FROM THE SITEMAP.** Asked of `listIndexableUrls`, which is the single definition of
+ *      "indexable" that the sitemap index and all eight child sitemaps filter — so there is no second
+ *      list that could disagree with it.
+ *   3. **A SECOND IMPORT ADDS NOTHING.** This is the property that makes re-running the import against
+ *      production a safe operation instead of a risk, so it is measured here rather than asserted about.
+ *      The comparison is every WordPress row's own fields including an md5 of each body, plus the total
+ *      row count and the status census — a re-run that rewrote a body, moved a date, or inserted a row
+ *      changes the digest.
+ */
+console.log('\n--- an imported draft is not public, and re-importing changes nothing ---');
+assert('there are 39 drafts to probe', drafts.length === 39, `${drafts.length}`);
+
+let publiclyReadable = 0;
+for (const d of drafts) {
+  const mark = await db.one(
+    `select access_tier from ozikoro_article
+      where slug in ($1, $2) and status = 'published' and is_page = false`,
+    [d.slug, d.slug]
+  );
+  const row = await db.one(
+    `select a.id from ozikoro_article a
+      where a.slug in ($1, $2) and a.status = 'published' and a.is_page = false`,
+    [d.slug, d.slug]
+  );
+  if (mark || row) publiclyReadable += 1;
+}
+assert(
+  'the public route\'s own two reads return nothing for all 39',
+  publiclyReadable === 0,
+  `${publiclyReadable} would be served`
+);
+
+const sitemapNow = await listIndexableUrls(db);
+const inSitemap = drafts.filter((d) => sitemapNow.some((entry) => entry.url.endsWith(`/${d.slug}/`)));
+assert('the sitemap lists none of them', inSitemap.length === 0, inSitemap.map((d) => d.slug).join(', ') || 'none');
+
+/** Every WordPress row's fields, the status census and the row count — a snapshot two runs must agree on. */
+const archiveDigest = async (): Promise<string> => {
+  const rows = await db.rows<Record<string, unknown>>(
+    `select wp_post_id, slug, status, author_id, is_page, legacy_url, word_count,
+            published_at, modified_at, md5(body_html) as body_md5, md5(title) as title_md5
+       from ozikoro_article where wp_post_id is not null order by wp_post_id`
+  );
+  const total = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_article`);
+  const byStatus = await db.rows<{ status: string; n: number }>(
+    `select status, count(*)::int as n from ozikoro_article group by status order by status`
+  );
+  return JSON.stringify({ total: Number(total?.n), byStatus, rows });
+};
+
+const beforeSecondImport = await archiveDigest();
+const secondRun = await importArchive(db, { apply: true });
+/*
+ * `articles` is deliberately NOT asserted here. A full import re-reports the published records it just
+ * re-wrote — 1,057 of them, all identical — so `articles === 0` would only be true of a run scoped to
+ * the drafts, which is not what this suite runs. **"Adds nothing" is a claim about the ROWS, not about
+ * what the run reports**, and the digest below is what measures it.
+ */
+assert('the second import re-reports the same 39 drafts', secondRun.drafts === 39, `drafts ${secondRun.drafts}`);
+const afterSecondImport = await archiveDigest();
+assert(
+  'and a second import adds nothing: every row is identical afterwards',
+  beforeSecondImport === afterSecondImport,
+  beforeSecondImport === afterSecondImport ? '' : 'the archive digest moved'
+);
+const draftsStillDrafts = await db.one<{ n: number }>(
+  `select count(*)::int as n from ozikoro_article where status = 'draft' and wp_post_id is not null`
+);
+assert('the 39 are still drafts after the second import', Number(draftsStillDrafts?.n) === 39, `${draftsStillDrafts?.n}`);
 
 /*
  * --- the second provenance class, asserted rather than excluded ---
