@@ -51,6 +51,8 @@ import {
   fillIgboCalendar,
 } from './design-fill.ts';
 import { designScreenLinks } from './design-paths.ts';
+import { BACKER_ROLES, namedBackers } from './partners.ts';
+import { fillApproach } from './design-fill.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** The deliverable's screens, four levels up: packages/ozikoro/src -> the repository root. */
@@ -100,6 +102,21 @@ test('every dashboard is free of placeholder links after the transform', () => {
 
     assert.equal(left, 0, `${name}: ${left} of ${before} placeholder links survived the transform`);
     /*
+     * ── AND NOT ONE DEAD ANCHOR IS LEFT LOOKING LIVE ───────────────────────────────────────────────
+     *
+     * THE FAULT THE OWNER FOUND, ASSERTED AWAY AT ITS SOURCE. The transform never served a literal
+     * `href="#"` — the assertion above has held since the first version — and **the owner's report was
+     * still true**: what the dashboards served instead was `<a aria-disabled="true">`, which keeps the
+     * click, keeps the tab stop and keeps the gold button's looks. *A clean `href` count is not a clean
+     * page.* Measured on the served pages before this change: **78 of them across the fourteen.**
+     *
+     * So the invariant asserted here is the one that matters: on a covered screen, **no `<a>` carries
+     * `aria-disabled` and no `<a>` has an empty or placeholder `href`.** The honest shapes are a real
+     * destination and a `<span>`.
+     */
+    assert.doesNotMatch(after, /<a\b[^>]*aria-disabled/, `${name}: a dead control is still an anchor`);
+    assert.doesNotMatch(after, /<a\b[^>]*\shref="(#|)"/, `${name}: an anchor is served with no destination`);
+    /*
      * AND THE SAME NUMBER COMES OUT SOMEWHERE.
      *
      * A screen with no placeholders would pass the assertion above for the wrong reason. Each of the
@@ -128,6 +145,48 @@ test('a label with a real page behind it becomes that page’s address', () => {
   assert.match(out, /<a class="sx-state" href="\/admin\/">/);
 });
 
+test('three labels that named live pages have stopped claiming to be unbuilt', () => {
+  /*
+   * THE QUIET HALF OF THE OWNER'S REPORT, AND THE HALF NOBODY HAD MEASURED.
+   *
+   * He named the controls that did nothing. A measurement of the fourteen served dashboards then found
+   * controls marked *"Not built yet"* **whose destination already answered 200** — a search page, a
+   * reviewer's own queue, and the Academy. *A control that says a feature is missing when the feature is
+   * there tells the reader the same untruth as one that promises what is not there*, and it is the one an
+   * owner is least likely to forgive, because the work was done.
+   *
+   * Each address below was fetched with a signed-in session before it was written into the map:
+   * `/search/` 200 (and `/search/?q=igbo&mode=knowledge` 200), `/reviews/` 200, `/submit/` 200,
+   * `https://academy.ozikoro.com/` HTTP/2 200.
+   */
+  const reader = fillDashboardLinks(screen('dashboard-reader'), 'dashboard-reader');
+  assert.match(reader, /<a class="btn btn-quiet btn-sm" href="\/search\/">Search<\/a>/);
+  assert.doesNotMatch(reader, /Search <span class="small muted">— Not built yet/, 'a live search page is still announced as unbuilt');
+
+  assert.match(fillDashboardLinks(screen('dashboard-admin'), 'dashboard-admin'), /href="\/search\/">Search<\/a>/);
+
+  const reviewer = fillDashboardLinks(screen('dashboard-reviewer'), 'dashboard-reviewer');
+  assert.match(reviewer, /<a href="\/reviews\/">Assigned manuscripts<\/a>/);
+  assert.doesNotMatch(reviewer, /Assigned manuscripts <span class="small muted">— Not built yet/);
+
+  const student = fillDashboardLinks(screen('dashboard-student'), 'dashboard-student');
+  assert.match(student, /<a href="\/submit\/">Submissions<\/a>/);
+  assert.match(student, /<a href="https:\/\/academy\.ozikoro\.com\/">Learning<\/a>/);
+  assert.doesNotMatch(student, />Learning <span class="small muted">— Not built yet/);
+
+  /*
+   * ── AND THE ONE THAT IS NOT WIRED, BECAUSE THE ROLE CANNOT OPEN IT ──────────────────────────────
+   *
+   * `community_knowledge_holder` does not hold `submit_work` (migration 0037 grants that role
+   * `contribute_oral_history` and `contribute_media` instead), so wiring this screen's identical label to
+   * `/submit/` would send its reader to sign-in — **a different way of being dead, and the reason
+   * `Submissions` is decided per screen rather than in the global map.**
+   */
+  const holder = fillDashboardLinks(screen('dashboard-knowledge-holder'), 'dashboard-knowledge-holder');
+  assert.match(holder, /<span[^>]*aria-disabled="true"[^>]*>Submissions /);
+  assert.doesNotMatch(holder, /<a href="\/submit\/">Submissions<\/a>/);
+});
+
 test('one label can mean a different place to a different role', () => {
   /*
    * The administrator's `Media` is the media REGISTER; everyone else's is the photograph library.
@@ -147,9 +206,29 @@ test('one label can mean a different place to a different role', () => {
 test('a label with nothing behind it stops being a link and says so', () => {
   const out = fillDashboardLinks(screen('dashboard-reader'), 'dashboard-reader');
 
-  // No `href`, so it is not a link and cannot be focused; the label is kept for the reader.
-  assert.match(out, /<a aria-disabled="true" title="Not built yet[^"]*">Saved histories /);
-  assert.doesNotMatch(out, /<a[^>]*href="#"[^>]*>Saved histories/);
+  /*
+   * ── THE SHAPE CHANGED, DELIBERATELY, AND THIS TEST IS WHERE THE CHANGE IS RECORDED ───────────────
+   *
+   * It used to assert `<a aria-disabled="true" …>Saved histories`. **That assertion was the defect the
+   * owner reported**: *"even 'Saved histories — Not built yet / Followed topics — Not built yet / Reading
+   * history — Not' are not working."* `aria-disabled` on an anchor stops nothing — not the click, not the
+   * navigation, not the pointer cursor the design draws on every `a:hover` — so the button still looked
+   * live and did nothing. **A marking that a reader cannot see is not a disabled control.**
+   *
+   * So the three assertions below are the three things that make it actually inert: it is not an anchor,
+   * it cannot be focused (a span is not in the tab order), and its own style says unavailable.
+   */
+  assert.match(out, /<span[^>]*aria-disabled="true" title="Not built yet[^"]*"[^>]*>Saved histories /);
+  assert.match(out, /style="[^"]*cursor:not-allowed[^"]*"/);
+  assert.doesNotMatch(out, /<a[^>]*>Saved histories/, 'the sidebar item is still an anchor');
+  /*
+   * AND THE SIDEBAR KEEPS THE LAYOUT `.sx-dash-nav a` GAVE IT. The design's own rule is
+   * `display:block; padding:var(--s-3); color:var(--on-night-muted); border-left:2px solid transparent`,
+   * and a `<span>` matches none of it — **a sidebar that collapsed to inline text the moment it told the
+   * truth would be a worse page than the one that lied.** The declarations are copied from the design,
+   * not re-invented, and this asserts they are there.
+   */
+  assert.match(out, /style="display:block;padding:var\(--s-3\);color:var\(--on-night-muted\);border-left:2px solid transparent;/);
   // The tile's promise is replaced, not merely annotated.
   assert.match(out, /<div class="sx-state" aria-disabled="true">/);
   assert.match(out, /Not built yet — nothing to open\./);
@@ -237,8 +316,10 @@ test('every non-dashboard screen in the transform is free of placeholder links t
 test('a bare button label on a non-dashboard screen becomes a non-link that says why', () => {
   const out = fillDashboardLinks(screen('upload'), 'upload');
 
-  assert.match(out, /<a class="btn btn-quiet" aria-disabled="true" title="Not built yet[^"]*">Save as draft /);
+  assert.match(out, /<span class="btn btn-quiet"[^>]*aria-disabled="true" title="Not built yet[^"]*"[^>]*>Save as draft /);
   assert.doesNotMatch(out, /<a[^>]*href="#"[^>]*>Save as draft/);
+  // The word "Not built yet" is on a span, not on an anchor that keeps its click and its tab stop.
+  assert.doesNotMatch(out, /<a[^>]*aria-disabled="true"/);
   /*
    * THE ACADEMY'S COURSES POINT AT THE ACADEMY, NOT AT THIS ARCHIVE AND NOT AT THE RETIRING HOST.
    *
@@ -398,8 +479,13 @@ test('the calendar’s four affordances survive the fill, which they did not bef
   const out = calendarAt(2026, 10, 0);
 
   assert.match(out, />Read event story<\/a>/);
-  assert.match(out, />Submit an event<\/a>/);
-  assert.match(out, />Suggest a correction<\/a>/);
+  /*
+   * THE TWO UNBUILT CONTROLS ARE `<span>`S NOW, FOR THE REASON THE READER DASHBOARD'S TEST RECORDS:
+   * `aria-disabled` on an anchor stops nothing and is invisible. The words and the design classes are
+   * unchanged — only the element is, and with it the ability to click a control that cannot answer.
+   */
+  assert.match(out, />Submit an event<\/span>/);
+  assert.match(out, />Suggest a correction<\/span>/);
   assert.ok(!out.includes('Only dates with event entries are interactive.'), 'the rule that the restored controls made false is still on the page');
   // The container the old fill emptied is still there, and so are its two halves.
   assert.match(out, /<div class="sx-event-layout">/);
@@ -772,8 +858,14 @@ test('a control with no route behind it stops being a link and says why', () => 
   const out = calendarAt(2026, 10, 0);
 
   assert.doesNotMatch(out, /href="upload\.html">(Submit an event|Suggest a correction)/);
-  assert.match(out, /<a class="btn" aria-disabled="true" style="color:var\(--on-night-muted\);opacity:\.8" title="Not built yet[^"]*">Submit an event<\/a>/);
-  assert.match(out, /<a class="btn btn-quiet" aria-disabled="true" style="color:var\(--on-night-muted\);opacity:\.8" title="Not built yet[^"]*">Suggest a correction<\/a>/);
+  assert.match(out, /<span class="btn" aria-disabled="true" style="color:var\(--on-night-muted\);opacity:\.8;cursor:not-allowed;text-decoration:none" title="Not built yet[^"]*">Submit an event<\/span>/);
+  assert.match(out, /<span class="btn btn-quiet" aria-disabled="true" style="color:var\(--on-night-muted\);opacity:\.8;cursor:not-allowed;text-decoration:none" title="Not built yet[^"]*">Suggest a correction<\/span>/);
+  /*
+   * AND NOT AN ANCHOR, WHICH IS THE HALF THAT USED TO BE WRONG. Both controls were `<a
+   * aria-disabled="true">`: focusable, clickable, drawn exactly like a live button. **A `<span>` is none
+   * of those**, and this is the assertion that keeps them that way.
+   */
+  assert.doesNotMatch(out, /<a[^>]*aria-disabled="true"/, 'an inert control is still an anchor');
   /*
    * AND THE LABEL IS STILL READABLE ONCE IT STOPS BEING A LINK.
    *
@@ -3609,16 +3701,19 @@ test('the design’s own page is given a film page’s shape, and says the archi
   assert.match(own, /<span>Held in no Ozikoro archive record<\/span>/);
 
   /*
-   * AND "LOW-BANDWIDTH READING" IS INERT RATHER THAN POINTING AT WHAT IS GONE. `aria-disabled`, no `href`, its
-   * reason in the `title`, and the reason visible in the design's own `small muted` span. **Not a link to
-   * `/watch/`**: the label promises this film's writing and the films index is a grid of other films, which is
-   * a wrong destination at 200. **Not removed**: the archive's own precedent for a control whose label promises
-   * something the page cannot do is to keep it and say why.
+   * AND "LOW-BANDWIDTH READING" IS INERT RATHER THAN POINTING AT WHAT IS GONE. **A `<span>`, not an `<a
+   * aria-disabled="true">`** — the marking was invisible and the anchor kept its click and its tab stop,
+   * which is the shape the owner reported on the dashboards. Its reason is in the `title`, and visible in
+   * the design's own `small muted` span. **Not a link to `/watch/`**: the label promises this film's
+   * writing and the films index is a grid of other films, which is a wrong destination at 200. **Not
+   * removed**: the archive's own precedent for a control whose label promises something the page cannot
+   * do is to keep it and say why.
    */
   assert.match(
     own,
-    /<a class="btn btn-ghost" aria-disabled="true" title="Not built yet — waiting on a record that holds this film; the archive holds no record for the film this page shows">Low-bandwidth reading <span class="small muted">— no archive record for this film<\/span><\/a>/
+    /<span class="btn btn-ghost" aria-disabled="true" style="opacity:\.55;cursor:not-allowed;text-decoration:none" title="Not built yet — waiting on a record that holds this film; the archive holds no record for the film this page shows">Low-bandwidth reading <span class="small muted">— no archive record for this film<\/span><\/span>/
   );
+  assert.doesNotMatch(own, /<a[^>]*aria-disabled="true"/, 'the reading control is still an anchor');
   assert.doesNotMatch(own, /Low-bandwidth reading<\/a>/, 'the reading control is still a link');
   assert.doesNotMatch(own, /This Film’s Article/, 'a control to a record appeared on a page with no record');
 
@@ -3831,4 +3926,136 @@ test('the register’s town card is the design’s town card, element for elemen
    */
   assert.doesNotMatch(without, /<img/, 'a card with no photograph grew one');
   assert.doesNotMatch(without, /photograph from/, 'the card is attributing a photograph it does not draw');
+});
+
+/* ------------------------------------------------------------------------------------------------
+ * A NAMED BACKER, AND THE DISCIPLINE OF WHAT MAY BE WRITTEN BESIDE A NAME
+ * ------------------------------------------------------------------------------------------------
+ *
+ * The owner stated one fact — *"he is our new investor who invested and got a share. he is our partner and
+ * funder"* — and the whole difficulty of this change is **what must NOT appear beside it**. No amount, no
+ * percentage, no valuation, no date and no company or title: he stated none of them, and the archive's rule
+ * is that a gap stays visible rather than being filled with "undisclosed", "a substantial sum" or a
+ * plausible-looking figure. **A fabricated amount beside a real funder's name is the single most quotable
+ * false statement this site could make**, so the prohibition is asserted here as a prohibition rather than
+ * left to a reader of the fill.
+ *
+ * The second thing asserted is the EMPTY STATE, and it is asserted against `namedBackers` as it really is:
+ * the guidance is that no placeholder backer may be drawn, and the way that is guaranteed is that the two
+ * fills read the owner's file directly and return the page unchanged when it names nobody. Rather than fake
+ * an empty file — the import is static, so a fixture would test a different code path — the assertions below
+ * read the one real entry and check each of its fields is a field he stated, and that no rendering ever
+ * invents the fields he did not.
+ *
+ * Run with: npm -w @ozikoro/platform run test
+ */
+test('a named backer carries only what the owner stated, and nothing may be written beside it', () => {
+  assert.ok(namedBackers.length > 0, 'the owner named one backer on 2026-10-06; an empty list would mean the fill draws nothing');
+  const aham = namedBackers[0]!;
+  assert.equal(aham.name, 'Chigozie Aham', 'the name is the one he gave, and it is not a fixture');
+  assert.deepEqual(aham.roles, ['investor', 'partner', 'funder'], 'his own three words, in his own order');
+  assert.equal(aham.statedBy, 'Idenze Ezeme', 'a name on a public page is attributed to whoever stated it');
+  /*
+   * `statedOn` IS THE DATE HE SAID IT. It is asserted to exist so a name can be traced to its statement, and
+   * the two fills are asserted below never to render it — a date beside a funder's name would be read as the
+   * date of the investment, which he did not give.
+   */
+  assert.match(aham.statedOn, /^\d{4}-\d{2}-\d{2}$/, 'the statement carries the day it was made');
+  for (const role of aham.roles) {
+    assert.ok((BACKER_ROLES as readonly string[]).includes(role), `"${role}" is not one of the roles this code can stand behind`);
+  }
+  assert.deepEqual(Object.keys(aham).sort(), ['kind', 'name', 'roles', 'statedBy', 'statedOn'],
+    'the record holds those five fields and no amount, percentage, valuation, company or title');
+});
+
+test('the investors page names him, and no figure, date or company appears anywhere near the name', () => {
+  const html = readFileSync(join(SCREENS, 'investors.html'), 'utf8');
+  const out = fillApproach(html, 'investors', { recorded: 0, route: 'archive@ozikoro.com' });
+
+  assert.ok(out.includes('Chigozie Aham'), 'the investors page is the one his phrase names, so it names him');
+  assert.ok(out.includes('investor · partner · funder'), 'it shows his own words for what he is');
+  assert.match(out, /<h2 id="named-backers"[^>]*>Who has invested in this archive<\/h2>/);
+  assert.match(out, /<div class="sx-honour"[^>]*>[\s\S]*?Chigozie Aham[\s\S]*?<\/div>/, 'the design\'s own supporter card is what holds a named supporter');
+
+  /*
+   * THE PROHIBITION. A currency mark, a percentage, a valuation word, a share word or a year anywhere on the
+   * page would be a statement the owner did not make — so the whole served page is searched, not only the
+   * region beside the name.
+   *
+   * TWO OF THE PAGE'S OWN HONEST SENTENCES ARE SUBTRACTED FIRST, AND THAT IS NOT A LOOPHOLE. The backer card
+   * and the form note both say *"No amount, percentage or valuation is recorded, because none has been
+   * stated"* and *"nothing is a price, a commitment or a term"* — **those sentences contain the very words
+   * being searched for, because they are the disclosure of the absence**, which is the only thing that may be
+   * written where a figure would go. They are asserted to be present immediately below, so this test fails
+   * both if a figure appears AND if either disclosure is quietly deleted.
+   */
+  const disclosures = [
+    'No amount, percentage or valuation is recorded, because none has been stated.',
+    'Nothing on this page is a price, a commitment or a term: those are agreed in writing, and none has been agreed.',
+  ];
+  let scrutinee = out;
+  for (const disclosure of disclosures) {
+    assert.ok(scrutinee.includes(disclosure), `the disclosure of the absent figure is gone: "${disclosure}"`);
+    scrutinee = scrutinee.replace(disclosure, '');
+  }
+  for (const banned of ['₦', '$', '£', '€', 'naira', 'million', 'billion', 'undisclosed', 'substantial']) {
+    assert.ok(!scrutinee.toLowerCase().includes(banned.toLowerCase()), `the served page carries "${banned}", which nobody stated`);
+  }
+  assert.doesNotMatch(scrutinee, /%\s*(share|equity|stake|of the company)/i, 'a percentage of anything has been invented');
+  assert.doesNotMatch(scrutinee, /\b(shares?|equity|stake|shareholder|valuation)\b/i, 'a share, stake or valuation has been described beyond the word the owner used');
+  /*
+   * NO YEAR, WITH THE FOOTER'S COPYRIGHT YEAR TAKEN OUT FIRST. That year is written at render time by
+   * `clearExampleMaterial` and is the site's own clock, not a statement about him — so it is replaced with a
+   * placeholder and then the whole page is searched for any other four-digit year. `statedOn` is in the file
+   * and must not reach the page, which is what this catches.
+   */
+  assert.ok(!/\b(19|20)\d{2}\b/.test(out.replace(/© \d{4}/g, '© YEAR')), 'a year has been written beside the name; he gave no date');
+
+  /*
+   * AND THE PAGE'S OWN HONESTY IS UNCHANGED. An enquiry is not an investment: the table behind this page
+   * still holds nothing, the form still submits nothing, and neither sentence was weakened to make room.
+   */
+  assert.ok(out.includes('No investment enquiry has been recorded in the archive (0 entries)'),
+    'the enquiry count is still the truth and still on the page');
+  assert.ok(out.includes('Nothing on this page is a price, a commitment or a term: those are agreed in writing, and none has been agreed.'),
+    'naming a funder makes that sentence more important, not less, so it stays word for word');
+  assert.ok(out.includes('I understand this is a design demonstration') === false,
+    'the demonstration checkbox is still replaced by the disabled-form note');
+  assert.ok(out.includes('The form above is disabled and cannot be submitted.'),
+    'the form is still disabled, so no reader can submit into a route that does not exist');
+});
+
+test('the sponsors page names a partner and a funder, and does not call him an investor', () => {
+  const html = readFileSync(join(SCREENS, 'sponsors.html'), 'utf8');
+  const out = fillApproach(html, 'sponsors', { recorded: 0, route: 'archive@ozikoro.com' });
+
+  assert.ok(out.includes('Chigozie Aham'), 'a prospective sponsor should see who already backs the work');
+  assert.ok(out.includes('partner · funder'), 'his own words, on a page about backing the archive');
+  /*
+   * `investor` IS DELIBERATELY ABSENT FROM THE CARD. A page headed "Sponsor a programme" that labels a man an
+   * investor would be this code asserting a relationship to a programme the owner never stated. The omission
+   * is the honest state, so it is asserted rather than left to drift back in.
+   *
+   * THE SEARCH IS THE BACKER SECTION'S OWN REGION, not the whole page, and the reason is a real one: the
+   * design's footer carries an "Investors" link on every screen, so a whole-page search for `investor` would
+   * fail on the site's own navigation and would have to be weakened into something that tests nothing. The
+   * card itself is what must not say it. **The region must stop before the confirmation block the backer
+   * section was inserted above**, because that block's own sentence contains the substring — a slice that ran
+   * on would make this assertion fail for a reason that has nothing to do with the card.
+   */
+  const from = out.indexOf('<h2 id="named-backers"');
+  const to = out.indexOf('<section id="confirmation"', from);
+  assert.ok(from !== -1 && to > from, 'the backer section is above the confirmation block, or it is not on the page');
+  const section = out.slice(from, to);
+  assert.ok(!/investor/i.test(section), 'the sponsor page does not borrow a role from the investor page');
+  assert.match(section, /<span class="tier">partner · funder<\/span><b>Chigozie Aham<\/b>/,
+    'the designation is his own two words for this page, and no others');
+  assert.match(out, /<h2 id="named-backers"[^>]*>Who has backed this archive<\/h2>/);
+
+  assert.ok(out.includes('No sponsorship enquiry has been recorded in the archive (0 entries)'),
+    'the sponsorship enquiry count is still the truth and still on the page');
+  for (const banned of ['₦', '$', '£', '€', 'million', 'undisclosed']) {
+    assert.ok(!out.toLowerCase().includes(banned.toLowerCase()), `the sponsors page carries "${banned}", which nobody stated`);
+  }
+  assert.ok(!/\b(19|20)\d{2}\b/.test(out.replace(/© \d{4}/g, '© YEAR')), 'a year has been written beside the name; he gave no date');
 });

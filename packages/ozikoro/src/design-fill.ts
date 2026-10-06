@@ -26,6 +26,14 @@ import type { Db } from '@ozituma/db';
 import { EXTERNAL_AUDIO_LABELS, isExternalAudioService } from './external-audio.ts';
 import { designScreenLinks } from './design-paths.ts';
 import { normaliseHeadingLevels, sanitiseArchiveHtml } from './content.ts';
+import { namedBackers, type NamedBacker } from './partners.ts';
+
+/*
+ * AND THE NAMES THEMSELVES GO OUT WITH THE FILLS. `data/partners.json` is read by `partners.ts`, and the
+ * About route is a React page rather than a fill, so it needs the same list through this package rather than
+ * a second copy of the names. **One file holds the names; two surfaces read it.**
+ */
+export { namedBackers, anyBackersNamed, BACKER_ROLES } from './partners.ts';
 
 /** An entry as the archive holds it. Every field except `title` may be absent, and then its chip is omitted. */
 export type RealEntry = {
@@ -3136,6 +3144,43 @@ const DASHBOARD_LINK: Record<string, string> = {
   Security: '/account/#security',
 
   /*
+   * ── THREE LABELS THAT WERE SERVED AS "NOT BUILT YET" WHILE THE PAGE THEY NAME WAS LIVE ─────────────
+   *
+   * This is the quiet half of the owner's report. He named `Open next task`, `Saved histories`,
+   * `Followed topics` and `Reading history` — and while checking those, a measurement of the served
+   * dashboards found **controls marked unbuilt whose destination already exists**. *A control that says a
+   * feature is missing when the feature is there tells the reader the same untruth as one that promises
+   * what is not there*, and it is the one an owner is least likely to forgive, because the work was done.
+   *
+   * EVERY DESTINATION BELOW WAS FETCHED WITH A SIGNED-IN SESSION BEFORE IT WAS WRITTEN HERE.
+   */
+  // `/search/` is a real page — `apps/ozikoro/app/search/page.tsx`, a plain GET form over the archive and
+  // the research network, with `?q=` and `&mode=` in its own address. The design's top-row Search button
+  // named exactly it, and `DASHBOARD_UNBUILT_MAP` called it unbuilt for a reason that had stopped being
+  // true ("the archive has per-index filters but no single search page").
+  Search: '/search/',
+  // `/reviews/` is *"A reviewer's own queue … only the reviews assigned to this person, and only the open
+  // ones"*, gated on `expert_review` — the expert reviewer role's own capability. That is precisely what
+  // the reviewer's sidebar item names, so it is wired rather than marked unbuilt.
+  'Assigned manuscripts': '/reviews/',
+  /*
+   * `Learning` POINTS AT THE ACADEMY, AND THAT IS A JUDGEMENT RATHER THAN A LOOKUP — so it is recorded.
+   *
+   * The label does not name a host. The map below used to say the archive has no course catalogue "for
+   * this site" and that the Academy is a separate application, and both of those remain true. What changed
+   * is that **the archive has already decided the Academy is where its learning lives**: the owner retired
+   * this site's interim `/academy/` page in favour of it, and `academy.html`'s five course titles are wired
+   * to it above. Measured on 6 October 2026, `https://academy.ozikoro.com/` answers HTTP/2 200 and its own
+   * `<title>` reads *Ozikoro Academy — Igbo language, history and culture*.
+   *
+   * The counter-argument, kept rather than hidden: **the Academy keeps its own accounts**, so a signed-in
+   * reader here may arrive there signed out. That is a smaller untruth than a gold sidebar item that does
+   * nothing, and the alternative — leaving "Learning" inert while the Academy serves — is the fault the
+   * owner reported. If the owner disagrees, this is one line to remove and one entry to restore.
+   */
+  Learning: 'https://academy.ozikoro.com/',
+
+  /*
    * --- THE NON-DASHBOARD SCREENS, which the same transform now covers.
    *
    * Only labels that name a PAGE THE ARCHIVE ACTUALLY SERVES are listed. **Everything belonging to the
@@ -3205,6 +3250,18 @@ const DASHBOARD_LINK_OVERRIDE: Record<string, Record<string, string>> = {
    * `Media` at the work queue made an administrator who wanted to look something up land on a to-do list.
    */
   'dashboard-admin': { Media: '/admin/media/', 'Audit logs': '/admin/audit/' },
+  /*
+   * `Submissions` MEANS A REAL PAGE TO A STUDENT AND NOTHING TO A KNOWLEDGE HOLDER.
+   *
+   * `/submit/` is *"Submitting a work … the list below the form is the author's own work at every state"*,
+   * gated on `submit_work`. Measured in migration `0037_ozikoro_members.sql`, that capability is held by
+   * student, teacher, researcher, independent researcher and owner — **and NOT by
+   * `community_knowledge_holder`**, whose grants are `contribute_oral_history` and `contribute_media`. So
+   * the same word on the holder's screen would be a link that bounces its reader to sign-in, which is a
+   * different way of being dead. It is wired for the student and left an honest non-link for the holder,
+   * and the two are decided here rather than by widening the global map.
+   */
+  'dashboard-student': { Submissions: '/submit/' },
 };
 
 /**
@@ -3215,12 +3272,29 @@ const DASHBOARD_LINK_OVERRIDE: Record<string, Record<string, string>> = {
  */
 export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   'Saved histories': 'a saved-items table per account, and a route to list it',
-  'Followed topics': 'a follow table per account and topic, and a route to list it',
+  /*
+   * THE FOLLOW TABLE EXISTS; THE PAGE THAT READS IT BACK DOES NOT.
+   *
+   * `ozikoro_follow` holds follows of kind `researcher`, `topic` and `institution`, `POST /api/follows`
+   * writes them, and `followedIds` reads them back for pages that need to filter. **What is missing is
+   * only the destination**: nothing on the site lists the topics one account follows, so the label cannot
+   * be wired without inventing a page. Recorded precisely because the earlier wording — "a follow table per
+   * account and topic, and a route to list it" — described work that is half done, and a report that says
+   * half-done work is undone is the kind of claim this table exists to prevent.
+   */
+  'Followed topics': 'a route that lists the topics this account follows; the `ozikoro_follow` table and the API that writes it both exist, and no page reads them back',
   'Reading history': 'a read-events table per account, and a route to list it',
   'Supervisor & institution': 'fields on the member record, and a route to edit them',
   Notes: 'a private notes table per account, and a route to read and write it',
-  Submissions: 'a submission queue joining an account to what it sent, and a route to list it',
-  Learning: 'the academy’s course catalogue for this site; the Academy is its own application, at academy.ozikoro.com',
+  /*
+   * `Submissions` STAYS HERE FOR ONE SCREEN ONLY, AND IT IS WIRED FOR ANOTHER.
+   *
+   * `/submit/` serves exactly this — *"the list below the form is the author's own work at every state"* —
+   * and `DASHBOARD_LINK_OVERRIDE` points the student's item at it. **The knowledge holder's item is the one
+   * this entry is for**: `community_knowledge_holder` does not hold `submit_work`, so the same link there
+   * would send its reader to sign-in rather than to their submissions.
+   */
+  Submissions: 'a submission queue joining an account to what it sent; `/submit/` serves one, but this role does not hold `submit_work` to open it',
   Resources: 'a teaching-resources library, and a route to browse it',
   Courses: 'a course record owned by a teacher, and a route to list it',
   'Classes & projects': 'a class group joining a teacher to students, and a route to open one',
@@ -3229,6 +3303,15 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   Questions: 'a research-question record and a route to list them',
   Groups: 'a working-group record with members, and a route to open one',
   Collaborators: 'a collaboration table joining two accounts, and a route to invite one',
+  /*
+   * `Citations` IS NOT `/cite/`, AND THAT IS WHY IT IS STILL HERE.
+   *
+   * `/cite/` exists and answers — it is *"How to cite Ozikoro — the citation guide"*, with one worked
+   * example drawn from a real article. **The label on the researcher's workspace asks for something else:
+   * a count of who cited this work, or an export of it.** Pointing it at the guide because both sentences
+   * contain the word "cite" is exactly the plausible-looking wrong destination that is worse than an
+   * honest non-link.
+   */
   Citations: 'a citation-count or citation-export surface, and a route to serve it',
   Verification: 'a verification queue over claims a record makes, and a route to decide them',
   Collaborations: 'a collaboration table joining two accounts, and a route to invite one',
@@ -3237,7 +3320,12 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   'Entity linking': 'an entity-resolution tool over the archive’s place and person names',
   Revisions: 'a revision history table per record, and a route to compare two of them',
   Tasks: 'a task table assigned to an account, and a route to list it',
-  'Assigned manuscripts': 'an assignment table joining a reviewer to a work, and a route to list it',
+  /*
+   * `Assigned manuscripts` HAS LEFT THIS TABLE — `/reviews/` IS THE QUEUE IT NAMED, and it is wired in
+   * `DASHBOARD_LINK`. `Decisions` STAYS, AND THE TWO ARE NOT THE SAME PAGE: `/reviews/` is *"only the
+   * reviews assigned to this person, and only the open ones: a reviewer needs to know what they owe, not
+   * what they once did."* **A queue of open work does not answer "Decisions", which asks what was decided.**
+   */
   Decisions: 'the reviewer-decision record and a route to read it back',
   'Reviewer profile': 'reviewer-specific fields on the member record, and a route to edit them',
   Settings: 'a platform-settings surface; the archive stores no configurable platform settings',
@@ -3245,9 +3333,30 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   // is wired in `DASHBOARD_LINK_OVERRIDE` for the administrator instead of being marked unbuilt here. **A
   // stale entry here would keep saying the feature is missing after it exists**, which is the same class of
   // untruth this whole table exists to prevent.
-  Search: 'a site-wide search route; the archive has per-index filters but no single search page',
+  //
+  // `Search`, `Learning` AND `Assigned manuscripts` HAVE LEFT IT IN THE SAME WAY, AND FOR THE SAME REASON,
+  // and each is recorded in `DASHBOARD_LINK` with the measurement that moved it. **They were the sharpest
+  // half of the owner's complaint**: `/dashboard-reader` served a *Search* button marked "Not built yet"
+  // above a `/search/` page that had been answering 200 all along.
   'Primary action': 'the screen’s own next step, which the design does not name',
-  'Open next task': 'a task queue for this workspace; the dashboard has no tasks to open',
+  /*
+   * `Open next task` NAMES A TASK QUEUE, AND THERE IS NO TASK QUEUE ON THIS SITE.
+   *
+   * The label is the control the owner clicked on `/dashboard-reader` and reported. **The judgement was
+   * whether `/admin/archive/` is the queue he would use, and it is not, for two measured reasons:**
+   *
+   *   1. it is a queue of CONTENT waiting to be worked on — 1,051 migrated records, worst documented first —
+   *      and the design already gives that page its own label, `Content queue`, which is wired to it;
+   *   2. three of the four screens that carry this control are the reader's, the student's and the
+   *      reviewer's, and none of those roles may open `/admin/archive/` at all. **Wiring all three to an
+   *      administrative page would swap a link that does nothing for a link that refuses them** — the
+   *      "a link an editor cannot follow reads as broken" fault this table's neighbours already record.
+   *
+   * Measured across the whole application: there is no task route, no task table and no `task` directory
+   * anywhere under `apps/ozikoro/app`. So it is an inert span that says what is missing, which is the
+   * honest outcome.
+   */
+  'Open next task': 'a task queue for this workspace; the archive holds no task table and serves no task route',
   'View all': 'a list view of this panel’s contents',
   'Open →': 'the record named above it in the design’s example material',
   'Try again': 'an error the reader can actually retry',
@@ -3362,20 +3471,84 @@ function placeholderAnchors(html: string): { start: number; end: number; attrs: 
 }
 
 /**
- * A link with nothing behind it becomes a NON-LINK that says so.
- * IT KEEPS THE DESIGN'S CLASSES AND LOSES ITS `href`
+ * A link with nothing behind it becomes a NON-LINK that says so: **a `<span>` that looks unavailable.**
  *
- * The design's `.sx-dash-nav a` rule is what makes a sidebar item look like one, so the element stays an
- * `<a>` — **an anchor without an `href` is not a link: it cannot be clicked, it cannot be focused, and it
- * announces itself as plain text.** It keeps every class it had, so the sidebar still looks like the
- * sidebar. The design's stylesheet is not touched, and neither is its HTML.
+ * ── WHY THIS IS A `<span>` AND NOT AN `<a aria-disabled="true">` ─────────────────────────────────────
+ *
+ * THE OWNER'S REPORT, VERBATIM: *"the 'Open next task' is not working, and i am sure every other dashboard
+ * has similar buttons and links not working. even 'Saved histories — Not built yet / Followed topics — Not
+ * built yet / Reading history — Not' are not working."*
+ *
+ * He is describing what this function used to produce. Every one of those controls was served as
+ *
+ *     <a class="btn btn-gold" aria-disabled="true" title="…">Open next task
+ *       <span class="small muted">— Not built yet</span></a>
+ *
+ * and it carried the two faults that made the page lie:
+ *
+ *   1. **`aria-disabled` ON AN ANCHOR STOPS NOTHING.** It is an accessibility hint, not behaviour: it does
+ *      not prevent the click, it does not prevent navigation, and it does not change what a sighted person
+ *      sees. The gold `.btn-gold` still looked live, the item still sat in the tab order, and pressing it
+ *      did nothing. *A control marked `aria-disabled` is a control the owner still believes works* — which
+ *      is why this shipped as though it had been handled.
+ *   2. **The `<a>` tag is what the design styles.** `.sx-dash-nav a:hover` turns a sidebar item gold on
+ *      hover **whether or not it has an `href`**, so the item answered the pointer like a working link and
+ *      then did not move.
+ *
+ * A `<span>` cannot be clicked, cannot be focused and is not in the tab order at all, and it is the honest
+ * element for words that name nothing.
+ *
+ * ── IT MUST ALSO *LOOK* UNAVAILABLE, WHICH IS WHY THE STYLE IS INLINE ────────────────────────────────
+ *
+ * An inert control that is drawn exactly like a live one is the page still lying, only more quietly. The
+ * declarations below are the visible statement: reduced opacity, `cursor:not-allowed`, no underline. They
+ * are written inline rather than into a stylesheet because **the design's own stylesheets are the inviolable
+ * deliverable** — `apps/ozikoro/public/design/` is byte-compared against the handover copy — so a rule
+ * added there is not an option, and a rule added anywhere else would have to be fetched before the claim
+ * were true. This one travels with the markup it describes.
+ *
+ * ── AND THE DESIGN'S TAG-BASED LAYOUT IS REPLACED WITH THE DESIGN'S OWN DECLARATIONS ─────────────────
+ *
+ * `.sx-dash-nav a { display:block; padding:var(--s-3); color:var(--on-night-muted); border-left:2px solid
+ * transparent; … }` is what makes a sidebar item a sidebar item, and a `<span>` matches none of it. **A
+ * sidebar that collapsed to bare inline text the moment it told the truth would be a worse page**, so the
+ * layout that selector supplied is written inline for the sidebar case — the values copied from the
+ * design's own rule rather than re-invented.
  *
  * WHY A MARKER AND NOT JUST THE ABSENCE OF A LINK
  *
- * A label with no destination looks identical to one that was forgotten. The marker is what makes the
- * page state the omission rather than merely exhibit it.
+ * A label with no destination looks identical to one that was forgotten. The marker — the words *"— Not
+ * built yet"*, and the `title` that says what would have to exist — is what makes the page state the
+ * omission rather than merely exhibit it.
  */
-function unbuiltAnchor(label: string, attrs: string): string {
+type UnbuiltPlace = 'sidebar' | 'control';
+
+/** Reduced opacity, a forbidden cursor and no underline: the three things that make it read as unavailable. */
+const UNBUILT_INERT = 'opacity:.55;cursor:not-allowed;text-decoration:none';
+
+/**
+ * The inert marks, plus the layout `.sx-dash-nav a` gave a sidebar item, copied from `showcase.css`.
+ *
+ * `.6` rather than `.55` because the sidebar sits on `--night` and the same opacity reads lighter there.
+ */
+const UNBUILT_SIDEBAR =
+  'display:block;padding:var(--s-3);color:var(--on-night-muted);border-left:2px solid transparent;' +
+  'opacity:.6;cursor:not-allowed;text-decoration:none';
+
+/**
+ * Append declarations to whatever `style` the design already wrote, rather than writing a second `style`.
+ *
+ * `Open →` on the moderation and account screens carries `style="margin-top:var(--s-3)"`; a second `style`
+ * attribute would be dropped by the parser and the design's own spacing would disappear with it.
+ */
+function withInertStyle(attrs: string, declarations: string): string {
+  const existing = attrs.match(/\sstyle=("([^"]*)"|'([^']*)')/);
+  if (!existing) return `${attrs} style="${declarations}"`;
+  const value = (existing[2] ?? existing[3] ?? '').trim().replace(/;\s*$/, '');
+  return attrs.replace(existing[0], ` style="${value ? `${value};` : ''}${declarations}"`);
+}
+
+function unbuiltAnchor(label: string, attrs: string, place: UnbuiltPlace = 'control'): string {
   /*
    * THE ATTRIBUTES ARE REBUILT, NOT CONCATENATED.
    *
@@ -3383,8 +3556,18 @@ function unbuiltAnchor(label: string, attrs: string): string {
    * straight into a template that already supplies one produced `<a  class="chip" …>` — **harmless to a
    * browser and still wrong**, because served markup that nobody would write by hand is markup nobody reads
    * carefully. The attribute text is trimmed once and the separating space is supplied here.
+   *
+   * `href` GOES, AND SO DO ANY `aria-disabled` AND `title` THE MARKUP ALREADY CARRIED.
+   * `archive-index.html` writes `<a class="btn btn-quiet btn-sm" href="#" aria-disabled="true">`, and the
+   * first version added its own `aria-disabled` beside that one — **the same attribute twice in one tag**,
+   * which is exactly the "served markup nobody would write by hand" the note above exists to prevent. The
+   * design's own `aria-disabled` states the same fact this function states, so it is replaced, not kept.
    */
-  const cleanAttrs = attrs.replace(/\shref="#"/, '').trim();
+  const cleanAttrs = attrs
+    .replace(/\shref="#"/, '')
+    .replace(/\saria-disabled="true"/, '')
+    .replace(/\stitle="[^"]*"/, '')
+    .trim();
   /*
    * THE LABEL IS LOOKED UP DECODED, AND PRINTED ENCODED.
    *
@@ -3395,9 +3578,10 @@ function unbuiltAnchor(label: string, attrs: string): string {
    */
   const why = DASHBOARD_UNBUILT_MAP[decodeEntities(label)];
   const title = why ? ` title="Not built yet — waiting on ${why}"` : ' title="Not built yet"';
+  const styled = withInertStyle(cleanAttrs, place === 'sidebar' ? UNBUILT_SIDEBAR : UNBUILT_INERT);
   return (
-    `<a${cleanAttrs ? ` ${cleanAttrs}` : ''} aria-disabled="true"${title}>${esc(label)} ` +
-    `<span class="small muted">— Not built yet</span></a>`
+    `<span${styled ? ` ${styled}` : ''} aria-disabled="true"${title}>${esc(label)} ` +
+    `<span class="small muted">— Not built yet</span></span>`
   );
 }
 
@@ -3516,7 +3700,15 @@ export function fillDashboardLinks(html: string, screen: string): string {
     (_all, open: string, body: string, close: string) =>
       open + body.replace(/<a href="#">([^<]*)<\/a>/g, (_a, label: string) => {
         const dest = destinationFor(screen, decodeEntities(label));
-        return dest ? `<a href="${dest}">${label}</a>` : unbuiltAnchor(label, '');
+        /*
+         * `'sidebar'` IS THE LAYOUT, NOT A LABEL. The design makes a sidebar item a block with its own
+         * padding through `.sx-dash-nav a`, and a `<span>` matches none of that; every placeholder inside
+         * this `<nav>` is a sidebar item, so the declaration set that keeps the sidebar a sidebar is chosen
+         * here rather than guessed at from the attributes. (Measured on the fourteen design files: **all 54
+         * sidebar placeholders are bare `<a href="#">`** — not one carries an attribute that could
+         * distinguish it — so the caller is the only place that knows.)
+         */
+        return dest ? `<a href="${dest}">${label}</a>` : unbuiltAnchor(label, '', 'sidebar');
       }) + close
   );
 
@@ -3768,6 +3960,59 @@ function personCard(c: AboutData['contributors'][number]): string {
 </article>`;
 }
 
+/* ------------------------------------------------------------------------------------------------
+ * THE NAMED BACKERS — AN OWNER-ENTERED NAME, AND THE DISCIPLINE OF WHAT MAY SIT BESIDE IT.
+ * ------------------------------------------------------------------------------------------------
+ *
+ * THE ONE THING THESE HELPERS MAY NOT DO IS SUPPLY A FIGURE. `data/partners.json` holds a name and the
+ * owner's own words for what that person is to Ozikoro. **It holds no amount, no percentage, no valuation, no
+ * date of investment and no company or title, because the owner stated none** — so nothing here may invent
+ * one, and nothing here may render the absence as "undisclosed", "a substantial sum" or "recently". The
+ * sentence for a missing figure is the one the approach screens already carry and that is already true:
+ * *"Nothing on this page is a price, a commitment or a term: those are agreed in writing, and none has been
+ * agreed."*
+ *
+ * **AND NOTHING IS DRAWN WHEN THE FILE NAMES NOBODY.** Every helper returns the empty string for an empty
+ * list, so a page with no backer entered is byte-for-byte the page that was there before this list existed.
+ * That is the property the empty state depends on, and it is asserted in `design-fill.test.ts` against a
+ * faked-empty list rather than trusted.
+ *
+ * `statedOn` is deliberately NOT rendered here, on any page. It is the date the owner SAID the fact, not the
+ * date anything happened, and a date beside a funder's name on a public page would be read as the latter.
+ */
+function backerRoleText(roles: readonly string[]): string {
+  return roles.join(' · ');
+}
+
+/**
+ * One backer as a card in the design's own `.sx-honour` markup, which is where the design puts a named
+ * supporter. The `.tier` span is the design's own element for the kind of support and carries the owner's
+ * words, and **the institution's designation goes in it** rather than a title someone was given.
+ */
+function backerCard(b: NamedBacker): string {
+  const designation = b.kind === 'institution' ? `${backerRoleText(b.roles)} · institution` : backerRoleText(b.roles);
+  return `<article><span class="tier">${esc(designation)}</span><b>${esc(b.name)}</b><p>Named by the archive's owner, ${esc(b.statedBy)}. No amount, percentage or valuation is recorded, because none has been stated.</p></article>`;
+}
+
+/** The named backers as the design's own cards. Empty list, empty string, no markup. */
+function backerCards(backers: readonly NamedBacker[]): string {
+  return backers.map(backerCard).join('\n        ');
+}
+
+/** The `.sx-honour` grid, or nothing at all when no backer is named. Used by `/investors/` and `/sponsors/`. */
+function backerGrid(backers: readonly NamedBacker[]): string {
+  if (backers.length === 0) return '';
+  return `<div class="sx-honour" style="margin-top:var(--s-4)">${backerCards(backers)}</div>`;
+}
+
+/** The heading and note above the grid. Written only when there is a grid to head. */
+function backerHeading(backers: readonly NamedBacker[], label: string): string {
+  if (backers.length === 0) return '';
+  const people = backers.length === 1 ? 'The one backer named so far is' : 'The backers named so far are';
+  return `<h2 id="named-backers" style="margin-top:var(--s-7)">${esc(label)}</h2>
+      <p class="small muted" style="margin-top:var(--s-3);max-width:64ch">${people} named by the archive's owner. A name here is a fact he has stated; it is not a price, a commitment or a term.</p>`;
+}
+
 /**
  * THE ABOUT PAGE, TOLD WITH THE ARCHIVE'S OWN NUMBERS AND ITS OWN PEOPLE.
  *
@@ -3800,6 +4045,32 @@ export function fillAbout(html: string, d: AboutData): string {
   let out = clearExampleMaterial(html);
 
   const named = d.contributors.filter((c) => c.records > 0);
+
+  /*
+   * THE NAMED BACKERS, WHICH ARE A FACT THE OWNER STATED RATHER THAN A RECORD THE ARCHIVE HOLDS.
+   *
+   * This section used to read *"No partner, sponsor or funder is recorded in the archive, so none is named on
+   * this page."* **That sentence was true when it was written and the owner made it false on 2026-10-06**, by
+   * naming Chigozie Aham as his investor, partner and funder — so it is replaced rather than left standing
+   * beside a name that contradicts it. The replacement keeps the distinction that was doing the real work in
+   * the original: **the ARCHIVE still holds no partner or funder record**, and what is on the page is a fact
+   * the owner stated. Read `data/partners.json` for where the names live.
+   *
+   * `backers` is empty when the file names nobody, and then the original sentence stands and no list is
+   * drawn — the empty state is the page that was there before, not a placeholder card.
+   */
+  const backers = namedBackers;
+  const backersNamedNote = backers.length === 0
+    ? 'No partner, sponsor or funder is recorded in the archive, so none is named on this page. When one is agreed and consents to be named, the relationship and its terms appear here.'
+    : 'The archive holds no partner or funder record of its own, and does not create one. The '
+      + (backers.length === 1 ? 'entry' : 'entries')
+      + ' below ' + (backers.length === 1 ? 'is a fact' : 'are facts')
+      + ' the owner of Ozi Ikoro Limited has stated himself — a name and what that person is to Ozikoro, and nothing more. No amount, percentage, valuation or date is recorded, because none has been stated; terms are agreed in writing, and none is published here.';
+  const backersList = backers.length === 0
+    ? ''
+    : `<ul style="margin-top:var(--s-3)">${backers
+        .map((b) => `<li><strong>${esc(b.name)}</strong> — ${esc(b.kind === 'institution' ? `${backerRoleText(b.roles)} · institution` : backerRoleText(b.roles))}</li>`)
+        .join('')}</ul>`;
 
   /*
    * 1. THE PEOPLE. Built from the design's own card, and only from people who have published here.
@@ -3970,7 +4241,8 @@ export function fillAbout(html: string, d: AboutData): string {
           </div>
           <div>
             <h3>Partners and funders</h3>
-            <p class="partial-note">No partner, sponsor or funder is recorded in the archive, so none is named on this page. When one is agreed and consents to be named, the relationship and its terms appear here.</p>
+            <p class="partial-note">${backersNamedNote}</p>
+            ${backersList}
             <h3 style="margin-top:var(--s-5)">Terms</h3>
             <p class="partial-note">Binding terms of use have not been supplied by Ozi Ikoro Limited. What applies today is stated on each record: its access and reuse terms are shown with the record, and every published history has a permanent address that will not change.</p>
             <h3 style="margin-top:var(--s-5)">Privacy</h3>
@@ -4280,6 +4552,38 @@ export function fillApproach(html: string, kind: 'sponsors' | 'investors', d: Ap
     /<label class="row"[^>]*>\s*<input type="checkbox"[^>]*>\s*I understand this is a design demonstration\.\s*<\/label>/,
     '<p class="small muted" style="margin-top:var(--s-4)">The form above is disabled and cannot be submitted. No enquiry is recorded by it and none is expected from it — to reach the company, use the address below.</p>'
   );
+
+  /*
+   * ── THE NAMED BACKERS, WHICH IS A DIFFERENT FACT FROM AN ENQUIRY AND MUST NOT BE FOLDED INTO ONE ──────
+   *
+   * The owner asked for the man he has taken investment from to be *"put as an investor"*, and this page is
+   * the one his phrase names. So a real name goes on it — and **nothing about the existing sentences
+   * changes**, because an enquiry and an investment are not the same thing: the archive's own enquiry table
+   * still holds 0 rows, no form on this page records anything, and *"nothing on this page is a price, a
+   * commitment or a term"* is more important beside a name than it was without one.
+   *
+   * WHICH ROLES EACH SCREEN SHOWS IS THE ONLY DECISION HERE.
+   *
+   *   `/investors/` — every role the owner gave, because investment is what the page is about.
+   *   `/sponsors/`  — `partner` and `funder`, and **deliberately NOT `investor`**. The owner's own words on
+   *                   this page were *"Institutions, sponsors and media"*, and a page headed "Sponsor a
+   *                   programme" that labels a man an investor would be this code asserting a relationship
+   *                   to a programme that the owner never stated. `funder` is his word and is true on both
+   *                   pages; `investor` is his word and belongs on the page about investment. The page is
+   *                   not made dishonest by the omission — it is made to say exactly what he said.
+   *
+   * **NOTHING IS DRAWN WHEN THE FILE NAMES NOBODY, OR WHEN NO ROLE SURVIVES THE FILTER**: no heading, no
+   * grid, no sentence, and the page is the page it was. That is the `if` below, and it is asserted against a
+   * faked-empty list in `design-fill.test.ts`.
+   */
+  const shown = namedBackers
+    .map((b) => ({ ...b, roles: kind === 'investors' ? b.roles : b.roles.filter((r) => r !== 'investor') }))
+    .filter((b) => b.roles.length > 0);
+  if (shown.length > 0) {
+    const backers = `${backerHeading(shown, kind === 'sponsors' ? 'Who has backed this archive' : 'Who has invested in this archive')}
+      ${backerGrid(shown)}`;
+    out = out.replace(/(<section id="confirmation"[^>]*>)/, `${backers}\n      $1`);
+  }
 
   const heading = kind === 'sponsors' ? 'sponsorship' : 'investment';
   const note =
@@ -5485,17 +5789,19 @@ export function fillCulturalCalendar(
    * screen, and `/submit/` — the application's own submit route — **redirects an anonymous reader to sign in
    * and no account has ever been created.** Removing the two controls would take the design's structure with
    * it and leave a reader unable to see what the screen is for; leaving them as links would send them to a
-   * page that cannot do what its label promised. So they are kept, made inert with `aria-disabled` and a
-   * title saying why, **exactly as `/donate/` keeps its form and disables it rather than deleting it** — and
-   * the note below them says the same thing in the page's own words, for the reader who does not hover.
+   * page that cannot do what its label promised. So they are kept, made inert — **a `<span>`, not an `<a
+   * aria-disabled>`, for the reason `unbuiltAnchor` records at length**: an `aria-disabled` anchor still
+   * takes the click, still sits in the tab order and still looks live — with a title saying why, **exactly
+   * as `/donate/` keeps its form and disables it rather than deleting it** — and the note below them says
+   * the same thing in the page's own words, for the reader who does not hover.
    */
   out = out.replace(
     /<a class="btn" href="(?:upload\.html|\/upload\/)">Submit an event<\/a>/,
-    '<a class="btn" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8" title="Not built yet — no route on this site accepts an event submission">Submit an event</a>'
+    '<span class="btn" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8;cursor:not-allowed;text-decoration:none" title="Not built yet — no route on this site accepts an event submission">Submit an event</span>'
   );
   out = out.replace(
     /<a class="btn btn-quiet" href="(?:upload\.html|\/upload\/)">Suggest a correction<\/a>/,
-    '<a class="btn btn-quiet" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8" title="Not built yet — no route on this site accepts a correction">Suggest a correction</a>'
+    '<span class="btn btn-quiet" aria-disabled="true" style="color:var(--on-night-muted);opacity:.8;cursor:not-allowed;text-decoration:none" title="Not built yet — no route on this site accepts a correction">Suggest a correction</span>'
   );
   /*
    * THE COLOUR IS SET BECAUSE LOSING THE `href` TOOK THE CONTRAST WITH IT.
@@ -5521,7 +5827,7 @@ export function fillCulturalCalendar(
    */
   if (month.events === 0) {
     out = out.replace(
-      /(<div class="row"><a class="btn btn-gold" data-event-story[^>]*>Read event story<\/a><a class="btn" aria-disabled="true"[^>]*>Submit an event<\/a><a class="btn btn-quiet" aria-disabled="true"[^>]*>Suggest a correction<\/a>)<\/div>/,
+      /(<div class="row"><a class="btn btn-gold" data-event-story[^>]*>Read event story<\/a><span class="btn" aria-disabled="true"[^>]*>Submit an event<\/span><span class="btn btn-quiet" aria-disabled="true"[^>]*>Suggest a correction<\/span>)<\/div>/,
       `$1</div><p class="small muted" style="margin-top:var(--s-3)">An event reaches this calendar only through an editor: it is submitted with its organiser, place, date and source, and published once that source has been checked. <strong>No submission route exists on this site yet</strong>, so the two controls beside &ldquo;Read event story&rdquo; do nothing and say so. Nothing here is a place to send a claim about a date.</p>`
     );
   }
@@ -6433,9 +6739,10 @@ function filmPageWithNoRecord(out: string): string {
    */
   out = out.replace(
     /<a class="btn btn-ghost" href="[^"]*#transcript">Low-bandwidth reading<\/a>/,
-    `<a class="btn btn-ghost" aria-disabled="true" title="Not built yet — waiting on a record that holds this `
+    `<span class="btn btn-ghost" aria-disabled="true" style="opacity:.55;cursor:not-allowed;text-decoration:none" `
+      + `title="Not built yet — waiting on a record that holds this `
       + `film; the archive holds no record for the film this page shows">Low-bandwidth reading `
-      + `<span class="small muted">— no archive record for this film</span></a>`
+      + `<span class="small muted">— no archive record for this film</span></span>`
   );
   /*
    * THE READING SECTION GOES, AND THE DESIGN'S OWN BAND AND BLOCK STAY. The same replace round 352 wrote for a

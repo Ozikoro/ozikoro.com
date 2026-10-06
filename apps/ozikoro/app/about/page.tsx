@@ -19,6 +19,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
+import { namedBackers } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -320,6 +321,28 @@ export default async function AboutPage() {
               <span>Work with the team.</span>
             </Link>
           </div>
+          {/*
+            THE NAMED BACKERS, FROM `data/partners.json` — THE ONE FILE THE OWNER MAINTAINS.
+
+            This page is not the page `/about/` serves: the middleware rewrites that address to the design's
+            own `about.html` filled by `fillAbout`, which draws the same names in the same file's vocabulary.
+            This route is kept truthful anyway, so that a reader of the source (or a future cutover that
+            unshadows it) does not meet a page saying no funder is named while one plainly is.
+
+            **Nothing is drawn when no backer is named**, and no amount, percentage, valuation or date is
+            rendered even when one is: the owner stated a name and his own words for what that person is to
+            Ozikoro, and nothing else.
+          */}
+          {namedBackers.length > 0 ? (
+            <ul className="sx-notice" style={{ listStyle: 'none', paddingLeft: 'var(--s-4)' }}>
+              {namedBackers.map((b) => (
+                <li key={b.name}>
+                  <strong>{b.name}</strong> — {b.roles.join(' · ')}
+                  {b.kind === 'institution' ? ' · institution' : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           <p className="muted">
             Official email, address and phone to be supplied — not invented here.
           </p>
