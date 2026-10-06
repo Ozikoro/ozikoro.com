@@ -65,7 +65,15 @@ export async function POST(request: Request): Promise<Response> {
   if (!form) return jsonError(415, 'unsupported_body', 'That form did not arrive as a form.');
 
   const articleId = Number(form.get('articleId'));
-  const backTo = Number.isInteger(articleId) && articleId > 0 ? `/admin/archive/${articleId}` : '/admin/archive';
+  /*
+   * BACK TO THE SCREEN THAT POSTED, WHICH IS `<id>/record` RATHER THAN `<id>`.
+   *
+   * Every form on this endpoint is drawn by the record's facets screen — the clan, the period, the
+   * source type, the citations and the decisions. That screen moved one segment down when
+   * `/admin/archive/<id>` became the Classic Editor, so the return address moved with it; without this
+   * line every save bounced the editor straight out of the form they had just filled in.
+   */
+  const backTo = Number.isInteger(articleId) && articleId > 0 ? `/admin/archive/${articleId}/record` : '/admin/archive';
 
   const text = (name: string, max = 400) => String(form.get(name) ?? '').trim().slice(0, max);
   const num = (name: string): number | null => {

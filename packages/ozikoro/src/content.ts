@@ -25,10 +25,24 @@
  * should be replaced with a maintained sanitiser, and that is the condition to watch for.
  */
 
-/** Tags the design's `.prose` styles, plus the inline semantics prose actually needs. */
+/**
+ * Tags the design's `.prose` styles, plus the inline semantics prose actually needs.
+ *
+ * `pre` AND `code` ARE HERE BECAUSE THE CLASSIC EDITOR DRAWS BOTH AND THE ARCHIVE DROPPED BOTH.
+ * WordPress's Format menu offers **Preformatted**, which writes `<pre>`, and TinyMCE's code button
+ * writes `<code>`; the editor that reproduces that screen offered the first of them from the day it
+ * was written and the sanitiser silently removed it, so pressing it produced a control that returned
+ * a save and changed nothing. Neither element runs script, applies styling or fetches anything — they
+ * are the same class of markup as `strong` and `em`, one step further from prose.
+ *
+ * The archive's own bodies already use one of them: the WordPress dump holds `<code` seventeen times
+ * and `<pre` not at all, so this keeps seventeen runs of markup that were being thrown away and
+ * invents no new presentation for anything already stored.
+ */
 const ALLOWED_TAGS = new Set([
   'p','br','hr','strong','b','em','i','u','s','sub','sup','small','mark','abbr','cite','q','time',
   'h2','h3','h4','h5','h6',
+  'pre','code',
   'ul','ol','li','dl','dt','dd',
   'blockquote','figure','figcaption','img','a','span','div',
   'table','thead','tbody','tfoot','tr','th','td','caption','colgroup','col',

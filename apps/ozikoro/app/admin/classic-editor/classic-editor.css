@@ -24,6 +24,34 @@
  */
 
 /* ---------------------------------------------------------------------------
+   THE SCREEN'S OWN GROUND, WHICH IS THE OWNER'S FIRST COMPLAINT ABOUT IT.
+
+   *"and also not white"*. The back office wears the design's `.sx-` chrome, and `.sx-dashboard` is
+   painted `var(--paper)` — a cream. WordPress's own `#wpbody` is `#f0f0f1` with white boxes on it, so
+   wherever a Classic Editor screen is on the page the dashboard grid behind it takes WordPress's
+   ground rather than the design's paper, and the heading bar above it goes white with WordPress's
+   `#dcdcde` rule underneath. Nothing outside these screens changes: the test is on `.wpadmin`, which
+   only `classic-editor/screens.tsx` draws.
+
+   THE RAIL IS DELIBERATELY LEFT ALONE. WordPress's post-editing screen is not rail-free — every
+   `wp-admin` screen, `post.php` included, draws `#adminmenuwrap`, a dark menu down the left, under a
+   dark admin bar. The archive's rail is the same shape and the same night colour, so the frame stays
+   and the work area is WordPress's.
+
+   `:has()` RATHER THAN A CLASS SET FROM SCRIPT, because the ground is a fact about markup that is
+   already in the document: it is decided while the page paints, so it cannot arrive after hydration
+   and flash cream first. Chrome 105, Safari 15.4 and Firefox 121 ship it and this site has no legacy
+   browser list.
+   --------------------------------------------------------------------------- */
+.sx-dashboard:has(.wpadmin) {
+  background: #f0f0f1;
+}
+.sx-dashboard:has(.wpadmin) .sx-dash-top {
+  background: #fff;
+  border-bottom-color: #dcdcde;
+}
+
+/* ---------------------------------------------------------------------------
    The page: H1, the section submenu under it, and a two-column body.
    --------------------------------------------------------------------------- */
 .wpadmin {
@@ -329,6 +357,14 @@
 .wpedit .mce-btn[aria-pressed='true'] { background: #dcdcde; border-color: #c3c4c7; }
 .wpedit .mce-btn:disabled { color: #a7aaad; cursor: not-allowed; background: #f6f7f7; }
 .wpedit .mce-btn i { font-style: normal; font-weight: 700; }
+/*
+ * THE LABEL CLASSES THE TOOLBAR'S OWN LIST NAMES, and the fallback for every control that is a word or a
+ * glyph rather than a letter. A tooltip is not a label, so bold, italic and strikethrough are drawn the
+ * way they read — the same three letters WordPress draws — and everything else is drawn plain.
+ */
+.wpedit .mce-btn .mce-ico-b { font-style: normal; font-weight: 700; }
+.wpedit .mce-btn .mce-ico-plain { font-style: normal; font-weight: 400; }
+.wpedit .mce-btn .mce-ico-u { text-decoration: underline; font-weight: 400; }
 .wpedit .mce-btn .mce-ico-em { font-style: italic; font-weight: 400; }
 .wpedit .mce-btn .mce-ico-s { text-decoration: line-through; }
 .wpedit .mce-separator { width: 1px; height: 22px; background: #dcdcde; margin: 0 4px; }

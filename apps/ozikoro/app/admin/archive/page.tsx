@@ -110,7 +110,18 @@ export default async function ArchiveQueue({
               {items.map((item) => (
                 <tr key={item.id}>
                   <td>
+                    {/*
+                      THE TITLE OPENS THE PIECE, AND THE FACETS HAVE THEIR OWN LINK — which is the split
+                      the owner's report forced. `/admin/archive/<id>` used to BE the facets screen, so a
+                      click on a record's title landed on two textareas where WordPress's Classic Editor
+                      was expected. The title is now the editor, exactly as WordPress's list tables do,
+                      and the queue's own tool — clan, period, source type, citations — is one segment
+                      down at `<id>/record` and named in the row it belongs to.
+                    */}
                     <a href={`/admin/archive/${item.id}`}>{item.title}</a>
+                    <div className="history__when">
+                      <a href={`/admin/archive/${item.id}/record`}>Clan, period and sources</a>
+                    </div>
                     <div className="history__when">
                       {item.authorName ?? 'no author'} · {item.url}
                     </div>
