@@ -1,16 +1,35 @@
 /**
  * `/terms` — what using this archive means, stated from the platform rather than drafted as a contract.
  *
- * ── THE SAME PROBLEM AS `/privacy`, AND THE SAME ANSWER ───────────────────────────────────────────────
+ * ── THE SAME PROBLEM AS `/privacy` WAS, EXCEPT THAT HERE THE DOCUMENT REALLY IS ABSENT ───────────────
  *
  * The design brief §3.6 requires terms. **The design draws no `terms.html`**, and the one screen that
  * mentions terms states that they do not exist yet:
  *
  *     about.html   "Binding terms must be supplied by Ozi Ikoro Limited."
  *
- * The repository holds none. `data/nzeora-wp/pages.json` holds twelve migrated pages and not one of them
- * is a terms document — the only legal page in the dump is Nzeora.com's privacy policy, which belongs to
- * a job blog and is not this platform's. **So no binding term is written here, and none is invented.**
+ * ⚠️ **THIS COMMENT USED TO CITE `data/nzeora-wp/pages.json` — ANOTHER PROJECT'S DUMP — AND THAT WAS THE
+ * WRONG PLACE TO LOOK.** The owner was asked where the documents are and answered *"It is in the WordPress
+ * database — go and find it"*, so the archive's own dump was searched, on 2026-10-06, and every table that
+ * could hold a page was read:
+ *
+ *   `wpc9_posts` (9,144 rows, all types) — **seven rows are `post_type = 'page'`**: `about` (453),
+ *     `authors` (455), `privacy-policy` (477), `contact` (3591, draft), `home` (7551), `nze` (10980) and
+ *     `construction` (11024, empty). **Not one is a terms document**, by title, by slug or by content.
+ *   `post_type = 'post'` (1,092 rows) — searched by title and by body for "terms of use", "terms of
+ *     service", "terms and conditions", "governing law", "jurisdiction", "limitation of liability" and
+ *     "you agree to". Every hit is either an article about Igbo or colonial history or the theme's own
+ *     boilerplate privacy template; none is terms of use.
+ *   `wpc9_options` (1,472 rows) — `woocommerce_terms_page_id` is **empty**, so WooCommerce named no terms
+ *     page either.
+ *   `raw/oziikr.WordPress.2026-10-03.xml` (the WXR export) — **seven `page` items**, the same seven.
+ *   `cms/pages.json` (the REST export) — the same seven, one of which is the privacy policy.
+ *
+ * **So there is no terms page in the owner's WordPress database, and none is imported.** The `privacy-policy`
+ * page that *is* there is his — it is served at `/privacy/` and it is not a terms of use — and **adapting a
+ * privacy notice into a contract would be inventing one**, which this archive does not do. **No binding term
+ * is written here and none is invented**, and the sentence the owner reads on the About page stays true
+ * until he supplies one.
  *
  * ── WHAT IS WRITTEN HERE ──────────────────────────────────────────────────────────────────────────────
  *

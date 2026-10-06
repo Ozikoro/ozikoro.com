@@ -518,13 +518,20 @@ export function middleware(request: NextRequest) {
    *     and reading the ten `/author/<slug>/` links it draws. So the address goes to the directory that
    *     holds the same thing and holds more of it.
    *
-   *   * `/privacy-policy/` — WordPress page 477, "Privacy Policy", Ozi Ikoro's own 2020 notice: 626
-   *     words, `contact@ozikoro.com`, and a description of "cookies or analytics tools", newsletters and
-   *     a mailing address. `/privacy/` is this platform's notice, built from what the platform actually
-   *     does, and **it is the one that is true of this site** — there is no analytics script and no
-   *     newsletter to disclose. Two notices in competition would be worse than either, so the record
-   *     keeps its address by a permanent redirect and the canonical stays on `/privacy/`, which is where
-   *     `/privacy/`'s own `<link rel="canonical">` already points.
+   *   * `/privacy-policy/` — WordPress page 477, "Privacy Policy", Ozi Ikoro Limited's own notice: 615
+   *     words, `stories@ozikoro.com` and `contact@ozikoro.com`, and a description of "cookies or analytics
+   *     tools", newsletters and a mailing address. **It is imported into this archive as the record slugged
+   *     `privacy-policy` (record 1055), and that record is now the notice `/privacy/` serves.**
+   *
+   *     ⚠️ THIS BULLET USED TO SAY THE OPPOSITE, AND THE OWNER CORRECTED IT. It read that `/privacy/` was a
+   *     substitute notice "built from what the platform actually does" and that "two notices in competition
+   *     would be worse than either". **The owner's position is that the notice is his and it was in the
+   *     WordPress database all along**: *"on the main ozikoro wordpress, it has terms, and privacy, why is it
+   *     telling me on the about page that terms and privacy has not been supplied?"* — *"It is in the
+   *     WordPress database — go and find it."* So the archive publishes his notice rather than a paraphrase
+   *     of it. The record keeps its own address by this permanent redirect, and the canonical stays on
+   *     `/privacy/`, which is where `/privacy/`'s own `<link rel="canonical">` points and where every footer
+   *     already links. **The record itself is untouched: published, same slug, same id, not deleted.**
    *
    * ── AND THE TWO THAT ARE NOT REDIRECTED, WHICH IS THE OTHER HALF OF THE DECISION ─────────────────────
    *

@@ -1,12 +1,12 @@
 {
   "note": "People and institutions who have backed Ozikoro, named because the owner stated the fact. Maintained by the owner; every entry is a fact he has stated, and no amount, percentage, valuation or date is recorded here because he has not stated one.",
   "about": "Every field below is something the owner can state himself. `statedOn` is the date HE SAID IT, not a date anything happened: it is not an investment date, an agreement date or a payment date, and no such date is recorded anywhere because he did not give one. A field that is absent was not stated, so it stays absent rather than being filled with 'undisclosed' or a guess.",
-  "source": "Idenze Ezeme, owner, Ozi Ikoro Limited, 2026-10-06: \"On the About page where they wrote Sponsors and sponsors, please put 'Chigozie Aham' as an investor. he is our new investor who invested and got a share. he is our partner and funder\"",
+  "source": "Idenze Ezeme, owner, Ozi Ikoro Limited, 2026-10-06: \"On the About page where they wrote Sponsors and sponsors, please put 'Chigozie Aham' as an investor. he is our new investor who invested and got a share. he is our partner and funder\" — AND THEN, THE SAME DAY, HE NARROWED THE ROLES HIMSELF: \"chigoziem aham is an partner, so remove the rest of the roles there\". The `roles` below are the narrowed statement and nothing else: `partner` alone. When asked directly, he confirmed the name as it stands here — `Chigozie Aham` — is the correct spelling, so the name is not changed. Both statements are his; neither carries an amount, a percentage, a valuation or an event date, because he gave none.",
   "partners": [
     {
       "kind": "person",
       "name": "Chigozie Aham",
-      "roles": ["investor", "partner", "funder"],
+      "roles": ["partner"],
       "statedBy": "Idenze Ezeme",
       "statedOn": "2026-10-06"
     }

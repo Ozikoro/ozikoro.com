@@ -350,9 +350,12 @@ export default async function AboutPage() {
       </section>
 
       {/*
-        Terms, privacy and licensing. The design's text for each says the document "must be supplied by Ozi
-        Ikoro Limited", so stating that is the honest content rather than a placeholder standing in for a
-        policy nobody has written.
+        Terms, privacy and licensing. The design's text for terms says the document "must be supplied by Ozi
+        Ikoro Limited", and that is still the honest content — no terms page exists in the WordPress dump
+        (measured: `wpc9_posts` holds seven pages and none of them is a terms document, and
+        `woocommerce_terms_page_id` is empty). **Privacy is no longer one of the absences**: Ozi Ikoro
+        Limited published a data-controller notice on WordPress, it is imported as record 1055, and
+        `/privacy/` serves it, so this line points at it rather than claiming it is missing.
       */}
       <section className="wrap section">
         <div className="sx-head">
@@ -364,7 +367,10 @@ export default async function AboutPage() {
         </div>
         <p className="muted">Binding terms must be supplied by Ozi Ikoro Limited.</p>
         <h2>Privacy</h2>
-        <p className="muted">The complete data-controller notice must be supplied.</p>
+        <p className="muted">
+          The data-controller notice Ozi Ikoro Limited published is served at{' '}
+          <Link href="/privacy">/privacy/</Link>.
+        </p>
         <h2>Licensing</h2>
         <p className="muted">Each record displays its own access and reuse terms.</p>
       </section>

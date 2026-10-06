@@ -3044,8 +3044,8 @@ test('the about page carries the five ids the design’s footers have been linki
    * EACH ID APPEARS EXACTLY ONCE, WHICH IS NOT A FORMALITY. "Privacy" is on this page twice — the design's
    * own `<h2>Privacy</h2>` at the foot and the institution block's `<h3>Privacy</h3>` summary — and a rule
    * that put the id on both would make `#privacy` resolve to whichever the browser met first. The anchor is
-   * deliberately the design's own `<h2>`: that is where the notice is, and the institution block is a
-   * statement about what has not been supplied.
+   * deliberately the design's own `<h2>`. **The institution block's `<h3>` is not a statement of absence any
+   * more**: it points at `/privacy/`, which serves the notice the owner published.
    */
   for (const id of ['entrust', 'privacy', 'licensing', 'partners', 'contact']) {
     assert.equal((out.match(new RegExp(`id="${id}"`, 'g')) ?? []).length, 1, `id="${id}" must be written once`);
@@ -3972,13 +3972,18 @@ test('the register’s town card is the design’s town card, element for elemen
  * A NAMED BACKER, AND THE DISCIPLINE OF WHAT MAY BE WRITTEN BESIDE A NAME
  * ------------------------------------------------------------------------------------------------
  *
- * The owner stated one fact — *"he is our new investor who invested and got a share. he is our partner and
- * funder"* — and the whole difficulty of this change is **what must NOT appear beside it**. No amount, no
- * percentage, no valuation, no date and no company or title: he stated none of them, and the archive's rule
- * is that a gap stays visible rather than being filled with "undisclosed", "a substantial sum" or a
- * plausible-looking figure. **A fabricated amount beside a real funder's name is the single most quotable
- * false statement this site could make**, so the prohibition is asserted here as a prohibition rather than
- * left to a reader of the fill.
+ * The owner stated the fact in two parts — first *"he is our new investor who invested and got a share. he is
+ * our partner and funder"*, and then, the same day, the correction *"chigoziem aham is an partner, so remove
+ * the rest of the roles there"* — and the whole difficulty of this change is **what must NOT appear beside
+ * it**. No amount, no percentage, no valuation, no date and no company or title: he stated none of them, and
+ * the archive's rule is that a gap stays visible rather than being filled with "undisclosed", "a substantial
+ * sum" or a plausible-looking figure. **A fabricated amount beside a real backer's name is the single most
+ * quotable false statement this site could make**, so the prohibition is asserted here as a prohibition
+ * rather than left to a reader of the fill.
+ *
+ * **And the correction is asserted as the correction.** The roles are `partner` alone; `investor` and
+ * `funder` were his words and he withdrew them, so the assertion that used to read
+ * `['investor', 'partner', 'funder']` would now be this suite keeping a role the owner has taken back.
  *
  * The second thing asserted is the EMPTY STATE, and it is asserted against `namedBackers` as it really is:
  * the guidance is that no placeholder backer may be drawn, and the way that is guaranteed is that the two
@@ -3993,7 +3998,7 @@ test('a named backer carries only what the owner stated, and nothing may be writ
   assert.ok(namedBackers.length > 0, 'the owner named one backer on 2026-10-06; an empty list would mean the fill draws nothing');
   const aham = namedBackers[0]!;
   assert.equal(aham.name, 'Chigozie Aham', 'the name is the one he gave, and it is not a fixture');
-  assert.deepEqual(aham.roles, ['investor', 'partner', 'funder'], 'his own three words, in his own order');
+  assert.deepEqual(aham.roles, ['partner'], 'his own word as he last gave it — `investor` and `funder` were withdrawn by him');
   assert.equal(aham.statedBy, 'Idenze Ezeme', 'a name on a public page is attributed to whoever stated it');
   /*
    * `statedOn` IS THE DATE HE SAID IT. It is asserted to exist so a name can be traced to its statement, and
@@ -4012,8 +4017,9 @@ test('the investors page names him, and no figure, date or company appears anywh
   const html = readFileSync(join(SCREENS, 'investors.html'), 'utf8');
   const out = fillApproach(html, 'investors', { recorded: 0, route: 'archive@ozikoro.com' });
 
-  assert.ok(out.includes('Chigozie Aham'), 'the investors page is the one his phrase names, so it names him');
-  assert.ok(out.includes('investor · partner · funder'), 'it shows his own words for what he is');
+  assert.ok(out.includes('Chigozie Aham'), 'the investors page still names him — the owner narrowed his roles, not his presence');
+  assert.match(out, /<span class="tier">partner<\/span><b>Chigozie Aham<\/b>/,
+    'the card carries the one role he still claims, and no other');
   assert.match(out, /<h2 id="named-backers"[^>]*>Who has invested in this archive<\/h2>/);
   assert.match(out, /<div class="sx-honour"[^>]*>[\s\S]*?Chigozie Aham[\s\S]*?<\/div>/, 'the design\'s own supporter card is what holds a named supporter');
 
@@ -4058,19 +4064,20 @@ test('the investors page names him, and no figure, date or company appears anywh
   assert.ok(out.includes('No investment enquiry has been recorded in the archive (0 entries)'),
     'the enquiry count is still the truth and still on the page');
   assert.ok(out.includes('Nothing on this page is a price, a commitment or a term: those are agreed in writing, and none has been agreed.'),
-    'naming a funder makes that sentence more important, not less, so it stays word for word');
+    'naming a backer makes that sentence more important, not less, so it stays word for word');
   assert.ok(out.includes('I understand this is a design demonstration') === false,
     'the demonstration checkbox is still replaced by the disabled-form note');
   assert.ok(out.includes('The form above is disabled and cannot be submitted.'),
     'the form is still disabled, so no reader can submit into a route that does not exist');
 });
 
-test('the sponsors page names a partner and a funder, and does not call him an investor', () => {
+test('the sponsors page names him a partner, and does not call him an investor', () => {
   const html = readFileSync(join(SCREENS, 'sponsors.html'), 'utf8');
   const out = fillApproach(html, 'sponsors', { recorded: 0, route: 'archive@ozikoro.com' });
 
   assert.ok(out.includes('Chigozie Aham'), 'a prospective sponsor should see who already backs the work');
-  assert.ok(out.includes('partner · funder'), 'his own words, on a page about backing the archive');
+  assert.match(out, /<span class="tier">partner<\/span><b>Chigozie Aham<\/b>/,
+    'the one role the owner still gives him, on a page about backing the archive');
   /*
    * `investor` IS DELIBERATELY ABSENT FROM THE CARD. A page headed "Sponsor a programme" that labels a man an
    * investor would be this code asserting a relationship to a programme the owner never stated. The omission
@@ -4088,8 +4095,8 @@ test('the sponsors page names a partner and a funder, and does not call him an i
   assert.ok(from !== -1 && to > from, 'the backer section is above the confirmation block, or it is not on the page');
   const section = out.slice(from, to);
   assert.ok(!/investor/i.test(section), 'the sponsor page does not borrow a role from the investor page');
-  assert.match(section, /<span class="tier">partner · funder<\/span><b>Chigozie Aham<\/b>/,
-    'the designation is his own two words for this page, and no others');
+  assert.match(section, /<span class="tier">partner<\/span><b>Chigozie Aham<\/b>/,
+    'the designation is the one role he still claims, on this page too');
   assert.match(out, /<h2 id="named-backers"[^>]*>Who has backed this archive<\/h2>/);
 
   assert.ok(out.includes('No sponsorship enquiry has been recorded in the archive (0 entries)'),

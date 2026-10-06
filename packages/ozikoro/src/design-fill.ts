@@ -4141,9 +4141,16 @@ export function fillAbout(html: string, d: AboutData): string {
    * This section used to read *"No partner, sponsor or funder is recorded in the archive, so none is named on
    * this page."* **That sentence was true when it was written and the owner made it false on 2026-10-06**, by
    * naming Chigozie Aham as his investor, partner and funder — so it is replaced rather than left standing
-   * beside a name that contradicts it. The replacement keeps the distinction that was doing the real work in
-   * the original: **the ARCHIVE still holds no partner or funder record**, and what is on the page is a fact
-   * the owner stated. Read `data/partners.json` for where the names live.
+   * beside a name that contradicts it.
+   *
+   * ⚠️ AND THE FIRST REPLACEMENT WAS ITSELF READ AS A DENIAL, WHICH IS WHY IT IS NOT HERE. It opened *"The
+   * archive holds no partner or funder record of its own, and does not create one."* The distinction it was
+   * drawing — that a name the owner stated is not an archive record of a partnership — is a real one, **but
+   * the owner read that clause as the page telling him there is no partner while the same page named one**:
+   * *"we now have one partner and funder, why is it still saying it holds no partner or funder?"* **He is
+   * right about what the sentence does to a reader.** So the page now states what is true — that the archive
+   * names the person he named — and keeps the part that was doing real work: that no amount, percentage,
+   * valuation or date is recorded, because he stated none. Read `data/partners.json` for where the name lives.
    *
    * `backers` is empty when the file names nobody, and then the original sentence stands and no list is
    * drawn — the empty state is the page that was there before, not a placeholder card.
@@ -4151,10 +4158,11 @@ export function fillAbout(html: string, d: AboutData): string {
   const backers = namedBackers;
   const backersNamedNote = backers.length === 0
     ? 'No partner, sponsor or funder is recorded in the archive, so none is named on this page. When one is agreed and consents to be named, the relationship and its terms appear here.'
-    : 'The archive holds no partner or funder record of its own, and does not create one. The '
+    : 'The archive names the ' + (backers.length === 1 ? 'backer' : 'backers')
+      + ' the owner of Ozi Ikoro Limited has stated himself. The '
       + (backers.length === 1 ? 'entry' : 'entries')
-      + ' below ' + (backers.length === 1 ? 'is a fact' : 'are facts')
-      + ' the owner of Ozi Ikoro Limited has stated himself — a name and what that person is to Ozikoro, and nothing more. No amount, percentage, valuation or date is recorded, because none has been stated; terms are agreed in writing, and none is published here.';
+      + ' below ' + (backers.length === 1 ? 'is his statement of' : 'are his statements of')
+      + ' what that person is to Ozikoro, and nothing more. No amount, percentage, valuation or date is recorded, because none has been stated; terms are agreed in writing, and none is published here.';
   const backersList = backers.length === 0
     ? ''
     : `<ul style="margin-top:var(--s-3)">${backers
@@ -4308,10 +4316,16 @@ export function fillAbout(html: string, d: AboutData): string {
    * It is placed after the principles and before "Ways to help Ozikoro grow", so the section a partner or a
    * funder reads arrives before the section that asks them for something.
    *
-   * **Nothing has been supplied for the boxes that are empty, and the page says so in each one rather than
-   * leaving a heading over nothing.** No registration number, no address, no partner, no funder and no policy
-   * is invented: the archive holds none of them, and a plausible-looking company number would be the most
-   * convincing piece of false content on the site.
+   * **Nothing is invented for the boxes that are empty, and the page says so in each one rather than leaving
+   * a heading over nothing.** No registration number and no address is invented: the archive holds neither,
+   * and a plausible-looking company number would be the most convincing piece of false content on the site.
+   *
+   * ⚠️ **THE PRIVACY BOX IS NO LONGER ONE OF THE EMPTY ONES, AND THE SENTENCE THAT SAID IT WAS IS GONE.** Ozi
+   * Ikoro Limited published a data-controller notice on its WordPress site, it is imported into this archive
+   * (record 1055), and `/privacy/` serves it — so this paragraph says that and points at it. What was here
+   * read *"The complete data-controller notice has not been supplied"*, and **the owner asked about exactly
+   * that sentence**: *"why is it telling me on the about page that terms and privacy has not been
+   * supplied?"* It was true when it was written and the import made it false.
    */
   const institution = `<section class="wrap section" id="institution">
         <div class="sx-head"><div><p class="eyebrow">The institution</p><h2>Ozi Ikoro Limited</h2></div><span class="gold-rule"></span></div>
@@ -4335,7 +4349,7 @@ export function fillAbout(html: string, d: AboutData): string {
             <h3 style="margin-top:var(--s-5)">Terms</h3>
             <p class="partial-note">Binding terms of use have not been supplied by Ozi Ikoro Limited. What applies today is stated on each record: its access and reuse terms are shown with the record, and every published history has a permanent address that will not change.</p>
             <h3 style="margin-top:var(--s-5)">Privacy</h3>
-            <p class="partial-note">The complete data-controller notice has not been supplied. What the platform holds today is one account, created by the company's own owner, and no reader tracking data: there is no analytics row and no profiling. The notice will be published here rather than summarised.</p>
+            <p class="partial-note">The data-controller notice Ozi Ikoro Limited published on its WordPress site is served in full at <a href="/privacy/">Privacy</a>, reproduced from the owner's own notice rather than summarised here.</p>
             <h3 style="margin-top:var(--s-5)">Contact and company particulars</h3>
             <p class="partial-note">A registered address, company registration number and telephone number have not been supplied, and are not invented here. For corrections and material offered to the archive, write to <a href="mailto:archive@ozikoro.com">archive@ozikoro.com</a>. Partnership and investment enquiries go through <a href="sponsors.html">Sponsor a programme</a> and <a href="investors.html">Investors</a>.</p>
           </div>
@@ -4651,15 +4665,13 @@ export function fillApproach(html: string, kind: 'sponsors' | 'investors', d: Ap
    * still holds 0 rows, no form on this page records anything, and *"nothing on this page is a price, a
    * commitment or a term"* is more important beside a name than it was without one.
    *
-   * WHICH ROLES EACH SCREEN SHOWS IS THE ONLY DECISION HERE.
+   * WHICH ROLES EACH SCREEN SHOWS IS THE ONLY DECISION HERE, AND THE OWNER HAS SINCE MADE IT MOSTLY MOOT.
    *
-   *   `/investors/` — every role the owner gave, because investment is what the page is about.
-   *   `/sponsors/`  — `partner` and `funder`, and **deliberately NOT `investor`**. The owner's own words on
-   *                   this page were *"Institutions, sponsors and media"*, and a page headed "Sponsor a
-   *                   programme" that labels a man an investor would be this code asserting a relationship
-   *                   to a programme that the owner never stated. `funder` is his word and is true on both
-   *                   pages; `investor` is his word and belongs on the page about investment. The page is
-   *                   not made dishonest by the omission — it is made to say exactly what he said.
+   * He narrowed the entry to `partner` alone — *"chigoziem aham is an partner, so remove the rest of the roles
+   * there"* — so both screens now draw the same single word. **The `investor` filter stays anyway**, because
+   * it is the rule rather than the instance: a page headed "Sponsor a programme" must not label a person an
+   * investor, and the filter enforces that without anyone having to remember it the day the next investor is
+   * named. It simply has no work to do while the entry claims `partner` and nothing else.
    *
    * **NOTHING IS DRAWN WHEN THE FILE NAMES NOBODY, OR WHEN NO ROLE SURVIVES THE FILTER**: no heading, no
    * grid, no sentence, and the page is the page it was. That is the `if` below, and it is asserted against a

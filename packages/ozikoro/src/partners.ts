@@ -17,13 +17,20 @@
  *
  * ── WHAT IS IN THE FILE, AND WHAT IS NOT, AND WHY THAT IS THE POINT ─────────────────────────────────
  *
- * The owner's own words, verbatim, are recorded in the file's `source`:
+ * The owner's own words, verbatim, are recorded in the file's `source`, and they are TWO statements rather
+ * than one:
  *
  *   *"please put 'Chigozie Aham' as an investor. he is our new investor who invested and got a share. he is
  *   our partner and funder"*
  *
- * So `investor`, `partner` and `funder` are his words and are carried as given. **An amount, a percentage, a
- * valuation, a date and a company or title are NOT in this record, because he did not state any of them.**
+ * and then, the same day, the correction that narrows it:
+ *
+ *   *"chigoziem aham is an partner, so remove the rest of the roles there"*
+ *
+ * **The second statement is the one in force, so the entry carries `partner` alone** — `investor` and
+ * `funder` were his words and he took them back, and a role kept after he withdrew it would be this code
+ * disagreeing with the owner about his own backer. **An amount, a percentage, a valuation, a date and a
+ * company or title are NOT in this record, because he did not state any of them.**
  * `statedOn` is the date HE SAID IT — not an investment date, an agreement date or a payment date — and it is
  * named `statedOn` for that reason and labelled as such in every doc comment that touches it.
  *
@@ -39,7 +46,12 @@
 import partnersFile from '../../../data/partners.json' with { type: 'json' };
 
 /**
- * The roles an entry may claim. **His three words, and no others.**
+ * The roles an entry may claim — the owner's own three words, and no others.
+ *
+ * **The vocabulary and the entry are two different things.** This list is what the owner has ever used for a
+ * backer, so it is the widest set the code can stand behind; the entry in `data/partners.json` currently
+ * claims `partner` alone, because that is what he last said. Narrowing the list to the roles in use would
+ * make the next investor he names an unprintable entry, so the list stays as he has spoken it.
  *
  * A closed list rather than a free string because this vocabulary is read on a public page: an entry that
  * names a role the archive has no meaning for would be a title this code could not stand behind, and
