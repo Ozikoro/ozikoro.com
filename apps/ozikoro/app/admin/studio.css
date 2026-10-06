@@ -240,3 +240,83 @@
   .ozstudio .swatches{grid-template-columns:repeat(2,1fr)}
   .ozstudio .media-grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   THE DESIGN STUDIO'S OWN FIVE ADDITIONS — 2026-10-06, when `/admin/design/page.tsx` was rebuilt to
+   the owner's `ozikoro-design-studio-dashboard.html`.
+
+   Everything above is the owner's sheet (scoped) and the four additions the shell needed. These five
+   are here because **the delivered page has to draw or say things the mock-up never had to**: it is a
+   real editor over 77 tokens, 53 screens and 3,443 media rows, where the mock-up was ten painted rows.
+   ⚠️ **A DEPARTURE ADDED SILENTLY IS A DEPARTURE THE NEXT READER WILL NOT KNOW ABOUT, so each says
+   why it exists.** Nothing here changes how the owner's own classes look.
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* 5 · A COLLAPSED GROUP ON A TAB IS NOT A TAB THAT LOOKS BROKEN.
+   The design's tabs carry `Colours (45)` and `Fonts & type (32)`, and its `#colourTokens` is one flat
+   block. The delivered palette is 45 rows across six groups and the type list is 32 across five, which
+   on one tab is the "everything on one page" the owner complained about in the first place. Each group
+   is therefore a `<details>`, and the FIRST one and every one the owner has changed is `open` — so
+   "where are the pickers" always has an answer on screen. Without this rule an unopened group prints
+   its `<summary>` with the browser's own triangle and none of the sheet's type. */
+.ozstudio summary{cursor:pointer}
+.ozstudio summary::-webkit-details-marker{color:var(--muted)}
+.ozstudio details summary{padding:2px 0 6px}
+
+/* 6 · THE BROWSER CHROME NEEDS AN ADDRESS THAT CAN BE SUED.
+   The mock-up writes its address as text in a static `.address` div; the delivered page puts a real
+   `<a>` in it because a preview whose address is not clickable is a picture of a browser rather than a
+   door. The sheet colours `.address` at `#999` for the sample and has no rule for an anchor inside it,
+   so without this the one real thing in the chrome is the only blue underlined text on the page. */
+.ozstudio .address a{color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ozstudio .address a:hover{color:var(--ink);text-decoration:underline}
+
+/* 7 · THE PREVIEW IS THE REAL PAGE, SO THE FRAME HAS TO BE ABLE TO HOLD IT.
+   `LayoutPreview` is an `<iframe>` pointed at the served design screen. **This is the one place the
+   delivered page deliberately departs from the mock-up's painted hero**: a hand-drawn hero would be a
+   fabricated artefact, and this repository has a real preview at `/admin/design/preview` (a 303 into
+   the same `/design-screen/` route a reader goes through). `.site-preview` is `min-height:680px` with
+   the frame at `height:100%`, so the frame needs a definite box to fill — hence the height here. */
+.ozstudio .site-preview iframe{display:block;width:100%;height:680px;border:0;background:var(--surface)}
+
+/* 8 · THE ROWS THE MOCK-UP NEVER HAD, AND THE PLACEHOLDER THAT MUST NOT LOOK LIKE A VALUE.
+   Every colour row's hex box IS seeded with the value in force — that is the design's own shape
+   (`div.token-actions > input.field`), and seeding it makes the picker beside it a convenience the
+   reader does not have to touch. The placeholder therefore only ever appears on a row where the value
+   in force is not a plain hex — a gradient or an alias — where no picker is drawn at all and the
+   placeholder names what the design declares. Italic keeps that from reading as a typed value. */
+.ozstudio input.field::placeholder{font-style:italic}
+.ozstudio select.field{padding:9px 11px}
+
+/* 9 · BELOW 1100 PX THE DESIGN'S OWN THREE-COLUMN RULE CANNOT HOLD.
+   At the sheet's `@media(max-width:1100px)` the layout editor becomes `180px 1fr` with the inspector
+   spanning both, but the middle column keeps `minmax(450px,1fr)` and `.main` keeps `min-width:900px`
+   — so between 900 and 1100 the grid sums past its container and the inspector is pushed out of the
+   panel. **A screenshot at 1280 px, which is what this work is verified at, is above the breakpoint
+   and is untouched by this rule.** The stack is the honest fallback for the width where three columns
+   are arithmetically impossible, exactly as the shell's own addition 4 did for the rail below 900. */
+@media(max-width:1100px){
+  .ozstudio .layout-editor{grid-template-columns:1fr}
+  .ozstudio .preview-wrap{min-height:0}
+}
+
+/* 10 · THE TWO SMALL THINGS THE DELIVERED MARKUP NEEDS FROM THE SHEET.
+   A `.list` of screens is drawn as `<a>` (a link to a screen) where the mock-up drew `<button>` (a
+   script switch), and the stylesheet's only `.list` rules name `button` — so without the first rule
+   the selected screen loses the `#eee7da` ground the mock-up gives it and the Pages panel reads as
+   unstyled text. The second is the archive's standing keyboard rule: the owner's sheet has no
+   `:focus-visible` at all, and a rail, a tab bar and 45 token rows that cannot be seen to have focus
+   are a page a keyboard user cannot work. **Neither rule is a redesign; both are the design's own
+   values, applied to the two elements its mock-up never had to draw.** */
+.ozstudio .list a.sel{background:#eee7da;font-weight:700}
+.ozstudio .list a:hover{background:#eee7da}
+.ozstudio .tab:focus-visible,.ozstudio .btn:focus-visible,.ozstudio .list a:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+
+/* 11 · TEN TABS DO NOT FIT, AND THE TENTH IS NOT ALLOWED TO BE OFF-SCREEN.
+   The sheet's `.tabs` is `overflow:auto`, which on a desktop shows a scrollbar-less row with the last
+   two tabs (`Writing`, `Design history`) clipped off the right edge — measured at 1280 px, the width
+   this work is verified at. **A tab you cannot see is a tab you cannot open**, and the owner's own
+   instruction is that every button must work. Wrapping the row is the one change that keeps all ten
+   reachable at every width; the drawing above 1280 is unaffected, because ten tabs fit on one line
+   there. The 3px gold rule the open tab carries is kept by `.tab.active` either way. */
+.ozstudio .tabs{flex-wrap:wrap}

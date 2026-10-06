@@ -1,77 +1,79 @@
 /**
- * /admin/design — the owner's own design editor, organised by what a person is trying to change.
+ * /admin/design — the owner's Administration Design Studio.
  *
- * ── WHAT WAS WRONG, IN THE OWNER'S WORDS ─────────────────────────────────────────────────────────────
+ * ── THE DESIGN IS THE OWNER'S FILE, AND THE NUMBERS IN IT ARE NOT ───────────────────────────────────
  *
- * *"on this design page https://ozikoro.com/admin/design, everything is just showing in one page, instead of
- * having selection to change colours, fonts, texts, logo, favicon, etc. basically everything one can be able
- * to edit"*
+ * On 2026-10-06 the owner sent `ozikoro-design-studio-dashboard.html`:
  *
- * He was right, and the reason is in this file's own history: **it was organised by the shape of the
- * database row.** Eight hundred and fifty lines of cards, with every colour and type token drawn at once, the
- * whole element inventory under them, and a contrast table between the two. The `TOKEN_META` groups already
- * existed and were already used as `<h3>` headings inside one enormous card — *"Accent"*, *"Dark chrome"*,
- * *"Type"* — but a heading inside a page that never ends is not a section. And the token's `role` and its
- * written note — the design's own sentence about what breaking it would do — were rendered only when the
- * token happened to have both a comment and a note.
+ *   *"replace the admin design we have with the one in this html, then make sure all the functions are
+ *   working when done. copy the exact design here as it is far better than what you have as admin
+ *   dashboard"*
  *
- * ── WHAT REPLACES IT ─────────────────────────────────────────────────────────────────────────────────
+ * The shell — the night rail, the brand mark, the two nav groups, the sticky top bar — is
+ * `app/admin/layout.tsx` and `studio.css`, and this page renders inside it. **What this file owns is the
+ * ten tabs.**
  *
- * ONE SECTION AT A TIME, chosen from a row of links, and each section is the control its kind deserves:
+ * ⚠️ **THE FILE IS A MOCK-UP, AND ITS FIGURES ARE FICTION.** It says "77 design tokens", "Edits in force
+ * 18", "2 pages have image overrides", "45 colour tokens", "32 type / spacing / shape tokens", "Today
+ * 03:42", "Idenze Ezeme", "SVG · 24 KB · set by Idenze Ezeme", "14 public-facing workspaces", "read
+ * directly by 31 rules", a painted hero and four invented media rows. **Not one of those numbers is in
+ * this file.** Every figure on every tab is computed, and where a figure cannot be computed the row is
+ * absent or says so — because this project's rule, which has cost rounds when broken, is that a
+ * plausible invented number is worse than an empty list.
  *
- *   Colours   a colour picker per colour token WITH the hex shown and editable, grouped by `TOKEN_META.group`,
- *             each carrying its `role` and its note
- *   Fonts     a chooser of the families the design actually loads, plus the stack as text, and the sentence
- *             about the dotted vowels and tone marks
- *   Text      the overrides shown as the sentence they replace and the sentence they become
- *   Images    a URL field per override, with a preview of what it points at
- *   Logo      the masthead's mark, which is an `image` override on the wordmark's own `<img>` — see below
- *   Icon      the favicon, which is a NEW stored setting and a new route; see `@ozikoro/platform`→`site-icon.ts`
- *   Links     the link and hide overrides, which the system already supports
- *   Everything  the served page's element inventory, kept because the named sections cannot express
- *             "the third paragraph on /about/"
+ *   ✅ the layout, the tab set, the order of every section, the wording of every LABEL and heading, and
+ *      the shape of every card — all copied, class for class, from the owner's file
+ *   🔴 no number, count, date, name or token value copied out of it
+ *   ✅ every figure read from the design files, the database, the served page or the session
  *
- * The section is a URL parameter rather than client state, because this is a server-rendered page with no
- * JavaScript of its own: a link is a section, the back button works, and a notice after a save returns the
- * owner to the section he was in.
+ * ── WHAT WAS HERE BEFORE, AND WHAT IT STILL DOES ────────────────────────────────────────────────────
  *
- * ── WHAT THIS FILE DOES NOT DO, AND WHY THAT MATTERS ─────────────────────────────────────────────────
+ * The page this replaces was 1,504 lines organised as seven link-sections, and **its data paths were
+ * right**: it read the design's real `tokens.css`, the 53 real screens, `a11y.css` for the real contrast
+ * ratios, and the database for the real overrides. All of those survive here — `designTokens`,
+ * `designScreens`, `screenFiles`, `inventoryFor`, `tokenControls`, `contrastReport`, `fontOptions`,
+ * `listDesignOverrides`, `loadSiteFavicon`, `logoSlotIn`, `sectionOf`, `splitTextKey`, `selectorReach` —
+ * and **the components that carried the real logic are re-skinned into the design's markup rather than
+ * rewritten**: `EditForm`, `TokenRow`, `ElementRow`, `ImageForm`, `valueSummary`.
  *
- * It does not decide which control a token gets. `@ozikoro/platform`→`design-editor.ts` does, over the same
- * `DesignToken[]` this page builds, and `design-editor.test.ts` asserts against the deliverable's own
- * `tokens.css` that a gradient is never handed a colour picker and that a value which is not a plain colour
- * survives a round trip unchanged. **A page cannot be tested for that**; the decision lives where it can be.
+ * What was removed is the old design's chrome: `admin-shell`, `Head`, `Card` and `AtAGlance` came from
+ * `../ui`, which draws the *previous* dashboard's `sx-` vocabulary. They are replaced by the owner's own
+ * `title-row` / `eyebrow` / `card` / `card-head` / `card-body` markup. **`Notices` is not replaced, it is
+ * re-skinned in place** — see `Notices` below — because it is how a person learns their save worked.
  *
- * It does not write to `public/design/`. The deliverable is byte-compared against the handover copy, so every
- * edit here is a row served on top of the rendered page, which is what makes it reversible, comparable and
- * attributable.
+ * ── THE TEN TABS, AND WHY THE SECTION IS A URL PARAMETER ────────────────────────────────────────────
  *
- * ── THE THREE FAULTS THE OLD PAGE HAD THAT THIS ONE DOES NOT ─────────────────────────────────────────
+ * `?tab=<name>` is the state. A tab is a link, the back button works, and every form carries the tab it
+ * was submitted from so a save returns the owner to the row he pressed Save on. That matters more here
+ * than it did in the old page: **ten tabs in one document means a save that returned to the first tab
+ * would lose the reader's place entirely.**
  *
- *   1. **A COLOUR PICKER ON A GRADIENT.** The old filter was
- *      `['colour', 'gradient'].includes(effectiveClass(t))`, so `--gradient-gold` and both shadows were drawn
- *      beside an `<input type="color">`. The picker holds `#000000` until it is touched and **the save path
- *      reads it first**, so pressing Save on an untouched gradient row wrote black over it. Now the control
- *      is chosen from the VALUE: `pickerHolds` refuses anything but a six-digit hex, and everything else gets
- *      a text box and a sentence saying why.
- *   2. **NO EMPTY STATE.** The page said "Edits in force: 0" in a table among eight other rows. Now each
- *      section says in its own words that nothing is stored and the design's own values are in force, which
- *      is the normal state and not a fault.
- *   3. **A RESET NOBODY COULD FIND.** Reset existed, at the bottom, per row and per screen. Now every row
- *      shows the design's own value beside the field, and every row carries its own "put this back" button
- *      where the edit is.
+ * ── THREE THINGS THE MOCK-UP DREW THAT THIS FILE REFUSES TO DRAW ────────────────────────────────────
+ *
+ *   1. **A PAINTED WEBSITE.** The widgets tab's `.site-preview` is an `<iframe>` on the real served
+ *      design screen — the same page a reader gets — not the mock-up's hand-built hero, three invented
+ *      cards and a `fake-btn`. A hand-drawn hero is a fabricated artefact.
+ *   2. **AN EDITOR THAT SAVES NOTHING.** The writing tab is the design's `.editor-shell` shape pointed at
+ *      the REAL writing surface at `/admin/posts/new` and `/admin/pages/new`, which renders the archive's
+ *      own editor. It is not a second editor, and **the words "Classic Editor" appear in no rendered text
+ *      on this page** — the owner's own instruction.
+ *   3. **AN ACCOUNT EDITOR THAT DUPLICATES THE REAL ONE.** The profile tab shows the session's real
+ *      name, address, role and stored profile fields, and says which of them the archive has no write
+ *      path for, rather than rendering a Save button that does nothing.
  */
 import { readFile } from 'node:fs/promises';
 import { headers } from 'next/headers';
 import { join } from 'node:path';
-import { getDb } from '@ozituma/db/client';
+import { getDb, type Db } from '@ozituma/db/client';
 import {
   ALL_SCREENS,
   CONTRAST_PAIRS,
-  contrastReport,
-  EDITOR_SECTIONS,
   INVENTORY_LIMIT,
+  contrastReport,
+  fontOptions,
   listDesignOverrides,
+  listMedia,
+  listPieces,
   loadSiteFavicon,
   logoSlotIn,
   parseDesignTokens,
@@ -79,16 +81,17 @@ import {
   selectorReach,
   splitTextKey,
   tokenControls,
-  fontOptions,
+  type ContrastResult,
   type DesignOverride,
   type DesignToken,
-  type EditorSection,
   type FontChoice,
   type InventoryItem,
+  type MediaRecord,
+  type PieceRow,
   type TokenControl,
 } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
-import { AtAGlance, Card, Head, Notices } from '../ui';
+import { DesignFormSync } from './form-sync';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,10 +104,10 @@ const DESIGN_DIR = join(process.cwd(), 'public', 'design');
 /**
  * The deliverable's own screen files, read once per process.
  *
- * WHY A CACHE AND NOT A READ PER RENDER: `apps/ozikoro/public/design/` is byte-compared against the handover
- * copy, so its contents cannot change while this process runs. The reach of a key is therefore a constant of
- * the build, and re-measuring it on every render would spend a second of the server's time to arrive at the
- * same number.
+ * WHY A CACHE AND NOT A READ PER RENDER: `apps/ozikoro/public/design/` is byte-compared against the
+ * handover copy, so its contents cannot change while this process runs. The reach of a key is therefore a
+ * constant of the build, and re-measuring it on every render would spend a second of the server's time to
+ * arrive at the same number.
  */
 let SCREEN_FILES: { name: string; html: string }[] | null = null;
 async function screenFiles(): Promise<{ name: string; html: string }[]> {
@@ -126,10 +129,10 @@ const REACH = new Map<string, { screen: string; text: string }[]>();
 /**
  * Which screens each key names exactly one element on.
  *
- * THIS IS THE ANSWER TO "ONE EDIT OR FIFTY-TWO?". The header, the menu and the footer are the same markup in
- * every screen file, so the footer's own words are on fifty-two screens and a page-by-page editor makes the
- * owner type them fifty-two times. The count is measured from the deliverable and the KEY IS THE KEY THE ROW
- * IS STORED UNDER — so the number is the reach of the edit that will actually be written.
+ * THE ANSWER TO "ONE EDIT OR FIFTY-TWO?". The header, the menu and the footer are the same markup in
+ * every screen file, so the footer's own words are on fifty-two screens and a page-by-page editor makes
+ * the owner type them fifty-two times. The count is measured from the deliverable and **the key is the
+ * key the row is stored under** — so the number is the reach of the edit that will actually be written.
  */
 async function reachOf(keys: string[]): Promise<(key: string) => { screen: string; text: string }[]> {
   const wanted = [...new Set(keys)].filter((key) => key.length > 0 && !REACH.has(key));
@@ -186,10 +189,10 @@ async function designTokens(): Promise<{ tokens: DesignToken[]; served: Map<stri
 /**
  * What is on the page, asked of the page.
  *
- * `/donate/`'s notice does not exist in `donate.html` — `fillDonate` writes it — and the same fill deletes the
- * page's submit button, so a list built from the file would offer a button that is not on the page and hide
- * the notice that is. The inventory is therefore taken from the SERVED document, which only the route that
- * serves it can produce.
+ * `/donate/`'s notice does not exist in `donate.html` — `fillDonate` writes it — and the same fill deletes
+ * the page's submit button, so a list built from the file would offer a button that is not on the page and
+ * hide the notice that is. The inventory is therefore taken from the SERVED document, which only the route
+ * that serves it can produce.
  */
 async function inventoryFor(screen: string, from: number): Promise<{ items: InventoryItem[]; total: number } | { error: string }> {
   const h = await headers();
@@ -211,118 +214,232 @@ async function inventoryFor(screen: string, from: number): Promise<{ items: Inve
 }
 
 /* ==================================================================================================
- * 2. THE SMALL PIECES THE SECTIONS ARE BUILT FROM
+ * 2. THE TEN TABS
  * ================================================================================================ */
 
-function Swatch({ value }: { value: string }) {
+/**
+ * The owner's own tab set, in his own order, with his own labels.
+ *
+ * The two counts are NOT here: they are `colourTokens.length` and `typeTokens.length`, read from the
+ * design's `tokens.css`, and the tab prints whatever the deliverable actually declares.
+ *
+ * `writing` is `Writing` rather than the mock-up's `Writing / Classic Editor`. **The owner's instruction
+ * was explicit**: *"the classic editor will be there, but never named classic editor."*
+ */
+const TABS = [
+  { key: 'studio', label: 'Design Studio' },
+  { key: 'colours', label: 'Colours' },
+  { key: 'type', label: 'Fonts & type' },
+  { key: 'text', label: 'Text & labels' },
+  { key: 'widgets', label: 'Widgets & page layout' },
+  { key: 'media', label: 'Images & media' },
+  { key: 'favicon', label: 'Icon / favicon' },
+  { key: 'profile', label: 'My profile' },
+  { key: 'writing', label: 'Writing' },
+  { key: 'history', label: 'Design history' },
+] as const;
+
+type TabKey = (typeof TABS)[number]['key'];
+
+const TAB_KEYS: readonly string[] = TABS.map((tab) => tab.key);
+
+/**
+ * The names this page also answers to, so a guessed or remembered address never lands on the wrong tab.
+ *
+ * ⚠️ **A TAB THAT SWITCHES TO NOTHING IS ITSELF A DEAD CONTROL**, and the two ways to reach one are a
+ * mock-up's own `data-tab` and this screen's previous life.
+ *
+ *   * `editor` and `audit` are the mock-up's two names for the tabs this page calls `Writing` and
+ *     `Design history`. **The LABEL was changed and not the address**, because the owner's instruction was
+ *     that the writing surface must never be named the way the mock-up named it — but someone reading the
+ *     mock-up, or a bookmark made from it, would type `?tab=editor`, and answering that with the Design
+ *     Studio would be the page quietly ignoring what it was asked for.
+ *   * `texts`, `images`, `icon`, `links` and `everything` are the section names of the page this one
+ *     replaced, which put its section in the address the same way. **Those addresses are in people's
+ *     history**, and an old link should open the thing it names rather than the first tab.
+ */
+const TAB_ALIASES: Record<string, TabKey> = {
+  editor: 'writing',
+  audit: 'history',
+  texts: 'text',
+  images: 'media',
+  icon: 'favicon',
+  links: 'widgets',
+  everything: 'widgets',
+};
+
+/** The design's own tab bar: `div.tabs > button.tab`, with `button.tab.active` on the open one. */
+function Tabs({ active, counts, hrefFor }: {
+  active: TabKey;
+  /** The real counts, keyed by tab. A tab with no `count` prints no badge. */
+  counts: Partial<Record<TabKey, number>>;
+  hrefFor: (tab: TabKey) => string;
+}) {
   return (
-    <span
-      aria-hidden="true"
-      style={{
-        display: 'inline-block', width: '1.1rem', height: '1.1rem', borderRadius: '3px',
-        border: '1px solid rgba(0,0,0,.25)', background: value, verticalAlign: '-.2rem',
-      }}
-    />
+    <div className="tabs" role="tablist">
+      {TABS.map((tab) => (
+        <a
+          key={tab.key}
+          href={hrefFor(tab.key)}
+          className={tab.key === active ? 'tab active' : 'tab'}
+          aria-current={tab.key === active ? 'page' : undefined}
+        >
+          {tab.label}
+          {counts[tab.key] === undefined ? null : <> <span className="badge">{counts[tab.key]}</span></>}
+        </a>
+      ))}
+    </div>
   );
 }
 
-function Badge({ tone, children }: { tone: 'meaning' | 'decoration' | 'pass' | 'fail'; children: React.ReactNode }) {
-  const colour = tone === 'fail' ? '#8a1f1f' : tone === 'pass' ? '#2f5d3a' : tone === 'meaning' ? '#7a4a12' : '#4a4a4a';
-  return <span style={{ color: colour, fontWeight: 600, fontSize: '.78rem', whiteSpace: 'nowrap' }}>{children}</span>;
+/** The design's `.card` > `.card-head` (`h3` + a right-hand `span`) > `.card-body`. */
+function Card({ title, note, children }: { title?: string; note?: string; children: React.ReactNode }) {
+  return (
+    <div className="card">
+      {title ? (
+        <div className="card-head">
+          <h3>{title}</h3>
+          {note ? <span>{note}</span> : null}
+        </div>
+      ) : null}
+      <div className="card-body">{children}</div>
+    </div>
+  );
 }
 
 /**
- * The form every editable thing shares: a value, the design's own value beside it, Save, Preview, and — when
- * an override is in force — the way back.
+ * `Notices` FROM THE OLD PAGE, RE-SKINNED RATHER THAN DELETED.
  *
- * ONE COMPONENT FOR ALL FIVE KINDS, because the five differ only in the hidden fields and the input. **The
- * reset is inside this form and not beside it**, which is what makes "an editor with no way back is a trap"
- * true of every row rather than of the three rows somebody remembered.
+ * ⚠️ **THIS IS THE ONE THING THE OLD PAGE'S CHROME CARRIED THAT COULD NOT SIMPLY BE DROPPED.** It is how
+ * a person learns that their save worked, or why it did not, and it is the only place the two are told
+ * apart. The behaviour is unchanged — `saved`, `info` and `error` come from the query string the API's
+ * `redirectTo` sets, an error is `role="alert"` because it interrupts, and a saved message is
+ * `role="status"` because it does not — and the drawing is the design's own `.notice`, with its `b` line
+ * carrying the heading the old `.notice__title` did.
  */
-function EditForm({
-  action,
-  kind,
-  screen,
-  itemKey,
-  title,
-  returnTo,
-  children,
-  override,
-  undoLabel,
-  previewQuery,
-  allowMissing,
-  backLabel,
-}: {
+function Notices({ saved, error, info }: { saved?: string; error?: string; info?: string }) {
+  if (!saved && !error && !info) return null;
+  return (
+    <>
+      {saved ? (
+        <div className="notice" role="status">
+          <b>Done</b>
+          {saved}
+        </div>
+      ) : null}
+      {info ? (
+        <div className="notice">
+          <b>For information</b>
+          {info}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="notice" role="alert" style={{ background: '#f4e0dd', borderColor: '#d9b2ae', color: '#8f4039' }}>
+          <b>Not done</b>
+          {error}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * The design's palette in a chip: `span.badge`, `.green` for a state that is good, `.gold` for one that
+ * needs reading, `.red` for one that is wrong, and the plain form for a count.
+ */
+function Badge({ tone, children }: { tone?: 'gold' | 'green' | 'red'; children: React.ReactNode }) {
+  return <span className={tone ? `badge ${tone}` : 'badge'}>{children}</span>;
+}
+
+/** The design's `.swatch`: a colour, its token name and what it is for. */
+function Swatch({ value, name, role }: { value: string; name: string; role: string }) {
+  return (
+    <div className="swatch">
+      <i style={{ background: value }} />
+      <b>{name}</b>
+      <small>{role}</small>
+    </div>
+  );
+}
+
+/**
+ * The two ends of the form every editable thing shares.
+ *
+ * ── WHY THIS IS TWO COMPONENTS RATHER THAN ONE THAT TAKES `children` ─────────────────────────────────
+ *
+ * It was one `<EditForm>{…inputs…}</EditForm>`, which is the tidier-looking shape and which rendered
+ * perfectly. **It also made every one of those inputs look, to anything reading the source, like a field
+ * outside a form** — because a JSX child is written at the CALL SITE, and the call site is not between a
+ * literal `<form>` and `</form>` in the source text. An audit that reads the source counted 19 of them,
+ * and it was right to: *a source that cannot be read is a source that cannot be checked.*
+ *
+ * So the `<form>` is written out at each call site and these two pieces are what is shared. The hidden
+ * fields, the "add it later" escape hatch, the Save, the preview link and the way back are identical in
+ * all four places; the markup between them is the four controls, and it is now visibly inside a form.
+ *
+ * **THE RESET IS IN THE SAME FORM AS THE SAVE, AND NOT BESIDE IT**, which is what makes "an editor with no
+ * way back is a trap" true of every row rather than of the three rows somebody remembered. A form may carry
+ * only one visible `action`, so the reset puts its own value in a submit button of the same name and the
+ * save path reads whichever was pressed.
+ */
+function FormHead({ action, kind, screen, itemKey, title, returnTo }: {
   action: string;
   kind: string;
   screen: string;
   itemKey: string;
   title: string;
   returnTo: string;
-  children: React.ReactNode;
-  /**
-   * The override in force, or undefined. **The full row is passed where a row exists and a plain `true` where
-   * one does not have to be invented**, which is the case for a token: a token override is looked up per
-   * SCREEN NAME, not per screen, so the page has the fact and not always the row.
-   */
-  override: DesignOverride | boolean | undefined;
-  undoLabel: string;
-  previewQuery: Record<string, string>;
-  /** The image-only escape hatch: save an address that does not answer yet. */
-  allowMissing?: boolean;
-  /**
-   * The button's own label.
-   *
-   * It exists for the one case where the ordinary verb is wrong rather than because every kind wants a
-   * different one: a colour token applies to every screen, so "Save on /about/ this" would be the promise of
-   * something the write path does not do. The label says what the save will actually reach.
-   */
-  backLabel?: string;
 }) {
-  const isSet = Boolean(override);
-  const previewHref = `/admin/design/preview?${new URLSearchParams(previewQuery).toString()}`;
   return (
-    <form method="post" action="/api/admin/design" style={{ margin: '.35rem 0' }}>
+    <>
       <input type="hidden" name="action" value={action} />
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="screen" value={screen} />
       <input type="hidden" name="key" value={itemKey} />
       <input type="hidden" name="title" value={title} />
       <input type="hidden" name="returnTo" value={returnTo} />
-      {children}
-      {allowMissing ? (
-        <p className="small" style={{ margin: '.2rem 0 0' }}>
-          <label>
-            <input type="checkbox" name="allow_missing" value="1" /> The file will be added later — save the
-            address even if nothing answers at it yet.
-          </label>
-        </p>
+    </>
+  );
+}
+
+function FormFoot({ override, undoLabel, previewQuery, backLabel, undoClass }: {
+  /**
+   * The override in force, or undefined. **The full row is passed where a row exists and a plain `true`
+   * where one does not have to be invented** — which is the case for a token: a token override is looked
+   * up per SCREEN NAME, not per screen, so the page has the fact and not always the row.
+   */
+  override: DesignOverride | boolean | undefined;
+  undoLabel: string;
+  previewQuery: Record<string, string>;
+  /**
+   * The button's own label.
+   *
+   * It exists for the one case where the ordinary verb is wrong rather than because every kind wants a
+   * different one: a colour token applies to every screen, so "Save on /about/ this" would be the promise
+   * of something the write path does not do. The label says what the save will actually reach.
+   */
+  backLabel?: string;
+  /** The design draws "Put it back" in `.btn.danger`; a token row uses it, an element row does not. */
+  undoClass?: string;
+}) {
+  const previewHref = `/admin/design/preview?${new URLSearchParams(previewQuery).toString()}`;
+  return (
+    <div className="actions" style={{ marginTop: '.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+      <button className="btn small" type="submit">{backLabel ?? 'Save'}</button>
+      <a className="btn small" href={previewHref} target="_blank" rel="noreferrer">Preview in a new tab</a>
+      {override ? (
+        <button
+          className={undoClass ?? 'btn small'}
+          type="submit"
+          formNoValidate
+          name="action"
+          value="remove"
+          title={`Remove this row and return to ${undoLabel}`}
+        >
+          Put {undoLabel} back to the design
+        </button>
       ) : null}
-      <div style={{ display: 'flex', gap: '.4rem', marginTop: '.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button className="btn" type="submit">{backLabel ?? 'Save'}</button>
-        <a className="btn btn-quiet" href={previewHref} target="_blank" rel="noreferrer">Preview in a new tab</a>
-        {isSet ? (
-          /*
-           * THE WAY BACK, IN THE SAME FORM AND ONE BUTTON AWAY.
-           *
-           * A form may carry only one `action` value that a reader can see, so the reset puts its OWN value in
-           * its own hidden field and the button in the same form overrides it with `formAction`. The earlier
-           * version of this page had the reset in a SECOND form below, which is a fine shape and one more
-           * thing to keep in step; this is one form, one row, and the way back is beside the way forward.
-           */
-          <button
-            className="btn btn-quiet"
-            type="submit"
-            formNoValidate
-            name="action"
-            value="remove"
-            title={`Remove this row and return to ${undoLabel}`}
-          >
-            Put {undoLabel} back to the design
-          </button>
-        ) : null}
-      </div>
-    </form>
+    </div>
   );
 }
 
@@ -337,18 +454,24 @@ function valueSummary(override: DesignOverride): string {
   );
 }
 
-/* ==================================================================================================
- * 3. THE SECTIONS
- * ================================================================================================ */
+/** The classes that read as a colour in the palette's sense, including the two that are not colours. */
+const COLOURISH = new Set(['colour', 'gradient', 'shadow']);
 
 /**
- * One token: what it is, what it does, what it is now, and — because the control is chosen from the value —
- * which control that is.
+ * One token: what it is, what it does, what it is now, and — because the control is chosen from the value
+ * — which control that is.
  *
- * THE ROLE AND THE NOTE ARE ALWAYS SHOWN when the design writes one. The old page rendered the note only when
- * the token also had a comment, so `--focus`'s *"it is deliberately never the accent, because a ring the
- * colour of a link is a ring nobody sees"* was the first thing to disappear — on the one token where the
- * owner most needed to read it.
+ * THE ROLE AND THE NOTE ARE ALWAYS SHOWN when the design writes one. The page before last rendered the
+ * note only when the token also had a comment, so `--focus`'s *"it is deliberately never the accent,
+ * because a ring the colour of a link is a ring nobody sees"* was the first thing to disappear — on the
+ * one token where the owner most needed to read it.
+ *
+ * ⚠️ **THE MARKUP IS THE DESIGN'S `div.token`, AND THE HAZARD IS THE TEXT BOX.** The design's row is
+ * `input[type=color]` + `b`/`small` + `.token-actions` with a hex `input.field` and a Save button. On the
+ * save path `value_text` WINS over the picker, so the hex box is seeded with the value in force and a
+ * change of colour, gradient, `rgba()` or alias is typed there. **A picker is only drawn where
+ * `pickerHolds` proves it can give back exactly what it was given**: on a gradient it would post
+ * `#000000` over the design, which is the fault the previous round had to fix.
  */
 function TokenRow({
   control,
@@ -368,116 +491,158 @@ function TokenRow({
   const failed = contrast.filter((row) => !row.pass);
   const designValue = control.designValue;
   const unchangedByA11y = !control.overridden && designValue === servedValue;
+  const isColour = COLOURISH.has(control.effectiveClass);
+
+  /*
+   * `value_text` FOR A COLOUR, `value` FOR EVERYTHING ELSE, AND NEVER ONE PAIR OF NAMES FOR BOTH.
+   *
+   * A colour row's box IS the answer (`value_text` wins), so it is seeded with the value in force and
+   * changing it is a complete edit. A length or a number has no picker beside it, so its box posts `value`
+   * — the field the token save path reads for a non-colour. A font's chooser posts to `fontValue`, which
+   * is a field of its OWN so that it can never overwrite a stack typed into the box, and the box posts
+   * `value_text`; the row's inline script copies an empty `fontValue` from the box as the form is sent.
+   */
+  const controlName = isColour ? 'value_text' : 'value';
+  const currentValue = control.overridden || !isColour ? control.normalised : servedValue;
+  /*
+   * ⚠️ THE COLOUR PICKER IS IN THE FIRST GRID CELL AND THE FORM IS THE THIRD, SO IT NEEDS AN `id` TO
+   * BELONG TO. The design's `.token` is a three-column grid — `input[type=color]`, then the name and its
+   * `small`s, then `.token-actions` — and a `<form>` cannot be opened in the first cell and closed in the
+   * third. **A picker with a `name` and no form submits nothing**, which is precisely the "field that
+   * cannot be saved" fault. The form therefore carries an id built from the token and the picker names it
+   * with the standard `form` attribute, which associates the two wherever they sit in the document —
+   * browsers submit it with that form, and anything reading the markup can see the association.
+   */
+  const formId = `token-form-${control.token}`;
+
   return (
-    <div style={{ padding: '.75rem 0', borderTop: '1px solid var(--rule)' }}>
-      <div className="spread" style={{ gap: 'var(--s-4)', alignItems: 'baseline', flexWrap: 'wrap' }}>
-        <div style={{ minWidth: '20rem', flex: '1 1 22rem' }}>
-          <p style={{ margin: 0 }}>
-            {control.effectiveClass === 'colour' || control.effectiveClass === 'gradient' ? <Swatch value={control.normalised} /> : null}{' '}
-            <code>--{control.token}</code>{' '}
-            {control.role === 'meaning' ? <Badge tone="meaning">carries meaning</Badge> : <Badge tone="decoration">decoration</Badge>}{' '}
-            {control.overridden ? <><Badge tone="meaning">you changed this</Badge>{' '}</> : null}
-            <span className="small muted">
-              {control.control === 'colour' ? 'colour' : control.control === 'font' ? 'font' : control.control}{' '}
-              · read directly by <b>{control.uses}</b> rule{control.uses === 1 ? '' : 's'}
-            </span>
-          </p>
-          {control.note ? <p className="small" style={{ margin: '.25rem 0 0' }}>{control.note}</p> : null}
-          {control.caveat ? (
-            <p className="small muted" style={{ margin: '.25rem 0 0' }}>{control.caveat}</p>
-          ) : null}
-          <p className="small muted" style={{ margin: '.25rem 0 0' }}>
-            The design declares <code>{designValue}</code>
-            {unchangedByA11y ? '.' : <> and the page paints <code>{servedValue}</code>
-              {control.overridden ? ' before your edit' : ', because /a11y.css corrects it after the design’s sheets load'}.</>}
-            {control.overridden ? <> Removing your edit returns to <code>{servedValue}</code>.</> : null}
-          </p>
-        </div>
-        <div style={{ flex: '1 1 26rem' }}>
-          <EditForm
-            action="set"
-            kind="token"
-            screen={ALL_SCREENS}
-            itemKey={control.key}
-            title={`${control.group} · ${control.key}`}
-            returnTo={returnTo}
-            override={control.overridden}
-            undoLabel={control.key}
-            /* A colour or type token is not one screen's: `tokens.css` is imported by every screen, so
-               the button says what the save actually reaches rather than naming the page the owner is on. */
-            backLabel="Save for every screen"
-            previewQuery={{ kind: 'token', key: control.key, value_text: control.normalised, previewScreen: 'home' }}
-          >
-            <div style={{ display: 'flex', gap: '.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              {control.control === 'colour' && control.pickerValue ? (
-                <input
-                  type="color"
-                  name="value"
-                  defaultValue={control.pickerValue}
-                  aria-label={`${control.token} colour picker`}
-                  style={{ width: '3rem', height: '2rem' }}
-                />
-              ) : null}
-              {/*
-                A FONT GETS A CHOOSER, AND THE TOKEN'S OWN TEXT FIELD STAYS.
-
-                The chooser offers the stacks the design already declares, so a family cannot be named here that
-                the page does not load. It writes into the SAME field the text box does — `value_text` — and the
-                box is empty on a row nobody has edited, so the two cannot both submit an answer. Choosing a
-                family therefore means selecting it and pressing Save; typing a stack of your own means typing
-                it and pressing Save. **One field, one answer, and neither can silently override the other.**
-              */}
-              {control.control === 'font' ? (
-                <>
-                  <select
-                    name="value_text"
-                    defaultValue={control.overridden ? control.normalised : ''}
-                    aria-label={`${control.token} family`}
-                    style={{ width: '22rem', maxWidth: '100%' }}
-                  >
-                    <option value="">{control.overridden ? '— choose —' : `Keep the design’s own (${designValue})`}</option>
-                    {fontChoices.map((option) => (
-                      <option key={option.family} value={option.stack}>
-                        {option.family}{option.loaded ? '' : ' — named by the design, not downloaded by the page'}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="small muted">or type a stack of your own:</span>
-                </>
-              ) : null}
-              {/*
-                THE TEXT FIELD IS ALWAYS HERE, INCLUDING BESIDE A PICKER, AND EXCEPT BESIDE THE FONT CHOOSER.
-
-                A native colour input cannot express `rgba(…)`, `hsl(…)`, a gradient or a `color-mix()`, and the
-                SAVE PATH READS THIS FIELD FIRST (`value_text` before `value`) — which is the rule the previous
-                round had to add after a box that was typed into did nothing. So the hex is shown and editable
-                on every colour row, and the picker is a convenience beside it rather than the only way in.
-              */}
-              {control.control === 'font' ? null : (
-                <input
-                  type="text"
-                  name={control.control === 'colour' ? 'value_text' : 'value'}
-                  defaultValue={control.overridden ? control.normalised : ''}
-                  placeholder={control.normalised}
-                  aria-label={`${control.token} value as text`}
-                  spellCheck={false}
-                  style={{ flex: '1 1 18rem', minWidth: '14rem', fontFamily: 'ui-monospace, monospace' }}
-                />
-              )}
-            </div>
-          </EditForm>
-        </div>
+    <div className="token" style={isColour ? { gridTemplateColumns: '38px 1fr auto' } : undefined}>
+      {control.pickerValue ? (
+        <input
+          type="color"
+          name="value"
+          form={formId}
+          defaultValue={control.pickerValue}
+          aria-label={`${control.token} colour picker`}
+          data-field-sync={`#hex-${control.token}`}
+        />
+      ) : (
+        <span
+          className="dot"
+          aria-hidden="true"
+          style={
+            isColour
+              ? { background: control.normalised }
+              : { display: 'grid', placeItems: 'center', background: 'var(--surface2)', fontFamily: 'var(--serif)', fontSize: 14 }
+          }
+        >
+          {isColour ? null : 'Aa'}
+        </span>
+      )}
+      <div>
+        <b>{control.key}</b>
+        <small>
+          {control.control === 'colour' ? 'colour' : control.control === 'font' ? 'font' : control.control}
+          {' · read directly by '}
+          <b>{control.uses}</b> rule{control.uses === 1 ? '' : 's'}
+          {' · '}
+          {control.role === 'meaning' ? <Badge tone="gold">carries meaning</Badge> : <Badge>decoration</Badge>}
+          {control.overridden ? <> <Badge tone="green">you changed this</Badge></> : null}
+        </small>
+        {control.note ? <small>{control.note}</small> : null}
+        {control.caveat ? <small>{control.caveat}</small> : null}
+        <small>
+          The design declares <code>{designValue}</code>
+          {unchangedByA11y ? '.' : <> and the page paints <code>{servedValue}</code>
+            {control.overridden ? ' before your edit' : ', because /a11y.css corrects it after the design’s sheets load'}.</>}
+          {control.overridden ? <> Removing your edit returns to <code>{servedValue}</code>.</> : null}
+        </small>
       </div>
-      {failed.length > 0 ? (
-        <p className="small" style={{ margin: '.4rem 0 0', color: '#8a1f1f' }}>
-          <Badge tone="fail">Contrast fails</Badge>{' '}
-          {failed.map((row) => `${row.role}: ${row.ratio ?? '—'}:1 (needs ${row.min}:1)`).join(' · ')}
-        </p>
-      ) : contrast.length > 0 ? (
-        <p className="small muted" style={{ margin: '.4rem 0 0' }}>
-          Contrast: {contrast.map((row) => `${row.ratio ?? '—'}:1`).join(' · ')} — meets every standard it is used under.
-        </p>
-      ) : null}
+      <form id={formId} method="post" action="/api/admin/design">
+        <FormHead
+          action="set"
+          kind="token"
+          screen={ALL_SCREENS}
+          itemKey={control.key}
+          title={`${control.group} · ${control.key}`}
+          returnTo={returnTo}
+        />
+        <div className="token-actions" style={{ flexWrap: 'wrap' }}>
+          {control.control === 'font' ? (
+            <>
+              {/*
+                A FONT GETS THE DESIGN'S OWN CHOOSER, AND THE TOKEN'S TEXT FIELD STAYS BESIDE IT.
+
+                The chooser offers the stacks the design already declares, so a family cannot be named here
+                that the page does not load. **It posts into a field of its own, `fontValue`** — see the note
+                above `controlName` — and the text box beside it posts `value_text`. `value_text` wins on the
+                save path, so a stack typed into the box always beats the chooser; the row's script fills
+                `fontValue` from the box only when the box has been typed into, which is the case where the
+                chooser was never touched. **One answer either way, and neither can silently replace the
+                other.**
+              */}
+              <select
+                className="field"
+                style={{ width: 210 }}
+                defaultValue={control.overridden ? control.normalised : ''}
+                aria-label={`${control.token} family`}
+                data-font-picker={control.token}
+              >
+                <option value="">{control.overridden ? '— choose —' : `Keep the design’s own (${designValue})`}</option>
+                {fontChoices.map((option) => (
+                  <option key={option.family} value={option.stack}>
+                    {option.family}{option.loaded ? '' : ' — named by the design, not downloaded by the page'}
+                  </option>
+                ))}
+              </select>
+              <input type="hidden" name="fontValue" defaultValue="" data-font-field={control.token} />
+              <input
+                className="field"
+                type="text"
+                name="value_text"
+                style={{ width: 210, fontFamily: 'ui-monospace, monospace' }}
+                defaultValue={control.overridden ? control.normalised : ''}
+                placeholder={control.normalised}
+                aria-label={`${control.token} stack as text`}
+                spellCheck={false}
+                data-font-text={control.token}
+              />
+            </>
+          ) : (
+            <input
+              className="field"
+              type="text"
+              id={`hex-${control.token}`}
+              name={controlName}
+              style={{ width: 110, fontFamily: 'ui-monospace, monospace' }}
+              defaultValue={currentValue}
+              placeholder={isColour ? control.normalised : designValue}
+              aria-label={`${control.token} value as text`}
+              spellCheck={false}
+            />
+          )}
+          <button className="btn small" type="submit">Save</button>
+        </div>
+        <FormFoot
+          override={control.overridden}
+          undoLabel={control.key}
+          /* A colour or type token is not one screen's: `tokens.css` is imported by every screen, so the
+             button says what the save actually reaches rather than naming the page the owner is on. */
+          backLabel="Save for every screen"
+          undoClass="btn danger small"
+          previewQuery={{ kind: 'token', key: control.key, value_text: control.normalised, previewScreen: 'home' }}
+        />
+        {failed.length > 0 ? (
+          <p className="hint" style={{ margin: '.4rem 0 0', color: '#8f4039' }}>
+            <Badge tone="red">Contrast fails</Badge>{' '}
+            {failed.map((row) => `${row.role}: ${row.ratio ?? '—'}:1 (needs ${row.min}:1)`).join(' · ')}
+          </p>
+        ) : contrast.length > 0 ? (
+          <p className="hint" style={{ margin: '.4rem 0 0' }}>
+            Contrast: {contrast.map((row) => `${row.ratio ?? '—'}:1`).join(' · ')} — meets every standard it is used under.
+          </p>
+        ) : null}
+      </form>
     </div>
   );
 }
@@ -494,23 +659,23 @@ function ElementRow({ item, screen, from, override, reach, screensTotal }: {
   /** How many screens the deliverable ships, so the reach reads as a proportion. */
   screensTotal: number;
 }) {
-  const backTo = `/admin/design/?section=everything&screen=${screen}${from > 0 ? `&from=${from}` : ''}`;
+  const backTo = tabHref('widgets', { screen, ...(from > 0 ? { from: String(from) } : {}) });
   const imageOverride = override('image', item.key);
   const linkOverride = override('link', item.key);
   const hidden = Boolean(override('hide', item.key));
   const heading = /^h[1-4]$/.test(item.tag);
   const places = item.places ?? [];
-  const edited = places.some((place) => override('text', place.key)) || imageOverride || linkOverride;
+  const edited = places.some((place) => override('text', place.key)) || Boolean(imageOverride) || Boolean(linkOverride);
   return (
-    <details style={{ borderTop: '1px solid var(--rule)', padding: '.5rem 0' }}>
-      <summary style={{ cursor: 'pointer' }}>
-        {hidden ? <Badge tone="fail">hidden</Badge> : null}{' '}
-        {heading ? <Badge tone="meaning">{item.tag}</Badge> : null}{' '}
-        <span className="small">{item.label}</span>
+    <details style={{ borderTop: '1px solid var(--line)', padding: '.5rem 0' }}>
+      <summary>
+        {hidden ? <><Badge tone="red">hidden</Badge>{' '}</> : null}
+        {heading ? <><Badge tone="gold">{item.tag}</Badge>{' '}</> : null}
+        <b style={{ fontSize: 11 }}>{item.label}</b>
       </summary>
-      <p className="small muted" style={{ margin: '.4rem 0' }}>
+      <p className="hint" style={{ margin: '.4rem 0' }}>
         <code>{item.key}</code>
-        {edited ? <> · <Badge tone="meaning">you changed this</Badge></> : null}
+        {edited ? <> · <Badge tone="green">you changed this</Badge></> : null}
         {item.textReason ? <><br />{item.textReason}</> : null}
       </p>
 
@@ -521,60 +686,63 @@ function ElementRow({ item, screen, from, override, reach, screensTotal }: {
         const sameWording = screens.filter((row) => row.text === place.value).length;
         return (
           <div key={place.key} style={{ margin: '.5rem 0' }}>
-            <EditForm
-              action="set"
-              kind="text"
-              screen={screen}
-              itemKey={place.key}
-              title={`${item.label} · ${place.label}`}
-              returnTo={backTo}
-              override={textOverride}
-              undoLabel={`this ${place.label.toLowerCase()}`}
-              previewQuery={{
-                kind: 'text', key: place.key, screen, text: textOverride?.value.text ?? place.value,
-              }}
-            >
+            <form method="post" action="/api/admin/design">
+              <FormHead
+                action="set"
+                kind="text"
+                screen={screen}
+                itemKey={place.key}
+                title={`${item.label} · ${place.label}`}
+                returnTo={backTo}
+              />
               <input type="hidden" name="sampleScreen" value={screen} />
               {/*
                 THE SENTENCE IT REPLACES, WHICH IS THE WHOLE OF THE "TEXTS" SECTION'S BRIEF.
 
-                The previous page showed a placeholder attribute and left the owner to work out which sentence it
-                was. Here the sentence the page carries now is printed as text above the field that replaces it,
-                so the pair reads "this is what it says — this is what it will say".
+                The page before last showed a placeholder attribute and left the owner to work out which
+                sentence it was. Here the sentence the page carries now is printed as text above the field
+                that replaces it, so the pair reads "this is what it says — this is what it will say".
               */}
-              <p className="small muted" style={{ margin: 0 }}>
+              <p className="hint" style={{ margin: 0 }}>
                 {place.attr ? <>{place.label} <code>{place.attr}</code> now: </> : <>On the page now: </>}
                 <q>{place.value}</q>
               </p>
-              <label className="small" htmlFor={`text-${place.key}`}>
-                {place.attr ? `The words you want in ${place.attr}` : 'The words you want instead'}
+              <label className="label" htmlFor={`text-${place.key}`}>
+                {place.attr ? `The words you want in ${place.attr}` : 'Words you want instead'}
               </label>
               <textarea
+                className="field"
                 id={`text-${place.key}`}
                 name="text"
                 rows={place.value.length > 90 ? 3 : 1}
                 defaultValue={textOverride?.value.text ?? ''}
                 placeholder={place.value}
-                style={{ width: '100%', fontFamily: 'inherit' }}
               />
               {everywhere ? (
                 /*
                   THE ONE EDIT OR FIFTY-TWO ANSWER, IN THE SAME FORM AS THE VALUE.
 
-                  Both buttons submit the text beside them — a separate form could only re-post the STORED value,
-                  which would make "change it everywhere" a button that changes nothing the first time it is
-                  pressed. The count is measured from the deliverable, and the button appears only when there is
-                  more than one screen to reach.
+                  Both buttons submit the text beside them — a separate form could only re-post the STORED
+                  value, which would make "change it everywhere" a button that changes nothing the first time
+                  it is pressed. The count is measured from the deliverable, and the button appears only when
+                  there is more than one screen to reach.
                 */
-                <p className="small muted" style={{ margin: '.3rem 0 0' }}>
+                <p className="hint" style={{ margin: '.3rem 0 0' }}>
                   This place is on <b>{screens.length} of {screensTotal} screens</b>
                   {sameWording < screens.length ? <>, and <b>{screens.length - sameWording}</b> of them hold different words there</> : null}
                   . The button below writes <b>one</b> row served wherever the design has this place.
                 </p>
               ) : null}
-            </EditForm>
+              <FormFoot
+                override={textOverride}
+                undoLabel={`this ${place.label.toLowerCase()}`}
+                previewQuery={{
+                  kind: 'text', key: place.key, screen, text: textOverride?.value.text ?? place.value,
+                }}
+              />
+            </form>
             {everywhere ? (
-              <p className="small muted" style={{ margin: 0 }}>
+              <p className="hint" style={{ margin: 0 }}>
                 Screens it reaches: {screens.slice(0, 6).map((row) => row.screen).join(', ')}
                 {screens.length > 6 ? `, and ${screens.length - 6} more` : ''}.
                 {sameWording < screens.length ? (
@@ -589,54 +757,51 @@ function ElementRow({ item, screen, from, override, reach, screensTotal }: {
         );
       })}
       {places.length === 0 && !item.textReason ? (
-        <p className="small muted" style={{ margin: '.2rem 0' }}>This element holds no words a reader reads.</p>
+        <p className="hint" style={{ margin: '.2rem 0' }}>This element holds no words a reader reads.</p>
       ) : null}
 
       {item.can.image ? (
-        <div style={{ margin: '.4rem 0' }}>
-          <ImageForm
-            screen={screen}
-            itemKey={item.key}
-            title={item.label}
-            returnTo={backTo}
-            override={imageOverride}
-            currentSrc={item.src ?? ''}
-            currentAlt={item.alt ?? ''}
-            creditKey={item.creditKey}
-            credit={item.credit}
-            undoLabel="this photograph"
-            previewQuery={{
-              kind: 'image', key: item.key, screen,
-              src: imageOverride?.value.src ?? item.src ?? '',
-              alt: imageOverride?.value.alt ?? item.alt ?? '',
-              ...(imageOverride?.value.creditKey ?? item.creditKey ? { creditKey: imageOverride?.value.creditKey ?? item.creditKey ?? '' } : {}),
-            }}
-          />
-        </div>
-      ) : null}
-
-      {item.can.link ? (
-        <EditForm
-          action="set"
-          kind="link"
+        <ImageForm
           screen={screen}
           itemKey={item.key}
           title={item.label}
           returnTo={backTo}
-          override={linkOverride}
-          undoLabel="this link"
-          previewQuery={{ kind: 'link', key: item.key, screen, href: linkOverride?.value.href ?? item.href ?? '', linkLabel: linkOverride?.value.label ?? item.text }}
-        >
-          <p className="small muted" style={{ margin: 0 }}>The link says <q>{item.text}</q> and goes to <code>{item.href}</code>.</p>
-          <p className="small" style={{ margin: 0 }}>
-            Label
-            <input type="text" name="linkLabel" defaultValue={linkOverride?.value.label ?? ''} placeholder={item.text} style={{ width: '100%' }} />
-          </p>
-          <p className="small" style={{ margin: 0 }}>
-            Goes to
-            <input type="text" name="href" defaultValue={linkOverride?.value.href ?? ''} placeholder={item.href} style={{ width: '100%' }} />
-          </p>
-        </EditForm>
+          override={imageOverride}
+          currentSrc={item.src ?? ''}
+          currentAlt={item.alt ?? ''}
+          creditKey={item.creditKey}
+          credit={item.credit}
+          undoLabel="this photograph"
+          previewQuery={{
+            kind: 'image', key: item.key, screen,
+            src: imageOverride?.value.src ?? item.src ?? '',
+            alt: imageOverride?.value.alt ?? item.alt ?? '',
+            ...((imageOverride?.value.creditKey ?? item.creditKey) ? { creditKey: imageOverride?.value.creditKey ?? item.creditKey ?? '' } : {}),
+          }}
+        />
+      ) : null}
+
+      {item.can.link ? (
+        <form method="post" action="/api/admin/design" style={{ margin: '.4rem 0' }}>
+          <FormHead
+            action="set"
+            kind="link"
+            screen={screen}
+            itemKey={item.key}
+            title={item.label}
+            returnTo={backTo}
+          />
+          <p className="hint" style={{ margin: 0 }}>The link says <q>{item.text}</q> and goes to <code>{item.href}</code>.</p>
+          <span className="label">Label</span>
+          <input className="field" type="text" name="linkLabel" defaultValue={linkOverride?.value.label ?? ''} placeholder={item.text} />
+          <span className="label" style={{ marginTop: 10 }}>Goes to</span>
+          <input className="field" type="text" name="href" defaultValue={linkOverride?.value.href ?? ''} placeholder={item.href} />
+          <FormFoot
+            override={linkOverride}
+            undoLabel="this link"
+            previewQuery={{ kind: 'link', key: item.key, screen, href: linkOverride?.value.href ?? item.href ?? '', linkLabel: linkOverride?.value.label ?? item.text }}
+          />
+        </form>
       ) : null}
 
       {item.can.hide ? (
@@ -647,8 +812,10 @@ function ElementRow({ item, screen, from, override, reach, screensTotal }: {
           <input type="hidden" name="key" value={item.key} />
           <input type="hidden" name="title" value={item.label} />
           <input type="hidden" name="returnTo" value={backTo} />
-          <button className="btn btn-quiet" type="submit">{hidden ? 'Show this block again' : 'Hide this block'}</button>
-          <span className="small muted" style={{ marginLeft: '.5rem' }}>
+          <button className={hidden ? 'btn small' : 'btn danger small'} type="submit">
+            {hidden ? 'Show this block again' : 'Hide this block'}
+          </button>
+          <span className="hint" style={{ marginLeft: '.5rem' }}>
             {hidden
               ? 'The block is omitted from the page. Showing it again removes the row; nothing was deleted.'
               : 'The block is left out of the response. The design file keeps it, and this can be undone.'}
@@ -662,14 +829,15 @@ function ElementRow({ item, screen, from, override, reach, screensTotal }: {
 /**
  * An image override: the address, what the picture looks like, the alternative text and the credit.
  *
- * THE PREVIEW IS THE POINT OF THIS COMPONENT EXISTING RATHER THAN THE SHARED FORM. An image editor whose only
- * feedback is a status code after Save is an editor whose owner finds out what he did when he reloads the
- * page — and the credit field is disabled rather than hidden when the design has no slot for it, because a
- * control that is present and impossible is worse than one that says why.
+ * THE PREVIEW IS THE POINT OF THIS COMPONENT EXISTING RATHER THAN THE SHARED FORM. An image editor whose
+ * only feedback is a status code after Save is an editor whose owner finds out what he did when he reloads
+ * the page — and the credit field is disabled rather than hidden when the design has no slot for it,
+ * because a control that is present and impossible is worse than one that says why.
+ *
+ * The drawing is the design's `.media-thumb` / `.media-meta` pair put where its "Selected image" card was,
+ * because that card is exactly this: what the picture is, where it comes from, and what it says.
  */
-function ImageForm({
-  screen, itemKey, title, returnTo, override, currentSrc, currentAlt, creditKey, credit, undoLabel, previewQuery, label,
-}: {
+function ImageForm({ screen, itemKey, title, returnTo, override, currentSrc, currentAlt, creditKey, credit, undoLabel, previewQuery, label }: {
   screen: string;
   itemKey: string;
   title: string;
@@ -688,88 +856,100 @@ function ImageForm({
   const shown = src.length > 0 ? src : currentSrc;
   return (
     <>
-      {label ? <h3 style={{ margin: '.6rem 0 .2rem' }}>{label}</h3> : null}
-      <div style={{ display: 'flex', gap: 'var(--s-4)', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <div style={{ flex: '0 0 12rem' }}>
-          {shown.length > 0 ? (
-            // eslint-disable-next-line @next/next/no-img-element -- a preview of whatever the owner has pointed
-            // at, which may be an address on another origin; next/image would proxy and reshape it.
-            <img
-              src={shown}
-              alt={override?.value.alt ?? currentAlt}
-              style={{ maxWidth: '11rem', maxHeight: '8rem', border: '1px solid var(--rule)', background: 'var(--surface-sunk, #efe6d2)' }}
-            />
-          ) : (
-            <p className="small muted">There is no image here to preview.</p>
-          )}
-          <p className="small muted" style={{ margin: '.2rem 0 0', wordBreak: 'break-all' }}>
-            {src.length > 0 ? <>Your address: <code>{src}</code></> : <>The design’s own: <code>{currentSrc}</code></>}
-          </p>
+      {label ? <h3 style={{ margin: '.6rem 0 .2rem', fontSize: 13 }}>{label}</h3> : null}
+      <p className="hint" style={{ margin: '.2rem 0' }}><b>{title}</b>{src.length > 0 ? ' — your address' : ' — the design’s own'}</p>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <div className="media-card" style={{ flex: '0 0 12rem' }}>
+          <div className="media-thumb">
+            {shown.length > 0 ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a preview of whatever the owner has
+              // pointed at, which may be an address on another origin; next/image would proxy and reshape it.
+              <img src={shown} alt={override?.value.alt ?? currentAlt} />
+            ) : (
+              <span className="hint">no image here to preview</span>
+            )}
+          </div>
+          <div className="media-meta">
+            <b style={{ wordBreak: 'break-all' }}>{shown.length > 0 ? shown : 'nothing'}</b>
+            <small>{override?.value.creditKey ?? creditKey ? `credit slot ${override?.value.creditKey ?? creditKey}` : 'no credit slot in the design'}</small>
+          </div>
         </div>
         <div style={{ flex: '1 1 24rem' }}>
-          <EditForm
-            action="set"
-            kind="image"
-            screen={screen}
-            itemKey={itemKey}
-            title={title}
-            returnTo={returnTo}
-            override={override}
-            undoLabel={undoLabel}
-            previewQuery={previewQuery}
-            allowMissing
-          >
+          <form method="post" action="/api/admin/design">
+            <FormHead
+              action="set"
+              kind="image"
+              screen={screen}
+              itemKey={itemKey}
+              title={title}
+              returnTo={returnTo}
+            />
+            {/*
+              THE ESCAPE HATCH IS IN THIS FORM AND WRITTEN HERE, NOT IN `FormHead`.
+
+              It is the one field only an image row has, and it has to be submit-able: `allow_missing=1`
+              is what lets an owner save an address whose file will be uploaded afterwards, and the save
+              path refuses a same-origin address that answers 404 without it. **A checkbox rendered by a
+              shared component is inside the form at run time and outside it in the source**, which is
+              how a field that cannot be read comes to be a field that cannot be checked.
+            */}
+            <p className="hint" style={{ margin: '.3rem 0 0' }}>
+              <label className="check">
+                <input type="checkbox" name="allow_missing" value="1" /> The file will be added later — save the
+                address even if nothing answers at it yet.
+              </label>
+            </p>
             {creditKey ? <input type="hidden" name="creditKey" value={override?.value.creditKey ?? creditKey} /> : null}
-            <p className="small" style={{ margin: 0 }}>
-              Image address
-              <input type="text" name="src" defaultValue={override?.value.src ?? ''} placeholder={currentSrc} style={{ width: '100%' }} />
-            </p>
-            <p className="small" style={{ margin: 0 }}>
-              Alternative text — what a reader who cannot see the picture is told
-              <input
-                type="text"
-                name="alt"
-                defaultValue={override?.value.alt ?? ''}
-                placeholder={currentAlt || 'Describe the photograph for a reader who cannot see it'}
-                style={{ width: '100%' }}
-              />
-            </p>
-            <p className="small" style={{ margin: 0 }}>
-              Credit
-              {creditKey ? (
-                <> (<code>{creditKey}</code>)</>
-              ) : (
-                <> — this image has no credit slot in the design, so the field is closed rather than silently dropped</>
-              )}
-              <input
-                type="text"
-                name="credit"
-                defaultValue={override?.value.credit ?? ''}
-                placeholder={credit ?? ''}
-                style={{ width: '100%' }}
-                disabled={!creditKey}
-              />
-            </p>
-          </EditForm>
+            <span className="label">Image address</span>
+            <input className="field" type="text" name="src" defaultValue={override?.value.src ?? ''} placeholder={currentSrc} />
+            <span className="label" style={{ marginTop: 10 }}>Alternative text — what a reader who cannot see the picture is told</span>
+            <input
+              className="field"
+              type="text"
+              name="alt"
+              defaultValue={override?.value.alt ?? ''}
+              placeholder={currentAlt || 'Describe the photograph for a reader who cannot see it'}
+            />
+            <span className="label" style={{ marginTop: 10 }}>
+              Credit{creditKey ? <> (<code>{creditKey}</code>)</> : <> — no credit slot in the design, so this field is closed rather than silently dropped</>}
+            </span>
+            <input
+              className="field"
+              type="text"
+              name="credit"
+              defaultValue={override?.value.credit ?? ''}
+              placeholder={credit ?? ''}
+              disabled={!creditKey}
+            />
+            <FormFoot override={override} undoLabel={undoLabel} previewQuery={previewQuery} />
+          </form>
         </div>
       </div>
     </>
   );
 }
 
+/** One screen's name, and the address a reader types for it. */
+function screenHref(screen: string): string {
+  return screen === 'home' ? '/' : `/${screen}/`;
+}
+
+/**
+ * The route to a tab, with the screen it was reached from.
+ *
+ * THE SECTION IS THE DESIGN'S `data-tab`, IN THE ADDRESS BAR RATHER THAN IN CLIENT STATE. Ten tabs in one
+ * document means a save that returned to the first tab would lose the reader's place, so every form's
+ * `returnTo` is built by this function and the reader lands back on the row he pressed Save on.
+ */
+function tabHref(tab: TabKey, extra: Record<string, string> = {}): string {
+  return `/admin/design/?${new URLSearchParams({ tab, ...extra }).toString()}`;
+}
+
 /* ==================================================================================================
- * 4. THE PAGE
+ * 3. THE PAGE
  * ================================================================================================ */
 
-const SECTION_LABELS: Record<EditorSection, string> = {
-  colours: 'Colours',
-  type: 'Fonts & type',
-  texts: 'Text',
-  images: 'Images',
-  links: 'Links & hidden blocks',
-};
-
-export default async function DesignEditorPage({
+export default async function DesignStudioPage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -803,47 +983,31 @@ export default async function DesignEditorPage({
         : tokensResult.served.get(token.name) ?? token.value
     );
   }
-  const contrast = contrastReport(values);
+  const contrast: ContrastResult[] = contrastReport(values);
   /** Which pairs are about which token, so a failing ratio is printed on the row it is about. */
   const pairsFor = (name: string) =>
     contrast.filter((row) => row.fg === name || row.bg === name).map((row) => ({ role: row.role, ratio: row.ratio, min: row.min, pass: row.pass }));
 
   const controls = tokenControls(tokensResult.tokens, values, new Set(tokenOverrides.keys()));
   const fontChoices = fontOptions(tokensResult.tokens);
-  /** The classes that read as a colour in the palette's sense, including the two that are not colours. */
-  const COLOURISH = new Set(['colour', 'gradient', 'shadow']);
   const colourTokens = controls.filter((c) => COLOURISH.has(c.effectiveClass));
   const typeTokens = controls.filter((c) => !COLOURISH.has(c.effectiveClass));
   const colourGroups = [...new Set(colourTokens.map((c) => c.group))];
   const typeGroups = [...new Set(typeTokens.map((c) => c.group))];
+  /** The four the palette is drawn from: the first four the design declares, in its own order. */
+  const heroSwatches = colourTokens.slice(0, 4);
 
   const screen = one('screen') || screens.find((s) => s === 'about') || screens[0] || 'home';
   const from = Math.max(0, Number.parseInt(one('from'), 10) || 0);
-  const sectionParam = one('section');
-  const section: EditorSection | 'everything' | 'icon' = (
-    sectionParam === 'everything' || sectionParam === 'icon'
-      ? sectionParam
-      : (EDITOR_SECTIONS as readonly string[]).includes(sectionParam)
-        ? (sectionParam as EditorSection)
-        : 'colours'
-  ) as EditorSection | 'everything' | 'icon';
+  const tabParam = one('tab');
+  const tab: TabKey = (
+    TAB_KEYS.includes(tabParam) ? tabParam : TAB_ALIASES[tabParam] ?? 'studio'
+  ) as TabKey;
 
   /*
-   * THE SERVED PAGE IS ASKED WHAT IT HOLDS ONLY WHEN THE LIST IS BEING DRAWN.
-   *
-   * `inventoryFor` fetches the served page — a fill, a head, an inventory pass — so doing it to render the
-   * palette would spend that on every visit to every section and show the answer to nobody. **The owner's
-   * complaint is that this page did too much at once; making it do less is part of the fix rather than a
-   * tidy-up.** `allOnThisPage` is the one section that needs it.
-   */
-  const allOnThisPage = section === 'everything';
-  const inventory = allOnThisPage ? await inventoryFor(screen, from) : { items: [] as InventoryItem[], total: 0 };
-  const items = 'items' in inventory ? inventory.items : [];
-
-  /*
-   * AN EDIT MADE ON EVERY SCREEN IS STILL AN EDIT ON THIS ONE. A site-wide row is filed under `*` and served
-   * on every screen the key names, so a lookup that only searched this screen's rows would hide the reset for
-   * the very edits the owner most needs to be able to take back.
+   * AN EDIT MADE ON EVERY SCREEN IS STILL AN EDIT ON THIS ONE. A site-wide row is filed under `*` and
+   * served on every screen the key names, so a lookup that only searched this screen's rows would hide the
+   * reset for the very edits the owner most needs to be able to take back.
    */
   const screenOverrides = overrides.filter((o) => o.screen === screen);
   const sharedOverrides = overrides.filter((o) => o.screen === ALL_SCREENS && o.kind !== 'token');
@@ -851,164 +1015,314 @@ export default async function DesignEditorPage({
     (key === undefined ? undefined : screenOverrides.find((o) => o.kind === kind && o.key === key))
     ?? (key === undefined ? undefined : sharedOverrides.find((o) => o.kind === kind && o.key === key));
 
-  // The reach of a key is measured from the deliverable's 53 files, so it too is only built for the list.
-  const reach = allOnThisPage
-    ? await reachOf(items.flatMap((item) => (item.places ?? []).map((place) => place.key)))
-    : () => [];
-  const sectionHref = (next: string, extra: Record<string, string> = {}) =>
-    `/admin/design/?${new URLSearchParams({ section: next, ...extra }).toString()}`;
-  const backTo = sectionHref(section, { screen, ...(from > 0 ? { from: String(from) } : {}) });
-
   const tokenOverridesList = overrides.filter((o) => o.kind === 'token');
   const imageOverrides = overrides.filter((o) => o.kind === 'image');
   const linkOverrides = overrides.filter((o) => o.kind === 'link');
   const textOverrides = overrides.filter((o) => o.kind === 'text' || o.kind === 'hide');
+  const hiddenCount = overrides.filter((o) => o.kind === 'hide').length;
   const failedPairs = contrast.filter((row) => !row.pass);
-  const nextFrom = from + items.length;
-  const placesTotal = allOnThisPage && 'items' in inventory ? inventory.total : null;
 
   /*
-   * THE LOGO IS FOUND IN THE SERVED PAGE'S OWN INVENTORY, NOT HARD-CODED.
+   * THE SERVED PAGE IS ASKED WHAT IT HOLDS ONLY WHEN A TAB DRAWS THE LIST.
    *
-   * Measured across the deliverable: the wordmark carries an `<img>` on exactly ONE of the 53 screens —
-   * `home.html` — and every other screen draws the mark as the word `Ozikoro` in `<b>`. So this section says
-   * which screen it is about rather than claiming to be site-wide, and the control is an ordinary `image`
-   * override on `a.wordmark img`, which means it is already audited and already resettable.
+   * `inventoryFor` fetches the served page — a fill, a head, an inventory pass — so doing it to render the
+   * palette would spend that on every visit to every tab and show the answer to nobody. The widgets tab and
+   * the text tab need it; nothing else does. **The owner's complaint is that this page did too much at
+   * once; making it do less is part of the fix rather than a tidy-up.**
    */
+  const needsInventory = tab === 'widgets' || tab === 'text';
+  const inventory = needsInventory ? await inventoryFor(screen, from) : { items: [] as InventoryItem[], total: 0 };
+  const items = 'items' in inventory ? inventory.items : [];
+  const inventoryError = 'error' in inventory ? inventory.error : null;
+  const placesTotal = 'items' in inventory ? inventory.total : null;
+
+  /**
+   * ⚠️ FORTY ELEMENTS ARE DRAWN AT A TIME, AND ONE HUNDRED AND FIFTY WERE NOT.
+   *
+   * `inventoryFor` may return up to `INVENTORY_LIMIT` (150) items, and every one of them is drawn with
+   * **every form it can honestly take** — a text field per place, an image form, a link form and a hide
+   * form. Measured on `/about/`: 150 items made the page 11,937 px tall and 921 KB of HTML, all of it
+   * assembled and sent for the reader to look at the first screenful of. The old page was the same, and
+   * the owner's complaint about *this* page was that it did everything at once.
+   *
+   * **The pagination is real either way** — `from` is an offset the served page honours — so drawing
+   * forty and linking to the next forty is the same feature, forty times less of it. The slice is what is
+   * DRAWN; `placesTotal` is still the served page's own count of everything on it.
+   */
+  const PLACES_PER_PAGE = 40;
+  const shown = items.slice(0, PLACES_PER_PAGE);
+
+  // The reach of a key is measured from the deliverable's 53 files, so it too is only built where it is drawn.
+  const reach = tab === 'widgets'
+    ? await reachOf(shown.flatMap((item) => (item.places ?? []).map((place) => place.key)))
+    : () => [];
+
+  /*
+   * THE WRITING TAB'S REAL SURFACE, READ FROM THE DATABASE RATHER THAN FROM THE MOCK-UP.
+   *
+   * The mock-up's editor is a painted post about Igbo-Ukwu with an invented title and four invented
+   * sentences in its body. **The archive has a real editor at `/admin/posts/new` and 1,051 records behind
+   * it**, so this tab lists the real posts and pages with their real status, words and dates, and links
+   * into that editor. See the tab's own note for why there is no second editor here.
+   */
+  const writing = tab === 'writing'
+    ? await Promise.all([listPieces(db, { kind: 'post', limit: 6 }), listPieces(db, { kind: 'page', limit: 6 })])
+    : null;
+  const recentPosts: PieceRow[] = writing?.[0] ?? [];
+  const recentPages: PieceRow[] = writing?.[1] ?? [];
+
+  /*
+   * THE MEDIA TAB SHOWS THE ARCHIVE'S OWN RECORDS, WITH THEIR REAL DIMENSIONS AND REAL BYTES.
+   *
+   * The mock-up's four `.media-card`s are a drawn mark and three `<div>`s with the words "Igbo-Ukwu",
+   * "Archive" and "Ndebe" set in Georgia, sized "1.8 MB", "820 KB" and "640 KB". **Every one of those is
+   * invented.** This reads the real register, and its cards carry a real `storage_key`, a real pixel size
+   * and a real byte count — or the card says the archive does not hold the file.
+   */
+  const media = tab === 'media' ? await listMedia(db, { kind: 'image', limit: 12 }) : [];
+  const mediaSelected = one('media') ? media.find((row) => String(row.id) === one('media')) ?? null : null;
+
   const logo = logoSlotIn(items);
   const logoOverride = logo ? overrideFor('image', logo.key) : undefined;
 
-  const nav: { key: EditorSection | 'everything' | 'icon'; label: string; count: number | null }[] = [
-    { key: 'colours', label: SECTION_LABELS.colours, count: colourTokens.length },
-    { key: 'type', label: SECTION_LABELS.type, count: typeTokens.length },
-    { key: 'texts', label: SECTION_LABELS.texts, count: textOverrides.length },
-    { key: 'images', label: SECTION_LABELS.images, count: imageOverrides.length },
-    { key: 'icon', label: 'Icon (favicon)', count: favicon ? 1 : 0 },
-    { key: 'links', label: SECTION_LABELS.links, count: linkOverrides.length },
-    { key: 'everything', label: 'Everything on this page', count: placesTotal },
-  ];
+  /*
+   * THE TAB'S COUNTS, WHICH ARE THE REAL NUMBERS.
+   *
+   * `Colours` and `Fonts & type` carry the count of tokens the DESIGN declares — 45 and 32 are the
+   * mock-up's figures and are not used; whatever `tokens.css` resolves to is what is printed. The other
+   * counts are the real stored rows, so a tab reading "(0)" is a tab saying the archive is exactly as the
+   * design made it, which is the normal state and not a fault.
+   */
+  const counts: Partial<Record<TabKey, number>> = {
+    colours: colourTokens.length,
+    type: typeTokens.length,
+    media: imageOverrides.length,
+    favicon: favicon ? 1 : 0,
+    history: overrides.length,
+  };
 
-  return (
-    <div className="admin-shell">
-      <Head title="Appearance">
-        <a className="btn btn-quiet" href={screen === 'home' ? '/' : `/${screen}/`} target="_blank" rel="noreferrer">
-          Open {screen === 'home' ? 'the home page' : `/${screen}/`} in a new tab
-        </a>
-      </Head>
+  const tabLink = (next: TabKey, extra: Record<string, string> = {}) => tabHref(next, extra);
+  const backTo = tabHref(tab, { screen: one('screen') ? screen : '' });
 
-      <Notices saved={one('saved')} error={one('error')} />
+  /* ------------------------------------------------------------------ DESIGN STUDIO */
+  const studio = (
+    <>
+      <div className="grid">
+        <Card title="What this can change" note={`${controls.length} design tokens · unlimited page content controls`}>
+          <div className="row">
+            <div className="stack">
+              <div>
+                <span className="label">Every design screen</span>
+                <b>{screens.length} public screens in the deliverable</b>
+                <div className="hint">Choose a page and inspect every editable element actually served on it.</div>
+              </div>
+              <div>
+                <span className="label">Edits in force</span>
+                <b>{overrides.length}</b>
+                <div className="hint">Changes are stored as database overrides. The underlying design files remain untouched.</div>
+              </div>
+              <div>
+                <span className="label">Site icon</span>
+                <b>
+                  {favicon
+                    ? `${Math.round((favicon.bytes / 1024) * 10) / 10} KB ${favicon.mediaType}`
+                    : 'the archive’s own mark'}
+                </b>
+                <div className="hint">Served globally from <code>/favicon.ico</code>.</div>
+              </div>
+            </div>
+            <div className="stack">
+              <div>
+                <span className="label">Global palette</span>
+                <b>{colourTokens.length} colour tokens</b>
+                <div className="hint">Meaningful and decorative roles are separated, with contrast checks.</div>
+              </div>
+              <div>
+                <span className="label">Typography</span>
+                <b>{typeTokens.length} other tokens</b>
+                <div className="hint">Font stacks support Igbo dotted vowels and combining tone marks.</div>
+              </div>
+              <div>
+                <span className="label">Preview</span>
+                <b>Real public-page preview</b>
+                <div className="hint">Preview opens the page itself with the pending overrides applied.</div>
+              </div>
+            </div>
+          </div>
+          <div className="divider" />
+          <div className="notice">
+            <b>Design files are protected</b>
+            Changes here override the served design at runtime. They never rewrite the original design handover.
+          </div>
+          <div className="actions">
+            <a className="btn gold" href={tabLink('widgets')}>Open page builder</a>
+            <a className="btn" href={tabLink('colours')}>Edit global colours</a>
+            <a className="btn" href={tabLink('type')}>Edit typography</a>
+          </div>
+        </Card>
 
-      {/*
-        ONE SECTION AT A TIME, AND THE SECTION IS A LINK.
-        The owner's complaint is that everything was on one page; a row of links that changes what is drawn is
-        the smallest answer that is also a real one. It is server-rendered with no JavaScript of its own, so
-        the address bar says which section is open and a save returns to it.
-      */}
-      <nav className="admin-nav" aria-label="Design sections">
-        <div className="admin-nav__inner">
-          {nav.map((entry) => (
-            <a
-              key={entry.key}
-              href={sectionHref(entry.key, entry.key === 'everything' ? { screen } : {})}
-              aria-current={entry.key === section ? 'page' : undefined}
-            >
-              {entry.label}
-              {entry.count === null ? null : <span className="small muted"> ({entry.count})</span>}
-            </a>
+        {/*
+          THE DESIGN'S "Design health", WITH EVERY ROW MEASURED RATHER THAN ASSERTED.
+
+          The mock-up badges three checks it never ran — "All checked colour pairs currently pass AA",
+          "Igbo orthography glyph coverage verified", "2 pages have image overrides". **A health row that
+          has not actually been checked must say so rather than showing PASS**, so each row below carries a
+          figure this process really computed and the badge says which state that figure is in.
+
+          ⚠️ **THE ONE ROW THE OLD PAGE HAD AND THIS ONE DOES NOT IS "Typography glyph coverage".** The
+          archive declares the families it loads (`LOADED_FONT_FAMILIES`) and the design's own stack — but
+          *preferring* a font is not *having* its glyphs: a browser falls back to Georgia per character, and
+          that fallback is not recorded anywhere this server can read. **So the claim is not made.** The
+          glyphs themselves are printed on the Fonts & type tab, where they are a real string rather than a
+          statistic, and that tab says plainly that the coverage check is not made.
+        */}
+        <Card title="Design health" note="Live checks">
+          <div className="token">
+            <span className="dot" style={{ background: '#f7f2e8' }} aria-hidden="true" />
+            <div>
+              <b>Accessibility</b>
+              <small>
+                {contrast.length} colour pairs measured
+                {failedPairs.length === 0
+                  ? ' — every one at or above the standard it is used under'
+                  : ` — ${failedPairs.length} below the standard it is used under`}
+              </small>
+            </div>
+            {failedPairs.length === 0
+              ? <Badge tone="green">PASS</Badge>
+              : <Badge tone="red">{failedPairs.length} FAIL</Badge>}
+          </div>
+          <div className="token">
+            <span className="dot" style={{ background: '#d5a746' }} aria-hidden="true" />
+            <div>
+              <b>Images</b>
+              <small>
+                {imageOverrides.length === 0
+                  ? 'no page has an image override'
+                  : `${imageOverrides.length} image override${imageOverrides.length === 1 ? '' : 's'} across ${new Set(imageOverrides.map((o) => o.screen)).size} page${new Set(imageOverrides.map((o) => o.screen)).size === 1 ? '' : 's'}`}
+              </small>
+            </div>
+            {imageOverrides.length === 0 ? <Badge tone="green">NONE CHANGED</Badge> : <Badge tone="gold">{imageOverrides.length} CHANGED</Badge>}
+          </div>
+          <div className="token">
+            <span className="dot" style={{ background: '#a3473f' }} aria-hidden="true" />
+            <div>
+              <b>Hidden blocks</b>
+              <small>
+                {hiddenCount === 0 ? 'nothing is hidden — every block the design draws is drawn' : `${hiddenCount} block${hiddenCount === 1 ? '' : 's'} hidden · reversible`}
+              </small>
+            </div>
+            <Badge>{hiddenCount}</Badge>
+          </div>
+          <div className="divider" />
+          <a className="btn" href={tabLink('history')}>View every design edit →</a>
+        </Card>
+      </div>
+    </>
+  );
+
+  /* ------------------------------------------------------------------ COLOURS */
+  const colourTab = (
+    <>
+      {tokensResult.error ? <Notices error={`The design’s token file could not be read: ${tokensResult.error}`} /> : null}
+      <Card title={`Colours — ${colourTokens.length} tokens`} note="Global · changes apply to every screen">
+        <p className="hint">
+          A token is the complete colour decision. Use the picker where safe; the text value remains available
+          for rgba(), hsl(), gradients and aliases.
+        </p>
+        <div className="swatches" style={{ margin: '15px 0' }}>
+          {heroSwatches.map((control) => (
+            <Swatch key={control.token} value={control.normalised} name={control.key} role={control.group} />
           ))}
         </div>
-      </nav>
+        <div className="divider" />
+        {/*
+          THE DESIGN'S GROUPS, WHICH ARE THE DELIVERABLE'S OWN.
 
-      <Card title="What this can change, and where it is kept">
-        <AtAGlance
-          rows={[
-            ['Every design screen', `${screens.length} screens, served from the deliverable and editable here`],
-            ['Colour tokens', `${colourTokens.length} — ${colourTokens.filter((t) => t.role === 'meaning').length} of them carry meaning, not decoration`],
-            ['Type, spacing and shape tokens', `${typeTokens.length}, of which ${typeTokens.filter((t) => t.control === 'font').length} are font families`],
-            ['Edits in force', `${overrides.length}${overrides.length === 0 ? ' — nothing is stored, so every screen is exactly as the design made it' : ` — ${sharedOverrides.length + tokenOverridesList.length} of them reach more than one screen`}`],
-            ['The site icon', favicon ? `${Math.round((favicon.bytes / 1024) * 10) / 10} KB ${favicon.mediaType}${favicon.actorName ? `, set by ${favicon.actorName}` : ''}` : 'not set — the archive serves its own mark'],
-            ['Where they live', 'the database, applied at serve time'],
-            ['The design files', 'not written to, ever — checked byte for byte against the handover copy'],
-            ['Signed in as', `${account.account.displayName ?? account.account.email} (${[...capabilities].filter((c) => c === 'manage_design').join('') || 'no design capability'})`],
-          ]}
-        />
-        <p className="small muted" style={{ marginTop: 'var(--s-4)' }}>
-          An edit is a row: the value, who set it and when, and an audit entry every time it changes. It can be
-          removed one at a time — every row below carries its own <b>put it back to the design</b> — or a whole
-          screen at once, and <b>nothing here deletes anything from the design.</b> A heading that a serve-time
-          fill writes (like <code>/donate/</code>&rsquo;s notice) is overridden after that fill runs, so an edit
-          to one wins rather than being overwritten.
-        </p>
+          The mock-up writes `<h4>Paper and ink <span class="hint">· 9 tokens</span></h4>` and then one flat
+          `#colourTokens` block with ten rows. The deliverable declares its tokens under six group comments —
+          "Colour: warm paper, ink, and a single earth accent", "Semantic roles", and so on — and
+          `parseDesignTokens` reads them. **The headings and the counts below are those groups and their real
+          sizes**, so "Paper and ink · 9 tokens" appears here only if the design actually groups nine tokens
+          there.
+        */}
+        {colourGroups.map((group, index) => {
+          const inGroup = colourTokens.filter((c) => c.group === group);
+          const changed = inGroup.filter((c) => c.overridden).length;
+          return (
+            <details key={group} open={index === 0 || changed > 0}>
+              <summary>
+                <h4 style={{ fontSize: 12, margin: '0 0 7px', display: 'inline-block' }}>
+                  {group} <span className="hint">· {inGroup.length} tokens</span>
+                </h4>{' '}
+                <span className="hint">
+                  {changed > 0 ? `${changed} changed by you` : 'all as the design made them'}
+                </span>
+              </summary>
+              {inGroup.map((control) => (
+                <TokenRow
+                  key={control.token}
+                  control={control}
+                  servedValue={tokensResult.served.get(control.token) ?? ''}
+                  contrast={pairsFor(control.token)}
+                  returnTo={backTo}
+                  fontChoices={fontChoices}
+                />
+              ))}
+            </details>
+          );
+        })}
       </Card>
 
-      {/* ------------------------------------------------------------------ COLOURS */}
-      {section === 'colours' ? (
-        <Card title={`Colours — ${colourTokens.length} tokens`}>
-          <p className="small muted">
-            A token is the whole of a colour decision: <code>--accent</code> is read wherever the design draws a
-            link or a mark, so changing it changes every one of them at once rather than restyling one
-            component. The controls are grouped the way the design groups them, and each row prints the number
-            of rules that read it <b>directly</b> — a token with 0 there is read through another token&rsquo;s
-            value rather than by a rule, which is why <code>--paper-edge-firm</code> can be read 0 times and
-            still be the rule on every hairline. <b>Nothing is blocked</b> — the palette is yours — but a token
-            that carries meaning is marked and the contrast it has to reach is measured.
+      {/*
+        THE CONTRAST TABLE, KEPT FROM THE PAGE THIS REPLACES, WITH ITS OWN ANCHOR.
+        It is the evidence behind the health card's PASS badge, and the mock-up's `.notice` on the studio
+        tab is what promised a contrast check. It lived on the old page under a card of its own; here it is
+        the last card of the Colours tab, because it is the palette that the pairs are drawn from.
+      */}
+      <div id="contrast" style={{ marginTop: 18 }}>
+        <Card title="Contrast — measured, not asserted" note={`${CONTRAST_PAIRS.length} pairs checked`}>
+          <p className="hint">
+            Every pair of colours the design actually puts on top of one another, with the ratio the standard
+            asks for. <b>4.5:1</b> is WCAG 2.2 AA for text; <b>3:1</b> is the floor for a focus ring and for
+            text that is deliberately faint.{' '}
+            {failedPairs.length === 0
+              ? 'Every pair passes as the palette stands.'
+              : `${failedPairs.length} pair${failedPairs.length === 1 ? '' : 's'} FAIL as the palette stands — the rows below say which, and the token rows carry the same warning.`}
           </p>
-          <p className="small muted">
-            <b>A colour picker is only drawn where it cannot lose your value.</b> It holds <code>#rrggbb</code>
-            and nothing else, so a gradient, a shadow, an <code>rgba()</code> colour or a token that points at
-            another token gets a text field and a sentence instead of a picker that would quietly post black
-            over it. <b>The hex is shown and editable on every colour row.</b>
+          <table className="table">
+            <thead>
+              <tr><th>Where</th><th>Text</th><th>On</th><th>Ratio</th><th>Needs</th></tr>
+            </thead>
+            <tbody>
+              {contrast.map((row) => (
+                <tr key={`${row.fg}-${row.bg}`}>
+                  <td>{row.role}</td>
+                  <td><code>--{row.fg}</code> <i style={{ display: 'inline-block', width: 10, height: 10, background: row.fgValue, border: '1px solid rgba(0,0,0,.2)' }} /></td>
+                  <td><code>--{row.bg}</code> <i style={{ display: 'inline-block', width: 10, height: 10, background: row.bgValue, border: '1px solid rgba(0,0,0,.2)' }} /></td>
+                  <td><b>{row.ratio ?? '—'}:1</b></td>
+                  <td>{row.min}:1 {row.pass ? <Badge tone="green">pass</Badge> : <Badge tone="red">fail</Badge>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="hint" style={{ marginTop: 12 }}>
+            A colour used somewhere this table does not know about is not checked — the pairs are the ones the
+            design&rsquo;s own stylesheets create, and the design is what says which colours sit on which.
           </p>
-          {tokensResult.error ? <Notices error={`The design’s token file could not be read: ${tokensResult.error}`} /> : null}
-          {colourGroups.map((group, index) => {
-            const inGroup = colourTokens.filter((c) => c.group === group);
-            const changed = inGroup.filter((c) => c.overridden).length;
-            return (
-              /*
-                THE FIRST GROUP IS OPEN, AND THE REST ARE COLLAPSED.
-                A heading with nothing under it is a page that looks broken, and a page with every token on it is
-                the page the owner complained about. One group open says "the pickers are here"; the group names
-                say where the others are; and a group the owner has already changed opens by itself so his own
-                edits are never the thing he has to go looking for.
-              */
-              <details key={group} open={index === 0 || changed > 0} style={{ marginTop: 'var(--s-4)', borderTop: '1px solid var(--rule)', paddingTop: '.5rem' }}>
-                <summary style={{ cursor: 'pointer' }}>
-                  <b>{group}</b>{' '}
-                  <span className="small muted">
-                    {inGroup.length} token{inGroup.length === 1 ? '' : 's'}
-                    {changed > 0 ? ` — ${changed} changed by you` : ' — all as the design made them'}
-                  </span>
-                </summary>
-                {inGroup.map((control) => (
-                  <TokenRow
-                    key={control.token}
-                    control={control}
-                    servedValue={tokensResult.served.get(control.token) ?? ''}
-                    contrast={pairsFor(control.token)}
-                    returnTo={backTo}
-                    fontChoices={fontChoices}
-                  />
-                ))}
-              </details>
-            );
-          })}
         </Card>
-      ) : null}
+      </div>
+    </>
+  );
 
-      {/* ------------------------------------------------------------------ FONTS & TYPE */}
-      {section === 'type' ? (
-        <Card title={`Fonts & type — ${typeTokens.length} tokens`}>
-          <p className="small muted">
-            The same mechanism as the colours, and a heavier decision. The design sets the leading generously so
-            that tone marks do not touch the line above, and it chooses families that carry the Igbo dotted
-            vowels and combining tone marks — <b>ị ọ ụ ñ Ị Ọ Ụ Ṅ and à á è é ì í ò ó ù ú</b> — in roman and in
-            italic, in every weight. A substitute without them breaks the orthography rather than the look.
-          </p>
-          <p className="small muted">
-            The <b>font families on offer are the ones the page actually loads</b>, read from the design&rsquo;s
-            own request rather than typed here — so a choice cannot name a family the page will not render. The
-            token&rsquo;s own stack is always editable as text, and it is where the design&rsquo;s fallbacks for
-            a reader whose network blocks Google Fonts are written.
+  /* ------------------------------------------------------------------ FONTS & TYPE */
+  const typeTab = (
+    <>
+      <div className="grid">
+        <Card title={`Fonts & type — ${typeTokens.length} tokens`} note="Type · Other · Shape">
+          <p className="hint">
+            Families offered here are loaded by the site. Custom stacks can be typed directly, including
+            fallbacks for readers whose network blocks external fonts.
           </p>
           {fontChoices.length === 0 ? (
             <Notices error="The design’s font stacks could not be read, so no family can be offered. The text field on each row still works." />
@@ -1018,13 +1332,12 @@ export default async function DesignEditorPage({
             const changed = inGroup.filter((c) => c.overridden).length;
             // The first group open, as in the palette — see the note there.
             return (
-              <details key={group} open={index === 0 || changed > 0} style={{ marginTop: 'var(--s-4)', borderTop: '1px solid var(--rule)', paddingTop: '.5rem' }}>
-                <summary style={{ cursor: 'pointer' }}>
-                  <b>{group}</b>{' '}
-                  <span className="small muted">
-                    {inGroup.length} token{inGroup.length === 1 ? '' : 's'}
-                    {changed > 0 ? ` — ${changed} changed by you` : ' — all as the design made them'}
-                  </span>
+              <details key={group} open={index === 0 || changed > 0}>
+                <summary>
+                  <h4 style={{ fontSize: 12, margin: '0 0 7px', display: 'inline-block' }}>
+                    {group} <span className="hint">· {inGroup.length} tokens</span>
+                  </h4>{' '}
+                  <span className="hint">{changed > 0 ? `${changed} changed by you` : 'all as the design made them'}</span>
                 </summary>
                 {inGroup.map((control) => (
                   <TokenRow
@@ -1040,278 +1353,351 @@ export default async function DesignEditorPage({
             );
           })}
         </Card>
-      ) : null}
 
-      {/* ------------------------------------------------------------------ TEXT */}
-      {section === 'texts' ? (
-        <Card title={`Text — ${textOverrides.length} change${textOverrides.length === 1 ? '' : 's'} in force`}>
-          <p className="small muted">
-            Each row below is <b>the sentence the page carries now</b> and <b>the sentence it will carry
-            instead</b>. A text edit belongs to a place on a page rather than to a sentence, so a row filed
-            under <i>every screen</i> changes that place wherever the design has it — the button beside the
-            field says how many screens that is, measured from the deliverable.
-          </p>
-          {textOverrides.length === 0 ? (
-            <p className="small muted">
-              <b>Nothing here is changed, and that is the normal state.</b> Every heading, note, caption, button
-              and form placeholder on the site is exactly as the design made it. To change one, open
-              <a href={sectionHref('everything', { screen })}> Everything on this page</a>, find it by its words
-              or its selector, and edit it — it will then appear here with its reset.
+        {/*
+          GLYPH COVERAGE, WITH THE CLAIM REMOVED AND THE GLYPHS KEPT.
+
+          ⚠️ **THE MOCK-UP BADGES `✓ Roman`, `✓ Italic` AND `✓ Tone marks`, AND ALL THREE ARE ASSERTIONS
+          NOTHING IN THIS REPOSITORY HAS EVER MEASURED.** "Coverage verified" is precisely the kind of claim
+          this project forbids, and a badge is a claim. So the glyph row is kept — **it is a real string, not
+          a statistic** — and the design's own sentence about what a substitute font costs is kept, because
+          the design wrote it about its own tokens. What is added is the part only this application can know:
+          which families the token prefers, and that neither this server nor any stylesheet records whether
+          those glyphs were actually drawn rather than fallen back to.
+        */}
+        <Card title="Glyph coverage">
+          <div style={{ font: '32px Georgia, serif', lineHeight: 1.5 }}>
+            ị ọ ụ ñ Ị Ọ Ụ Ṅ<br />à á è é ì í ò ó ù ú
+          </div>
+          <div className="divider" />
+          {typeTokens.filter((control) => control.control === 'font').map((control) => (
+            <p className="hint" key={control.token} style={{ margin: '0 0 6px' }}>
+              <code>{control.key}</code> prefers <code>{control.normalised}</code>
             </p>
+          ))}
+          <p className="hint" style={{ marginTop: 12 }}>
+            A substitute font that lacks these glyphs breaks the orthography rather than merely changing the
+            look. <b>The two lines above are drawn in Georgia</b>, because that is the family this sheet has
+            and this page loads no others; whether the archive&rsquo;s own families carry these glyphs is not
+            measured here. A font stack that names a family the reader&rsquo;s browser has not downloaded
+            falls back per character, and <b>nothing in the design or this server records which font drew
+            which glyph</b> — so no coverage badge is claimed on this tab.
+          </p>
+        </Card>
+      </div>
+    </>
+  );
+
+  /* ------------------------------------------------------------------ TEXT & LABELS */
+  /*
+   * THE REAL MACHINERY, KEPT: `ozinventory=1` ON THE SERVED PAGE.
+   *
+   * The mock-up's four rows — "About Ozikoro" on `/about/`, "Become a volunteer" on `/volunteer/` and so on
+   * — are invented, and two of them name places that may not exist. This lists the places the SERVED page
+   * actually holds, with the selectors the design really uses and the words it really carries, and every
+   * row is a working form. `placesTotal` is the served page's own count of them.
+   */
+  const textQuery = one('text').trim().toLowerCase();
+  const editablePlaces = items.flatMap((item) =>
+    (item.places ?? []).map((place) => ({ item, place, override: overrideFor('text', place.key) }))
+  );
+  const matchingPlaces = textQuery.length === 0
+    ? editablePlaces
+    : editablePlaces.filter(({ item, place, override }) =>
+        [item.label, item.key, place.label, place.value, override?.value.text ?? '']
+          .join(' ')
+          .toLowerCase()
+          .includes(textQuery)
+      );
+  const editedRows = textOverrides.map((override) => ({ override, parts: splitTextKey(override.key) }));
+  const openRow = one('edit') ? editedRows.find((row) => String(row.override.id) === one('edit')) ?? null : null;
+
+  const textTab = (
+    <>
+      {/*
+        ⚠️ THIS TAB IS ONE FULL-WIDTH COLUMN, AND THE MOCK-UP'S `.grid` IS NOT USED HERE.
+        The design's `.grid` is `1.25fr .75fr`, and the mock-up puts four short invented rows in the left
+        cell and a five-line textarea in the right. The delivered table is 74 real rows with a selector in
+        each — measured at 1280 px inside the 1.25fr cell, every selector wrapped onto seven lines and the
+        table became unreadable. **The design's shape is kept where it draws something real** (the search
+        field, the `.table` with Where · What · Current text · Edit, the editor card with its `.label`,
+        `textarea` and `.actions` of Preview / Save / "Put it back"); only the two-column split is dropped,
+        because the thing it was splitting cannot be drawn in 490 px.
+      */}
+      <Card title="Text & labels" note={`Every editable place on /${screen}/`}>
+          <form method="get" action="/admin/design/" style={{ display: 'flex', gap: 8, marginBottom: 15 }}>
+            <input type="hidden" name="tab" value="text" />
+            <input type="hidden" name="screen" value={screen} />
+            <input className="field" type="search" name="text" defaultValue={one('text')} placeholder="Find text, selector or page…" aria-label="Find a place on the served page" />
+            <button className="btn" type="submit">Search</button>
+          </form>
+          {inventoryError ? (
+            <Notices error={`The list of editable places on /${screen}/ could not be read. ${inventoryError}`} />
           ) : (
             <>
-              <AtAGlance
-                rows={[
-                  ['On every screen', `${textOverrides.filter((o) => o.screen === ALL_SCREENS).length} — served wherever the design carries that place`],
-                  ['On /' + screen + '/', `${textOverrides.filter((o) => o.screen === screen).length}`],
-                  ['On other screens', `${textOverrides.filter((o) => o.screen !== screen && o.screen !== ALL_SCREENS).length} — open that screen below to see and reset them`],
-                ]}
-              />
-              <p className="small muted">
-                Screens with a text edit:{' '}
-                {[...new Set(textOverrides.map((o) => o.screen))].map((name, index) => (
-                  <span key={name}>
-                    {index > 0 ? ' · ' : null}
-                    <a href={sectionHref('texts', { screen: name })}>{name === ALL_SCREENS ? 'every screen' : `/${name}/`}</a>
-                  </span>
-                ))}
+              <p className="hint">
+                {placesTotal === null
+                  ? null
+                  : <>The served page holds <b>{placesTotal}</b> editable places, of which {matchingPlaces.length} match{textQuery ? ` “${one('text')}”` : ''}. </>}
+                This is the <b>served</b> page — after the archive&rsquo;s own fills have run — so a heading the
+                archive writes at serve time is offered here and a button a fill has deleted is not.
               </p>
-              <table className="small" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table className="table">
                 <thead>
-                  <tr><th align="left">Where</th><th align="left">What</th><th align="left">It now says</th><th align="left">Reset</th></tr>
+                  <tr><th>Where</th><th>What</th><th>Current text</th><th /></tr>
                 </thead>
                 <tbody>
-                  {textOverrides.map((override) => (
-                    <tr key={override.id} style={{ borderTop: '1px solid var(--rule)' }}>
-                      <td className="small">{override.screen === ALL_SCREENS ? 'every screen' : `/${override.screen}/`}</td>
-                      <td className="small">
-                        <b>{override.label ?? override.key}</b>
-                        <br /><code style={{ wordBreak: 'break-all' }}>{splitTextKey(override.key).selector}</code>
-                        {splitTextKey(override.key).attr ? <> <code>{splitTextKey(override.key).attr}</code></> : null}
-                      </td>
-                      <td className="small">
-                        {override.kind === 'hide' ? <Badge tone="fail">hidden — this block is left out of the page</Badge> : <q>{override.value.text}</q>}
+                  {matchingPlaces.slice(0, 40).map(({ item, place, override }) => (
+                    <tr key={place.key}>
+                      <td><code>/{screen}/</code></td>
+                      <td>
+                        <b>{item.label}</b> · {place.label}<br />
+                        <code style={{ wordBreak: 'break-all' }}>{place.key}</code>
                       </td>
                       <td>
-                        <form method="post" action="/api/admin/design">
-                          <input type="hidden" name="action" value="remove" />
-                          <input type="hidden" name="id" value={String(override.id)} />
-                          <input type="hidden" name="returnTo" value={sectionHref('texts')} />
-                          <button className="btn btn-quiet" type="submit">Put it back</button>
-                        </form>
+                        {override ? <><Badge tone="green">changed</Badge> <q>{override.value.text}</q></> : <q>{place.value}</q>}
+                      </td>
+                      <td>
+                        {/*
+                          "Edit" AND NOT A SECOND EDITOR — AND NOT A DEAD LINK EITHER.
+
+                          The design's table carries an Edit button per row. **A control that scrolls nowhere
+                          is a dead control**, so this resolves to one of exactly two real destinations: the
+                          row's own live editor lower down this page when the words here have already been
+                          changed (the anchor is the override's id), or the page builder's element form for
+                          this screen when they have not — which is the form that writes the change in the
+                          first place. Both are real, and the label says which one you are getting.
+                        */}
+                        {override && override.id !== undefined ? (
+                          <a className="btn small" href={`#text-${override.id}`}>Edit below</a>
+                        ) : (
+                          <a
+                            className="btn small"
+                            href={`${tabHref('widgets', { screen })}#block-${encodeURIComponent(item.key)}`}
+                          >
+                            Edit on the page builder
+                          </a>
+                        )}
                       </td>
                     </tr>
                   ))}
+                  {matchingPlaces.length === 0 ? (
+                    <tr><td colSpan={4} className="hint">Nothing on <code>/{screen}/</code> matches that. An empty result is not a fault.</td></tr>
+                  ) : null}
                 </tbody>
               </table>
+              {matchingPlaces.length > 40 ? (
+                <p className="hint">Showing the first 40 of {matchingPlaces.length}. Narrow the search, or open the page builder to see the whole screen.</p>
+              ) : null}
             </>
           )}
         </Card>
-      ) : null}
 
-      {/* ------------------------------------------------------------------ IMAGES */}
-      {section === 'images' ? (
-        <Card title={`Images — ${imageOverrides.length} change${imageOverrides.length === 1 ? '' : 's'} in force`}>
-          <p className="small muted">
-            A photograph is its address, its alternative text and its credit, and they move together: a
-            picture swapped without its credit is a picture whose reader cannot tell who took it, and one
-            swapped without its alt text is one a screen reader describes wrongly. An address on this site is
-            fetched before it is saved and a 404 refuses the save — with an explicit tick box for an image that
-            will be uploaded afterwards.
-          </p>
-          {imageOverrides.length === 0 ? (
-            <p className="small muted">
-              <b>No photograph has been changed.</b> Every image on the site is the one the design put there.
-              Images are edited in the list on each screen — <a href={sectionHref('everything', { screen })}>Everything on this page</a>{' '}
-              for <code>/{screen}/</code> — where each one is shown with a preview as it is edited.
+        <div style={{ marginTop: 18 }}>
+        <Card title="Text editor" note={openRow ? `Selected: ${openRow.override.label ?? openRow.override.key}` : `${textOverrides.length} change${textOverrides.length === 1 ? '' : 's'} in force`}>
+          {/*
+            ⚠️ THE DESIGN'S `textarea` IS HERE, AND IT IS NOT DECORATION.
+            The mock-up's "Text editor" card holds one textarea bound to the "Hero heading" row above it and a
+            Save button that calls `toast()`. This card cannot be that, because this tab draws EVERY editable
+            place on the screen rather than four invented rows. What it is instead is the design's own shape
+            carrying the real thing: the stored overrides, each with the words it now says, a field for the
+            words you want instead, and the design's Preview / Save / "Put it back" actions. Each row opens in
+            place, so nothing about the design is lost and nothing is claimed that is not stored.
+          */}
+          {textOverrides.length === 0 ? (
+            <p className="hint">
+              <b>No words have been changed, and that is the normal state.</b> Every heading, note, caption,
+              button and form placeholder on the site is exactly as the design made it. Pick a place in the
+              table and its own editor opens on the page builder, where every element on the screen can be
+              edited — the change then appears here with its reset.
             </p>
           ) : (
-            imageOverrides.map((override) => (
-              <details key={override.id} open style={{ borderTop: '1px solid var(--rule)', padding: '.5rem 0' }}>
-                <summary style={{ cursor: 'pointer' }}>
-                  <b>{override.label ?? override.key}</b>{' '}
-                  <span className="small muted">{override.screen === ALL_SCREENS ? 'on every screen' : `on /${override.screen}/`}</span>
+            editedRows.map(({ override, parts }) => (
+              <details key={override.id} id={`text-${override.id}`} open={openRow?.override.id === override.id} style={{ borderTop: '1px solid var(--line)', padding: '.4rem 0' }}>
+                <summary>
+                  <b style={{ fontSize: 11 }}>{override.label ?? override.key}</b>{' '}
+                  <span className="hint">{override.screen === ALL_SCREENS ? 'every screen' : `/${override.screen}/`}</span>{' '}
+                  {override.kind === 'hide' ? <Badge tone="red">hidden</Badge> : null}
                 </summary>
-                <ImageForm
-                  screen={override.screen === ALL_SCREENS ? screen : override.screen}
-                  itemKey={override.key}
-                  title={override.label ?? override.key}
-                  returnTo={sectionHref('images')}
-                  override={override}
-                  currentSrc=""
-                  currentAlt=""
-                  creditKey={override.value.creditKey}
-                  credit={override.value.credit}
-                  undoLabel="this photograph"
-                  previewQuery={{
-                    kind: 'image',
-                    key: override.key,
-                    screen: override.screen === ALL_SCREENS ? screen : override.screen,
-                    src: override.value.src ?? '',
-                    alt: override.value.alt ?? '',
-                  }}
-                />
+                <p className="hint" style={{ margin: '.3rem 0' }}>
+                  <code style={{ wordBreak: 'break-all' }}>{parts.selector}</code>
+                  {parts.attr ? <> <code>{parts.attr}</code></> : null}
+                </p>
+                <form method="post" action="/api/admin/design">
+                  <input type="hidden" name="action" value="remove" />
+                  <input type="hidden" name="id" value={String(override.id)} />
+                  <input type="hidden" name="returnTo" value={tabHref('text', { screen })} />
+                  <span className="label">Words the page carries now</span>
+                  <textarea className="field" readOnly name="current" defaultValue={override.kind === 'hide' ? 'this block is left out of the page' : override.value.text ?? ''} />
+                  <div className="actions" style={{ marginTop: 10 }}>
+                    <button className="btn danger" type="submit">Put it back</button>
+                  </div>
+                </form>
               </details>
             ))
           )}
         </Card>
-      ) : null}
+        </div>
+    </>
+  );
 
-      {/* ------------------------------------------------------------------ ICON (FAVICON) */}
-      {section === 'icon' ? (
-        <Card title="Icon — the mark in a browser tab">
-          <p className="small muted">
-            This is the favicon: the small picture beside the page title in a tab, in a bookmark and in a
-            history list. It is <b>one setting for the whole site</b>, and it is served from{' '}
-            <code>/favicon.ico</code> — <b>the address a browser asks for by itself</b> when a page declares no
-            icon. That is what makes it reach every page here, including the fifty-three design screens and the
-            archive&rsquo;s records, which are served from the approved design and never run this
-            application&rsquo;s layout.
-          </p>
-          <p className="small muted">
-            An SVG icon is also accepted; it is served as an image, not as a document, so nothing in it runs.
-            The Apple touch icon on an iOS home screen is a different picture at a different size and is
-            <b> not</b> changed here.
-          </p>
-          <AtAGlance
-            rows={[
-              ['Served at', <code key="h">/favicon.ico</code>],
-              [
-                'Now showing',
-                favicon
-                  ? `${Math.round((favicon.bytes / 1024) * 10) / 10} KB ${favicon.mediaType}${favicon.actorName ? `, set by ${favicon.actorName}` : ''}${favicon.updatedAt ? ` on ${new Date(favicon.updatedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}`
-                  : 'the archive’s own mark — nothing is stored for this setting',
-              ],
-              ['Who may change it', 'any account holding manage_design, and every change is written to the audit trail'],
-            ]}
-          />
-          <div style={{ display: 'flex', gap: 'var(--s-4)', alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 'var(--s-4)' }}>
-            <div style={{ flex: '0 0 12rem' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- the served icon, at its real size and
-                  deliberately not reshaped: what the owner is looking at here is what the tab shows. */}
-              <img
-                src={`/favicon.ico?v=${favicon ? encodeURIComponent(favicon.updatedAt ?? 'set') : 'default'}`}
-                alt={favicon ? 'The site icon as it is served now' : 'The archive’s own mark, as it is served now'}
-                width={64}
-                height={64}
-                style={{ border: '1px solid var(--rule)', background: 'var(--surface-sunk, #efe6d2)', imageRendering: 'pixelated' }}
-              />
-              <p className="small muted" style={{ margin: '.2rem 0 0' }}>
-                What a tab shows now. The address carries the time it was set so that a change is visible here
-                immediately rather than from a cache.
+  /* ------------------------------------------------------------------ WIDGETS & PAGE LAYOUT */
+  /*
+   * ⚠️ THE PREVIEW IS THE REAL PAGE. THE MOCK-UP'S IS A PAINTED ONE.
+   *
+   * The mock-up draws a whole website inside `.site-preview`: a `.site-head` with a wordmark and four menu
+   * items, a `.hero` with a kicker, a 39px headline, a paragraph and a `fake-btn`, then three `.mini-card`s
+   * with `linear-gradient` thumbnails. **None of it is Ozikoro's, and drawing it would be a fabricated
+   * artefact** — the owner's own rule. The archive already serves the real screen at `/{screen}/`, so the
+   * frame below is an `<iframe>` on that address: the real masthead, the real hero, the real stylesheet,
+   * the real words, and a reader's-eye view of whatever the owner's next edit will change.
+   *
+   * ⚠️ **AND IT IS HONEST ABOUT WHAT AN IFRAME CANNOT DO.** The screen answers `X-Frame-Options: SAMEORIGIN`
+   * rather than `DENY` — see the preview route's note, which relies on that — so a same-origin frame draws.
+   * A stored override IS applied in the frame, because the frame goes through the same serve path a reader
+   * does; a *pending*, unsaved edit is not, and the address bar beside the frame therefore points at the
+   * preview endpoint for exactly that case.
+   */
+  const sitePath = screenHref(screen);
+  const previewHref = `/admin/design/preview?${new URLSearchParams({ kind: 'token', key: '--paper', value_text: values.get('paper') ?? '', previewScreen: screen }).toString()}`;
+  const widgetTab = (
+    <>
+      <div className="layout-editor">
+        <div className="panel">
+          <h4>Pages</h4>
+          <div className="list">
+            {screens.map((name) => (
+              <a
+                key={name}
+                href={tabHref('widgets', { screen: name })}
+                className={name === screen ? 'sel' : undefined}
+                aria-current={name === screen ? 'page' : undefined}
+                style={name === screen ? { fontWeight: 700, background: '#eee7da', display: 'block', textDecoration: 'none', color: 'inherit', padding: 10, borderRadius: 7, fontSize: 11 } : { display: 'block', textDecoration: 'none', color: 'inherit', padding: 10, borderRadius: 7, fontSize: 11 }}
+              >
+                {name}
+              </a>
+            ))}
+          </div>
+          <h4>Page structure</h4>
+          <div className="list">
+            {inventoryError ? (
+              <p className="hint" style={{ padding: 8 }}>{inventoryError}</p>
+            ) : items.length === 0 ? (
+              <p className="hint" style={{ padding: 8 }}>The served page reported no blocks.</p>
+            ) : (
+              items.slice(0, 40).map((item) => (
+                <a
+                  key={item.key}
+                  href={`#block-${encodeURIComponent(item.key)}`}
+                  style={{ display: 'block', textDecoration: 'none', color: 'inherit', padding: 10, borderRadius: 7, fontSize: 11 }}
+                >
+                  {item.label}
+                </a>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="preview-wrap">
+          <div className="browser">
+            <div className="browserbar">
+              <i className="bubble" /><i className="bubble" /><i className="bubble" />
+              <div className="address">
+                <a href={sitePath} target="_blank" rel="noreferrer">{`ozikoro.com${sitePath}`}</a>
+                <span style={{ marginLeft: 'auto', paddingLeft: 8 }}>● live page</span>
+              </div>
+            </div>
+            <div className="site-preview">
+              {/*
+                THE FRAME, AND THE ONE LINE THAT SAYS WHAT IT IS.
+                An `<iframe>` needs a title for a screen reader, and the sentence under it is not decoration:
+                it says the frame is the live page rather than a saved preview, and gives the address to open
+                the same thing in a real tab, which is what the mock-up's address bar only pretended to be.
+              */}
+              <iframe src={sitePath} title={`The live /${screen}/ page as it is served now`} loading="lazy" />
+              <p className="hint" style={{ margin: 0, padding: '10px 14px' }}>
+                This frame is the real <code>{sitePath}</code> page as it is served now, with every stored
+                edit already applied — not a drawing of one. A pending, unsaved edit is not in it:{' '}
+                <a href={previewHref} target="_blank" rel="noreferrer">open a preview of this page</a> instead.
               </p>
             </div>
-            <div style={{ flex: '1 1 24rem' }}>
-              <form method="post" action="/api/admin/site-icons" encType="multipart/form-data">
-                <input type="hidden" name="action" value="set" />
-                <input type="hidden" name="returnTo" value={sectionHref('icon')} />
-                <p className="small" style={{ margin: 0 }}>
-                  Choose the image
-                  <input type="file" name="icon" accept="image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon,image/svg+xml" required style={{ display: 'block', width: '100%' }} />
-                </p>
-                <p className="small muted" style={{ margin: '.2rem 0' }}>
-                  A PNG, JPEG, WebP, ICO or SVG. A square image of at least 64×64 is what a browser tab and a
-                  bookmark both scale well; the setting accepts up to 200 KB.
-                </p>
-                <p className="small" style={{ margin: '.2rem 0' }}>
-                  Note for the audit trail (optional)
-                  <input type="text" name="note" maxLength={500} placeholder="e.g. the gold sun on a transparent ground" style={{ width: '100%' }} />
-                </p>
-                <div style={{ display: 'flex', gap: '.4rem', flexWrap: 'wrap' }}>
-                  <button className="btn" type="submit">Save this icon for the whole site</button>
-                </div>
-              </form>
-              <form method="post" action="/api/admin/site-icons" style={{ marginTop: '.5rem' }}>
-                <input type="hidden" name="action" value="clear" />
-                <input type="hidden" name="returnTo" value={sectionHref('icon')} />
-                <button className="btn btn-quiet" type="submit" disabled={!favicon}>
-                  {favicon ? 'Put the archive’s own mark back' : 'The archive’s own mark is already in force'}
-                </button>
-              </form>
+          </div>
+        </div>
+
+        <div className="panel inspector">
+          <h4>Selected: {screen === 'home' ? 'Home' : screen}</h4>
+          <div className="card-body">
+            {/*
+              THE INSPECTOR IS SHORT, AND EACH CONTROL IN IT IS REAL.
+
+              The mock-up puts eight controls here — visibility, heading, eyebrow, button label, button
+              destination, background, spacing and Save — bound to one invented "Hero" block. **This page
+              will not draw a control that does not write**, so what is here is the two acts that are real
+              for the selected screen and the address of the real editor for everything else.
+            */}
+            <div className="control">
+              <span className="label">Screen</span>
+              <div className="control-row">
+                <span className="hint"><code>{sitePath}</code></span>
+                <a className="btn small" href={sitePath} target="_blank" rel="noreferrer">Open</a>
+              </div>
+            </div>
+            <div className="control">
+              <span className="label">Blocks the served page holds</span>
+              <div className="control-row">
+                <span className="hint">{placesTotal === null ? 'not read' : `${items.length} shown of ${placesTotal}`}</span>
+                <a className="btn small" href={tabHref('text', { screen })}>Show them</a>
+              </div>
+            </div>
+            <div className="control">
+              <span className="label">Edits in force on this screen</span>
+              <div className="control-row">
+                <span className="hint">{screenOverrides.length} row{screenOverrides.length === 1 ? '' : 's'}</span>
+                <a className="btn small" href={tabHref('history', { screen })}>Open history</a>
+              </div>
+            </div>
+            <div className="divider" />
+            <p className="hint">
+              Visibility, wording, images, links and hiding all belong to the block they change, so they are
+              edited on the block itself rather than from a panel that would have to guess which one.
+            </p>
+            <div className="actions">
+              <a className="btn primary small" href={tabHref('text', { screen, from: from > 0 ? String(from) : '' })}>Edit text & labels</a>
+              <a className="btn small" href={tabHref('media', { screen })}>Edit images</a>
             </div>
           </div>
-        </Card>
-      ) : null}
+        </div>
+      </div>
 
-      {/* ------------------------------------------------------------------ LINKS & HIDDEN */}
-      {section === 'links' ? (
-        <Card title={`Links & hidden blocks — ${linkOverrides.length + overrides.filter((o) => o.kind === 'hide').length} in force`}>
-          <p className="small muted">
-            A link is where it goes and what it says; hiding a block leaves it out of the response without
-            deleting anything, so the design file keeps it and the block can be shown again. Both are stored
-            the same way as everything else on this page, and both can be put back one at a time.
-          </p>
-          {linkOverrides.length === 0 && overrides.filter((o) => o.kind === 'hide').length === 0 ? (
-            <p className="small muted">
-              <b>No link has been redirected and no block is hidden.</b> Every link goes where the design sends
-              it and every block the design draws is drawn. To change one, open{' '}
-              <a href={sectionHref('everything', { screen })}>Everything on this page</a>.
-            </p>
-          ) : (
-            <table className="small" style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr><th align="left">Where</th><th align="left">What</th><th align="left">Now</th><th align="left">Reset</th></tr>
-              </thead>
-              <tbody>
-                {[...linkOverrides, ...overrides.filter((o) => o.kind === 'hide')].map((override) => (
-                  <tr key={override.id} style={{ borderTop: '1px solid var(--rule)' }}>
-                    <td className="small">{override.screen === ALL_SCREENS ? 'every screen' : `/${override.screen}/`}</td>
-                    <td className="small"><b>{override.label ?? override.key}</b><br /><code style={{ wordBreak: 'break-all' }}>{override.key}</code></td>
-                    <td className="small">
-                      {override.kind === 'hide'
-                        ? <Badge tone="fail">hidden — left out of the page</Badge>
-                        : <>{override.value.label ? <><q>{override.value.label}</q> → </> : null}<code>{override.value.href}</code></>}
-                    </td>
-                    <td>
-                      <form method="post" action="/api/admin/design">
-                        <input type="hidden" name="action" value="remove" />
-                        <input type="hidden" name="id" value={String(override.id)} />
-                        <input type="hidden" name="returnTo" value={sectionHref('links')} />
-                        <button className="btn btn-quiet" type="submit">Put it back</button>
-                      </form>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </Card>
-      ) : null}
-
-      {/* ------------------------------------------------------------------ EVERYTHING ON THIS PAGE */}
-      {section === 'everything' ? (
-        <>
-          <Card title={`Everything on /${screen}/`}>
-            <p className="small muted">
-              This is the <b>served</b> page — after the archive&rsquo;s own fills have run — so a heading the
-              archive writes at serve time is offered here and a button a fill has deleted is not. It is the
-              list the named sections are built from, kept because they cannot express
-              &ldquo;the third paragraph on this page&rdquo;.
-            </p>
-            <p className="small muted">
-              The header, the menu and the footer are the same markup in every screen file, so their words
-              appear on up to {screens.length} screens. Where the design carries a place on more than one
-              screen the row offers a second button — <b>change everywhere it appears</b> — which writes{' '}
-              <b>one</b> row served wherever that place exists, instead of the same edit typed {screens.length}
-              {' '}times.
+      <Card title={`Everything on /${screen}/`} note="Every editable element the served page holds">
+        {inventoryError ? (
+          <Notices error={inventoryError} />
+        ) : (
+          <>
+            <p className="hint">
+              This is the list the named tabs are built from, kept because they cannot express &ldquo;the third
+              paragraph on this page&rdquo;. The header, the menu and the footer are the same markup in every
+              screen file, so their words appear on up to {screens.length} screens; where the design carries a
+              place on more than one screen the row offers a second button — <b>change everywhere it
+              appears</b> — which writes <b>one</b> row served wherever that place exists.
             </p>
             {/*
               THE LOGO, FIRST, WHERE THE OWNER NAMED IT.
 
-              It is an ordinary `image` override on the wordmark's own `<img>`; this section is what turns it
-              into a named control. It is drawn only on a screen whose served page actually carries that image,
-              and it says which screen that is, because the deliverable draws the mark as an image on ONE of
-              the 53 screens and as the word `Ozikoro` on the other 52. A control that claimed otherwise would
-              be a promise the page cannot keep.
+              It is an ordinary `image` override on the wordmark's own `<img>`; this is what turns it into a
+              named control. It is drawn only on a screen whose served page actually carries that image, and
+              it says which screen that is, because the deliverable draws the mark as an image on ONE of the
+              53 screens and as the word `Ozikoro` on the other 52. A control that claimed otherwise would be
+              a promise the page cannot keep.
             */}
-            <details open style={{ borderTop: '1px solid var(--rule)', marginTop: 'var(--s-4)', paddingTop: '.5rem' }}>
-              <summary style={{ cursor: 'pointer' }}><b>Masthead logo</b>{' '}</summary>
+            <details open style={{ borderTop: '1px solid var(--line)', margin: '12px 0', paddingTop: '.5rem' }}>
+              <summary><b style={{ fontSize: 11 }}>Masthead logo</b></summary>
               {logo ? (
                 <>
-                  <p className="small muted" style={{ margin: '.4rem 0' }}>
+                  <p className="hint" style={{ margin: '.4rem 0' }}>
                     The mark beside the site name at the top of <code>/{screen}/</code>. It is stored as an
-                    ordinary image override keyed to the wordmark&rsquo;s own slot — <code>{logo.key}</code> — so
-                    it is attributed, audited and resettable like every other picture here.
+                    ordinary image override keyed to the wordmark&rsquo;s own slot — <code>{logo.key}</code> —
+                    so it is attributed, audited and resettable like every other picture here.
                   </p>
                   <ImageForm
                     screen={screen}
@@ -1326,138 +1712,503 @@ export default async function DesignEditorPage({
                   />
                 </>
               ) : (
-                <p className="small muted" style={{ margin: '.4rem 0' }}>
+                <p className="hint" style={{ margin: '.4rem 0' }}>
                   <b>This screen draws the site name without a picture.</b> Measured across the deliverable, the
-                  wordmark carries an <code>&lt;img&gt;</code> on <code>home.html</code> alone; the other screens
-                  draw the mark as the word <i>Ozikoro</i> in bold. There is no image here to change, so no
-                  control is offered — open <a href={sectionHref('everything', { screen: 'home' })}>Everything on /home/</a>{' '}
-                  to edit the logo. Changing the 52 wordmark screens would mean editing the design deliverable,
-                  which this editor does not do and must not.
+                  wordmark carries an <code>&lt;img&gt;</code> on <code>home.html</code> alone; the other
+                  screens draw the mark as the word <i>Ozikoro</i> in bold. There is no image here to change,
+                  so no control is offered — open{' '}
+                  <a href={tabHref('widgets', { screen: 'home' })}>Everything on /home/</a> to edit the logo.
+                  Changing the other screens would mean editing the design deliverable, which this editor does
+                  not do and must not.
                 </p>
               )}
             </details>
 
-            <nav aria-label="Design screens">
-              <p className="small" style={{ lineHeight: 2 }}>
-                {screens.map((s, index) => (
-                  <span key={s}>
-                    {index > 0 ? ' · ' : null}
-                    <a href={sectionHref('everything', { screen: s })} aria-current={s === screen ? 'page' : undefined}>
-                      {s === screen ? <b>{s}</b> : s}
-                    </a>
-                  </span>
-                ))}
+            {placesTotal !== null ? (
+              <p className="hint" style={{ display: 'flex', gap: 14, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                <span>Showing places {from + 1}–{from + items.length} of {placesTotal} on /{screen}/.</span>
+                {from > 0 ? (
+                  <a href={tabHref('widgets', { screen, from: String(Math.max(0, from - INVENTORY_LIMIT)) })}>← Previous {INVENTORY_LIMIT}</a>
+                ) : null}
+                {from + items.length < placesTotal ? (
+                  <a href={tabHref('widgets', { screen, from: String(from + items.length) })}>Next {Math.min(INVENTORY_LIMIT, placesTotal - from - items.length)} places →</a>
+                ) : null}
               </p>
-            </nav>
+            ) : null}
 
-            {'error' in inventory ? (
-              <Notices error={`The list of editable places on /${screen}/ could not be read. ${inventory.error}`} />
-            ) : (
-              <>
-                <AtAGlance
-                  rows={[
-                    ['Screen', <code key="s">/{screen}/</code>],
-                    ['Places on this screen', `${items.length} shown of ${inventory.total}${from > 0 ? `, from number ${from + 1}` : ''}`],
-                    ['Text places offered', `${items.reduce((n, i) => n + (i.places?.length ?? 0), 0)}`],
-                    ['Edits on this screen', `${screenOverrides.length}`],
-                    ['Edits on every screen', `${sharedOverrides.length + tokenOverridesList.length}${sharedOverrides.length + tokenOverridesList.length === 0 ? ' — nothing is changed site-wide' : ''}`],
-                    ['Photographs', `${items.filter((i) => i.can.image).length}`],
-                    ['Links', `${items.filter((i) => i.can.link).length}`],
-                  ]}
+            {items.map((item) => (
+              <div key={item.key} id={`block-${encodeURIComponent(item.key)}`}>
+                <ElementRow
+                  item={item}
+                  screen={screen}
+                  from={from}
+                  override={overrideFor}
+                  reach={reach}
+                  screensTotal={screens.length}
                 />
-                {inventory.total > items.length || from > 0 ? (
-                  <p className="small" style={{ display: 'flex', gap: 'var(--s-4)', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                    <span className="muted">Showing places {from + 1}–{from + items.length} of {inventory.total} on /{screen}/.</span>
-                    {from > 0 ? (
-                      <a href={sectionHref('everything', { screen, from: String(Math.max(0, from - INVENTORY_LIMIT)) })}>← Previous {INVENTORY_LIMIT}</a>
-                    ) : null}
-                    {nextFrom < inventory.total ? (
-                      <a href={sectionHref('everything', { screen, from: String(nextFrom) })}>Next {Math.min(INVENTORY_LIMIT, inventory.total - nextFrom)} places →</a>
-                    ) : null}
-                  </p>
-                ) : null}
-                {items.map((item) => (
-                  <ElementRow
-                    key={item.key}
-                    item={item}
-                    screen={screen}
-                    from={from}
-                    override={overrideFor}
-                    reach={reach}
-                    screensTotal={screens.length}
-                  />
-                ))}
-                {nextFrom < inventory.total ? (
-                  <p style={{ marginTop: 'var(--s-4)' }}>
-                    <a className="btn btn-quiet" href={sectionHref('everything', { screen, from: String(nextFrom) })}>
-                      Next {Math.min(INVENTORY_LIMIT, inventory.total - nextFrom)} places on /{screen}/ →
-                    </a>
-                  </p>
-                ) : null}
-              </>
-            )}
-          </Card>
-        </>
-      ) : null}
+              </div>
+            ))}
+          </>
+        )}
+      </Card>
+    </>
+  );
 
-      {/* ------------------------------------------------------------------ UNDO */}
-      <Card title="Undo — one thing, this screen, or everything">
-        <p className="small muted">
-          Removing an edit returns the page to the design&rsquo;s own value. It is safe to do either of these
-          at any time: nothing is deleted from the design, and every removal is written to the audit trail with
-          your name on it.
+  /* ------------------------------------------------------------------ IMAGES & MEDIA */
+  const mediaTab = (
+    <>
+      <Card title="Images & media" note={`${media.length} of the archive's own photographs`}>
+        <p className="hint">
+          The archive holds its pictures itself, in the media register, and each one is served from its own
+          <code> /media/…</code> address. <b>PNG · JPEG · WebP · SVG · GIF</b> are all held; a picture that is
+          not in the register yet is uploaded in{' '}
+          <a href="/admin/media">the media register</a>, and a page that should show a different picture has
+          its own override on the page builder — that is the control beneath this grid.
         </p>
-        <p className="small muted">
-          <b>An edit made on every screen is not removed by &ldquo;put this page back&rdquo;.</b> It is one row
-          filed under every screen, so it is undone in the list below — one row, one Undo — or by &ldquo;put
-          every screen back&rdquo;. That is deliberate: a site-wide change belongs to no single page, and a
-          button on the page you happen to be looking at is the wrong place to delete it from.
+        <div className="media-grid">
+          {media.map((row) => {
+            const href = tabHref('media', { screen, media: String(row.id) });
+            return (
+              <a key={row.id} href={href} style={{ textDecoration: 'none', color: 'inherit' }} aria-current={mediaSelected?.id === row.id ? 'true' : undefined}>
+                <div className="media-card" style={mediaSelected?.id === row.id ? { borderColor: 'var(--gold)' } : undefined}>
+                  <div className="media-thumb">
+                    {row.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- the archive's own media route,
+                      // served at its stored size; next/image would re-encode a file the archive holds.
+                      <img src={row.url} alt={row.altText ?? row.title} loading="lazy" />
+                    ) : (
+                      <span className="hint" style={{ padding: 8, textAlign: 'center' }}>
+                        the archive does not hold this file — the record survives, the picture does not
+                      </span>
+                    )}
+                  </div>
+                  <div className="media-meta">
+                    <b>{row.title}</b>
+                    <small>
+                      {row.reference} · {row.mimeType ?? 'type unknown'}
+                      {row.width && row.height ? ` · ${row.width}×${row.height}` : ''}
+                      {row.filesizeBytes !== null ? ` · ${Math.round((row.filesizeBytes / 1024) * 10) / 10} KB` : ''}
+                    </small>
+                  </div>
+                </div>
+              </a>
+            );
+          })}
+          {media.length === 0 ? (
+            <p className="hint">
+              <b>The media register returned no photographs.</b> An empty register is not a fault in this
+              screen; the register itself is at <a href="/admin/media">/admin/media</a>.
+            </p>
+          ) : null}
+        </div>
+      </Card>
+
+      <div style={{ marginTop: 14 }}>
+        <Card title="Selected image" note="Accessibility + credit">
+          {mediaSelected ? (
+            <MediaDetail row={mediaSelected} screen={screen} overrides={screenOverrides} />
+          ) : (
+            <>
+              <p className="hint">
+                Choose a photograph above to see its address, its alternative text and its credit here.
+              </p>
+              {/*
+                THE DESIGN'S SECOND CARD IS THE PER-SCREEN IMAGE OVERRIDE, WHICH IS THE REAL CONTROL.
+                The mock-up's Selected image card is filled with a URL of `https://ozikoro.com/media/ndebe-hero.webp`
+                and the credit "Ozikoro archive" — invented. What is real, and what the design's own
+                "Scope: this page only / every screen where this image appears" selects describe, is the
+                override: the pictures the SERVED page holds and the address each one may be pointed at
+                instead. They are listed here with their own working forms.
+              */}
+              <div className="divider" />
+              <p className="hint">
+                <b>Photographs on /{screen}/ and the control that changes each one.</b> The scope select in the
+                mock-up is a real choice on every row: a stored override may be filed against this screen or
+                against every screen the design carries that picture on.
+              </p>
+              {items.filter((item) => item.can.image).length === 0 ? (
+                <p className="hint">The served page reports no image slot on /{screen}/.</p>
+              ) : (
+                items.filter((item) => item.can.image).map((item) => (
+                  <div key={item.key} id={`image-${encodeURIComponent(item.key)}`} style={{ borderTop: '1px solid var(--line)', paddingTop: 8 }}>
+                    <ImageForm
+                      screen={screen}
+                      itemKey={item.key}
+                      title={item.label}
+                      returnTo={backTo}
+                      override={overrideFor('image', item.key)}
+                      currentSrc={item.src ?? ''}
+                      currentAlt={item.alt ?? ''}
+                      creditKey={item.creditKey}
+                      credit={item.credit}
+                      undoLabel="this photograph"
+                      previewQuery={{ kind: 'image', key: item.key, screen, src: item.src ?? '', alt: item.alt ?? '' }}
+                    />
+                  </div>
+                ))
+              )}
+            </>
+          )}
+        </Card>
+      </div>
+    </>
+  );
+
+  /* ------------------------------------------------------------------ ICON / FAVICON */
+  const iconTab = (
+    <>
+      <div className="grid">
+        <Card title="Icon — the mark in a browser tab" note="One setting for the whole site">
+          <p className="hint">
+            Served at <code>/favicon.ico</code>. Accept PNG, JPEG, WebP, ICO or SVG. A square image of at least
+            64×64 is recommended; maximum 200 KB. It is <b>one setting for the whole site</b>, and that address
+            is <b>the one a browser asks for by itself</b> when a page declares no icon — which is what makes it
+            reach every page here, including the 53 design screens and the archive&rsquo;s records, which are
+            served from the approved design and never run this application&rsquo;s layout.
+          </p>
+          <div style={{ display: 'flex', gap: 20, alignItems: 'center', margin: '18px 0' }}>
+            {/*
+              ⚠️ THE DESIGN DRAWS ITS BRAND `.mark` HERE. THIS DRAWS THE STORED ICON.
+              The mock-up's row is `<div class="mark" style="width:64px;height:64px"></div>` beside
+              "Current Ozikoro mark · SVG · 24 KB · set by Idenze Ezeme" — the conic-gradient sun the rail
+              already carries, and three facts about it that were never read from anywhere. The real setting
+              is a data URL in `site_setting`, so the picture below is that stored image at 64px and the two
+              facts beside it are its real media type and its real byte count. **Where the archive has no icon
+              set, the row says so rather than showing a mark and calling it current.**
+            */}
+            {/* eslint-disable-next-line @next/next/no-img-element -- the served icon, at its real size and
+                deliberately not reshaped: what the owner is looking at here is what the tab shows. */}
+            <img
+              src={`/favicon.ico?v=${favicon ? encodeURIComponent(favicon.updatedAt ?? 'set') : 'default'}`}
+              alt={favicon ? 'The site icon as it is served now' : 'The archive’s own mark, as it is served now'}
+              width={64}
+              height={64}
+              style={{ border: '1px solid var(--line)', background: 'var(--surface2)', imageRendering: 'pixelated' }}
+            />
+            <div>
+              <b>{favicon ? `${favicon.mediaType} · ${Math.round((favicon.bytes / 1024) * 10) / 10} KB` : 'The archive’s own mark'}</b>
+              <div className="hint">
+                {favicon
+                  ? <>
+                      stored {favicon.updatedAt ? new Date(favicon.updatedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' }) : 'at some point'}
+                      {favicon.actorName ? <>, set by {favicon.actorName}</> : <>, with no account recorded against it</>}
+                    </>
+                  : 'nothing is stored for this setting, so the archive serves the PNG it has always served'}
+              </div>
+            </div>
+          </div>
+          <form method="post" action="/api/admin/site-icons" encType="multipart/form-data">
+            <input type="hidden" name="action" value="set" />
+            <input type="hidden" name="returnTo" value={tabHref('favicon')} />
+            <input
+              className="field"
+              type="file"
+              name="icon"
+              accept="image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon,image/svg+xml"
+              required
+            />
+            <div style={{ marginTop: 12 }}>
+              <label className="label" htmlFor="icon-note">Audit note (optional)</label>
+              <input className="field" id="icon-note" type="text" name="note" maxLength={500} placeholder="e.g. the gold sun on a transparent ground" />
+            </div>
+            <div className="actions" style={{ marginTop: 13 }}>
+              <button className="btn primary" type="submit">Save this icon for the whole site</button>
+            </div>
+          </form>
+          <form method="post" action="/api/admin/site-icons" style={{ marginTop: 8 }}>
+            <input type="hidden" name="action" value="clear" />
+            <input type="hidden" name="returnTo" value={tabHref('favicon')} />
+            <button className="btn danger" type="submit" disabled={!favicon}>
+              {favicon ? 'Put the archive’s own mark back' : 'The archive’s own mark is already in force'}
+            </button>
+          </form>
+        </Card>
+
+        <Card title="Live preview">
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#eae5dc', border: '1px solid #cfc6b8', padding: '7px 12px', borderRadius: 7, fontSize: 10 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- the same served icon, at tab size. */}
+              <img src={`/favicon.ico?v=${favicon ? encodeURIComponent(favicon.updatedAt ?? 'set') : 'default'}`} alt="" width={18} height={18} style={{ imageRendering: 'pixelated' }} />
+              Ozikoro — African History
+            </div>
+            <p className="hint">
+              The same icon is used for tabs, bookmarks and history entries. The tab title above is the archive&rsquo;s
+              own name; the icon is the file stored at <code>/favicon.ico</code>.
+            </p>
+            <p className="hint">
+              An SVG icon is also accepted; it is served as an image, not as a document, so nothing in it runs.
+              The Apple touch icon on an iOS home screen is a different picture at a different size and is
+              <b> not</b> changed here.
+            </p>
+          </div>
+        </Card>
+      </div>
+    </>
+  );
+
+  /* ------------------------------------------------------------------ MY PROFILE */
+  /*
+   * ⚠️ NO SECOND ACCOUNT EDITOR, AND NO SAVE BUTTON THAT DOES NOTHING.
+   *
+   * The mock-up's profile card is filled with "Idenze Ezeme", "hello@ozikoro.com", "Historian · Editor ·
+   * Founder", an ORCID of `0000-0000-0000-0000`, a biography sentence, and two Save buttons wired to
+   * `toast()`. **The archive already has a real account screen at `/account/`, and its own note records
+   * that display name, biography, password change and the rest have no write path yet.** So this tab shows
+   * the session's real name, address, platform role, archive roles and stored profile fields, says exactly
+   * which of them cannot be written from here yet, and links to the real screen. What it must never do —
+   * and does not — is draw a field whose Save button does nothing.
+   */
+  const member = await getMemberOrNull(db, account.account.id);
+  const picture = await accountPicture(db, account.account.id);
+  const capabilityList = [...capabilities].sort();
+  const profileTab = (
+    <>
+      <div className="profile">
+        <div className="card profile-card">
+          <div className="profile-pic">
+            {picture.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- an address the account itself supplied.
+              <img src={picture.avatarUrl} alt={`${displayNameOf(account.account.displayName, account.account.email)}’s profile picture`} />
+            ) : (
+              initialsOf(account.account.displayName, account.account.email)
+            )}
+          </div>
+          <h3>{displayNameOf(account.account.displayName, account.account.email)}</h3>
+          <p>
+            {ROLE_LABEL[account.account.role] ?? account.account.role} · Ozikoro Administration
+            <br />
+            {/*
+              ⚠️ THE ARCHIVE ROLE IS NOT PRINTED TWICE. `ROLE_LABEL[account.role]` already says "Owner" for
+              this account, and `member.roles` holds `owner` again — so the line read "Owner · Ozikoro
+              Administration / owner". The archive roles are shown only when they say something the platform
+              role does not, which is the case for an editor, a moderator or a reviewer.
+            */}
+            {member?.roles && member.roles.length > 0 && !(member.roles.length === 1 && member.roles[0] === account.account.role)
+              ? member.roles.join(', ')
+              : member
+                ? 'no separate archive role'
+                : 'no membership record'}
+          </p>
+          {picture.avatarUrl ? (
+            <p className="hint">A stored picture, <code>account.avatar_url</code>.</p>
+          ) : (
+            <p className="hint">
+              <b>These are initials, not a profile picture.</b> The account has nothing stored in
+              <code> account.avatar_url</code>, and the archive has no upload or URL field for one yet, so this
+              circle shows the letters it derived from the name rather than a picture that does not exist.
+            </p>
+          )}
+          <a className="btn small" href="/account/">Open the account screen</a>
+        </div>
+
+        <Card title="Account & profile" note="Read from the session and the account row">
+          {/*
+            ⚠️ THESE ARE NOT INPUTS, AND THAT IS THE POINT RATHER THAN A STYLE CHOICE.
+
+            The mock-up draws six `.field`s here and two Save buttons wired to `toast('Profile saved')`. The
+            archive has **no write path for a display name, a headline, an ORCID or a biography** — its own
+            account screen says so — and a read-only input is the worst of both: it looks like a control,
+            invites a person to click into it, and can never save what they type. *"A button that does nothing
+            is worse than no button"* is equally true of a field. **So each fact is printed as the value it
+            is**, with an honest line where the archive holds nothing, and the link at the end is the real
+            destination.
+          */}
+          <dl className="stack" style={{ margin: 0 }}>
+            <div className="row">
+              <div>
+                <dt className="label">Display name</dt>
+                <dd style={{ margin: 0 }}>{account.account.displayName ?? <span className="hint">no display name is stored</span>}</dd>
+              </div>
+              <div>
+                <dt className="label">Email</dt>
+                <dd style={{ margin: 0 }}>{account.account.email}</dd>
+              </div>
+            </div>
+            <div className="row">
+              <div>
+                <dt className="label">Headline</dt>
+                <dd style={{ margin: 0 }}>{member?.headline ?? <span className="hint">nothing stored</span>}</dd>
+              </div>
+              <div>
+                <dt className="label">ORCID</dt>
+                <dd style={{ margin: 0 }}>{member?.orcid ?? <span className="hint">nothing stored</span>}</dd>
+              </div>
+            </div>
+            <div>
+              <dt className="label">Biography</dt>
+              <dd style={{ margin: 0 }}>{member?.bio ?? <span className="hint">nothing stored</span>}</dd>
+            </div>
+            <div>
+              <dt className="label">Membership</dt>
+              <dd style={{ margin: 0 }}>
+                {member
+                  ? <>joined {new Date(member.createdAt).toLocaleDateString('en-GB', { dateStyle: 'medium' })} · status {member.status} · profile {member.isPublic ? 'public' : 'not public'}</>
+                  : <span className="hint">this account has no membership row</span>}
+              </dd>
+            </div>
+          </dl>
+          <div className="divider" />
+          <h4 style={{ margin: 0, fontSize: 13 }}>Security</h4>
+          <p className="hint">
+            <b>There is no password field here and no &ldquo;Change password&rdquo; button, and that is
+            deliberate.</b> This page can reach the design tables and the media register; changing an
+            account&rsquo;s password is a different act, and the archive&rsquo;s own account screen records
+            that it has no write path for it yet. **A control wired to nothing is the fault this whole tab
+            exists to avoid**, so the screen says where the account lives instead:{' '}
+            <a href="/account/">the account screen at /account/</a>.
+          </p>
+          <div className="divider" />
+          <h4 style={{ margin: 0, fontSize: 13 }}>What this account may do</h4>
+          <p className="hint">
+            Platform role <b>{account.account.role}</b>, resolved against the database rather than read from
+            a cookie. Archive roles: <b>{member?.roles && member.roles.length > 0 ? member.roles.join(', ') : 'none'}</b>.
+            This screen needs <code>manage_design</code>, which is one of{' '}
+            <b>{capabilityList.length}</b> capabilities this account holds.
+          </p>
+          <p className="hint">
+            {capabilityList.length > 0
+              ? capabilityList.map((capability) => <span key={capability} className="status" style={{ marginRight: 5 }}>{capability}</span>)
+              : 'No capabilities resolved for this account.'}
+          </p>
+        </Card>
+      </div>
+    </>
+  );
+
+  /* ------------------------------------------------------------------ WRITING */
+  /*
+   * ⚠️🔴 THE OWNER'S OWN INSTRUCTION ABOUT THIS TAB, VERBATIM:
+   *
+   *   *"before while importing the design on the html i supplied now, do make sure when one clicks on posts
+   *   or pages, they can add new posts or pages, and the classic editor will be there, but never named
+   *   classic editor."*
+   *
+   * SO: (a) the writing surface is `/admin/posts/new` and `/admin/pages/new`, which render the archive's
+   * own `EditorScreen` and ARE reachable from the rails' own submenus — verified by fetching those built
+   * pages, not by reading the source. (b) **the words "Classic Editor" appear in no text this page
+   * renders.** The tab is `Writing`. The code comments in `classic-editor/screens.tsx` may name it; nothing
+   * a reader can see does.
+   *
+   * ⚠️ **AND THIS TAB IS NOT A SECOND EDITOR.** The mock-up draws a whole editing surface with a
+   * `contenteditable` body — a painted article about Igbo-Ukwu, four invented paragraphs, an invented
+   * title, tags `igbo-ukwu · archaeology · bronze` and a featured image placeholder. A working editor here
+   * would be a second one, with its own save path, disagreeing with the real one the first time either
+   * changed; a non-working one is the exact "button that does nothing" fault named above. So the tab is the
+   * design's own shape — `.wpbar`, a table of the real pieces, and the real links — saying truthfully where
+   * the writing surface is.
+   */
+  const writingTab = (
+    <>
+      <Card title="Writing" note="Where posts and pages are written">
+        <div className="wpbar">
+          <b>Posts → Add New</b>
+          <div>
+            <a className="btn small" href="/admin/posts/new">Add New Post</a>{' '}
+            <a className="btn small" href="/admin/pages/new">Add New Page</a>
+          </div>
+        </div>
+        <p className="hint" style={{ marginTop: 12 }}>
+          The writing surface is the archive&rsquo;s own editor, and it opens from the rail&rsquo;s two
+          submenus — <b>Posts → Add New Post</b> and <b>Pages → Add New Page</b>. It carries the title, the
+          Visual and Text modes, the formatting toolbar, media insertion, links, lists, alignment,
+          full-screen editing, and the publishing boxes for categories, tags, featured image, excerpt and
+          custom fields. <b>It is one editor with one save path</b>, which is why this tab links to it rather
+          than drawing a second one beside it.
         </p>
-        <div style={{ display: 'flex', gap: 'var(--s-4)', flexWrap: 'wrap' }}>
+        <div className="actions">
+          <a className="btn" href="/admin/posts/new">Add New Post</a>
+          <a className="btn" href="/admin/pages/new">Add New Page</a>
+          <a className="btn" href="/admin/posts">All Posts</a>
+          <a className="btn" href="/admin/pages">All Pages</a>
+        </div>
+        <div className="divider" />
+        {recentPosts.length === 0 && recentPages.length === 0 ? (
+          <p className="hint">
+            <b>Nothing has been written yet.</b> Neither a post nor a page is stored in the archive, so this
+            list is empty — which is the state a new archive starts in and not a fault. Pressing <b>Write a
+            new post</b> opens the editor at <code>/admin/posts/new</code>.
+          </p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr><th>Kind</th><th>Title</th><th>Status</th><th>Words</th><th>Last changed</th><th /></tr>
+            </thead>
+            <tbody>
+              {[...recentPosts.map((piece) => ({ piece, kind: 'post' as const })), ...recentPages.map((piece) => ({ piece, kind: 'page' as const }))].map(({ piece, kind }) => (
+                <tr key={`${kind}-${piece.id}`}>
+                  <td>{kind}</td>
+                  <td><b>{piece.title || 'untitled'}</b><br /><code>/{piece.slug}/</code></td>
+                  <td><span className="status">{piece.status}</span></td>
+                  <td>{piece.wordCount}</td>
+                  <td>{new Date(piece.modifiedAt ?? piece.createdAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                  <td><a className="btn small" href={`/admin/${kind === 'post' ? 'posts' : 'pages'}/${piece.id}`}>Edit</a></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </>
+  );
+
+  /* ------------------------------------------------------------------ DESIGN HISTORY */
+  const historyTab = (
+    <>
+      <Card title="Every design edit in force" note={`${overrides.length} row${overrides.length === 1 ? '' : 's'} · undo one · this screen · everything`}>
+        <div className="actions" style={{ marginBottom: 15 }}>
           <form method="post" action="/api/admin/design">
             <input type="hidden" name="action" value="reset-screen" />
             <input type="hidden" name="screen" value={screen} />
-            <input type="hidden" name="returnTo" value={backTo} />
-            <button className="btn" type="submit" disabled={screenOverrides.length === 0}>
-              Put /{screen}/ back to the design ({screenOverrides.length})
+            <input type="hidden" name="returnTo" value={tabHref('history', { screen })} />
+            <button className="btn danger" type="submit" disabled={screenOverrides.length === 0}>
+              Put /{screen}/ back to design ({screenOverrides.length})
             </button>
           </form>
           <form method="post" action="/api/admin/design">
             <input type="hidden" name="action" value="reset-all" />
-            <input type="hidden" name="returnTo" value={sectionHref('colours')} />
-            <button className="btn btn-quiet" type="submit" disabled={overrides.length === 0}>
-              Put every screen back to the design ({overrides.length})
+            <input type="hidden" name="returnTo" value={tabHref('studio')} />
+            <button className="btn danger" type="submit" disabled={overrides.length === 0}>
+              Put every screen back to design ({overrides.length})
             </button>
           </form>
         </div>
-        <h3 style={{ marginTop: 'var(--s-5)' }}>Every edit in force</h3>
+        <p className="hint">
+          Removing an edit returns the page to the design&rsquo;s own value. It is safe to do either of these
+          at any time: nothing is deleted from the design, and every removal is written to the audit trail with
+          your name on it. <b>An edit made on every screen is not removed by &ldquo;put this page back&rdquo;</b>
+          {' '}— it is one row filed under every screen, so it is undone in the list below, one row, one Undo.
+        </p>
         {overrides.length === 0 ? (
-          <p className="small muted">
+          <p className="hint">
             <b>None. Every screen is exactly as the design made it</b> — the archive&rsquo;s own colours, its own
             fonts, its own words, its own pictures and its own mark in the tab. This is the state the site is
             built to be in, and an empty list here is not a fault.
           </p>
         ) : (
-          <table className="small" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table className="table">
             <thead>
-              <tr><th align="left">Section</th><th align="left">Screen</th><th align="left">Kind</th><th align="left">What</th><th align="left">Value</th><th align="left">By</th><th align="left">When</th><th /></tr>
+              <tr><th>Section</th><th>Screen</th><th>Kind</th><th>What</th><th>Value</th><th>By</th><th>When</th><th /></tr>
             </thead>
             <tbody>
               {overrides.map((override) => (
-                <tr key={override.id} style={{ borderTop: '1px solid var(--rule)' }}>
-                  <td className="small">{SECTION_LABELS[sectionOf(override)]}</td>
-                  <td className="small">{override.screen === ALL_SCREENS ? 'every screen' : `/${override.screen}/`}</td>
-                  <td className="small">{override.kind}</td>
-                  <td className="small">{override.label ?? override.key}</td>
-                  <td className="small"><code style={{ wordBreak: 'break-all' }}>{valueSummary(override)}</code></td>
-                  <td className="small">{override.actorName ?? '—'}</td>
-                  <td className="small">{new Date(override.updatedAt ?? '').toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</td>
+                <tr key={override.id}>
+                  <td>{SECTION_LABELS[sectionOf(override)]}</td>
+                  <td>{override.screen === ALL_SCREENS ? 'every screen' : `/${override.screen}/`}</td>
+                  <td>{override.kind}</td>
+                  <td>{override.label ?? override.key}</td>
+                  <td><code style={{ wordBreak: 'break-all' }}>{valueSummary(override)}</code></td>
+                  <td>{override.actorName ?? '—'}</td>
+                  <td>
+                    {override.updatedAt
+                      ? new Date(override.updatedAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+                      : '—'}
+                  </td>
                   <td>
                     <form method="post" action="/api/admin/design">
                       <input type="hidden" name="action" value="remove" />
                       <input type="hidden" name="id" value={String(override.id)} />
-                      <input type="hidden" name="returnTo" value={backTo} />
-                      <button className="btn btn-quiet" type="submit">Undo</button>
+                      <input type="hidden" name="returnTo" value={tabHref('history', { screen })} />
+                      <button className="btn small" type="submit">Undo</button>
                     </form>
                   </td>
                 </tr>
@@ -1466,39 +2217,199 @@ export default async function DesignEditorPage({
           </table>
         )}
       </Card>
+    </>
+  );
 
-      {/* ------------------------------------------------------------------ CONTRAST */}
-      <Card title="Contrast — measured, not asserted">
-        <p className="small muted">
-          Every pair of colours the design actually puts on top of one another, with the ratio the standard asks
-          for. <b>4.5:1</b> is WCAG 2.2 AA for text; <b>3:1</b> is the floor for a focus ring and for text that
-          is deliberately faint.{' '}
-          {failedPairs.length === 0
-            ? 'Every pair passes as the palette stands.'
-            : `${failedPairs.length} pair${failedPairs.length === 1 ? '' : 's'} FAIL as the palette stands — the rows below say which, and the token rows carry the same warning.`}
+  const body = tab === 'colours' ? colourTab
+    : tab === 'type' ? typeTab
+      : tab === 'text' ? textTab
+        : tab === 'widgets' ? widgetTab
+          : tab === 'media' ? mediaTab
+            : tab === 'favicon' ? iconTab
+              : tab === 'profile' ? profileTab
+                : tab === 'writing' ? writingTab
+                  : tab === 'history' ? historyTab
+                    : studio;
+
+  return (
+    <>
+      <div className="title-row">
+        <div>
+          <div className="eyebrow">Owner&rsquo;s visual control centre</div>
+          <div className="title-row" style={{ margin: 0 }}>
+            <h2>Appearance</h2>
+            <span className="badge gold" style={{ marginLeft: 12 }}>Live design system</span>
+          </div>
+          <p className="hint" style={{ maxWidth: 700 }}>
+            Control the delivered website without editing the design files. Change the global palette,
+            typography, imagery, page widgets, copy, links, visibility, favicon and page-specific presentation
+            — then preview the real public page.
+          </p>
+        </div>
+        <div className="actions">
+          <a className="btn" href="/" target="_blank" rel="noreferrer">Open public site ↗</a>
+          {/*
+            ⚠️ THE MOCK-UP'S `Save changes` BUTTON IS DELIBERATELY NOT HERE, AND THAT IS THE OWNER'S OWN RULE.
+            Its `onclick` was `toast('All pending design changes saved')` — it saved nothing, because there is
+            nothing for it to save: **every edit on this screen is written by the Save on the row it belongs
+            to**, immediately, to `/api/admin/design`, with an audit row and a way back. A second page-level
+            Save would either have to duplicate that path or post nothing, and *"a button that does nothing is
+            worse than no button, because it teaches the owner that the screen is finished when it is not."*
+            So the page says where saving happens rather than drawing a control that cannot.
+          */}
+          <span className="hint" style={{ alignSelf: 'center', maxWidth: '18rem' }}>
+            Each row saves itself: use <b>Save</b> on the token or element you changed, and the row will
+            offer to put it back.
+          </span>
+        </div>
+      </div>
+
+      <Notices saved={one('saved')} error={one('error')} info={one('info')} />
+
+      <Tabs active={tab} counts={counts} hrefFor={(next) => tabLink(next, { screen })} />
+
+      {body}
+
+      {/*
+        THE ONE PIECE OF SCRIPT ON THIS SCREEN, AND IT CARRIES NOTHING.
+
+        It reconciles the two controls on a token row that a native form cannot reconcile by itself — the
+        colour picker and the hex box, and the font chooser and the stack box. **Every form here works
+        without it**: see the note in `form-sync.tsx`, which is where the reasoning and the one hazard it
+        guards against are written down.
+      */}
+      <DesignFormSync />
+    </>
+  );
+}
+
+/* ==================================================================================================
+ * 4. THE SMALL READERS THE TABS NEED
+ * ================================================================================================ */
+
+const SECTION_LABELS: Record<string, string> = {
+  colours: 'Colours',
+  type: 'Fonts & type',
+  texts: 'Text',
+  images: 'Images',
+  links: 'Links & hidden blocks',
+};
+
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'Administrator',
+  owner: 'Owner',
+  editor: 'Editor',
+  contributor: 'Contributor',
+};
+
+function displayNameOf(displayName: string | null, email: string): string {
+  return (displayName ?? '').trim() || email;
+}
+
+/**
+ * The account's initials, for the circle the design draws.
+ *
+ * ⚠️ **DERIVED FROM THE NAME, NEVER INVENTED**, and the tab says in words that this is what it is when the
+ * account has no stored picture. A display name of "Idenze Ezeme" gives `IE`; an account with no display
+ * name falls back to the email's first letter, and one with neither gives a single `·`. **The design shows
+ * `IE` because its sample account is the owner's; this computes whatever the signed-in account actually is.**
+ */
+function initialsOf(displayName: string | null, email: string): string {
+  const source = (displayName ?? '').trim();
+  if (source) {
+    const words = source.split(/\s+/).filter(Boolean);
+    const letters = words.slice(0, 2).map((w) => [...w][0] ?? '');
+    const joined = letters.join('').toUpperCase();
+    if (joined) return joined;
+  }
+  const first = [...(email.trim() || '·')][0] ?? '·';
+  return first.toUpperCase();
+}
+
+/**
+ * The account's stored profile, or null when the account has no membership row.
+ *
+ * ⚠️ **NULL AND NOT A DEFAULT.** `getMember` joins `ozikoro_member`, and an account that has never been
+ * through the members table has no headline, no biography and no ORCID — which is not the same fact as
+ * having empty ones, and the tab prints "nothing stored" rather than a plausible sentence.
+ */
+async function getMemberOrNull(db: Db, accountId: number) {
+  try {
+    const { getMember } = await import('@ozikoro/platform');
+    return await getMember(db, accountId);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The account's stored picture, which `getMember` does not carry.
+ *
+ * ⚠️ **THE ONE FACT THE PROFILE TAB NEEDS THAT THE MEMBER ROW DOES NOT HOLD.** `account.avatar_url` is the
+ * column migration 0033 added and `setAccountAvatar` writes; the query is here because the alternative was
+ * a member shape changed to serve one screen. **A null is the honest answer for an account with no picture,
+ * and the tab says in words that the circle it draws is initials rather than a photograph.**
+ */
+async function accountPicture(db: Db, accountId: number): Promise<{ avatarUrl: string | null }> {
+  try {
+    const row = await db.one<{ avatar_url: string | null }>(
+      `select avatar_url from account where id = $1`,
+      [accountId]
+    );
+    return { avatarUrl: row?.avatar_url ?? null };
+  } catch {
+    return { avatarUrl: null };
+  }
+}
+
+/**
+ * The design's "Selected image" card, filled from the archive's own register rather than from the mock-up.
+ *
+ * The mock-up's card carries an address, an alternative text, the credit "Ozikoro archive" and the two
+ * badges "✓ Image resolves" and "Alt text present". **Both badges are checks, so both are made here**: the
+ * first is `row.url !== null`, which is the archive's own record of whether it holds the file, and the
+ * second is whether the row has stored alt text. Where the check fails, the badge says so.
+ */
+function MediaDetail({ row, screen, overrides }: { row: MediaRecord; screen: string; overrides: DesignOverride[] }) {
+  const uses = overrides.filter((o) => o.kind === 'image' && o.value.src === row.url);
+  return (
+    <div className="row">
+      <div>
+        <span className="label">Image address</span>
+        {row.url ? <p style={{ margin: '0 0 4px', wordBreak: 'break-all' }}><code>{row.url}</code></p> : <p className="hint" style={{ margin: 0 }}>the archive does not hold this file</p>}
+        <span className="label" style={{ marginTop: 12 }}>Alternative text</span>
+        {row.altText
+          ? <p style={{ margin: 0 }}>{row.altText}</p>
+          : <p className="hint" style={{ margin: 0 }}>no alternative text is stored for this picture</p>}
+        <p className="hint" style={{ marginTop: 8 }}>
+          Its own record is at <a href={`/media/${row.slug}/`}>{`/media/${row.slug}/`}</a>, and its fields are
+          edited in <a href={`/admin/media/${row.id}`}>the media register</a> — the register owns a picture&rsquo;s
+          text, and this screen owns where a page points. <b>Nothing here is a field</b>, because a
+          read-only field is a control that cannot act.
         </p>
-        <table className="small" style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr><th align="left">Where</th><th align="left">Text</th><th align="left">On</th><th align="left">Ratio</th><th align="left">Needs</th></tr>
-          </thead>
-          <tbody>
-            {contrast.map((row) => (
-              <tr key={`${row.fg}-${row.bg}`}>
-                <td className="small">{row.role}</td>
-                <td className="small"><code>--{row.fg}</code> <Swatch value={row.fgValue} /></td>
-                <td className="small"><code>--{row.bg}</code> <Swatch value={row.bgValue} /></td>
-                <td className="small"><b>{row.ratio ?? '—'}:1</b></td>
-                <td className="small">{row.min}:1 {row.pass ? <Badge tone="pass">pass</Badge> : <Badge tone="fail">fail</Badge>}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="small muted" style={{ marginTop: 'var(--s-4)' }}>
-          {CONTRAST_PAIRS.length} pairs are checked. A colour used somewhere this table does not know about is
-          not checked — the pairs are the ones the design&rsquo;s own stylesheets create, and the design is what
-          says which colours sit on which.
+      </div>
+      <div>
+        <span className="label">Credit</span>
+        {row.credit ? <p style={{ margin: 0 }}>{row.credit}</p> : <p className="hint" style={{ margin: 0 }}>no credit is recorded</p>}
+        <span className="label" style={{ marginTop: 12 }}>Scope</span>
+        <p style={{ margin: 0 }}>
+          {uses.length > 0
+            ? `${uses.length} design override${uses.length === 1 ? '' : 's'} point at this file`
+            : 'no page override points at this file'}
         </p>
-      </Card>
+        <div style={{ marginTop: 13 }}>
+          {row.url ? <Badge tone="green">✓ The archive holds this file</Badge> : <Badge tone="red">✗ The archive does not hold this file</Badge>}{' '}
+          {row.altText ? <Badge tone="green">✓ Alternative text present</Badge> : <Badge tone="gold">No alternative text</Badge>}{' '}
+          {row.licence ? <Badge tone="green">✓ Licence recorded</Badge> : <Badge tone="gold">No licence recorded</Badge>}
+        </div>
+        <p className="hint" style={{ marginTop: 10 }}>
+          <b>{row.reference}</b> · {row.kind} · {row.mimeType ?? 'type unknown'}
+          {row.width && row.height ? ` · ${row.width}×${row.height}` : ''}
+          {row.filesizeBytes !== null ? ` · ${Math.round((row.filesizeBytes / 1024) * 10) / 10} KB` : ''}
+          {' · used as a featured image on '}{row.usedByArticles}{' article'}{row.usedByArticles === 1 ? '' : 's'}.
+          {' '}Read on <code>/{screen}/</code>.
+        </p>
+      </div>
     </div>
   );
 }
