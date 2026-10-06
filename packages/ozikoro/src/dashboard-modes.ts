@@ -41,6 +41,7 @@
  * reference — are marked with `capability: null`. They are the archive's floor, not a permission.
  */
 
+import { isAdmin, type AccountRole } from '@ozituma/db/accounts';
 import { OZIKORO_ROLES, isOzikoroRole, roleLabel } from './members.ts';
 
 /** What a workspace is, where it lives, and the capability that opens it. */
@@ -176,6 +177,88 @@ export function dashboardModesFor(viewer: DashboardViewer): DashboardMode[] {
  */
 export function hasElevatedDashboardModes(modes: readonly DashboardMode[]): boolean {
   return modes.some((mode) => mode.capability !== null);
+}
+
+/**
+ * ── THE MENU AN ADMINISTRATOR GETS: `My account`, AND NOTHING ELSE ────────────────────────────────
+ *
+ * THE OWNER'S INSTRUCTION, in his words: *"on the menu, You added 'My Account' below 'My Workspace',
+ * can you make a rule that whenever an admin logins into the website, my workspace disappears, and only
+ * my account will appear. this is only for admin."*
+ *
+ * What he was looking at is exactly what this module draws: the `<details>` whose `<summary>` is `My
+ * Account` (see `renderModeSwitcher`), and, **inside it, the `My workspace` link** that
+ * `accountHref`/`accountLabel` puts there. The panel was the switch he had asked for in an earlier round;
+ * on the site's own menu it reads as a second item under the first.
+ *
+ * SO THE RULE IS ABOUT THE MENU, AND IT IS SCOPED TO THE MENU.
+ *
+ *   * the MASTHEAD — `variant === 'nav'`, whether it is the React masthead in `app/layout.tsx` or the
+ *     design screens' own bar — offers an administrator the plain account item and no switch
+ *   * the DASHBOARD RAIL — `variant === 'rail'` — keeps it. **That is not a loophole, it is the other
+ *     half of the instruction**: the rail is how somebody standing in one workspace moves to the next,
+ *     and the owner asked for the menu's control to go, *"not for the admin to lose the ability to
+ *     work"*. Removing it there would leave the one account that may open all fourteen workspaces with
+ *     no way to move between them from inside a dashboard.
+ *
+ * WHO COUNTS AS AN ADMINISTRATOR IS ASKED, NOT RESTATED. `isAdmin` in `@ozituma/db/accounts` is this
+ * codebase's own answer — *"May administer the site: an admin, or the owner"* — and it is what
+ * `requireAdministrator`, `requireAdministratorOrRedirect` and `mayEnterBackOffice` already ask. A
+ * second `role === 'admin'` written here would be a copy that drifts the day a role is added above the
+ * admin, and it would also be **the wrong answer for the account that asked**: measured in this
+ * checkout's own database, the only elevated account is `#199 idenzeme@gmail.com`, whose platform role
+ * is **`owner`**, not `admin`. A literal `admin`-only test would have left the owner's own menu
+ * byte-identical to the one he was complaining about, because `owner` returns true from
+ * `mayEnterDashboardMode` below and therefore holds an elevated workspace like an admin does.
+ *
+ * THE CAST IS TOTAL, WHICH IS WHY IT IS SAFE. `platformRole` is a plain column value rather than the
+ * union the database function takes, so it is narrowed here; `isAdmin` is one string comparison and
+ * answers `false` for anything outside the union, so a value that is not a role cannot be mistaken for
+ * an administrator by it.
+ */
+export function administersSite(platformRole: string | null | undefined): boolean {
+  return isAdmin(String(platformRole ?? '').toLowerCase() as AccountRole);
+}
+
+/** Whether the site's MENU offers the workspace switch to this viewer. */
+export function menuOffersWorkspaceSwitch(viewer: {
+  platformRole?: string | null;
+  modes: readonly DashboardMode[];
+}): boolean {
+  if (administersSite(viewer.platformRole)) return false;
+  return hasElevatedDashboardModes(viewer.modes);
+}
+
+/**
+ * The account item's own address — the design's own last menu item, which `accountAnchor` in
+ * `design-fill.ts` writes as `<a class="nav-account" href="/dashboard-reader">My account</a>`.
+ */
+export const ACCOUNT_ITEM_HREF = '/dashboard-reader';
+
+/**
+ * THE ACCOUNT ITEM'S ADDRESS AND ITS WORDING, DECIDED IN ONE PLACE.
+ *
+ * The rule this replaces was written out three times — here, in `lib/workspace-modes.ts` and in
+ * `app/layout.tsx` — as `primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace'`.
+ * It is one rule about one link, so it lives once, and the administrator's case is added to it rather
+ * than to a fourth copy:
+ *
+ *   * an ADMINISTRATOR gets the design's own account item, unchanged — `My account` at
+ *     `/dashboard-reader`. **Not their remembered workspace under an account's name**: the module
+ *     already refuses that as *"the same small untruth this round exists to remove"*, and an account
+ *     item that opens the Administration workspace is the link saying one thing and doing another.
+ *   * everybody else keeps exactly the behaviour they had.
+ */
+export function accountItemFor(viewer: {
+  signedIn: boolean;
+  platformRole?: string | null;
+  primaryHref: string;
+}): { href: string; label: string } | null {
+  if (!viewer.signedIn) return null;
+  if (administersSite(viewer.platformRole)) return { href: ACCOUNT_ITEM_HREF, label: 'My account' };
+  return viewer.primaryHref.startsWith(ACCOUNT_ITEM_HREF)
+    ? { href: viewer.primaryHref, label: 'My account' }
+    : { href: viewer.primaryHref, label: 'My workspace' };
 }
 
 /** What a request for a workspace resolves to. */
@@ -363,6 +446,16 @@ export type ModeSwitcherViewer = {
   name: string | null;
   /** The roles they hold, as prose: `Owner`, `Editor, Moderator`, `Reader`. Held for the same reason. */
   roleLabel: string | null;
+  /**
+   * The account's platform role, which is what the menu's own rule is about: an account that may
+   * administer the site is offered the account item rather than the switch. See `administersSite`.
+   *
+   * REQUIRED RATHER THAN OPTIONAL, and the reason is the fault it prevents: an optional field is one a
+   * new caller omits, and a caller that omits it would draw an administrator the switch this round
+   * exists to remove — silently, with no type error and no test failure. Every real construction site
+   * has the value already (`WorkspaceViewer.platformRole`), so requiring it costs nothing.
+   */
+  platformRole: string | null;
   /** Every workspace they may open. */
   modes: DashboardMode[];
   /** The workspace being viewed, or null when this page is not a dashboard. */
@@ -474,8 +567,14 @@ export function renderModeSwitcher(viewer: ModeSwitcherViewer, variant: ModeSwit
    * A READER WITH NOTHING ELEVATED SEES NOTHING. Not a disabled control, not an empty menu — the page is
    * exactly the page they had before. `hasElevatedDashboardModes` is the test, so this is one rule rather
    * than a second copy of "which modes are baseline".
+   *
+   * AND IN THE MENU AN ADMINISTRATOR SEES NOTHING EITHER, for the reason written out at
+   * `administersSite`: the owner asked for the account item and nothing under it. The rail keeps the
+   * switch, which is why the two variants are asked separately rather than one test deciding for both.
    */
-  if (!hasElevatedDashboardModes(viewer.modes)) return '';
+  const offered =
+    variant === 'nav' ? menuOffersWorkspaceSwitch(viewer) : hasElevatedDashboardModes(viewer.modes);
+  if (!offered) return '';
 
   const current = viewer.currentMode ? dashboardModeForSlug(viewer.currentMode) : undefined;
 
@@ -610,13 +709,24 @@ export function fillModeSwitcher(html: string, page: ModeSwitcherPage): string {
      * with no `<li>` around it. **A match that still expected the `<li>` would silently stop re-pointing the
      * link the moment the shape changed**, which is the failure mode this whole round is about, so the
      * assertion that covers it lives in `dashboard-modes.test.ts` rather than only here.
+     *
+     * AND FOR AN ADMINISTRATOR IT IS NOT RE-POINTED AT ALL. `accountItemFor` hands back the design's own
+     * item — `My account` at `/dashboard-reader` — so the substitution below writes back the address and
+     * the two words that were already there, and the menu keeps the account link rather than gaining a
+     * workspace one. Without this the administrator's menu would have been left saying `My workspace`
+     * over a link to the Administration workspace, which is the item the owner asked to have removed.
      */
-    const wantsWorkspace = !page.primaryHref.startsWith('/dashboard-reader');
-    const label = wantsWorkspace ? 'My workspace' : 'My account';
-    out = out.replace(
-      /<a class="nav-account" href="[^"]*">My account<\/a>/,
-      `<a class="nav-account" href="${esc(page.primaryHref)}">${label}</a>`
-    );
+    const control = accountItemFor({
+      signedIn: true,
+      platformRole: page.viewer.platformRole,
+      primaryHref: page.primaryHref,
+    });
+    if (control) {
+      out = out.replace(
+        /<a class="nav-account" href="[^"]*">My account<\/a>/,
+        `<a class="nav-account" href="${esc(control.href)}">${control.label}</a>`
+      );
+    }
   }
 
   /*
@@ -649,14 +759,30 @@ export function fillModeSwitcher(html: string, page: ModeSwitcherPage): string {
     return out.replace(/(<main id="main" class="wrap sx-section">)/, (_all, tag: string) => `${tag}\n${rail}`);
   }
 
-  const item = `<li class="nav-modes-item">${renderModeSwitcher(
+  const control = accountItemFor({
+    signedIn: page.viewer.signedIn,
+    platformRole: page.viewer.platformRole,
+    primaryHref: page.primaryHref,
+  });
+  const nav = renderModeSwitcher(
     {
       ...page.viewer,
-      accountHref: page.primaryHref,
-      accountLabel: page.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace',
+      accountHref: control?.href ?? page.primaryHref,
+      accountLabel: control?.label,
     },
     'nav'
-  )}</li>`;
+  );
+  /*
+   * ⚠️ AN EMPTY ITEM IS NOT AN ITEM.
+   *
+   * `renderModeSwitcher` returns the empty string for an administrator in the menu, and wrapping that in
+   * `<li class="nav-modes-item">` would put a menu entry on the page with nothing in it — the exact
+   * *"not a disabled control, not an empty menu"* rule this module's first paragraph sets, broken by the
+   * change that implements it. `main.css` gives every `<li>` in this `<ul>` a gap and, at 40rem, a bottom
+   * border, so an empty one is visible. The placement is therefore skipped whole.
+   */
+  if (nav.length === 0) return out;
+  const item = `<li class="nav-modes-item">${nav}</li>`;
   /*
    * THE SWITCH STANDS BESIDE THE ACCOUNT CONTROL, INSIDE THE SAME BOX.
    *

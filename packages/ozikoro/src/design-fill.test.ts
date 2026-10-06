@@ -239,17 +239,19 @@ test('a bare button label on a non-dashboard screen becomes a non-link that says
   assert.match(out, /<a class="btn btn-quiet" aria-disabled="true" title="Not built yet[^"]*">Save as draft /);
   assert.doesNotMatch(out, /<a[^>]*href="#"[^>]*>Save as draft/);
   /*
-   * THE ACADEMY'S COURSES POINT AT THIS ARCHIVE, NOT AT THE RETIRING HOST.
+   * THE ACADEMY'S COURSES POINT AT THE ACADEMY, NOT AT THIS ARCHIVE AND NOT AT THE RETIRING HOST.
    *
-   * They used to be wired to `https://learn.ozituma.com/`, and the note here said the page named that
-   * address in its own text and the address answered. Both halves of that stopped being true: the host is
-   * being retired in favour of `academy.ozikoro.com`, which has no record in its zone. **`/academy/` is
-   * this archive's own page and it answers**, and asserting the OLD host still present is exactly the
-   * assertion that would have let a retired link ship.
+   * They were wired to `https://learn.ozituma.com/`, then to `/academy/` when the host was being retired
+   * and the archive's own interim page was the honest interim destination. **The owner then retired that
+   * page** — *"delete this page https://ozikoro.com/academy/"* — and `academy.ozikoro.com` was measured
+   * answering HTTP/2 200, so the courses are absolute now. Asserting the address the links USED to carry
+   * is exactly the assertion that would have let a link to a retired page ship.
    */
   const academy = fillDashboardLinks(screen('academy'), 'academy');
-  assert.match(academy, /<a href="\/academy\/">Igbo from the beginning<\/a>/,
-    'a course title reaches the archive\'s own academy page, which answers');
+  assert.match(academy, /<a href="https:\/\/academy\.ozikoro\.com\/">Igbo from the beginning<\/a>/,
+    'a course title does not reach the Academy itself');
+  assert.doesNotMatch(academy, /href="\/academy\/"/,
+    'a course title still points at the retired interim page on this host');
   assert.doesNotMatch(academy, /learn\.ozituma\.com/,
     'no course title on the academy screen is wired to the retiring host');
   // The archive's own indexes are wired; the design's example topics are not.

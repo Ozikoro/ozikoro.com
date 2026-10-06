@@ -256,9 +256,18 @@ export function seoHead(
        *
        * `learn.ozituma.com` WAS THE THIRD ENTRY AND IT IS DELETED RATHER THAN REPLACED. A `sameAs`
        * asserts that two addresses are the same entity, and it is read by machines that will fetch
-       * both. `academy.ozikoro.com` has no record in its zone, so naming it here would assert a
-       * relationship with a host that does not answer — the one thing this property cannot mean.
-       * It goes back when the academy is live, in the change that brings it live.
+       * both. It was withheld while `academy.ozikoro.com` had no record in its zone, on the rule that
+       * naming a host that does not answer is the one thing this property cannot mean: *"It goes back
+       * when the academy is live, in the change that brings it live."*
+       *
+       * ⚠️ THE ACADEMY IS LIVE, AND THIS ENTRY IS STILL NOT RESTORED — DELIBERATELY, NOT BY OVERSIGHT.
+       * Measured on 6 October 2026: `curl -sI https://academy.ozikoro.com/` → HTTP/2 200, `<title>Ozikoro
+       * Academy — Igbo language, history and culture</title>`. **So the condition above is met and the
+       * entry can go back.** It is left out of the change that retired the archive's own `/academy/` page
+       * because this is structured data rather than a link a reader follows, and because the same rule is
+       * written out in two more places that must move with it — `apps/ozikoro/app/admin/seo/schema/page.tsx`
+       * and `apps/web/components/entry-schema.tsx`, the dictionary's own Organization node. **Whichever
+       * change restores it must do all three, or the two sites will disagree about who they are.**
        */
       sameAs: ['https://ozituma.com/'],
     },

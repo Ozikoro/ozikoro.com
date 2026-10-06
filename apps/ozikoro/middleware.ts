@@ -50,7 +50,25 @@ import { NextResponse, type NextRequest } from 'next/server';
 const DESIGN_SCREENS = new Set<string>([
   "404",
   "about",
-  "academy",
+  /*
+   * ── "academy" IS DELIBERATELY ABSENT, AND THE PAGE IT DREW IS RETIRED ──────────────────────────
+   *
+   * `/academy/` was this archive's own interim page about the Academy — a design screen rewritten here
+   * like any other. The owner retired it: *"delete this page https://ozikoro.com/academy/ and move anyone
+   * that clicks on the academy on the top menu to academy.ozikoro.com."*
+   *
+   * **IT IS REMOVED FROM THIS SET RATHER THAN DELETED AS A ROUTE, BECAUSE IT NEVER WAS A ROUTE.** There
+   * is no `app/academy/`: the address answered only because this set named it, exactly as `towns` and
+   * `account` once did. Taking the name out is the whole of "the page is gone", and it is why the two
+   * halves of the owner's instruction had to be one change — the serve-time rewrite in `design-paths.ts`
+   * moved every Academy address to the Academy's own host in the same commit, so nothing the site serves
+   * still points at `/academy/`.
+   *
+   * ⚠️ THE ADDRESS ITSELF DOES NOT 404, and that is the archive's own rule rather than a convenience:
+   * *"an address once reachable keeps working — it does not say it keeps working as the wrong thing."*
+   * It answered 200 with the archive's academy page, so it answers 301 to the page that now holds that
+   * subject. See the branch below. `academy` stays in `DESIGN_FILES` for the reason that set exists.
+   */
   "archive-index",
   "article",
   "careers",
@@ -72,6 +90,20 @@ const DESIGN_SCREENS = new Set<string>([
   "dashboard-student",
   "dashboard-teacher",
   "dashboard-workflow",
+  /*
+   * THE DOCUMENT VIEWER, WHICH UPSTREAM ADDED AND THIS CHECKOUT DID NOT HAVE.
+   *
+   * The owner: *"when one goes to the documents section, and clicked on any document, i expected it to show
+   * the pdf in the site just like research gates shows. i have updated the original github on the document
+   * view."* The file is `screens/document-viewer.html`, byte-identical to the upstream copy
+   * (`sha256 233cf170a759…`), and upstream's own `documents.html` links it as `document-viewer.html` — which
+   * the rewrite below turns into `/document-viewer/`.
+   *
+   * It is in this set rather than reached by an application route for the same reason every other delivered
+   * screen is: **the design is the specification, and a screen served by a second implementation is a screen
+   * that drifts from it.**
+   */
+  "document-viewer",
   "documents",
   "donate",
   "folklore",
@@ -129,8 +161,14 @@ const DESIGN_SCREENS = new Set<string>([
  * the owner landed on — was answered by the `.html` stripping in the rewrite below, which turned a
  * file's name into a second address for the page. Both are closed below, and both need to know the
  * whole directory rather than the subset that is rewritten.
+ *
+ * ⚠️ `academy` IS NAMED HERE EVEN THOUGH IT IS NOT REWRITTEN, and it is the third name in that
+ * position after `towns` and `account`. The set's own rule is that **a file the deliverable ships is a
+ * file the deliverable ships**, whether or not a route or a redirect has since replaced the page;
+ * dropping the name when `/academy/` was retired would have made `/academy/academy.html` — the
+ * two-segment spelling of a real screen's file name — stop being recognised as one.
  */
-const DESIGN_FILES = new Set<string>([...DESIGN_SCREENS, 'towns', 'account']);
+const DESIGN_FILES = new Set<string>([...DESIGN_SCREENS, 'towns', 'account', 'academy']);
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -259,6 +297,90 @@ export function middleware(request: NextRequest) {
       to.search = search;
       return NextResponse.redirect(to, 301);
     }
+
+    /*
+     * ── THE ARCHIVE INDEX HAS ONE ADDRESS, AND IT IS `/archive/` ─────────────────────────────────────
+     *
+     * TWO ADDRESSES SERVED TWO DIFFERENT PAGES. It was measured before this change, on the same build:
+     *
+     *     GET /archive/          200   86,984 bytes   the application's own route, with its own rail
+     *     GET /archive-index/    200   27,815 bytes   the design screen, with the design's rail
+     *
+     * The owner was looking at the first and describing the second — *"check the side bar on the left, it
+     * has ethnic group, subgroup or clan, has town or place as a search, has time period, has source type,
+     * and then all entries"* — which is exactly the six `<legend>`s `archive-index.html` carries. **One
+     * screen, two implementations, and they had drifted exactly as far as the owner could see.**
+     *
+     * WHICH ADDRESS WINS IS NOT A CHOICE MADE HERE; IT WAS ALREADY MADE, IN `design-paths.ts`. That file
+     * maps `archive-index.html` to `/archive/` and says so in as many words: *"The design's own name for the
+     * archive index is not an address this site serves. `/archive-index/` answers only because the middleware
+     * rewrites it to this route — a link that reaches the design screen rather than the archive — and the
+     * archive's own page is one segment away."*
+     *
+     * **AND THE DESIGN'S OWN RAIL ALREADY SUBMITS HERE.** Its form is `<form class="rail" method="get"
+     * action="archive-index.html">`, `designScreenLinks` rewrites that action to `/archive/`, and the rail's
+     * fields are `name="group"`, `name="clan"`, `name="place"`, `name="period"`, `name="src"` and
+     * `name="state"`. So every filter control the owner described has been submitting to `/archive/` — the
+     * application's route — which read `identity`, `ethnic`, `entity`, `completeness` and `source`, and
+     * therefore ignored every one of them. **The rail was not merely drawn elsewhere; it was wired to an
+     * address that could not hear it.**
+     *
+     * SO `/archive/` IS SERVED BY THE DESIGN SCREEN — filled at request time, exactly like `/watch/`,
+     * `/documents/` and the other screens — and `/archive-index/` becomes a 301 to it. One screen, one
+     * address, one implementation. The rewrite carries the query string, which is the whole mechanism by
+     * which the design's own form filters the listing.
+     *
+     * IT IS PLACED BEFORE THE `DESIGN_FILES` BRANCH for the same reason the `towns` entry above is: that
+     * branch would make `/archive-index.html` a two-hop redirect. `archive-index` stays in `DESIGN_SCREENS`
+     * so this file's own name is still recognised as one the deliverable ships.
+     */
+    /*
+     * ── THE RETIRED ACADEMY PAGE, WHICH IS ALSO THE ONE HOP TO THE ACADEMY ITSELF ──────────────────
+     *
+     * `/academy/` was a design screen this site served, and the owner retired it: *"delete this page
+     * https://ozikoro.com/academy/ and move anyone that clicks on the academy on the top menu to
+     * academy.ozikoro.com."* `academy` has therefore left `DESIGN_SCREENS` above, which is the whole of
+     * how a screen stops being served.
+     *
+     * ⚠️ IT REDIRECTS RATHER THAN 404ing, AND THAT IS THE ARCHIVE'S OLDEST ADDRESS RULE: *"an address
+     * once reachable keeps working — it does not say it keeps working as the wrong thing."* The page
+     * answered 200 and it was published; the subject it was about has a home on another host; so the
+     * address is kept and pointed at that home. **A 404 here would have been the fault this rule exists
+     * to prevent**, and it would have been invisible to the site's own link checker, because by the time
+     * this change ships nothing on the site links to `/academy/` any more — only readers' bookmarks and
+     * a year of shared links would have found the hole.
+     *
+     * IT IS A CROSS-HOST 301, WHICH IS UNUSUAL HERE AND IS WHY IT IS SAID OUT LOUD. Every other redirect
+     * in this file stays on ozikoro.com; this one leaves it, because the Academy is a separate
+     * application and there is no page on this host to send the reader to. **Measured before pointing a
+     * single link at it: `curl -sI https://academy.ozikoro.com/` → HTTP/2 200.**
+     *
+     * THE QUERY STRING IS NOT CARRIED, WHICH IS THE ONE PLACE THIS DEPARTS FROM ITS NEIGHBOURS. The
+     * neighbours carry `?page=…` because they are the same page under another address; this is a
+     * different application, and its routes are its own. Relaying a parameter this archive never read,
+     * to a host whose parameters this checkout cannot verify, would be guessing at an address — and
+     * `?ozpreview=` in particular is this archive's own preview toggle and means nothing there.
+     *
+     * `single` has already had `.html` and the trailing slash stripped, so all three spellings —
+     * `/academy`, `/academy/` and `/academy.html` — are one hop from here. It sits ABOVE the
+     * `DESIGN_FILES` branch for the same reason the `towns` entry does: that branch would turn
+     * `/academy.html` into `/academy/` first, making the file's own name a two-hop redirect.
+     */
+    if (single === 'academy') {
+      return NextResponse.redirect(new URL('https://academy.ozikoro.com/'), 301);
+    }
+
+    if (single === 'archive-index') {
+      const to = new URL('/archive/', request.url);
+      to.search = search;
+      return NextResponse.redirect(to, 301);
+    }
+    if (single === 'archive' && !hadFileSuffix) {
+      const target = new URL('/design-screen/archive-index', request.url);
+      target.search = request.nextUrl.search;
+      return NextResponse.rewrite(target);
+    }
+
     if (hadFileSuffix && DESIGN_FILES.has(single)) {
       const to = new URL(single === 'home' ? '/' : `/${single}/`, request.url);
       to.search = search;

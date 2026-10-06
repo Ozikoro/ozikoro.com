@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { FAVICON_LINKS, renderModeSwitcher } from '@ozikoro/platform';
+import { accountItemFor, FAVICON_LINKS, renderModeSwitcher } from '@ozikoro/platform';
 import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
 import './globals.css';
 
@@ -128,6 +128,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    */
   const workspace = await workspaceViewer();
   const modeSwitch = renderModeSwitcher(switcherFor(workspace, null), 'nav');
+  /*
+   * THE ACCOUNT ITEM, WHICH AN ADMINISTRATOR'S MENU CARRIES INSTEAD OF THE SWITCH.
+   *
+   * `modeSwitch` is empty for an account that may administer the site — `renderModeSwitcher`'s own rule,
+   * written out at `administersSite` in `dashboard-modes.ts` — so this branch is what such a person
+   * actually sees. The address and the two words come from `accountItemFor` rather than from the
+   * `primaryHref.startsWith('/dashboard-reader')` test that used to be written here, because that test
+   * would have labelled an administrator's remembered workspace `My workspace` — the item the owner
+   * asked to have removed — and **the wording and the destination of one link belong in one place.**
+   */
+  const accountControl = accountItemFor({
+    signedIn: workspace.signedIn,
+    platformRole: workspace.platformRole,
+    primaryHref: workspace.primaryHref,
+  });
 
   return (
     <html lang="en">
@@ -207,7 +222,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <a href="https://ozituma.com">ozituma.com — dictionary</a>
               </li>
               <li>
-                <Link href="/academy/">academy.ozikoro.com — academy</Link>
+                {/*
+                  THE ACADEMY IS A SEPARATE APPLICATION, SO ITS ADDRESS IS ABSOLUTE.
+                  It used to be `<Link href="/academy/">` — this archive's own interim page — and the owner
+                  retired that page: *"delete this page https://ozikoro.com/academy/ and move anyone that
+                  clicks on the academy on the top menu to academy.ozikoro.com."* `middleware.ts` now answers
+                  `/academy/` with a 301 to the host, so a same-site link would be a hop through a redirect.
+                  Measured: `curl -sI https://academy.ozikoro.com/` → HTTP/2 200.
+                */}
+                <a href="https://academy.ozikoro.com/">academy.ozikoro.com — academy</a>
               </li>
             </ul>
             <span className="owner">Ozi Ikoro Limited</span>
@@ -259,7 +282,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Link href="/researchers">Researchers</Link>
                 </li>
                 <li>
-                  <Link href="/academy/">Academy</Link>
+                  <a href="https://academy.ozikoro.com/">Academy</a>
                 </li>
                 <li>
                   <Link href="/about">About</Link>
@@ -289,9 +312,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="masthead-account">
               {modeSwitch.length > 0 ? (
                 <div className="nav-modes-item" dangerouslySetInnerHTML={{ __html: modeSwitch }} />
-              ) : workspace.signedIn ? (
-                <Link className="nav-account" href={workspace.primaryHref}>
-                  {workspace.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace'}
+              ) : accountControl ? (
+                <Link className="nav-account" href={accountControl.href}>
+                  {accountControl.label}
                 </Link>
               ) : (
                 <Link className="nav-account" href="/signin">Sign in / Sign up</Link>
@@ -307,7 +330,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <p>
               <strong>Ozikoro</strong> — the history and archive of Igbo and African peoples. The
               dictionary is <a href="https://ozituma.com">Ozituma</a> and the academy is{' '}
-              <Link href="/academy/">the Academy</Link>, which is being prepared.
+              <a href="https://academy.ozikoro.com/">Ozikoro Academy</a>.
             </p>
             <p className="small muted">
               Ozi Ikoro Limited. Write to <a href="mailto:hello@ozikoro.com">hello@ozikoro.com</a>.

@@ -5,7 +5,8 @@
  *
  * Three sites, one institution: ozikoro.com is the parent, and ozituma.com (the dictionary)
  * and the Academy are its children. **The Academy's host is `academy.ozikoro.com`, which replaced
- * the retired `learn.ozituma.com` and is still being prepared**, so the parts
+ * the retired `learn.ozituma.com` and answers** — measured on 6 October 2026: `curl -sI
+ * https://academy.ozikoro.com/` → HTTP/2 200 — so the parts
  * that make them one are deliberately shared:
  *
  *   - one database, one schema, one migration lineage (`@ozituma/db`)

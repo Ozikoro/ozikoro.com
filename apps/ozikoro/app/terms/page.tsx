@@ -112,8 +112,8 @@ export default async function TermsPage() {
             Ozikoro is published by Ozi Ikoro Limited — an archive of Igbo and wider African histories,
             photographs, documents and recordings. It is one institution with three public tools:
             ozikoro.com holds the archive, <a href="https://ozituma.com/">ozituma.com</a> is the
-            African-languages dictionary, and <Link href="/academy/">the Academy</Link> is where the
-            language courses are being prepared. Its own page is <Link href="/about">About</Link>.
+            African-languages dictionary, and <a href="https://academy.ozikoro.com/">the Academy</a> holds
+            the language courses. Its own page is <Link href="/about">About</Link>.
           </p>
           <p>
             The archive holds <strong>{n(c.records)} published records</strong> and{' '}

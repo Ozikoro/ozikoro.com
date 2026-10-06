@@ -68,7 +68,7 @@ export default function NotFound() {
             <a href="https://ozituma.com/">ozituma.com — dictionary</a>
           </li>
           <li>
-            <Link href="/academy/">Academy — Learn Igbo</Link>
+            <a href="https://academy.ozikoro.com/">Academy — Learn Igbo</a>
           </li>
         </ul>
       </div>

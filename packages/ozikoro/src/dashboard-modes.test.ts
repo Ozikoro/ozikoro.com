@@ -24,6 +24,8 @@ import {
   DASHBOARD_MODES,
   DASHBOARD_MODE_COOKIE,
   OPEN_DASHBOARD_MODES,
+  accountItemFor,
+  administersSite,
   dashboardModeForScreen,
   dashboardModeForSlug,
   dashboardModeHref,
@@ -35,6 +37,7 @@ import {
   fillModeSwitcher,
   hasElevatedDashboardModes,
   mayEnterDashboardMode,
+  menuOffersWorkspaceSwitch,
   primaryDashboardHref,
   rememberedDashboardMode,
   renderModeSwitcher,
@@ -56,6 +59,8 @@ const EDITOR = viewer('contributor', ['read', 'edit_entity', 'manage_source', 'm
 /** A moderator's own set. */
 const MODERATOR = viewer('contributor', ['read', 'moderate', 'review_reports']);
 const OWNER = viewer('owner', []);
+/** A platform administrator, holding what opens the Administration workspace and nothing above the floor. */
+const ADMIN = viewer('admin', ['read', 'manage_users']);
 
 const identity = { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner' };
 
@@ -89,13 +94,13 @@ test('a reader with nothing elevated is offered nothing at all', () => {
   assert.deepEqual(modes.map((m) => m.mode), ['reader', 'account', 'states']);
   assert.equal(hasElevatedDashboardModes(modes), false);
   const markup = renderModeSwitcher({
-    signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', modes, currentMode: 'reader', adminHref: null,
+    signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', platformRole: 'contributor', modes, currentMode: 'reader', adminHref: null,
   });
   assert.equal(markup, '', 'a plain reader was given a control the brief says they must not see');
   // And the page itself is untouched, including the design's own switch if it were somehow present.
   const page = '<main id="main" class="wrap sx-section"><h1>Account</h1></main>';
   assert.equal(
-    fillModeSwitcher(page, { viewer: { signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', modes, currentMode: 'account', adminHref: null }, primaryHref: '/dashboard-reader?mode=reader', allowedScreens: new Set(['dashboard-reader']) }),
+    fillModeSwitcher(page, { viewer: { signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', platformRole: 'contributor', modes, currentMode: 'account', adminHref: null }, primaryHref: '/dashboard-reader?mode=reader', allowedScreens: new Set(['dashboard-reader']) }),
     page
   );
 });
@@ -231,6 +236,7 @@ test('the switch reads My Account, says where you are inside it, and offers only
       signedIn: true,
       name: 'Idenze Ezeme',
       roleLabel: 'Owner',
+      platformRole: 'owner',
       modes,
       currentMode: 'editor',
       adminHref: '/admin/',
@@ -271,14 +277,14 @@ test('the switch reads My Account, says where you are inside it, and offers only
 
 test('the control is not offered to an account that is not signed in', () => {
   const markup = renderModeSwitcher(
-    { signedIn: false, name: null, roleLabel: null, modes: dashboardModesFor(OWNER), currentMode: null, adminHref: null }
+    { signedIn: false, name: null, roleLabel: null, platformRole: null, modes: dashboardModesFor(OWNER), currentMode: null, adminHref: null }
   );
   assert.equal(markup, '');
 });
 
 test('a workspace the viewer may not open is not in the switch at all', () => {
   const markup = renderModeSwitcher(
-    { signedIn: true, name: 'Ada', roleLabel: 'Editor', modes: dashboardModesFor(EDITOR), currentMode: 'editor', adminHref: null }
+    { signedIn: true, name: 'Ada', roleLabel: 'Editor', platformRole: 'contributor', modes: dashboardModesFor(EDITOR), currentMode: 'editor', adminHref: null }
   );
   assert.doesNotMatch(markup, /dashboard-admin/, 'the switch offered a workspace the account cannot open');
   assert.doesNotMatch(markup, /Administration workspace/);
@@ -289,9 +295,17 @@ test('the switch is spliced into all three of the deliverable\'s shapes', () => 
   const plain = '<main id="main" class="wrap sx-section"><h1>Publishing workflow</h1></main>';
   const masthead = '<header class="masthead"><nav class="nav"><ul><li><a href="/about">About</a></li><li class="nav-account"><a href="/dashboard-reader">My account</a></li></ul></nav></header>';
   const page = {
-    viewer: { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner', modes: dashboardModesFor(OWNER), currentMode: 'admin', adminHref: '/admin/' },
-    primaryHref: '/dashboard-admin?mode=admin',
-    allowedScreens: new Set(DASHBOARD_MODES.map((m) => m.screen)),
+    /*
+     * THE FIXTURE IS A MODERATOR AND NOT THE OWNER, AND THAT IS THE NEW RULE RATHER THAN A PREFERENCE.
+     *
+     * This test is about the three PLACEMENTS, so its viewer has to be an account the menu still offers a
+     * switch to. The owner no longer is one — see `administersSite` and the test named *the menu gives an
+     * administrator the account item and nothing else* below — so keeping the owner here would have made
+     * the `nav` half of this test assert the absence of the very thing it exists to check.
+     */
+    viewer: { signedIn: true, name: 'Ada', roleLabel: 'Moderator', platformRole: 'contributor', modes: dashboardModesFor(MODERATOR), currentMode: 'moderation', adminHref: '/admin/' },
+    primaryHref: '/dashboard-moderation?mode=moderation',
+    allowedScreens: new Set(dashboardModesFor(MODERATOR).map((m) => m.screen)),
   };
   const inRail = fillModeSwitcher(rail, page);
   assert.ok(inRail.indexOf('sx-mode-switch') > 0 && inRail.indexOf('sx-mode-switch') < inRail.indexOf('sx-dash-nav'));
@@ -306,7 +320,7 @@ test('the switch is spliced into all three of the deliverable\'s shapes', () => 
   assert.doesNotMatch(inNav, /<li class="nav-account">/, 'the switch must take the account item, not sit beside it');
   assert.match(
     inNav,
-    /<a class="sx-mode-account" href="\/dashboard-admin\?mode=admin">My workspace<\/a>/,
+    /<a class="sx-mode-account" href="\/dashboard-moderation\?mode=moderation">My workspace<\/a>/,
     'a masthead link to a workspace must not still say My account, and must not be dropped'
   );
   // The design's own links inside the page are untouched: this function adds, it does not rewrite.
@@ -316,12 +330,12 @@ test('the switch is spliced into all three of the deliverable\'s shapes', () => 
 test('a back link the viewer cannot follow is repointed, and one they can is left alone', () => {
   const back = '<main id="main" class="wrap sx-section"><a href="dashboard-admin.html">← Back to workspace</a></main>';
   const editorPage = {
-    viewer: { signedIn: true, name: 'Ada', roleLabel: 'Editor', modes: dashboardModesFor(EDITOR), currentMode: 'editor', adminHref: null },
+    viewer: { signedIn: true, name: 'Ada', roleLabel: 'Editor', platformRole: 'contributor', modes: dashboardModesFor(EDITOR), currentMode: 'editor', adminHref: null },
     primaryHref: '/dashboard-editor?mode=editor',
     allowedScreens: new Set(dashboardModesFor(EDITOR).map((m) => m.screen)),
   };
   assert.match(fillModeSwitcher(back, editorPage), /href="\/dashboard-editor\?mode=editor">← Back to workspace/);
-  const ownerPage = { ...editorPage, viewer: { ...editorPage.viewer, name: 'Idenze Ezeme', roleLabel: 'Owner', modes: dashboardModesFor(OWNER), currentMode: 'admin' }, allowedScreens: new Set(DASHBOARD_MODES.map((m) => m.screen)) };
+  const ownerPage = { ...editorPage, viewer: { ...editorPage.viewer, name: 'Idenze Ezeme', roleLabel: 'Owner', platformRole: 'owner', modes: dashboardModesFor(OWNER), currentMode: 'admin' }, allowedScreens: new Set(DASHBOARD_MODES.map((m) => m.screen)) };
   assert.match(fillModeSwitcher(back, ownerPage), /href="dashboard-admin\.html">← Back to workspace/);
 });
 
@@ -354,7 +368,7 @@ test('every real dashboard composes: the design\'s switch goes, and this one tak
     const served = fillMasthead(raw, { signedIn: true });
 
     const ownerPage = fillModeSwitcher(served, {
-      viewer: { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner', modes: dashboardModesFor(OWNER), currentMode: mode.mode, adminHref: '/admin/' },
+      viewer: { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner', platformRole: 'owner', modes: dashboardModesFor(OWNER), currentMode: mode.mode, adminHref: '/admin/' },
       primaryHref: dashboardModeHref(mode),
       allowedScreens: new Set(DASHBOARD_MODES.map((m) => m.screen)),
     });
@@ -366,7 +380,7 @@ test('every real dashboard composes: the design\'s switch goes, and this one tak
     assert.match(ownerPage, /href="\/admin\/"/, `${screen} gives the owner no way back to the back office`);
 
     const readerPage = fillModeSwitcher(served, {
-      viewer: { signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', modes: dashboardModesFor(READER), currentMode: mode.mode, adminHref: null },
+      viewer: { signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', platformRole: 'contributor', modes: dashboardModesFor(READER), currentMode: mode.mode, adminHref: null },
       primaryHref: '/dashboard-reader?mode=reader',
       allowedScreens: new Set(dashboardModesFor(READER).map((m) => m.screen)),
     });
@@ -498,13 +512,21 @@ test('the account control is the design\'s last item, outside the list, in both 
  */
 test('the workspace switch composes with the account control, and does not take its place', () => {
   const served = fillMasthead(readFileSync(join(SCREENS, 'home.html'), 'utf8'), { signedIn: true });
+  /*
+   * AN EDITOR, AND NOT THE OWNER — THE FIXTURE MOVED WITH THE RULE.
+   *
+   * The subject of this test is that the switch does not EAT the account control, which needs a viewer the
+   * menu still offers a switch to. The owner is no longer one (see the test below), so a fixture that kept
+   * him here would have asserted the composition of a control that is deliberately absent — and would have
+   * reported the new rule as a fault.
+   */
   const page = {
     viewer: {
-      signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner',
-      modes: dashboardModesFor(OWNER), currentMode: 'admin', adminHref: '/admin/',
+      signedIn: true, name: 'Ada', roleLabel: 'Editor', platformRole: 'contributor',
+      modes: dashboardModesFor(EDITOR), currentMode: 'editor', adminHref: null,
     },
-    primaryHref: '/dashboard-admin?mode=admin',
-    allowedScreens: new Set(DASHBOARD_MODES.map((m) => m.screen)),
+    primaryHref: '/dashboard-editor?mode=editor',
+    allowedScreens: new Set(dashboardModesFor(EDITOR).map((m) => m.screen)),
   };
 
   const out = fillModeSwitcher(served, page);
@@ -513,7 +535,7 @@ test('the workspace switch composes with the account control, and does not take 
   assert.match(out, /<div class="masthead-account">[\s\S]*class="nav-account"[\s\S]*class="nav-modes-item"[\s\S]*?<\/div>/);
 
   // The link is re-pointed at the workspace actually chosen, and relabelled to match where it goes.
-  assert.match(out, /<a class="nav-account" href="\/dashboard-admin\?mode=admin">My workspace<\/a>/);
+  assert.match(out, /<a class="nav-account" href="\/dashboard-editor\?mode=editor">My workspace<\/a>/);
   assert.doesNotMatch(out, /href="\/dashboard-reader">My account<\/a>/, 'the link still points at the reader workspace');
 
   // And the design's menu is STILL untouched by the second pass, which is the whole point of the round.
@@ -527,12 +549,92 @@ test('the workspace switch composes with the account control, and does not take 
    * a change that always wrote the box would give a plain reader a control with nothing in it.
    */
   const reader = fillModeSwitcher(served, {
-    viewer: { signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', modes: dashboardModesFor(READER), currentMode: 'reader', adminHref: null },
+    viewer: { signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', platformRole: 'contributor', modes: dashboardModesFor(READER), currentMode: 'reader', adminHref: null },
     primaryHref: '/dashboard-reader?mode=reader',
     allowedScreens: new Set(dashboardModesFor(READER).map((m) => m.screen)),
   });
   assert.doesNotMatch(reader, /sx-mode-switch/, 'a plain reader was offered a switch they must not see');
   assert.match(reader, /<a class="nav-account" href="\/dashboard-reader\?mode=reader">My account<\/a>/);
+});
+
+/**
+ * ── THE RULE THE OWNER ASKED FOR, ASSERTED IN BOTH DIRECTIONS ─────────────────────────────────────
+ *
+ * *"on the menu, You added 'My Account' below 'My Workspace', can you make a rule that whenever an admin
+ * logins into the website, my workspace disappears, and only my account will appear. this is only for
+ * admin."*
+ *
+ * THREE ASSERTIONS, AND THE THIRD IS THE ONE A ONE-SIDED TEST WOULD MISS:
+ *
+ *   1. the MENU offers an administrator no switch at all — not a disabled control, not an empty `<li>`
+ *   2. the account item it keeps is the design's own: `My account` at `/dashboard-reader`, **not** the
+ *      administrator's remembered workspace under an account's name
+ *   3. THE RAIL STILL HAS IT. The owner asked for the menu's control to go, not for the administrator to
+ *      lose the only navigation between workspaces inside a dashboard, so this is asserted rather than
+ *      left to be discovered by whoever notices a dashboard with no way out of it.
+ *
+ * `owner` IS ASSERTED BESIDE `admin` BECAUSE `isAdmin` SAYS SO, and that is measured rather than assumed:
+ * the only elevated account in this checkout's own database is `idenzeme@gmail.com`, whose platform role
+ * is **`owner`**. An `admin`-only rule would have left the owner's own menu — the one he was describing —
+ * byte-identical to the one he complained about.
+ */
+test('the menu gives an administrator the account item and nothing else', () => {
+  assert.equal(administersSite('admin'), true);
+  assert.equal(administersSite('owner'), true);
+  assert.equal(administersSite('ADMIN'), true, 'the role column is compared case-insensitively');
+  assert.equal(administersSite('editor'), false);
+  assert.equal(administersSite('contributor'), false);
+  assert.equal(administersSite(null), false);
+
+  for (const [role, who] of [['admin', ADMIN], ['owner', OWNER]] as const) {
+    const modes = dashboardModesFor(who);
+    assert.equal(
+      menuOffersWorkspaceSwitch({ platformRole: role, modes }),
+      false,
+      `the menu still offers the workspace switch to a platform ${role}`
+    );
+
+    // ONE. The menu is empty — no control, and therefore no empty item wrapped around one.
+    assert.equal(
+      renderModeSwitcher(
+        { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner', platformRole: role, modes, currentMode: 'admin', adminHref: '/admin/' },
+        'nav'
+      ),
+      ''
+    );
+
+    // TWO. The account item is the design's own, even when one of their workspaces was remembered.
+    assert.deepEqual(
+      accountItemFor({ signedIn: true, platformRole: role, primaryHref: '/dashboard-admin?mode=admin' }),
+      { href: '/dashboard-reader', label: 'My account' },
+      `a platform ${role} was handed their workspace under the account's name`
+    );
+
+    // THREE. The dashboard rail keeps it, because that is where an administrator works.
+    assert.notEqual(
+      renderModeSwitcher(
+        { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner', platformRole: role, modes, currentMode: 'admin', adminHref: '/admin/' },
+        'rail'
+      ),
+      '',
+      `a platform ${role} lost the rail, which is the only way between workspaces inside a dashboard`
+    );
+  }
+
+  // And on a real screen: the design's own account anchor, untouched, and no switch beside it.
+  const served = fillMasthead(readFileSync(join(SCREENS, 'home.html'), 'utf8'), { signedIn: true });
+  const out = fillModeSwitcher(served, {
+    viewer: { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner', platformRole: 'owner', modes: dashboardModesFor(OWNER), currentMode: 'admin', adminHref: '/admin/' },
+    primaryHref: '/dashboard-admin?mode=admin',
+    allowedScreens: new Set(DASHBOARD_MODES.map((m) => m.screen)),
+  });
+  assert.doesNotMatch(out, /sx-mode-switch/, "the owner's menu still carries the workspace switch");
+  assert.doesNotMatch(out, /nav-modes-item/, 'an empty menu item was written where the switch would have gone');
+  assert.match(
+    out,
+    /<a class="nav-account" href="\/dashboard-reader">My account<\/a>/,
+    "the owner's menu does not carry the plain account item"
+  );
 });
 
 test('roles are described from what the account holds, and the floor is the reader', () => {

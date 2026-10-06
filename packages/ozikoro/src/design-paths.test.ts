@@ -215,7 +215,11 @@ test('the retired academy host is rewritten in the design, which cannot be edite
    * THE THREE SHAPES ARE ASSERTED ONE AT A TIME, because they need three different answers and collapsing
    * them into one would get two of them wrong:
    *
-   *   * an ADDRESS becomes `/academy/` — a page this archive serves, not a host with no record in its zone
+   *   * an ADDRESS becomes `https://academy.ozikoro.com/` — the Academy itself, absolute, because it is a
+   *     separate application on its own host. **It used to become `/academy/`, this archive's interim page
+   *     about the Academy, and the owner retired that page** (*"delete this page
+   *     https://ozikoro.com/academy/"*), so the assertion below is the one that would have caught a link
+   *     left pointing at an address the middleware no longer serves.
    *   * the platform bar's LABEL stops naming the host, because "academy.ozikoro.com — Learn Igbo" would
    *     name a place the link does not go
    *   * a bare HOST in prose becomes `academy.ozikoro.com` — the announced replacement, named but not
@@ -228,15 +232,29 @@ test('the retired academy host is rewritten in the design, which cannot be edite
     '<div><a href="https://learn.ozituma.com/">Learn Igbo</a></div>',
     '<tr><th scope="row">learn.ozituma.com</th><td>Courses</td></tr>',
     '<span>ozikoro.com · ozituma.com · learn.ozituma.com</span>',
+    /*
+     * AND THE MENU'S OWN ACADEMY ITEM, WHICH IS A DIFFERENT RULE FROM THE HOST REWRITE ABOVE.
+     *
+     * Six of the deliverable's screens carry `<a href="academy.html">Academy</a>` in the masthead, and
+     * `academy.html` is a relative file name — so it is caught by the SCREEN-LINK rule, not by the
+     * `learn.ozituma.com` rule. It used to fall through to the generic `/academy/`; this asserts it is the
+     * Academy's absolute address instead. `academy.html` is the only screen that marks it current.
+     */
+    '<li><a href="academy.html" aria-current="page">Academy</a></li>',
     '</body></html>',
   ].join('');
 
   const out = designScreenLinks(fixture);
 
   assert.doesNotMatch(out, /href="https:\/\/learn\.ozituma\.com/, 'an address still sends a reader to the retiring host');
-  assert.match(out, /<a href="\/academy\/" class="here">Academy — Learn Igbo<\/a>/,
-    'the platform bar label must stop naming the host and must point at the page that answers');
-  assert.match(out, /<a href="\/academy\/">Learn Igbo<\/a>/, 'the footer link still leaves the site');
+  assert.match(out, /<a href="https:\/\/academy\.ozikoro\.com\/" class="here">Academy — Learn Igbo<\/a>/,
+    'the platform bar label must stop naming the host, and must point at the Academy itself');
+  assert.match(out, /<a href="https:\/\/academy\.ozikoro\.com\/">Learn Igbo<\/a>/, 'the footer link must reach the Academy');
+  assert.doesNotMatch(out, /href="\/academy\/"/, 'a link still points at the retired interim page on this host');
+  assert.match(out, /<li><a href="https:\/\/academy\.ozikoro\.com\/">Academy<\/a><\/li>/,
+    "the menu's Academy item does not reach the Academy");
+  assert.doesNotMatch(out, /aria-current="page">Academy/,
+    'the menu still claims the Academy item is the page the reader is on, though it leaves the site');
   assert.match(out, /taught at academy\.ozikoro\.com/, 'the meta description still names the retiring host');
   assert.match(out, /<th scope="row">academy\.ozikoro\.com<\/th>/, 'the comparison table still names the retiring host');
   assert.match(out, /ozikoro\.com · ozituma\.com · academy\.ozikoro\.com/, 'the footer domain list still names the retiring host');
@@ -414,13 +432,20 @@ test('the columns are the front page\'s own, taken from the file rather than ret
 
 test('every screen the deliverable drew thin is served with the columns, and the count is asserted', () => {
   /*
-   * THE CLAIM OVER THE REAL DELIVERABLE RATHER THAN A FIXTURE. Measured on 2026-10-05: of the 52 screens,
-   * **17 carry `site-foot` with only the legal strip, 13 carry the four columns, and 17 have no footer
-   * element at all** (plus `account.html`, whose foot is a `.footer` line of its own). Both sides are
-   * asserted so the test cannot pass by there being nothing to do.
+   * THE CLAIM OVER THE REAL DELIVERABLE RATHER THAN A FIXTURE. Re-measured on 2026-10-06, when this read:
+   * **of the 53 screens, 18 carry `site-foot` with only the legal strip, 13 carry the four columns, and 22
+   * have no footer element at all** (plus `account.html`, whose foot is a `.footer` line of its own). Both
+   * sides are asserted so the test cannot pass by there being nothing to do.
+   *
+   * ⚠️ THE CONSTANT MOVED FROM 17 TO 18 AND THE SCREEN IS NAMED RATHER THAN THE NUMBER EXPLAINED AWAY. It
+   * was 17 when the deliverable held 52 screens; upstream's `document-viewer.html` — merged with the
+   * middleware entry that serves it — is the eighteenth. **It was already 18 before the change this
+   * comment sits in**: `thin` below is computed from the raw design files and nothing else, so no
+   * serve-time rule can move it. Corrected here because a test whose whole point is that the count is
+   * asserted has to be re-measured when the count moves, or the assertion is decoration.
    */
   const files = readdirSync(SCREENS).filter((f: string) => f.endsWith('.html'));
-  assert.ok(files.length >= 52, `expected the deliverable's screens; found ${files.length} files`);
+  assert.ok(files.length >= 53, `expected the deliverable's screens; found ${files.length} files`);
 
   const thin: string[] = [];
   const withColumns: string[] = [];
@@ -439,7 +464,7 @@ test('every screen the deliverable drew thin is served with the columns, and the
     if (!withSiteFooter(raw).includes('class="grid-4"')) stillThin.push(file);
   }
 
-  assert.equal(thin.length, 17, `the deliverable's thin-footer screens have changed: ${thin.join(', ')}`);
+  assert.equal(thin.length, 18, `the deliverable's thin-footer screens have changed: ${thin.join(', ')}`);
   assert.equal(withColumns.length, 13, `the deliverable's four-column screens have changed: ${withColumns.join(', ')}`);
   assert.ok(noFooter.length > 0, 'no screen is without a footer — this test has stopped testing anything');
   assert.deepEqual(stillThin, [], `these screens are still served without the columns: ${stillThin.join(', ')}`);
@@ -458,7 +483,7 @@ test('the injected columns are resolved by the same rule as every other address 
   assert.doesNotMatch(out, /href="[a-z0-9-]+\.html/, 'a relative footer address reached the served page');
   assert.match(out, /href="\/archive\/">All histories</, 'archive-index.html did not resolve to the archive');
   assert.match(out, /href="\/clan-towns\/">Clans and towns</, 'towns.html did not resolve to the register');
-  assert.match(out, /href="\/academy\/">Learn Igbo</, 'the retired host did not resolve to the archive\'s own page');
+  assert.match(out, /href="https:\/\/academy\.ozikoro\.com\/">Learn Igbo</, 'the retired host did not resolve to the Academy');
   assert.match(out, /href="https:\/\/ozituma\.com\/"/, 'the dictionary is an address, not a screen, and was rewritten');
   // The one footer item that names a section no page draws is removed, exactly as it is on the front page.
   assert.doesNotMatch(out, /#access/, 'the footer kept a link to an institutional-access section that does not exist');

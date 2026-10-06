@@ -3153,27 +3153,31 @@ const DASHBOARD_LINK: Record<string, string> = {
   // `/account/` is the reader's own record and the page the design's four account cards already reach.
   'Complete your profile': '/account/',
   /*
-   * THE ACADEMY'S COURSES ARE THIS ARCHIVE'S ACADEMY PAGE, NOT ANOTHER HOST.
+   * THE ACADEMY'S COURSES ARE THE ACADEMY'S OWN HOST, WHICH NOW ANSWERS.
    *
    * `academy.html` prints its course list's lead line directly above five placeholder course titles, each
-   * a bare `href="#"`. The five used to be wired to `https://learn.ozituma.com/` and the note here
+   * a bare `href="#"`. The five used to be wired to `https://learn.ozituma.com/`, and the note here
    * recorded, correctly at the time, that the page named that address and the address answered.
    *
-   * **THE ADDRESS IS BEING RETIRED, AND THAT IS WHY THEY MOVED.** `learn.ozituma.com` is replaced by
-   * `academy.ozikoro.com`, which has no record in its zone yet, so a course title wired to either of those
-   * hosts would be a link to nothing. `/academy/` is this archive's own page about the academy and it
-   * answers, and it is where the archive says the academy is being prepared.
+   * THEY THEN MOVED TO `/academy/` — this archive's own interim page — **and that is the state this
+   * change reverses.** The reason recorded here was that `academy.ozikoro.com` "has no record in its
+   * zone yet, so a course title wired to either of those hosts would be a link to nothing." **Measured
+   * on 6 October 2026, that is false**: `curl -sI https://academy.ozikoro.com/` answers HTTP/2 200, and
+   * its own `<title>` reads *Ozikoro Academy — Igbo language, history and culture*. The owner then asked
+   * for the interim page itself to go (*"delete this page https://ozikoro.com/academy/"*), which is why
+   * these five are absolute now rather than same-site: **once `/academy/` is retired, a link to it is the
+   * link to nothing, and the host that answers is the Academy.**
    *
    * In the served page these five are not reached at all: `fillAcademy` replaces the whole `#courses`
    * grid, because the design's five courses are invented and the academy holds none to put in their
    * place. The destinations are still decided here, because `fillDashboardLinks` is a function with a
    * test of its own and a placeholder it does not answer is a placeholder it has left dead.
    */
-  'Igbo from the beginning': '/academy/',
-  'Reading and writing with tone marks': '/academy/',
-  'The market week, title and kinship': '/academy/',
-  'Recording and transcribing oral testimony': '/academy/',
-  'Your name, your town, your clan': '/academy/',
+  'Igbo from the beginning': 'https://academy.ozikoro.com/',
+  'Reading and writing with tone marks': 'https://academy.ozikoro.com/',
+  'The market week, title and kinship': 'https://academy.ozikoro.com/',
+  'Recording and transcribing oral testimony': 'https://academy.ozikoro.com/',
+  'Your name, your town, your clan': 'https://academy.ozikoro.com/',
 };
 
 /**
@@ -3216,7 +3220,7 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   'Supervisor & institution': 'fields on the member record, and a route to edit them',
   Notes: 'a private notes table per account, and a route to read and write it',
   Submissions: 'a submission queue joining an account to what it sent, and a route to list it',
-  Learning: 'the academy’s course catalogue for this site; the Academy is its own application at academy.ozikoro.com, which is being prepared',
+  Learning: 'the academy’s course catalogue for this site; the Academy is its own application, at academy.ozikoro.com',
   Resources: 'a teaching-resources library, and a route to browse it',
   Courses: 'a course record owned by a teacher, and a route to list it',
   'Classes & projects': 'a class group joining a teacher to students, and a route to open one',
@@ -3960,7 +3964,7 @@ export function fillAbout(html: string, d: AboutData): string {
             <ul>
               <li><a href="https://ozikoro.com/">ozikoro.com</a> — the history and archive: ${n(d.published)} published records, ${n(d.towns)} towns and clans, ${n(d.media)} media items.</li>
               <li><a href="https://ozituma.com/">ozituma.com</a> — the African-languages dictionary.</li>
-              <li><a href="/academy/">academy.ozikoro.com</a> — courses in Igbo language and culture, being prepared.</li>
+              <li><a href="https://academy.ozikoro.com/">academy.ozikoro.com</a> — the Academy: courses in Igbo language, history and culture.</li>
             </ul>
             <p>All three are cited as one publisher: Ozi Ikoro Limited.</p>
           </div>
@@ -4540,78 +4544,72 @@ export function fillProjectsIndex(html: string, counts: {
   );
 
   /*
-   * THE DESIGN'S OWN NOTICE, WHICH IS THE SCREEN'S SECOND STATEMENT ABOUT ITSELF.
+   * THE DESIGN'S OWN NOTICE IS LEFT AS THE DESIGN WROTE IT.
    *
    * It reads *"Project titles reflect work visible on ozikoro.com; progress figures, budgets and dates are
-   * example material until Ozi Ikoro Limited supplies verified figures."* **The first clause is the problem**:
-   * those titles are not records here, and a reader who meets that sentence above the honest notice is told the
-   * opposite of it. It is replaced by the register's actual state.
+   * example material until Ozi Ikoro Limited supplies verified figures."*
+   *
+   * **An earlier version replaced it with a sentence of the page's own making** — *"No project is recorded in
+   * the archive. The design's six example projects are not reproduced, and neither are their progress figures,
+   * budgets or dates."* That sentence is nowhere in `projects.html`, so it is removed and the design's notice
+   * is simply not touched. Whether the design's notice is the right thing to print above an empty register is
+   * a question about the deliverable, and not this file's to answer.
    */
-  out = out.replace(
-    /<p class="sx-notice"[^>]*>[\s\S]*?<\/p>/,
-    `<p class="sx-notice">No project is recorded in the archive. The design's six example projects are not reproduced, and neither are their progress figures, budgets or dates.</p>`
-  );
 
   /*
    * THE FEATURE AND THE GRID ARE TWO SEPARATE CONTAINERS.
    *
-   * `.sx-proj-feature` holds the "Town histories series" card with its community list, and `.sx-proj-grid` is a
-   * SIBLING holding the other five — so filling the feature alone left five cards, each with an
-   * `aria-label="Example progress 60 percent"` meter, standing under an honest notice.
+   * `.sx-proj-feature` held the design's "Town histories series" feature card — a title, a community list and
+   * an example progress figure, none of which has a record behind it. **The container is left empty.**
+   *
+   * The three paragraphs and the two buttons an earlier version stood in its place are removed, because every
+   * sentence of them was the page writing about itself and none is in `projects.html`: *"No project is recorded
+   * in the archive, so none is listed…"*, *"A project will appear here when it has a purpose, a start and
+   * something to show…"*, and *"Propose a project"* / *"See who helped"*. Both routes those buttons pointed at
+   * are drawn by the design in its own "Take part" section further down this same screen, and stay there.
    */
-  out = fillContainer(
-    out,
-    /<div class="sx-proj-feature"[^>]*>/,
-    `<div class="sx-notice">No project is recorded in the archive, so none is listed. The design's six example projects — their titles, community lists, outputs and progress figures — are <strong>not carried over</strong>: there is no project record behind any of them, and there is no table one could be written into yet.</div>
-        <p class="small muted" style="margin-top:var(--s-5);max-width:70ch">A project will appear here when it has a purpose, a start and something to show. The four figures above are the archive's own counts rather than project progress, because those exist and project progress does not.</p>
-        <div class="row" style="margin-top:var(--s-5)"><a class="btn btn-gold" href="/submit">Propose a project</a><a class="btn btn-quiet" href="/ledger">See who helped</a></div>`
-  );
+  out = fillContainer(out, /<div class="sx-proj-feature"[^>]*>/, '');
   /*
-   * THE GRID KEEPS THE DESIGN'S CARD SHAPE AND SAYS THERE IS NOTHING IN IT.
+   * THE GRID KEEPS THE DESIGN'S CARD SHAPE, EMPTY OF ANYTHING THE DESIGN DID NOT WRITE.
    *
-   * `.sx-proj-grid` is a grid of `.sx-proj` cards, and each card is a `<figure>` beside a
-   * `.sx-proj-body` that carries the title, the summary, a `.sx-meter` and a `.sx-proj-meta` footer. **This
-   * used to put a single bare `<p>` inside the grid**, so the classes `.sx-proj-body`, `.sx-meter` and
-   * `.sx-proj-meta` were absent from the served page and `check-design-parity.mjs` reported all three —
-   * correctly, because the grid the design draws had no card in it.
+   * `.sx-proj-grid` is a grid of `.sx-proj` cards, and each card is a `<figure>` beside a `.sx-proj-body`
+   * that carries the title, the summary, a `.sx-meter` and a `.sx-proj-meta` footer. **This used to put a
+   * single bare `<p>` inside the grid**, so the classes `.sx-proj-body`, `.sx-meter` and `.sx-proj-meta` were
+   * absent from the served page and `check-design-parity.mjs` reported all three — correctly, because the grid
+   * the design draws had no card in it.
    *
-   * **What is filled and what is not.** The design's six cards carried example progress figures — 60%, 75%,
-   * 45%, 10%, 5% — and **not one of those percentages is reproduced, and no card is invented**. What is
-   * kept is the shape: one card that is the register's empty state, its body in `.sx-proj-body`, and a
-   * `.sx-meter` whose bar is at zero **with `role="img"` and an accessible name that says so in words**, so
-   * the element is not a picture of progress nobody measured. `.sx-proj-meta`'s two ends are the register's
-   * actual state and the way to change it. A percentage is the most measurement-looking thing a page can
-   * print, which is why this bar is empty and says why.
+   * The card is the design's, so the card stays and carries the register's actual state. **What goes is the
+   * paragraph it carried** — *"No project is recorded, so there is no register to list here. The six cards the
+   * design drew described real work with example figures — town histories, the market-day calendar, the
+   * folklore library, oral recordings, digitisation and the Ozituma link-up — and none is reproduced, because
+   * there is no record behind any of them."* — and the eyebrow, which is the design's slot for a project's
+   * TYPE and has no value when there is no project. No card is invented and no percentage is printed.
    */
   out = fillContainer(
     out,
     /<div class="sx-proj-grid"[^>]*>/,
     `<article class="sx-proj"><div class="sx-proj-body">
-          <p class="eyebrow">Project register</p>
           <h3>No project is recorded</h3>
-          <p class="small muted">No project is recorded, so there is no register to list here. The six cards the design drew described real work with example figures — town histories, the market-day calendar, the folklore library, oral recordings, digitisation and the Ozituma link-up — and none is reproduced, because there is no record behind any of them.</p>
           <div class="sx-meter" role="img" aria-label="No progress is recorded: no project is recorded"><i style="width:0%"></i></div>
           <div class="sx-proj-meta"><span>No progress recorded</span><a href="/submit">Propose a project →</a></div>
         </div></article>`
   );
   /*
-   * THE FILTER BAR STAYS A FILTER BAR, AND IT SAYS WHY IT HAS ONE ENTRY.
+   * THE FILTER BAR STAYS A FILTER BAR, AND THE SENTENCE THAT EXPLAINED IT GOES.
    *
-   * This replaced the whole `<nav class="sx-filterbar">` with a paragraph, so **the class the design draws
-   * was absent from the page** and the parity check reported it. `check-design-parity.mjs` already has the
-   * mechanism for a control whose states only appear once there is something to control: on `/archive` the
-   * `chips` row is listed under `CONDITIONAL` and looked for at a URL that produces it. Here there is no
-   * such URL, because no project record exists at all and no table to write one into — so the nav is kept
-   * with the one state that is true, and the note that stood in its place is kept beside it rather than
-   * instead of it. **A filter that filters nothing is not drawn as four filters.**
+   * This replaced the whole `<nav class="sx-filterbar">` with a paragraph, so **the class the design draws was
+   * absent from the page** and the parity check reported it. The nav is kept, with the one state that is true
+   * and the design's own label for it.
+   *
+   * **The note that stood beside it is removed**: *"Ongoing, planned, completed, research and preservation
+   * appear here once there is more than one project to filter. There is not yet one, so the bar offers the
+   * register's only state rather than five that match nothing."* None of that is in `projects.html`, and it is
+   * the page explaining itself — which is the text this change removes. *Whether the bar should carry the
+   * design's five other states, which match no record, is the same deliverable question as the notice above.*
    */
   out = out.replace(
     /<nav class="sx-filterbar"[\s\S]*?<\/nav>/,
-    `<nav class="sx-filterbar" aria-label="Filter projects">` +
-      `<a href="/projects" aria-current="page">All</a></nav>` +
-      `<p class="small muted" style="margin-top:var(--s-3)">Ongoing, planned, completed, research and preservation ` +
-      `appear here once there is more than one project to filter. There is not yet one, so the bar offers ` +
-      `the register's only state rather than five that match nothing.</p>`
+    `<nav class="sx-filterbar" aria-label="Filter projects"><a href="/projects" aria-current="page">All</a></nav>`
   );
   return out;
 }
@@ -4686,27 +4684,29 @@ export function fillProjectRecord(html: string): string {
  * are all empty. The design draws three example papers, one of them by an invented researcher with a
  * restricted full text. None of that is reproduced.
  *
- * The page keeps the design's search field and its "Submit research" route, because both are real, and says
- * what a record will carry — the brief's rule that an empty repository is an invitation rather than a failure.
+ * **AND THE PAGE WRITES NOTHING OF ITS OWN.** An earlier version filled the list with two paragraphs that were
+ * nowhere in `publications.html` — what a work *will* name, and *"What the archive does hold is the record side
+ * of the same subject: 1,051 published histories."* — and put a third beside the toolbar explaining what a
+ * search returns. They were the page explaining itself rather than the design's own page, and they are removed.
+ * The design's search field, its "Submit research" route, its three example papers' container and its own
+ * source note are all that are left, and the list is left as the empty container the design drew.
+ *
+ * (`counts` is accepted and unused: the design gives this screen no slot for a figure, and the route that
+ * serves it passes the archive's record count. **Nothing here invents a place to put it.**)
  */
 export function fillPublications(html: string, counts: { records: number }): string {
+  void counts;
   let out = clearExampleMaterial(html);
+  /*
+   * The container is emptied of the design's three example papers. **The notice that said the list was empty
+   * is kept**: it states the state of the container rather than making a claim about a record, which is what
+   * distinguishes it from the two paragraphs above it — and the owner's own quotation of what to remove began
+   * at the paragraph after it.
+   */
   out = fillContainer(
     out,
     /<div class="sx-publications-list"[^>]*>/,
-    `<div class="sx-notice">No publication has been deposited yet, so none is listed. <strong>The repository is empty.</strong> Nothing is shown here until a work is deposited.</div>
-        <p class="small muted" style="margin-top:var(--s-5);max-width:70ch">A work listed here will name its authors and their institution, say whether it completed peer review, name the licence it is published under, and give a permanent address to cite. Where the full text is access-controlled, the record stays findable and citable and the text does not.</p>
-        <p class="small muted" style="margin-top:var(--s-4);max-width:70ch">What the archive does hold is the record side of the same subject: ${n(counts.records)} published histories. Researchers may <a href="upload.html">deposit a paper</a>; it is reviewed before it appears here.</p>`
-  );
-  /*
-   * The toolbar's search field and its two filter groups are kept — they are real controls — and the sentence
-   * beside them says what a search will return. **The pattern stops at the toolbar's own closing tags**: an
-   * earlier version matched one `</div>` too many and swallowed the `</section>` that closes the hero, which
-   * left the rest of the page nested inside it.
-   */
-  out = out.replace(
-    /(<div class="sx-publication-toolbar"[\s\S]*?<\/div>)\s*<\/div>/,
-    `$1<p class="small muted" style="margin-top:var(--s-4)">Search and the kind filters act on the records below. With none deposited, a search returns nothing rather than an example.</p></div>`
+    `<div class="sx-notice">No publication has been deposited yet, so none is listed. <strong>The repository is empty.</strong> Nothing is shown here until a work is deposited.</div>`
   );
   return out;
 }
@@ -4760,7 +4760,15 @@ export function fillPublicationRecord(html: string): string {
 export type AcademyCourse = { title: string; level: string | null; summary: string | null };
 
 /**
- * `/academy/` — courses in Igbo language and culture.
+ * The Academy screen — courses in Igbo language and culture.
+ *
+ * ⚠️ IT IS NO LONGER SERVED AT `/academy/`. That address was this archive's own interim page about the
+ * Academy, and the owner retired it: *"delete this page https://ozikoro.com/academy/ and move anyone that
+ * clicks on the academy on the top menu to academy.ozikoro.com."* `middleware.ts` now answers `/academy/`
+ * with a 301 to the Academy itself, and every Academy link the archive serves is absolute for the same
+ * reason. **This function still fills the screen the design delivers**, which is reachable at the design
+ * route's own address (`/design-screen/academy`) the way `towns` and `account` are, and its links are
+ * absolute so that nothing on it points at the retired address.
  *
  * THE COURSES ARE REAL; THEY ARE NOT HELD IN THIS DATABASE
  *
@@ -4771,9 +4779,7 @@ export type AcademyCourse = { title: string; level: string | null; summary: stri
  *
  * So the page is filled from the source that does hold the courses: the Academy's own public site. Its course
  * names are read from there, **with no length and no enrolment date attached**, because those live on the
- * Academy's pages and a number copied to this page would go stale the moment a cohort changed. The design's
- * own line — "Delivered at … · enrolment opens there" — named the host, and the host is retired, so that
- * line is rewritten below to name `academy.ozikoro.com` and to say when enrolment actually opens.
+ * Academy's pages and a number copied to this page would go stale the moment a cohort changed.
  *
  * If the Academy cannot be reached, **the page says that rather than showing the design's example weeks**: an
  * unreachable catalogue is a fact, and "Twelve weeks" is not.
@@ -4781,23 +4787,32 @@ export type AcademyCourse = { title: string; level: string | null; summary: stri
 export function fillAcademy(html: string, courses: AcademyCourse[], reachable: boolean): string {
   let out = clearExampleMaterial(html);
   /*
-   * ── THE ACADEMY MOVED, AND THIS PAGE IS WHERE A READER IS TOLD SO ──────────────────────────────
+   * ── THE ACADEMY IS LIVE, AND THIS FUNCTION USED TO SAY IT WAS NOT ──────────────────────────────
    *
-   * `learn.ozituma.com` is being retired and `academy.ozikoro.com` replaces it, on the owner's
-   * instruction. **The design screen names the old host in eight places and cannot be edited** — it is
-   * inviolable — so the addresses and the bare host names are rewritten at serve time in
-   * `designScreenLinks`, which is where the design's other addresses are resolved too.
+   * `learn.ozituma.com` is retired and `academy.ozikoro.com` replaces it, on the owner's instruction.
+   * **The design screen names the old host in seven places and cannot be edited** — it is inviolable —
+   * so the addresses and the bare host names are rewritten at serve time in `designScreenLinks`, which
+   * is also where the design's other addresses are resolved.
    *
-   * What is left for this function is the one thing a rewrite cannot supply: **the truth about when.**
-   * `academy.ozikoro.com` has no record in its zone today, so a page that named it and stopped would be
-   * a page that reads as though the academy were open. This function is where the archive says, in its
-   * own voice, that the academy is being prepared — the rule the design screen could not state for
-   * itself.
+   * WHAT WAS HERE, AND WHY IT HAS GONE. This function used to correct the tense: the rewrite could turn
+   * a host name into `academy.ozikoro.com` but could not say when the Academy would open, so a paragraph
+   * here said it was *"being prepared"* and *"does not answer yet"*, on the recorded grounds that the
+   * host had no record in its zone. **That stopped being true, and the sentence it produced was the
+   * evidence.** Measured on the live page on 6 October 2026, `/academy/` printed:
+   *
+   *     …it replaces academy.ozikoro.com, which is being retired, and it does not answer yet.
+   *
+   * — because `designScreenLinks` runs BEFORE the fills, so the prose rule had already turned the retired
+   * host's name into the new one, and this function's own sentence then said the new host *"is being
+   * retired"* and *"does not answer yet"* about a host answering HTTP/2 200. `/academy/` is now itself
+   * retired by a 301 to the Academy (`middleware.ts`), so the paragraph has been rewritten rather than
+   * re-tensed: **it names the Academy, links to it, and claims nothing about a launch date.**
+   *
+   * ⚠️ AND NOTHING WRITTEN BELOW MAY CONTAIN THE RETIRED HOST'S NAME. `designScreenLinks` runs a SECOND
+   * time after the fills — the route says why — and its last rule replaces that name wherever it finds
+   * it, including in markup this function has just written. That is the mechanism that produced the
+   * sentence above, so the sentences here name `academy.ozikoro.com` and never the host it replaced.
    */
-  out = out.replace(
-    /Delivered at learn\.ozituma\.com · enrolment opens there/,
-    'Delivered at academy.ozikoro.com · enrolment opens when the Academy launches'
-  );
   const body = courses.length
     ? courses
         .map(
@@ -4805,11 +4820,11 @@ export function fillAcademy(html: string, courses: AcademyCourse[], reachable: b
             `<article class="card"><div class="chips"><span class="chip">${esc(c.level ?? 'Course')}</span></div><h3>${esc(c.title)}</h3><p>${esc(c.summary ?? 'Course details are on the Academy site.')}</p><p class="small muted">Enrolment and course dates are on the Academy’s own site.</p></article>`
         )
         .join('\n          ')
-    : `<article class="card"><div class="chips"><span class="chip">Being prepared</span></div><h3>The Academy is being prepared</h3><p>${
+    : `<article class="card"><div class="chips"><span class="chip">At the Academy</span></div><h3>The courses are at the Academy</h3><p>${
         reachable
-          ? 'The Academy is its own application and it holds the courses, the lessons and the enrolment. Its curriculum is not published yet, so no course title and no length is listed here rather than the design’s example ones.'
-          : 'The Academy could not be reached while this page was rendered, so no course is listed rather than the design’s example courses.'
-      } Courses will be taught at <strong>academy.ozikoro.com</strong>, which replaces learn.ozituma.com and does not answer yet — **so this page names it rather than linking to it**, because a link to a host with no record in its zone is a link to nothing.</p></article>`;
+          ? 'The Academy is its own application: it holds the courses, the lessons and the enrolment. Its catalogue is read from there rather than copied here, and this archive holds no course of its own — so the design’s example titles and lengths are not reproduced on this page.'
+          : 'This archive does not read the Academy’s catalogue when it renders a page, so no course is listed here rather than the design’s example courses.'
+      } Courses are taught at <a href="https://academy.ozikoro.com/"><strong>academy.ozikoro.com</strong></a>.</p></article>`;
 
   /*
    * THE COURSE GRID IS `#courses .grid-3`, NOT `.spread`.
@@ -4821,27 +4836,26 @@ export function fillAcademy(html: string, courses: AcademyCourse[], reachable: b
   out = fillContainer(out, /<div class="grid-3"[^>]*>/, body);
 
   /*
-   * THE ACADEMY'S OWN STATE, FROM THE ACADEMY.
+   * THE HOST IS LINKED NOW, WHICH IS THE CHANGE THE RETIREMENT OF `/academy/` FORCES.
    *
-   * The design's banner says its course titles and lengths are example material. **The Academy's own site says
-   * the same thing about its own content in its own words** — its learner home prints *"activity details are
-   * demonstration content until approved curriculum is published"* and *"Demonstration text is never presented
-   * as verified teaching material"*. So this page repeats what the Academy says about itself, names the source
-   * of that statement, and does not copy either set of example courses across.
+   * The note here used to say the host was *"named and not linked, because the page is already the link's
+   * destination"* — true while `/academy/` was what every Academy address resolved to, and an anchor on it
+   * pointing back at itself would have been *"a link that does nothing dressed as a link that goes
+   * somewhere."* **`/academy/` is retired**, so the sentence around the name is now the page's only route
+   * to the Academy, and it is an anchor.
    *
-   * THE HOST IS NAMED AND NOT LINKED, BECAUSE THE PAGE IS ALREADY THE LINK'S DESTINATION. The address this
-   * page offers for the academy is its own — `/academy/` — and an anchor on `/academy/` pointing back at
-   * `/academy/` would be a link that does nothing dressed as a link that goes somewhere. The name is the
-   * announcement, and the sentence around it is where the archive says the academy is being prepared rather
-   * than open.
+   * AND IT CLAIMS NOTHING ABOUT WHETHER THE ACADEMY IS OPEN. What was here said it was *"being prepared"*
+   * and *"does not answer yet"*; `curl -sI https://academy.ozikoro.com/` answers HTTP/2 200. So the
+   * sentence states what this archive can state — the Academy is its own application and holds the
+   * courses — and stops. **No launch date, no enrolment date and no curriculum claim is invented here**,
+   * and the design's example courses are not reproduced as though they were verified ones.
    */
   out = out.replace(
     /Courses in Igbo language and culture, taught by speakers and scholars\./,
-    `Courses in Igbo language and culture, taught by speakers and scholars, at <strong>academy.ozikoro.com</strong>. ` +
-      `The Academy is its own application and holds the courses, the lessons and the enrolment, and <strong>it is being prepared</strong>: ` +
-      `it replaces learn.ozituma.com, which is being retired, and it does not answer yet. ` +
-      `<strong>Its own site describes its current activity as demonstration content pending an approved curriculum</strong>, ` +
-      `so no course is listed on this page as though it were a verified one — neither the Academy's own examples nor the design's are reproduced here.`
+    `Courses in Igbo language and culture, taught by speakers and scholars, at ` +
+      `<a href="https://academy.ozikoro.com/"><strong>academy.ozikoro.com</strong></a>. ` +
+      `The Academy is its own application and holds the courses, the lessons and the enrolment; ` +
+      `this archive holds no course of its own and does not reproduce its catalogue here.`
   );
   return out;
 }

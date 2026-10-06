@@ -163,6 +163,25 @@ export function designScreenLinks(html: string, at?: string): string {
      */
     'towns.html': '/clan-towns/',
     /*
+     * `academy.html` IS THE MENU'S OWN NAME FOR THE ACADEMY, AND THE ACADEMY IS ANOTHER APPLICATION.
+     *
+     * **SIX OF THE DELIVERABLE'S SCREENS CARRY IT** — `404`, `academy`, `archive-index`, `publication`,
+     * `researcher-profile` and `upload` — as the masthead item `<a href="academy.html">Academy</a>`. The
+     * design is inviolable, so none of them can be edited.
+     *
+     * WITHOUT THIS ENTRY THE GENERIC FALLBACK BELOW RESOLVES EACH ONE TO `/academy/`, which is **the
+     * address the owner retired** — and it would have kept working, in the way this project has learned
+     * to distrust: the reader clicks `Academy`, gets a 301 they cannot see, and lands on the Academy
+     * anyway. A link that works only because something else redirects it is a link whose destination is
+     * not written down anywhere the next change would look, and `/academy/` is one commit away from
+     * being a plain 404.
+     *
+     * So the menu's Academy item is the Academy's absolute address, one hop, which is the owner's own
+     * instruction: *"move anyone that clicks on the academy on the top menu to academy.ozikoro.com."*
+     * It is the same treatment `towns.html`, `archive-index.html` and `dashboard-account.html` get above.
+     */
+    'academy.html': 'https://academy.ozikoro.com/',
+    /*
      * `researcher-profile.html` IS ONE PERSON'S PAGE AND EVERY LABEL ON IT IS A DIRECTORY'S.
      *
      * The design's profile screen is a demonstration of a profile, and the person in it — "Dr Chinwe
@@ -213,7 +232,7 @@ export function designScreenLinks(html: string, at?: string): string {
   /*
    * ── AND THE RETIRED ACADEMY HOST ────────────────────────────────────────────────────────────────
    *
-   * `learn.ozituma.com` is being retired and `academy.ozikoro.com` will replace it, so the owner's
+   * `learn.ozituma.com` is being retired and `academy.ozikoro.com` replaces it, so the owner's
    * instruction is that the archive stops sending readers there: *"everything about learn.ozituma.com
    * should be removed entire. we have a new academy coming up which is academy.ozikoro.com, which will
    * replace learn.ozituma.com."*
@@ -227,24 +246,48 @@ export function designScreenLinks(html: string, at?: string): string {
    *
    * The screen-link pattern matches a `file.html` with a negative lookahead that skips anything beginning
    * `/` or `https:`, **and that lookahead is right**: an absolute address is already the address the
-   * author meant. So every one of the design's `https://learn.ozituma.com/` anchors survived it, and
-   * `design-fill.ts` records one of them being measured as answering — which was true when it was written
-   * and is exactly the kind of fact that stops being true from under a rule like that.
+   * author meant. So every one of the design's `https://learn.ozituma.com/` anchors survived it.
    *
    * ── AN ANSWER FOR EACH OF THE THREE THINGS THE HOST IS DOING ────────────────────────────────────
    *
    *   1. A LINK, in the platform bar, the footer and the about screen's platform family. **It goes to
-   *      `/academy/`, which this archive serves** — its own page about the academy. That page is the
-   *      honest interim destination and it is not a 404; pointing a reader at `academy.ozikoro.com` today
-   *      would be a link to a host with no record in its zone.
+   *      `https://academy.ozikoro.com/` — the Academy itself, absolute, because it is a separate
+   *      application on its own host and a same-site address cannot reach it.**
    *   2. A LABEL that named the host rather than the place — `learn.ozituma.com — Learn Igbo`. It becomes
    *      `Academy — Learn Igbo`, which is the word the archive's own masthead already uses for this.
    *   3. THE HOST NAMED IN PROSE — the footer's list of the platform's own domains, the academy screen's
    *      eyebrow, its course-lead line, its comparison table and its meta description. A bare name is not
    *      a link, so it cannot 404; it becomes `academy.ozikoro.com`, the announced replacement, rather
-   *      than being deleted and leaving the sentence without a subject. **What is deliberately NOT done is
-   *      to claim the academy is open:** the page the links reach is the one that says it is being
-   *      prepared, and `fillAcademy` is where that sentence lives.
+   *      than being deleted and leaving the sentence without a subject.
+   *
+   * ── THIS RULE USED TO POINT AT `/academy/`, AND THAT IS THE PART THAT CHANGED ────────────────────
+   *
+   * The addresses went to `/academy/` — **this archive's own interim page about the academy** — for a
+   * reason that was recorded here in as many words: *"pointing a reader at `academy.ozikoro.com` today
+   * would be a link to a host with no record in its zone."* **That was true when it was written and it
+   * stopped being true**, which is the failure this repository keeps producing and the reason the
+   * sentence is kept here rather than deleted: a reader of this file obeyed it for a day.
+   *
+   * Measured on 6 October 2026, from this checkout:
+   *
+   *     curl -sI https://academy.ozikoro.com/   →   HTTP/2 200, server: cloudflare
+   *     its own <title>                         →   Ozikoro Academy — Igbo language, history and culture
+   *
+   * So the host answers, and the owner then asked for the interim page to go: *"delete this page
+   * https://ozikoro.com/academy/ and move anyone that clicks on the academy on the top menu to
+   * academy.ozikoro.com."* **THE TWO HALVES HAVE TO HAPPEN TOGETHER, and they do**: the addresses below
+   * left `/academy/` in the same change that `apps/ozikoro/middleware.ts` stopped serving it, so no
+   * served page on this site points at an address that is no longer a page. `/academy/` itself is retired
+   * as a 301 to this host rather than as a 404, because it was a published address and the archive's own
+   * rule is that an address once reachable keeps working.
+   *
+   * ── AND WHY THE PATH IS NOT CARRIED TO THE NEW HOST ─────────────────────────────────────────────
+   *
+   * The pattern captures a path, and it is discarded: every address is rewritten to the host's ROOT. That
+   * is measured rather than assumed — **all twenty-seven occurrences of the retired host in the
+   * deliverable are the bare `https://learn.ozituma.com/`**, so there is no path in the design to
+   * preserve, and inventing one for a host whose routes this checkout cannot verify would be a link that
+   * looks specific and lands on a 404. The Academy's home answers; a guessed sub-path might not.
    *
    * ORDERED, and the order is the rule. The label is rewritten first, or rule 3 would turn it into
    * `academy.ozikoro.com — Learn Igbo` and lose the place-name. The addresses go second, so that a
@@ -252,7 +295,7 @@ export function designScreenLinks(html: string, at?: string): string {
    * therefore only ever sees text.
    */
   out = out.replace(/>learn\.ozituma\.com — Learn Igbo</g, '>Academy — Learn Igbo<');
-  out = out.replace(/href="https:\/\/learn\.ozituma\.com(\/[^"]*)?"/g, 'href="/academy/"');
+  out = out.replace(/href="https:\/\/learn\.ozituma\.com(\/[^"]*)?"/g, 'href="https://academy.ozikoro.com/"');
   out = out.replace(/learn\.ozituma\.com/g, 'academy.ozikoro.com');
 
   /*
@@ -272,6 +315,19 @@ export function designScreenLinks(html: string, at?: string): string {
    * current, and the honest nav says nothing.**
    */
   out = out.replace(/<a href="\/researchers\/" aria-current="page">/g, '<a href="/researchers/">');
+  /*
+   * AND THE ACADEMY ITEM, FOR THE SAME REASON AND ONE MORE.
+   *
+   * `academy.html` is the only screen whose masthead marks its own item current —
+   * `<a href="academy.html" aria-current="page">Academy</a>` — which was true while the item pointed at a
+   * page on this site. It now points at another application (see `screenLinks` above), so `aria-current`
+   * would tell a screen reader *this is the page you are on* about a link that leaves the site. **The
+   * marker is removed rather than re-pointed**, exactly as the `Researchers` rule above does it.
+   */
+  out = out.replace(
+    /<a href="https:\/\/academy\.ozikoro\.com\/" aria-current="page">/g,
+    '<a href="https://academy.ozikoro.com/">'
+  );
 
   /*
    * AND THE ONE META REFRESH, WHICH IS AN ADDRESS LIKE ANY OTHER.

@@ -191,8 +191,8 @@ function noticeHtml(notice: ScreenNotice): string {
  *   2. THE BRAND, THE SECTION TAB AND THE THREE HOST LINKS. `ozikoro.com — archive & research` and the brand
  *      go to `/`; the section tab `History & Archive` is this site, so it goes to `/` as well. The other two
  *      hosts are the addresses `home.html`'s own platform bar prints — `https://ozituma.com/` and
- *      `https://learn.ozituma.com/` — and that host is being retired, so the destination is this
- *      archive's own `/academy/`, which is the page that says the academy is being prepared.
+ *      `https://learn.ozituma.com/` — and that host is retired, so the destination is the Academy itself,
+ *      `https://academy.ozikoro.com/`.
  *   3. `Terms of Use` AND `Privacy Policy` GO TO `/about/#terms`, WHICH IS THE DESIGN'S OWN ANSWER. The
  *      deliverable's own footer has one link, "Terms & privacy", pointing at `about.html#terms`, and the
  *      section it lands on states plainly that binding terms and a data-controller notice must be supplied.
@@ -215,9 +215,10 @@ const ACCOUNT_LINK_TARGETS: Record<string, string> = {
   'ozikoro.com — archive & research': '/',
   'ozituma.com — dictionary': 'https://ozituma.com/',
   // The design's platform bar names the retired host; the label is what is looked up, so the KEY
-  // stays as the design wrote it and only the destination moves. `/academy/` is this archive's own
-  // page and it answers — see the retirement rule in `design-paths.ts`.
-  'learn.ozituma.com — Learn Igbo': '/academy/',
+  // stays as the design wrote it and only the destination moves. **The Academy itself, absolute** —
+  // it is a separate application, `/academy/` is retired (see `middleware.ts`), and this is the same
+  // rewrite `design-paths.ts` applies to the other fifty-one screens.
+  'learn.ozituma.com — Learn Igbo': 'https://academy.ozikoro.com/',
   'History & Archive': '/',
   // The seven-item menu, at the addresses the same labels reach on the other fifty-one screens.
   Histories: '/archive/',
@@ -256,8 +257,9 @@ const ACCOUNT_LINK_TARGET_BY_CLASS: Array<[RegExp, string]> = [[/\bclass="brand"
  * The one label that has to change with its address, and the reason it is a second table rather than a
  * `[href, label]` pair in the first.
  *
- * `design-paths.ts` retires `learn.ozituma.com`: the address becomes `/academy/`, **and the label becomes
- * `Academy — Learn Igbo`**, because the label named a host rather than the place and the host is going. This
+ * `design-paths.ts` retires `learn.ozituma.com`: the address becomes
+ * `https://academy.ozikoro.com/`, **and the label becomes `Academy — Learn Igbo`**, because the label named
+ * a host rather than the place and the host is going. This
  * screen is the eighteenth that carries the three-host platform bar and the only one not served through
  * `designScreenLinks`, so the rule has to be repeated here or the bar would disagree with itself across the
  * site. **A table keyed by the design's own label cannot also change that label**, which is why the labels

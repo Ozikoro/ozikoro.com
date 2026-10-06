@@ -27,6 +27,9 @@
  * fails identically on every commit is not a check, and this file's own header is the argument: a checker that
  * cannot report an omission also cannot report the truth.
  *
+ * (`academy` was one of those twenty and is now the one entry in `ABSENT` below, because its address was
+ * retired to the Academy's own host after this was written — see the entry.)
+ *
  * So the fallback is now a fourth, VERIFIED answer rather than a missing one, and it is verified in the only
  * place that can make it true: the screen's name must be in the middleware's own `DESIGN_SCREENS` set, and
  * `app/design-screen/[screen]/route.ts` must exist. **Remove a name from the middleware and this check fails**,
@@ -111,7 +114,25 @@ const ALIAS = {
 };
 
 /** screen -> why it is deliberately not routed. Must be a real reason. */
-const ABSENT = {};
+const ABSENT = {
+  /*
+   * ── `academy` IS THE FIRST ENTRY, AND IT IS AN ADDRESS RATHER THAN A FILE THAT IS ABSENT ──────────
+   *
+   * `academy` left the middleware's `DESIGN_SCREENS` set because the owner retired the page: *"delete this
+   * page https://ozikoro.com/academy/ and move anyone that clicks on the academy on the top menu to
+   * academy.ozikoro.com."* `middleware.ts` now answers `/academy` and `/academy/` with a **301 to the
+   * Academy's own host**, so the address IS routed — to another application — and the generic design route
+   * no longer answers for it.
+   *
+   * ⚠️ THE SCREEN FILE IS NOT GONE AND IS STILL RENDERED. The deliverable ships `screens/academy.html`, and
+   * `/design-screen/academy` still serves it through the same generic route every other screen uses — the
+   * treatment `towns` and `account` already have. **So this is not a screen nobody can reach; it is a
+   * screen whose public address was deliberately moved to the application that now owns the subject.**
+   * Saying that here rather than silently deleting the name is the point of this map: the exemption is
+   * printed on every run (`absent` in the summary) instead of being invisible.
+   */
+  'academy': 'retired by the owner — /academy/ 301s to https://academy.ozikoro.com/ (middleware.ts); the screen itself is still served at /design-screen/academy',
+};
 
 const screens = readdirSync(SCREENS).filter((f) => f.endsWith('.html'))
   .map((f) => f.replace(/\.html$/, '')).sort();

@@ -116,7 +116,7 @@ const SCREEN_SEO: Record<string, { title: string; description: string; kind?: 'a
   donate: { title: 'Donate — Ozikoro', description: 'Support the preservation of African histories and public access to them.', kind: 'page' },
   sponsors: { title: 'Sponsor a programme — Ozikoro', description: 'Partnership with institutions, sponsors and media.', kind: 'page' },
   investors: { title: 'Investors — Ozikoro', description: 'The infrastructure behind the archive and what investment supports.', kind: 'page' },
-  academy: { title: 'Academy — Ozikoro', description: 'Learning the languages the archive is written in, with Ozituma Learn.', kind: 'page' },
+  academy: { title: 'Academy — Ozikoro', description: 'Learning Igbo language and culture, at the Academy: academy.ozikoro.com.', kind: 'page' },
   ledger: { title: 'Public ledger — Ozikoro', description: 'Donors, contributors, researchers, translators and volunteers, and where funds go.', kind: 'page' },
   projects: { title: 'Projects — Ozikoro', description: 'Programmes the archive has embarked on.', kind: 'list' },
   publications: { title: 'Publications — Ozikoro', description: 'Research papers, essays and reports, each stating whether it completed peer review.', kind: 'list' },
@@ -861,9 +861,13 @@ export async function GET(
      *
      * IT NOW COVERS SIX SCREENS THAT ARE NOT DASHBOARDS.
      *
-     * `/publication/`, `/researcher-profile/`, `/academy/`, `/archive-index/`, `/upload/` and `/watch/` are
+     * `/publication/`, `/researcher-profile/`, `/archive-index/`, `/upload/` and `/watch/` were
      * served live and returned 200 with **thirty-six `href="#"` between them** — the same fault on a screen
-     * nobody had called a dashboard. The set lives in `LINKED_SCREENS` so this route and the test that reads
+     * nobody had called a dashboard. `/academy/` was the sixth; the owner has since retired that address
+     * with a 301 to the Academy (`middleware.ts`), and `academy` stays in the set because **the transform
+     * is about the design FILE rather than the address it is served at** — the screen still carries bare
+     * `href="#"` course titles, and an untransformed file leaves them dead for whoever opens the design
+     * route next. The set lives in `LINKED_SCREENS` so this route and the test that reads
      * the real design files cannot disagree about which screens are covered. Running it here, outside the
      * `FILLED` branch, is also what gives `archive-index` and `watch` the `<base href="/">` and the absolute
      * nav links their sibling screens already had — **their own relative `about.html` links used to resolve
@@ -1749,18 +1753,21 @@ export async function GET(
 
       if (name === 'academy') {
         /*
-         * The Academy was `learn.ozituma.com`; **that host is being retired and `academy.ozikoro.com`
-         * replaces it.** It is still a separate application with its own Supabase project, and it is NOT
-         * queried from here: a render-time fetch to another host would put this page's availability in
-         * another deployment's hands, and `academy.ozikoro.com` has no record in its zone to fetch from.
+         * The Academy was `learn.ozituma.com`; **that host is retired and `academy.ozikoro.com` replaces
+         * it.** It is a separate application with its own Supabase project, and it is NOT queried from
+         * here: a render-time fetch to another host would put this page's availability in another
+         * deployment's hands, and that decision is independent of whether the host answers.
          *
-         * So the page states what the archive can state: that the academy is being prepared. The
-         * design screen's own eight mentions of the old host are rewritten at serve time by
-         * `designScreenLinks`, which is the only place an inviolable screen can be changed.
+         * ⚠️ THE HOST DOES ANSWER, AND THIS COMMENT USED TO SAY IT DID NOT. Measured on 6 October 2026:
+         * `curl -sI https://academy.ozikoro.com/` → HTTP/2 200, `<title>Ozikoro Academy — Igbo language,
+         * history and culture</title>`. So `reachable: false` below records **that this page makes no
+         * fetch**, not that the Academy is down — and `fillAcademy`'s wording says exactly that rather
+         * than claiming a failed request that was never made.
          *
-         * `reachable` is FALSE rather than the `true` this passed while the old host answered. It is
-         * what selects the sentence, and the sentence it selects now — the academy's curriculum is not
-         * published — is the true one.
+         * AND THE PAGE IS NO LONGER SERVED AT `/academy/`. The owner retired that address — *"delete this
+         * page https://ozikoro.com/academy/"* — so `middleware.ts` answers it with a 301 to the Academy
+         * itself. What is left here is the design route's own address, `/design-screen/academy`, which is
+         * how the deliverable's screens stay inspectable, exactly as `towns` and `account` do.
          */
         html = fillAcademy(html, [], false);
       }

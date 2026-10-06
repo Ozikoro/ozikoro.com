@@ -27,6 +27,7 @@
 import { cookies } from 'next/headers';
 import { getDb } from '@ozituma/db/client';
 import {
+  accountItemFor,
   capabilitiesFor,
   dashboardModesFor,
   describeRoles,
@@ -121,22 +122,30 @@ export async function workspaceViewer(): Promise<WorkspaceViewer> {
 
 /** The switch's own view of a viewer, for the screen they are on. */
 export function switcherFor(viewer: WorkspaceViewer, currentMode: string | null): ModeSwitcherViewer {
+  /*
+   * THE ACCOUNT LINK GOES INTO THE CONTROL, BECAUSE IN THE MASTHEAD THE CONTROL IS THE ACCOUNT ITEM.
+   *
+   * It used to be a separate `<li>` beside the switch, and a signed-in reader with an elevated workspace
+   * therefore got one more item than a signed-out one — which is the row that wrapped. It is carried
+   * here rather than assembled by each caller so the label rule ("My account" only when the destination
+   * really is the account) exists once — `accountItemFor` in `@ozikoro/platform`, which is also where
+   * the administrator's case is decided: **an account that may administer the site is offered the
+   * account item and no workspace switch in the menu**, so for it this link is always `My account`.
+   */
+  const account = accountItemFor({
+    signedIn: viewer.signedIn,
+    platformRole: viewer.platformRole,
+    primaryHref: viewer.primaryHref,
+  });
   return {
     signedIn: viewer.signedIn,
     name: viewer.identity.name,
     roleLabel: viewer.identity.roleLabel,
+    platformRole: viewer.platformRole,
     modes: viewer.modes,
     currentMode,
     adminHref: viewer.adminHref,
-    /*
-     * THE ACCOUNT LINK GOES INTO THE CONTROL, BECAUSE IN THE MASTHEAD THE CONTROL IS THE ACCOUNT ITEM.
-     *
-     * It used to be a separate `<li>` beside the switch, and a signed-in reader with an elevated workspace
-     * therefore got one more item than a signed-out one — which is the row that wrapped. It is carried
-     * here rather than assembled by each caller so the label rule ("My account" only when the destination
-     * really is the account) exists once.
-     */
-    accountHref: viewer.signedIn ? viewer.primaryHref : null,
-    accountLabel: viewer.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace',
+    accountHref: account?.href ?? null,
+    accountLabel: account?.label,
   };
 }
