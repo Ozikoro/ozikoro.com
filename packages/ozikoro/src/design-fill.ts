@@ -106,21 +106,350 @@ function dropExampleFlag(html: string): string {
     .replace(/© 2026 Ozi Ikoro Limited\./g, `© ${new Date().getUTCFullYear()} Ozi Ikoro Limited.`);
 }
 
+/** One option the archive's own rail offers, with the number of published records it leads to. */
+export interface ArchiveRailOption {
+  /** What the form submits and the address carries. */
+  value: string;
+  /** What the reader reads. */
+  label: string;
+  /**
+   * The published records this one option leads to.
+   *
+   * **COUNTED BY THE PREDICATE THE FILTER RUNS, NOT BY A SECOND QUERY WRITTEN BESIDE IT.** The caller gets
+   * these from `countArticles` with the same option the listing is asked for, which is what makes an
+   * option's number and the listing it produces the same statement.
+   */
+  count: number;
+}
+
+/**
+ * What the reader has narrowed the listing by, in **the design's own parameter names**.
+ *
+ * The design's rail is the specification and it named its own fields: `group`, `clan`, `place`, `period`,
+ * `src` and `state`, with `q` in its own search form. This page reads those names rather than the
+ * application route's (`ethnic`, `entity`, `completeness`) — **the two implementations were wired to
+ * different vocabularies, which is the whole reason every control the owner clicked did nothing.**
+ */
+export interface ArchiveRailSelection {
+  /**
+   * The peoples the reader has ticked, in the register's own spelling.
+   *
+   * ⚠️ **A LIST, BECAUSE THE DESIGN DRAWS CHECKBOXES.** `?group=Edo&group=Ijaw` is a request for the union
+   * of the two, and a rail that honoured only the first box would answer a question the reader did not
+   * ask. The rails's own group is an array for the same reason.
+   */
+  group: string[];
+  clan: string[];
+  place: string | null;
+  q: string | null;
+  state: 'sourced' | 'partial' | null;
+  topic: string | null;
+  sort: 'title' | null;
+}
+
+/** The rail's parameters, in one list, so the form and the link builder cannot disagree. */
+const ARCHIVE_RAIL_KEYS = ['topic', 'group', 'clan', 'place', 'q', 'state', 'sort'] as const;
+
+/**
+ * A URL back into this page with one part of the selection changed.
+ *
+ * **EVERY CONTROL THE FILL WRITES IS A LINK BUILT HERE**, so a value the reader has chosen survives every
+ * other control they touch — a rail that dropped the search the moment a clan was ticked would be the dead
+ * control this page was reported for, wearing a different hat.
+ */
+export function archiveRailHref(
+  selection: ArchiveRailSelection,
+  patch: Partial<ArchiveRailSelection> = {},
+  page = 1
+): string {
+  const merged: ArchiveRailSelection = { ...selection, ...patch };
+  const search = new URLSearchParams();
+  for (const key of ARCHIVE_RAIL_KEYS) {
+    const value = merged[key];
+    if (Array.isArray(value)) {
+      // A repeated parameter, which is what a form of checkboxes submits and what the reader ticked.
+      for (const one of value) if (one) search.append(key, one);
+    } else if (value) {
+      search.set(key, value);
+    }
+  }
+  if (page > 1) search.set('page', String(page));
+  const query = search.toString();
+  return `/archive/${query ? `?${query}` : ''}`;
+}
+
+/** The hidden inputs that carry the rest of the selection through a form that owns only one field. */
+function archiveRailHidden(selection: ArchiveRailSelection, except: readonly string[]): string {
+  const inputs: string[] = [];
+  for (const key of ARCHIVE_RAIL_KEYS) {
+    if (except.includes(key)) continue;
+    const value = selection[key];
+    if (Array.isArray(value)) {
+      for (const one of value) if (one) inputs.push(`<input type="hidden" name="${key}" value="${esc(one)}">`);
+    } else if (value) {
+      inputs.push(`<input type="hidden" name="${key}" value="${esc(value)}">`);
+    }
+  }
+  return inputs.join('\n      ');
+}
+
+const railCount = (n: number): string => n.toLocaleString('en-GB');
+
+/** Replace one `<fieldset>` of the rail, found by its own legend. */
+function railFieldset(html: string, legend: string, inner: string): string {
+  const legendAt = html.indexOf(`<legend>${legend}</legend>`);
+  if (legendAt === -1) return html;
+  const open = html.lastIndexOf('<fieldset>', legendAt);
+  const close = html.indexOf('</fieldset>', legendAt);
+  if (open === -1 || close === -1) return html;
+  return (
+    html.slice(0, open) +
+    `<fieldset>\n        <legend>${legend}</legend>\n        ${inner}\n      </fieldset>` +
+    html.slice(close + '</fieldset>'.length)
+  );
+}
+
 /**
  * Fill `archive-index.html`.
  *
- * Two regions change: the rail's filter counts, which are the design's example figures, and the entries
- * container, which holds four invented histories. **Everything between them is untouched.**
+ * ── WHAT THIS FUNCTION IS, AND WHY IT IS NOT FOUR NUMBERS ─────────────────────────────────────────────
+ *
+ * `/archive/` is served by this design screen (see `middleware.ts`), and until this fill the screen's rail
+ * carried **the design's own demonstration figures** on a live public page: `Igbo 184 · Ijaw 11 · Efik 7 ·
+ * Idoma 4`, five clan counts, five period bands and three source types — **every one of them invented, and
+ * three of the four peoples having no row in any table they could have been counted from.** The design file
+ * is inviolable, so the invented material is rewritten here at serve time, which is what the entries and
+ * the topic counts already did.
+ *
+ * ── THE ETHNIC RAIL, WHICH IS THE HALF THAT WAS WRONG ────────────────────────────────────────────────
+ *
+ * The names come from `REGISTER_PEOPLES` — the register's own list of peoples, the same list
+ * `/clan-towns/` offers — and **each count is the number of published records the option will show**,
+ * counted by `countArticles(db, { peopleNames: [name] })`, which is the very predicate the listing runs. So the
+ * number beside a name and the records behind it cannot disagree.
+ *
+ * ⚠️ **THE COUNT IS A MENTION COUNT AND THE RAIL SAYS SO.** The archive's ethnic *filing* axis is
+ * `clan.ethnic_group` read through `ozikoro_article_entity`, and on this database it holds exactly one row
+ * — `Igbo 197` — because only Igbo clans are published. A rail built on it would read `Edo 0` beside a
+ * hundred and two published records naming Edo, and a list that understates its own holdings is a worse
+ * fault than a short one. So the number answers the question the archive can actually answer, the rail
+ * states which question that is, and the filter runs exactly it.
+ *
+ * ── AND EVERY REMAINING CONTROL EITHER FILTERS OR IS NOT DRAWN ───────────────────────────────────────
+ *
+ * * **clan** — real clans, counted by `getArchiveFacets().clans`, filtered by the same `role = 'clan'`.
+ * * **place** — the design's own free-text field, wired to the archive's place filter; it carries the
+ *   reader's value rather than the design's example.
+ * * **completeness** — the design's three radios, which drew no numbers and now carry the real ones.
+ * * **period and source type** — **no record in this archive carries either**, so those two groups are not
+ *   drawn as controls at all. They are replaced by the sentence saying what is missing, which is the same
+ *   answer the application's own archive route gives. *A checkbox that cannot change the listing is the
+ *   fault this page was reported for.*
+ * * **the search box, the sort select and the pager** — all wired, and all carrying the rest of the
+ *   selection with them.
+ * * **the active filters** are printed as chips that remove exactly their own filter.
+ * * **the design's demonstration empty state** (a named town, with a claim about what the record holds for
+ *   it) is removed when the listing has records, and becomes the page's real empty state when it does not.
  */
 export function fillArchiveIndex(html: string, opts: {
   entries: RealEntry[];
-  ethnic: { name: string; count: number }[];
+  /** The register's peoples, with the records that name each one. */
+  peoples: ArchiveRailOption[];
+  /** The clans linked to published records, with those records counted. */
+  clans: ArchiveRailOption[];
+  /** Published rows in the register — the number behind "All N towns and clans". */
+  registerClans: number;
+  /** Real period bands. Empty today, and drawn only when an editor has recorded one. */
+  periods: ArchiveRailOption[];
+  /** Real source types. Empty today, for the same reason. */
+  sourceTypes: ArchiveRailOption[];
+  completeness: { all: number; sourced: number; partial: number };
   topics: { slug: string; name: string; count: number }[];
+  /** Published records the current selection returns. */
   total: number;
+  page: number;
+  pageSize: number;
+  selection: ArchiveRailSelection;
+  /** Why the listing is empty, derived from what the rail counted. Null when it is not. */
+  emptyReason: string | null;
+  emptyHeadline: string | null;
 }): string {
   let out = dropExampleFlag(html);
+  const { selection } = opts;
+  const check = (name: string) => selection.group.some((g) => g.toLowerCase() === name.toLowerCase());
 
-  // --- the entries: the design's four example histories become the archive's real ones.
+  // ---- 1. the ethnic group: the register's peoples, and the records that name each one -------------
+  const peopleRows = opts.peoples.map(
+    (p) =>
+      `<label><input type="checkbox" name="group" value="${esc(p.label)}"${check(p.label) ? ' checked' : ''}> ` +
+      `${esc(p.label)} <span class="count">${railCount(p.count)}</span></label>`
+  );
+  peopleRows.push(
+    `<p class="small muted" style="margin-top:var(--s-3)">Each number is the published histories whose ` +
+      `title or text names that people, or which carry that people's own label — the same search this ` +
+      `filter runs. A people the archive has written nothing under counts 0, and the listing says so.</p>`
+  );
+  out = railFieldset(out, 'Ethnic group', peopleRows.join('\n        '));
+
+  // ---- 2. the clan: real clans, real counts, and the register's own size ---------------------------
+  const clanRows = opts.clans.map(
+    (c) =>
+      `<label><input type="checkbox" name="clan" value="${esc(c.value)}"${selection.clan.includes(c.value) ? ' checked' : ''}> ` +
+      `${esc(c.label)} <span class="count">${railCount(c.count)}</span></label>`
+  );
+  const registerLink =
+    `<p style="margin-top:var(--s-3)"><a class="small" href="/clan-towns/">All ` +
+    `${railCount(opts.registerClans)} towns and clans &rarr;</a></p>`;
+  out = railFieldset(
+    out,
+    'Sub-group or clan',
+    clanRows.length > 0
+      ? [...clanRows, registerLink].join('\n        ')
+      : `<p class="small muted">No published record is linked to a clan yet, so no clan can be offered. ` +
+          `Linking a history to a clan is editorial work, and the record page says so where it applies.</p>\n        ${registerLink}`
+  );
+
+  // ---- 3. period and source type: an honest sentence where the archive holds nothing ---------------
+  out = railFieldset(
+    out,
+    'Time period',
+    opts.periods.length > 0
+      ? opts.periods
+          .map(
+            (p) =>
+              `<label><input type="checkbox" name="period" value="${esc(p.value)}"> ${esc(p.label)} ` +
+              `<span class="count">${railCount(p.count)}</span></label>`
+          )
+          .join('\n        ')
+      : `<p class="small muted">No record in the archive has a period recorded yet. Dating is editorial ` +
+        `work, and this filter fills the moment an editor records the first one rather than being ` +
+        `approximated now.</p>`
+  );
+  out = railFieldset(
+    out,
+    'Source type',
+    opts.sourceTypes.length > 0
+      ? opts.sourceTypes
+          .map(
+            (s) =>
+              `<label><input type="checkbox" name="src" value="${esc(s.value)}"> ${esc(s.label)} ` +
+              `<span class="count">${railCount(s.count)}</span></label>`
+          )
+          .join('\n        ')
+      : `<p class="small muted">No record carries a source type yet. Of ${railCount(opts.completeness.all)} ` +
+        `published records, none has one recorded — sourcing is editorial work and nothing fills it in ` +
+        `automatically.</p>`
+  );
+
+  // ---- 4. the fields the design already draws, carrying the reader's value rather than an example ---
+  out = out.replace(
+    /<input type="text" id="place" name="place"[^>]*>/,
+    `<input type="text" id="place" name="place" value="${esc(selection.place ?? '')}" placeholder="e.g. Ǹrì, Ọ̀nị̀cha, Umuahia">`
+  );
+  out = out.replace(
+    /<label><input type="radio" name="state" value="all"[^>]*> All entries<\/label>/,
+    `<label><input type="radio" name="state" value="all"${selection.state === null ? ' checked' : ''}> All entries ` +
+      `<span class="count">${railCount(opts.completeness.all)}</span></label>`
+  );
+  out = out.replace(
+    /<label><input type="radio" name="state" value="sourced"[^>]*> Fully sourced only<\/label>/,
+    `<label><input type="radio" name="state" value="sourced"${selection.state === 'sourced' ? ' checked' : ''}> ` +
+      `Fully sourced only <span class="count">${railCount(opts.completeness.sourced)}</span></label>`
+  );
+  out = out.replace(
+    /<label><input type="radio" name="state" value="partial"[^>]*> Partial — help needed<\/label>/,
+    `<label><input type="radio" name="state" value="partial"${selection.state === 'partial' ? ' checked' : ''}> ` +
+      `Partial — help needed <span class="count">${railCount(opts.completeness.partial)}</span></label>`
+  );
+
+  /*
+   * ---- 5. the search box, which was a dead control carrying a pre-filled example -------------------
+   *
+   * The design ships `value="Ǹrì"` and the served page was asking every reader to search for a town they
+   * had not typed, against a parameter this page did not read. It carries the reader's own words now, and
+   * the rest of the selection rides along in hidden inputs so a search does not silently clear the rail.
+   */
+  out = out.replace(
+    /<input type="search" id="aq"[^>]*>/,
+    `<input type="search" id="aq" name="q" value="${esc(selection.q ?? '')}" placeholder="Search histories">\n      ` +
+      archiveRailHidden(selection, ['q'])
+  );
+  // And the rail form, whose Apply button must not throw the search away.
+  out = out.replace(
+    /(<form class="rail" method="get"[^>]*>)/,
+    `$1\n      ${archiveRailHidden(selection, ['group', 'clan', 'place', 'state'])}`
+  );
+
+  // ---- 6. the heading over the listing, which said "24 entries · Igbo · Ụ̀mụ̀nrì · 1800–1900" -------
+  const applied = [
+    selection.group.length > 0 ? selection.group.join(', ') : null,
+    selection.clan.length > 0
+      ? selection.clan.map((slug) => opts.clans.find((c) => c.value === slug)?.label ?? slug).join(', ')
+      : null,
+    selection.place ? `“${selection.place}”` : null,
+    selection.q ? `“${selection.q}”` : null,
+    selection.state === 'sourced' ? 'fully sourced' : selection.state === 'partial' ? 'partial' : null,
+  ].filter((v): v is string => v !== null);
+  out = out.replace(
+    /<p class="small muted"><b>[\d,]+ entries?<\/b>[^<]*<\/p>/,
+    `<p class="small muted"><b>${railCount(opts.total)} ${opts.total === 1 ? 'entry' : 'entries'}</b>` +
+      `${applied.length > 0 ? ` · ${esc(applied.join(' · '))}` : ''}</p>`
+  );
+
+  /*
+   * ---- 7. the chips: the design's four example filters, replaced by the reader's own ---------------
+   *
+   * The design draws them as `<span>`s, so they stated filters nobody had applied and could not be
+   * removed. Each real chip is a link that drops exactly its own filter and keeps the rest.
+   */
+  const chips: string[] = [];
+  // One chip per ticked box, each removing only its own value and keeping its neighbours.
+  for (const group of selection.group) {
+    chips.push(
+      `<a class="chip" href="${esc(archiveRailHref(selection, { group: selection.group.filter((g) => g !== group) }))}">${esc(group)} ✕</a>`
+    );
+  }
+  for (const slug of selection.clan) {
+    const label = opts.clans.find((c) => c.value === slug)?.label ?? slug;
+    chips.push(
+      `<a class="chip" href="${esc(archiveRailHref(selection, { clan: selection.clan.filter((c) => c !== slug) }))}">${esc(label)} ✕</a>`
+    );
+  }
+  if (selection.place) {
+    chips.push(`<a class="chip chip-place" href="${esc(archiveRailHref(selection, { place: null }))}">${esc(selection.place)} ✕</a>`);
+  }
+  if (selection.q) {
+    chips.push(`<a class="chip" href="${esc(archiveRailHref(selection, { q: null }))}">“${esc(selection.q)}” ✕</a>`);
+  }
+  if (selection.state) {
+    const label = selection.state === 'sourced' ? 'Fully sourced' : 'Partial — help needed';
+    chips.push(`<a class="chip" href="${esc(archiveRailHref(selection, { state: null }))}">${esc(label)} ✕</a>`);
+  }
+  out = out.replace(
+    /<div class="chips" style="margin-top:var\(--s-4\)">[\s\S]*?<\/div>/,
+    chips.length > 0
+      ? `<div class="chips" style="margin-top:var(--s-4)">\n        ${chips.join('\n        ')}\n      </div>`
+      : ''
+  );
+
+  /*
+   * ---- 8. the sort control, which offered four orderings and implemented none ---------------------
+   *
+   * Kept as a control, because two of the four are things this archive can actually do; the other two are
+   * dropped rather than left offering a result they cannot produce. The form carries the selection.
+   */
+  out = out.replace(
+    /<form method="get" action="\/archive\/" class="row">[\s\S]*?<\/form>/,
+    `<form method="get" action="/archive/" class="row">\n          ` +
+      archiveRailHidden(selection, ['sort']) +
+      `\n          <label class="small muted" for="sort">Sort</label>\n` +
+      `          <select id="sort" name="sort" style="width:auto">\n` +
+      `            <option value="recent"${selection.sort === 'title' ? '' : ' selected'}>Most recently published</option>\n` +
+      `            <option value="title"${selection.sort === 'title' ? ' selected' : ''}>Title A–Z</option>\n` +
+      `          </select>\n          <button class="btn btn-quiet btn-sm" type="submit">Go</button>\n        </form>`
+  );
+
+  // ---- 9. the entries: the design's four example histories become the archive's real ones ---------
   const start = out.indexOf(ENTRIES_WRAPPER);
   if (start !== -1) {
     const open = out.indexOf('>', start) + 1;
@@ -137,7 +466,7 @@ export function fillArchiveIndex(html: string, opts: {
     out = out.slice(0, open) + '\n        ' + inner + '\n      ' + out.slice(i - 6);
   }
 
-  // --- the rail's counts, which the design gives as example figures.
+  // ---- 10. the topic counts, which the design gives as example figures ----------------------------
   for (const t of opts.topics) {
     // `href="archive-index.html?topic=slug"` … `>Name <span>NN</span>`
     const re = new RegExp(
@@ -147,22 +476,69 @@ export function fillArchiveIndex(html: string, opts: {
   }
 
   /*
-   * --- THE COUNT ABOVE THE PAGINATION, WHICH WAS THE DESIGN'S OWN AND STAYED WRONG.
+   * ---- 11. the empty state: the design's demonstration, or the archive's real answer --------------
    *
-   * The design prints `Showing 1–4 of 24` because it draws four example records. The fill replaces those
-   * four with the archive's own, and **the sentence labelling them was left behind**: the served page read
-   * "Showing 1–4 of 24" above twenty-four real histories, which is worse than a placeholder because it looks
-   * like a measurement. `Previous` and `Next` beneath it have no paging behind them either, so they are
-   * marked `Not built yet` by the link transform; this line is made to agree with them.
-   *
-   * The number of records shown is `entries.length`, not a figure from the design, and the total is the
-   * archive's own count.
+   * The design closes the listing with a named town and a paragraph about what the record holds for it. On
+   * a live page that is a claim about a place with nothing behind it, and it appeared whether or not the
+   * listing was empty. It is removed when there are records; when there are none it becomes the real empty
+   * state, which is the shape the application's own archive route already uses.
    */
-  out = out.replace(
-    /<span class="small muted">Showing \d+[–-]\d+ of \d+<\/span>/,
-    `<span class="small muted">Showing the ${opts.entries.length} most recent of ` +
-      `${opts.total.toLocaleString('en-GB')} records · paging is not built yet</span>`
-  );
+  const emptyAt = out.indexOf('<section class="empty"');
+  if (emptyAt !== -1) {
+    const emptyEnd = out.indexOf('</section>', emptyAt);
+    if (emptyEnd !== -1) {
+      const end = emptyEnd + '</section>'.length;
+      const replacement =
+        opts.total > 0
+          ? ''
+          : `<section class="empty" style="margin-top:var(--s-6)">\n` +
+            `        <p class="eyebrow">Nothing carries that yet</p>\n` +
+            `        <h3 style="margin-top:var(--s-3)">${esc(opts.emptyHeadline ?? 'No record matches these filters')}</h3>\n` +
+            `        <p>${esc(opts.emptyReason ?? 'The archive holds no record for this combination of filters.')}</p>\n` +
+            `        <div class="row">\n` +
+            `          <a class="btn" href="/upload/">Contribute a history</a>\n` +
+            `          <a class="btn btn-quiet" href="/about/#entrust">How material is held</a>\n` +
+            `        </div>\n      </section>`;
+      out = out.slice(0, emptyAt) + replacement + out.slice(end);
+    }
+  }
+
+  /*
+   * ---- 12. the pager, which said "paging is not built yet" and was right --------------------------
+   *
+   * The listing is paged by the archive itself (`page`/`pageSize`, taken in SQL), so the design's two
+   * controls become real links and the sentence labelling them becomes a real measurement.
+   */
+  const navAt = out.indexOf('aria-label="Pagination"');
+  if (navAt !== -1) {
+    const navOpen = out.lastIndexOf('<nav', navAt);
+    const navEnd = out.indexOf('</nav>', navAt);
+    if (navOpen !== -1 && navEnd !== -1) {
+      const totalPages = Math.max(1, Math.ceil(opts.total / opts.pageSize));
+      const page = Math.min(Math.max(opts.page, 1), totalPages);
+      const first = opts.total === 0 ? 0 : (page - 1) * opts.pageSize + 1;
+      const last = Math.min(page * opts.pageSize, opts.total);
+      const previous =
+        page > 1
+          ? `<a class="btn btn-quiet btn-sm" href="${esc(archiveRailHref(selection, {}, page - 1))}" rel="prev">Previous</a>`
+          : `<span class="btn btn-quiet btn-sm" style="opacity:.55;cursor:not-allowed;text-decoration:none" aria-disabled="true">Previous</span>`;
+      const next =
+        page < totalPages
+          ? `<a class="btn btn-quiet btn-sm" href="${esc(archiveRailHref(selection, {}, page + 1))}" rel="next">Next</a>`
+          : `<span class="btn btn-quiet btn-sm" style="opacity:.55;cursor:not-allowed;text-decoration:none" aria-disabled="true">Next</span>`;
+      out =
+        out.slice(0, navOpen) +
+        `<nav class="row" style="margin-top:var(--s-6);justify-content:space-between" aria-label="Pagination">\n` +
+        `        <span class="small muted">${
+          opts.total === 0
+            ? 'No records match these filters'
+            : `Showing ${railCount(first)}–${railCount(last)} of ${railCount(opts.total)} records · page ${page} of ${totalPages}`
+        }</span>\n` +
+        `        <span class="row">\n          ${previous}\n          ${next}\n        </span>\n      </nav>` +
+        out.slice(navEnd + '</nav>'.length);
+    }
+  }
+
   return out;
 }
 
@@ -1161,11 +1537,33 @@ export function renderPhotograph(ph: RealPhotograph): string {
 
   const record = `/documents/${ph.slug}/`;
 
+  /*
+   * ⚠️ THE HEADING LINK CARRIES `overflow-wrap:anywhere`, AND ON A PHONE THAT IS WHAT STOPS THE WHOLE PAGE
+   * SCROLLING SIDEWAYS.
+   *
+   * The title here is often the upload's own file name, because that is what `mediaName` falls back to, and a
+   * file name is one unbreakable token: measured on the served `/photographs/?page=2` at 390 px, the card
+   * headed **"Untitled photograph — Nnamdi_Azikiwe_in_Office,_1937"** had a min-content width of 349 px. The
+   * design's gallery is `grid-template-columns:1fr` below 60rem (showcase.css:549), and `1fr` is
+   * `minmax(auto,1fr)` — so **that one heading, not the photographs, set the track width**, the card grew to
+   * 396 px inside a 358 px column, and the page measured
+   *
+   *     document.scrollingElement.scrollWidth 413  ·  clientWidth 390   →  23 px of sideways scroll
+   *
+   * on the very device the owner named (*"even on mobile"*). `overflow-wrap:anywhere` is the one property that
+   * fixes it: unlike `break-word` it **also changes min-content sizing**, so the token no longer sets the
+   * track. Measured in Chrome at 390 px with this rule applied to this anchor alone:
+   * `scrollingElement.scrollWidth` 413 → **390** and the gallery's own `scrollWidth` 396 → **358**, with no
+   * other change to the page. At 1280 px it is inert, because the title fits on one line there.
+   *
+   * It is inline rather than a stylesheet rule because `public/design/` is inviolable and this is the
+   * element the fill itself writes — the same local correction `fillWatch` makes with `style="color:inherit"`.
+   */
   return `<article>
           <img src="${esc(ph.src)}" alt="${esc(ph.alt)}" loading="lazy">
           <div>
             <small>${esc(context)}</small>
-            <h2><a href="${esc(record)}">${esc(ph.title)}</a></h2>
+            <h2><a href="${esc(record)}" style="overflow-wrap:anywhere">${esc(ph.title)}</a></h2>
             <p>Reference <code>OZ-M-${ph.id}</code> · ${esc(terms)}</p>
             <a href="${esc(record)}">Record, provenance and how to cite it <span aria-hidden="true">→</span></a>
           </div>
@@ -1173,17 +1571,190 @@ export function renderPhotograph(ph: RealPhotograph): string {
 }
 
 /**
- * Fill `photographs.html`'s gallery.
+ * HOW MANY PHOTOGRAPHS `/photographs/` DRAWS AT A TIME.
+ *
+ * 24 is not a new number and it is not chosen here. The query this gallery has always been filled from ended
+ * `order by id limit 24`, so **24 is the count the page already drew** — and the owner asked for a control
+ * that moves to the next set, not for the set to change size. `/archive/` uses the same `PAGE_SIZE = 24`
+ * (`apps/ozikoro/app/archive/page.tsx:41`).
+ */
+export const PHOTOGRAPH_PAGE_SIZE = 24;
+
+/**
+ * WHAT THE FILL NEEDS TO KNOW ABOUT THE REQUEST THAT ASKED FOR A PAGE OF `/photographs/`.
+ *
+ * `page` and `query` are the same pair `WatchFillOptions` carries, for the same reason. `total` is added
+ * because this gallery is **sliced in SQL rather than in memory**: the archive holds thousands of image rows
+ * and only 24 of them are ever rendered, so the fill cannot count the collection from the list it was given.
+ */
+export type PhotographsFillOptions = {
+  /** The `page` parameter, as it arrived. Anything not a page number in range is handled, not trusted. */
+  page?: number;
+  /** How many photographs the archive holds **under the same filter the page slice was read with**. */
+  total?: number;
+  /** The request's own query string, so a pager link keeps every other parameter it was asked with. */
+  query?: string;
+};
+
+/**
+ * Fill `photographs.html`'s gallery, one page of it at a time.
  *
  * The design holds one example article and one placeholder that says no further item was invented for the
  * demonstration. **Both are replaced by real photographs from the archive**, each served from this site at
  * `/media/…` rather than hot-linked from the WordPress install the design's example points at.
+ *
+ * ── WHY THERE IS A PAGER, AND WHY IT IS THIS PAGER ───────────────────────────────────────────────
+ *
+ * **The gallery drew 24 of the 3,468 image records the archive holds and offered no way to reach the other
+ * 3,444.** The owner's request is exact: *"on the photographs, it has thousands of images, there should be
+ * next button to see more, even on mobile"*. A reader could see the first screenful and nothing else.
+ *
+ * So this is option A — **classic pages**, and the other two were rejected for reasons that are the reader's
+ * rather than ours:
+ *
+ *   * **"Load more"** needs script. A reader with JavaScript off would see the first 24 and no more, and
+ *     `/watch/` already proved how this archive pages.
+ *   * **Infinite scroll** has no addressable pages: page 7 cannot be linked, the back button cannot return
+ *     to page 6, and the footer is unreachable. The owner asked for a NEXT BUTTON, and that is a pager.
+ *
+ * **THE ADDRESS CARRIES THE PAGE, AND THE CONVENTION IS THE ARCHIVE'S OWN, NOT A NEW ONE.** `?page=` is what
+ * `/archive/` reads (`apps/ozikoro/app/archive/page.tsx:110`), what `/clan-towns/` and `/admin/media/` report
+ * in their own counts, and what `fillWatch` already renders for `/watch/`. The markup below is
+ * `archive-index.html`'s own pager — `<nav class="row" style="margin-top:var(--s-6);justify-content:
+ * space-between" aria-label="Pagination">` with the count on the left and the controls on the right — reused
+ * rather than a second shape invented, and `btn-quiet` rather than `btn-ghost` because **this is a light
+ * page** (`body.sx-watch-body` is what made the watch pager take the night-body button).
+ *
+ * **BOTH CONTROLS ARE REAL LINKS AND NEITHER NEEDS SCRIPT.** `?page=2` is a plain GET: the middleware carries
+ * the query string to the fill route (see `apps/ozikoro/middleware.ts`), the route reads it, and the page
+ * renders server-side. An unavailable control is an inert `<span>` rather than an `href="#"` or an
+ * `<a aria-disabled="true">`, because `scripts/audit-buttons.mjs` counts both of those as dead controls — and
+ * a control that renders and does nothing is exactly the fault the owner reported.
+ *
+ * **AND THE LINKS ARE WRITTEN FROM THE ROOT.** The served page's `<head>` carries `<base href="/">`
+ * (`designScreenLinks`), so a bare `?page=2` would resolve against the site root and land on the front page.
+ * Measured on `/watch/` in headless Chrome: that is what the first pager did. `/photographs/` is also this
+ * screen's canonical address, so the path is written out — see `watchPageHref` for the full measurement.
  */
-export function fillPhotographs(html: string, photographs: RealPhotograph[]): string {
+export function fillPhotographs(
+  html: string, photographs: RealPhotograph[], options: PhotographsFillOptions = {}
+): string {
   let out = dropExampleFlag(html);
-  const rendered = photographs.map(renderPhotograph).join('\n        ');
+
+  /*
+   * THE COLLECTION'S SIZE, FROM THE ARCHIVE, AND THE PAGE THE READER ASKED FOR.
+   *
+   * A caller that knows only the design's own list (`fillPhotographs(html, photos)`) still compiles and still
+   * draws an honest page: `total` falls back to the list it was handed, which makes the collection exactly
+   * one page and draws no controls — **the page a reader would get if 24 were all there was.**
+   */
+  const declared = Number(options.total);
+  const total = Number.isFinite(declared) && declared > 0 ? Math.trunc(declared) : photographs.length;
+  const totalPages = Math.max(1, Math.ceil(total / PHOTOGRAPH_PAGE_SIZE));
+  const requested = Math.trunc(Number(options.page ?? 1));
+  const page = Number.isFinite(requested) ? Math.max(1, requested) : 1;
+  const beyond = Number.isFinite(requested) && requested > totalPages;
+  const href = (p: number) => photographPageHref(options.query, p);
+
+  // A page past the last draws no photographs. **Not another page's** — that would be a 200 on the wrong set,
+  // which is the fault `/watch/` records; the note below says where the photographs actually are.
+  const rendered = beyond ? '' : photographs.map(renderPhotograph).join('\n        ');
   out = replaceContainer(out, '<div class="sx-record-gallery">', rendered);
+
+  /*
+   * WHERE THE PAGER SITS: AFTER THE GALLERY'S OWN SECTION, BEFORE THE FOOTER.
+   *
+   * The gallery lives in `<section class="wrap section">`, beside the collections subnav. Putting the control
+   * after that section's `</section>` places it **under the last row of photographs and above the footer**,
+   * which is where a reader who has looked at 24 images is standing. **It is not inside the gallery grid**:
+   * the grid is `grid-template-columns:1.4fr .6fr`, so a `<nav>` placed in it would be laid out as another
+   * card and stretched to match one.
+   *
+   * On a page whose gallery was not found at all the pager falls back to the end of `<main>`, exactly as
+   * `fillWatch`'s does, because a pager with nowhere honest to stand is still better than no way back.
+   */
+  const pager = beyond
+    // A LIGHT-PAGE NOTE, in the design's own light-page idiom: `small muted` is what `archive-index.html`'s
+    // own pager writes its count in, and both `--text-muted` and the global link colour are drawn for a light
+    // body. `sx-source-note` is the dark callout `fillWatch` uses, and this page is not on `--night`.
+    ? `<div class="wrap"><p class="small muted" style="margin-top:var(--s-6)">There is no page ${n(page)}: ` +
+      `this collection holds ${n(total)} ${total === 1 ? 'photograph' : 'photographs'} in ` +
+      `${n(totalPages)} ${totalPages === 1 ? 'page' : 'pages'}. ` +
+      `<a href="${esc(href(1))}">Page 1</a>` +
+      (totalPages > 1
+        ? ` · <a href="${esc(href(totalPages))}">page ${n(totalPages)}, the last</a>`
+        : '') +
+      `</p></div>`
+    : totalPages > 1
+      ? `<div class="wrap">${renderPhotographPager(page, totalPages, total, href)}</div>`
+      : '';
+
+  if (pager !== '') {
+    const gallery = out.indexOf('<div class="sx-record-gallery"');
+    const closeSection = gallery === -1 ? -1 : out.indexOf('</section>', gallery);
+    if (closeSection === -1) {
+      const closeMain = out.lastIndexOf('</main>');
+      out = closeMain === -1
+        ? out + pager
+        : out.slice(0, closeMain) + pager + '\n' + out.slice(closeMain);
+    } else {
+      const after = closeSection + '</section>'.length;
+      out = out.slice(0, after) + '\n' + pager + out.slice(after);
+    }
+  }
+
   return out;
+}
+
+/**
+ * The screen's own public address, and why every link the fill writes from here is written from the root.
+ *
+ * The same measurement `WATCH_PATH` records applies here: the served page's `<head>` carries
+ * `<base href="/">`, so a relative `?page=2` resolves against the site root rather than against
+ * `/photographs/`. The address is also this screen's canonical one
+ * (`<link rel="canonical" href="https://ozikoro.com/photographs/">`), so it is written out in full.
+ */
+const PHOTOGRAPH_PATH = '/photographs/';
+
+/**
+ * A pager link.
+ *
+ * The middleware carries the query string to the fill route, so `/photographs/?page=2` is a plain GET that
+ * renders server-side — the address is the page, a reader can link to page 7, the back button returns them,
+ * and a refresh keeps them where they are. **Every other parameter is kept**, so a pager press never
+ * silently drops a preview or a filter the reader arrived with.
+ */
+function photographPageHref(query: string | undefined, page: number): string {
+  const params = new URLSearchParams(query ?? '');
+  params.set('page', String(page));
+  return `${PHOTOGRAPH_PATH}?${params.toString()}`;
+}
+
+/**
+ * The pager itself: where you are, how many there are, and the two real links.
+ *
+ * **EVERY NUMBER IS COUNTED.** `first`, `last`, `total` and `totalPages` all come from the archive's own row
+ * count, so a photograph added tomorrow moves `page 1 of 145` to `page 1 of 146` on its own. Nothing here is
+ * written down.
+ *
+ * `Previous` is drawn first and `Next` second, in that order, because that is the order the design's own
+ * pagers draw them in — and on the first page `Previous` is the inert one, which tells a reader arriving at
+ * the top that they are at the top.
+ */
+function renderPhotographPager(
+  page: number, totalPages: number, total: number, href: (page: number) => string
+): string {
+  const first = (page - 1) * PHOTOGRAPH_PAGE_SIZE + 1;
+  const last = Math.min(page * PHOTOGRAPH_PAGE_SIZE, total);
+  const prev = page > 1
+    ? `<a class="btn btn-quiet btn-sm" href="${esc(href(page - 1))}" rel="prev">← Previous</a>`
+    : '<span class="btn btn-quiet btn-sm" aria-disabled="true" style="opacity:.45">← Previous</span>';
+  const next = page < totalPages
+    ? `<a class="btn btn-quiet btn-sm" href="${esc(href(page + 1))}" rel="next">Next →</a>`
+    : '<span class="btn btn-quiet btn-sm" aria-disabled="true" style="opacity:.45">Next →</span>';
+  return `<nav class="row" style="margin-top:var(--s-6);justify-content:space-between" aria-label="Pagination">` +
+    `<span class="small muted">Showing photographs ${n(first)}–${n(last)} of ${n(total)} · ` +
+    `page ${n(page)} of ${n(totalPages)}</span><span class="row">${prev}${next}</span></nav>`;
 }
 
 /** A story in the folklore index. */
@@ -1879,7 +2450,28 @@ export function fillArticle(html: string, a: RealArticle): string {
             `<span class="k">${esc(label)}</span> ${esc(e.name)}</a>`;
         })
         .join('')}</div>`
-    : `<p class="small muted sx-article-entities">The archive holds no clan, town or place recorded for this entry. A link is made when the record's own title names one that the dictionary already holds, so a record that names none opens no register page.</p>`;
+    /*
+     * ⚠️ AND WHEN THE RECORD NAMES NOBODY, NOTHING IS DRAWN — THE OWNER'S OWN RULING.
+     *
+     * This branch used to print a paragraph explaining the absence:
+     *
+     *   "The archive holds no clan, town or place recorded for this entry. A link is made when the
+     *    record's own title names one that the dictionary already holds, so a record that names none
+     *    opens no register page."
+     *
+     * He: *"the articles with no clan, there's no need to display this text, so remove it entire in all
+     * the articles/contents with no clan selected"*.
+     *
+     * **He is right, and the reason is worth keeping: that sentence explained our linking RULE to a reader
+     * who never asked.** Most records name no place, so most articles carried a paragraph about a
+     * mechanism — *the absence of a list is not a fact about the subject, and a page should not narrate
+     * its own machinery under the opening.* **The chips above are a bonus when they exist; nothing is owed
+     * when they do not.**
+     *
+     * **So the empty string is the deliberate output, not a fallback.** Do not restore a sentence here to
+     * fill the space — a reader meeting no chips simply reads the article.
+     */
+    : '';
 
   /*
    * THE RECORD'S OWN LINKS, AND WHY THEY NOW SIT BELOW THE OPENING RATHER THAN INSIDE IT.

@@ -79,10 +79,22 @@ import {
   COLLECTION_CAMERA_SIGN,
   HOME_STRIP_PLACES,
   MARQUEE_PLACES,
+  // The page size the photographs gallery has always drawn (24), named once in the fill and read here so the
+  // query's `limit` and the pager's own count cannot drift apart.
+  PHOTOGRAPH_PAGE_SIZE,
   MARKET_DAY_ANCHOR,
   narratorPhrase,
+  // The archive's own filter predicate and its counts, so `/archive/`'s design screen and the application's
+  // archive route run ONE statement rather than two that drift. See the note on `listWhere`.
+  listWhere,
+  countArticles,
+  getArchiveFacets,
+  // The register's own list of peoples — the same list `/clan-towns/` offers, hoisted to one constant so a
+  // second page reads it rather than keeping a copy.
+  REGISTER_PEOPLES,
   type DashboardWho, type RealAzEntry, type RealCollection, type RealDocument, type RealEntry, type RealFilm,
   type RealPhotograph, type RealStory, type RealTown, type RealTrack,
+  type ArchiveRailOption, type ArchiveRailSelection, type ListOptions,
 } from '@ozikoro/platform';
 import { nowpaymentsConfigured } from '@/lib/nowpayments';
 
@@ -277,17 +289,40 @@ const FILLED = new Set([
   ...DASHBOARDS,
 ]);
 
-async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEntry[]> {
+/**
+ * How many records one page of `/archive/` draws.
+ *
+ * **24 is the design's own page size and the application route's**, written here once so the query's
+ * `limit`, the count's divisor and the pager's own arithmetic cannot disagree: `/archive/`'s own route has
+ * `PAGE_SIZE = 24`, and this screen draws a page of records beneath the same rail.
+ */
+const ARCHIVE_INDEX_PAGE_SIZE = 24;
+
+/**
+ * ── ONE PAGE OF THE ARCHIVE, FOR THE DESIGN SCREEN, WHICH NEEDS TWO FIELDS THE LISTING DOES NOT RETURN ─
+ *
+ * `listArticles` answers `/archive/`'s own route, and every field it returns is on `ArticleSummary`. The
+ * design's card needs two more, and both are facts about the record rather than about the page:
+ *
+ *   * **`place`** — the card's own place chip. `PLACE_NAMES_SQL` is the expression the application's card
+ *     already uses, so the two paths cannot disagree about what a record's place is. (This query used to
+ *     carry its own copy of that expression, without `kind` and without `distinct`, and it had already
+ *     drifted: it chipped a record linked to a person as a place and printed a name twice when two entity
+ *     rows reached the same place.)
+ *   * **`attached`** — how many sources are attached, which is the card's `Sources N attached` chip.
+ *
+ * ⚠️ **THE FILTERS ARE NOT WRITTEN HERE. `listWhere` IS.** The design's rail draws six groups and the
+ * application's route reads a different vocabulary for the same idea; a second `where` clause written
+ * beside the card is exactly how `/archive/?group=ijaw` came to return the whole archive. So the clause
+ * comes from the archive module, which is also what `countArticles` uses — **the number on the rail and
+ * the records beneath it are one statement.**
+ */
+async function realEntries(options: ListOptions & { limit?: number; offset?: number } = {}): Promise<RealEntry[]> {
   const db = await getDb();
-  /*
-   * THE PLACE IS THE CARD'S PLACE, FROM THE CARD'S OWN SQL.
-   *
-   * This query used to have its own copy: `string_agg(e.name, ', ' order by e.name)` over every
-   * linked entity, with no `kind` and no `distinct`. It had already drifted from the card in two
-   * ways — it chipped a record linked to a person or a people as a place, and it printed a name
-   * twice when two entity rows reached the same place. `PLACE_NAMES_SQL` is the card's own
-   * expression, so the design screen and `/archive/` cannot disagree about what a record's place is.
-   */
+  const { clause, params } = listWhere(options);
+  const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
+  const offset = Math.max(options.offset ?? 0, 0);
+  params.push(limit, offset);
   const rows = await db.rows<{
     slug: string; title: string; standfirst: string | null;
     place: string | null; period: string | null; source: string | null; attached: number;
@@ -299,11 +334,10 @@ async function realEntries(topicSlug: string | null, limit = 24): Promise<RealEn
             (select count(*)::int from ozikoro_article_source s where s.article_id = a.id) as attached
        from ozikoro_article a
        left join ozikoro_topic t on t.id = a.topic_id
-      where a.status = 'published' and a.is_page = false
-        and ($1::text is null or t.slug = $1)
-      order by a.published_at desc nulls last, a.id desc
-      limit $2`,
-    [topicSlug, limit]
+      ${clause}
+      order by ${options.order === 'title' ? 'a.title asc' : 'a.published_at desc nulls last, a.id desc'}
+      limit $${params.length - 1} offset $${params.length}`,
+    params
   );
   return rows.map((r) => ({
     title: r.title,
@@ -1018,29 +1052,214 @@ export async function GET(
 
     try {
       if (name === 'archive-index') {
+        /*
+         * ── THE DESIGN'S OWN RAIL, READ AS THE DESIGN WROTE IT ────────────────────────────────────────
+         *
+         * The design's rail is the specification and it named its own fields: `group`, `clan`, `place`,
+         * `period`, `src` and `state`, with `q` in its own search form. **This branch reads those names.**
+         * Until now it read none of them — it built a rail from `clan.ethnic_group` and ignored every
+         * parameter the design's own form submitted — so `/archive/?group=ijaw`, `?group=kanuri` and
+         * `?group=Edo` all returned the same 1,051 records. **That is the fault the owner reported, and it
+         * is not a display fault: the control was wired to nothing.**
+         */
         const url = new URL(request.url);
-        const topic = url.searchParams.get('topic');
+        const one = (key: string): string | null => {
+          const raw = (url.searchParams.get(key) ?? '').trim();
+          return raw.length > 0 ? raw : null;
+        };
+
+        /*
+         * A PEOPLE IS RESOLVED AGAINST THE REGISTER'S OWN LIST, CASE-INSENSITIVELY. The rail's own values
+         * carry the register's spelling (`Edo`); an address typed by hand may not (`?group=edo`). **A value
+         * the list does not name is not silently ignored** — the listing is empty and `emptyReason` says
+         * the register names no such people, which is a different answer from "the archive holds nothing
+         * under it", and the two must not be given the same one.
+         */
+        const askedGroups = url.searchParams
+          .getAll('group')
+          .map((value) => value.trim())
+          .filter((value) => value.length > 0);
+        const people = askedGroups.map(
+          (asked) => REGISTER_PEOPLES.find((p) => p.toLowerCase() === asked.toLowerCase()) ?? null
+        );
+        const groups = people.filter((p): p is string => p !== null);
+        const unnamedPeople = people.length !== groups.length;
+        const askedState = one('state');
+        const completeness: 'sourced' | 'partial' | null =
+          askedState === 'sourced' || askedState === 'partial' ? askedState : null;
+
+        /*
+         * ⚠️ **THE DESIGN'S RETIRED `period` AND `src` PARAMETERS SELECT NOTHING, AND SAY SO.**
+         *
+         * The design drew five period bands and three source types and shipped them as checkboxes whose
+         * values are its own words (`pre1500`, `oral`). **No record in this archive carries either field** —
+         * measured: `getArchiveFacets` returns zero bands and zero types because `period_label` and
+         * `source_type` are null on all 1,051 published records. So those two groups are not drawn as
+         * controls any more. An address that still carries one — a bookmark from the page that drew them —
+         * must not quietly return the whole archive under a heading naming a period, which is the same
+         * "control that does nothing" fault said about a typed address. It returns nothing, and the reason
+         * names the missing field rather than blaming the reader's spelling.
+         */
+        const retiredFacet = one('period') !== null || one('src') !== null;
+
+        const selection: ArchiveRailSelection = {
+          group: groups,
+          clan: url.searchParams.getAll('clan').map((value) => value.trim()).filter((value) => value.length > 0),
+          place: one('place'),
+          q: one('q'),
+          state: completeness,
+          topic: one('topic'),
+          sort: one('sort') === 'title' ? 'title' : null,
+        };
+
+        const listing: ListOptions = {
+          topicSlug: selection.topic,
+          peopleNames: groups.length > 0 ? groups : null,
+          clanSlugs: selection.clan.length > 0 ? selection.clan : null,
+          place: selection.place,
+          search: selection.q,
+          completeness,
+          order: selection.sort === 'title' ? 'title' : 'recent',
+        };
+
+        /*
+         * THE COUNT COMES FIRST, BECAUSE THE PAGE NUMBER DEPENDS ON IT. `/archive/?page=999` on a
+         * hundred-record listing must answer with the last real page rather than with an empty grid and a
+         * pager claiming page 999 of 1 — the same fault as a control that does nothing, said about the
+         * address instead of about a checkbox. PGlite is in-process here, so the second read costs the same
+         * as the first and there is no round trip to save.
+         */
+        /*
+         * ⚠️ **A PEOPLE THIS REGISTER DOES NOT NAME MATCHES NOTHING, AND IS NOT QUIETLY DROPPED.**
+         *
+         * `peopleNames` is only ever built from `REGISTER_PEOPLES`, so an address naming a people the register
+         * does not use (`?group=NotAPeople`) has no predicate to run — and running none would answer a
+         * question nobody asked by returning the whole archive under a heading reading `NotAPeople`. That
+         * is the same fault as a control that does nothing, said about a typed address: the page would
+         * claim a filter it had not applied. **The register names the peoples it files under, and a word
+         * that is not one of them is not a gap in the record — it is a word this register does not use**,
+         * which `emptyReason` says in those words.
+         */
+        const requestedPage = Number.parseInt(one('page') ?? '1', 10);
         const db = await getDb();
-        const [entries, ethnic, topics, total] = await Promise.all([
-          realEntries(topic),
-          db.rows<{ ethnic_group: string; n: number }>(
-            `select coalesce(ethnic_group, 'Unrecorded') ethnic_group, count(*)::int n
-               from clan where published = true group by 1 order by n desc, 1 limit 6`
+        const total = unnamedPeople || retiredFacet ? 0 : await countArticles(db, listing);
+        const page = Math.min(
+          Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1,
+          Math.max(1, Math.ceil(total / ARCHIVE_INDEX_PAGE_SIZE))
+        );
+
+        const [entries, peoples, facets, registerClans, topics] = await Promise.all([
+          unnamedPeople || retiredFacet
+            ? Promise.resolve([] as RealEntry[])
+            : realEntries({ ...listing, limit: ARCHIVE_INDEX_PAGE_SIZE, offset: (page - 1) * ARCHIVE_INDEX_PAGE_SIZE }),
+          /*
+           * ONE COUNT PER PEOPLE, EACH ONE THE PREDICATE THE FILTER RUNS.
+           *
+           * `countArticles(db, { peopleNames: [label] })` is the very call the listing makes with the very option the
+           * rail's own checkbox submits, so the number beside a name cannot promise records the filter will
+           * not produce. Nineteen counts against the generated `search_vector` and its GIN index, in
+           * parallel; one clever query would be a second statement of the same predicate, which is the
+           * thing this archive refuses everywhere else.
+           */
+          Promise.all(
+            REGISTER_PEOPLES.map(async (label) => ({
+              value: label,
+              label,
+              count: await countArticles(db, { peopleNames: [label] }),
+            }))
           ),
+          getArchiveFacets(db),
+          db.one<{ n: number }>(`select count(*)::int n from clan where published`),
           db.rows<{ slug: string; name: string; n: number }>(
             `select t.slug, t.name, count(a.id)::int n from ozikoro_topic t
                left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
               group by t.slug, t.name order by n desc`
           ),
-          db.one<{ n: number }>(
-            `select count(*)::int n from ozikoro_article where status = 'published' and is_page = false`
-          ),
         ]);
+
+        /*
+         * WHY THE LISTING IS EMPTY, SAID OUT LOUD, AND WHICH ANSWER IT IS.
+         *
+         * The brief's rule is exact: *"If a filter would return nothing because no record carries that
+         * value, the interface must say so rather than showing an empty list with no explanation."* A filter
+         * that matches nothing because the archive holds no such value, one that matches nothing because a
+         * people is on the register's list and nobody has written it yet, and one that matches nothing
+         * because the reader's own words are absent are **three different answers**, and an empty grid says
+         * none of them. The reason is derived from what the rail counted.
+         */
+        const emptyReason = ((): string | null => {
+          if (total > 0) return null;
+          if (unnamedPeople) {
+            const unknown = askedGroups.filter(
+              (asked) => !REGISTER_PEOPLES.some((p) => p.toLowerCase() === asked.toLowerCase())
+            );
+            return `The register names no people called “${unknown.join('”, “')}”. Nothing is hidden — that is not one of the peoples the archive files under, and the list on the left is the whole of them.`;
+          }
+          if (retiredFacet) {
+            return 'No record in the archive carries a time period or a source type, so neither can select anything — every one of the published records has those two fields empty, and populating them is editorial work. The rail no longer draws them; a period or source type in this address was written by the page that used to.';
+          }
+          if (selection.q) {
+            return `No published record contains “${selection.q}”. Nothing is hidden — the search found nothing.`;
+          }
+          if (selection.place) {
+            return `No record in the archive names a place matching “${selection.place}”. Nothing is hidden — the archive holds no such place yet.`;
+          }
+          if (selection.clan.length > 0) {
+            return 'No published record is linked to that clan yet. Linking a history to a clan is editorial work, and the record page says so where it applies.';
+          }
+          if (groups.length > 0) {
+            const named = groups.length === 1
+              ? groups[0]
+              : `${groups.slice(0, -1).join(', ')} or ${groups[groups.length - 1]}`;
+            return groups.length === 1
+              ? `No published record names ${named} yet. The people is on the register's own list and the archive has written nothing under it — that is a gap in the record rather than a search that failed.`
+              : `No published record names ${named} — every one of those peoples is on the register's own list and the archive has written nothing under any of them together. That is a gap in the record rather than a search that failed.`;
+          }
+          if (completeness === 'sourced') {
+            return `No record is fully sourced yet. Every one of the ${facets.records.toLocaleString('en-GB')} published records is waiting on an editor to record what it rests on.`;
+          }
+          if (completeness === 'partial') {
+            return 'Every published record is partial — none carries a source of its own yet.';
+          }
+          if (selection.topic) {
+            return 'This series has no published records yet. That is a gap in the archive rather than a search that failed.';
+          }
+          return 'The archive has no published records yet. That would mean the WordPress import has not run.';
+        })();
+
+        const emptyHeadline = ((): string => {
+          if (unnamedPeople) return `“${askedGroups.filter((asked) => !REGISTER_PEOPLES.some((p) => p.toLowerCase() === asked.toLowerCase())).join('”, “')}” is not a people this register names`;
+          if (retiredFacet) return 'The archive records no period and no source type';
+          if (selection.q) return `Nothing contains “${selection.q}”`;
+          if (selection.place) return `No place matching “${selection.place}”`;
+          if (selection.clan.length > 0) return 'That clan has no history linked yet';
+          if (groups.length === 1) return `${groups[0]} — on the register's list, with nothing written yet`;
+          if (groups.length > 1) return `${groups.join(' or ')} — on the register's list, with nothing written yet`;
+          if (completeness === 'sourced') return 'Nothing is fully sourced yet';
+          if (completeness === 'partial') return 'Nothing is partial';
+          if (selection.topic) return 'This series is empty';
+          return 'The archive holds no published records';
+        })();
+
         html = fillArchiveIndex(html, {
           entries,
-          ethnic: ethnic.map((e) => ({ name: e.ethnic_group, count: e.n })),
+          peoples,
+          clans: facets.clans.map((c): ArchiveRailOption => ({ value: c.value, label: c.label, count: c.count })),
+          registerClans: Number(registerClans?.n ?? 0),
+          periods: facets.periods.map((p): ArchiveRailOption => ({ value: p.value, label: p.label, count: p.count })),
+          sourceTypes: facets.sourceTypes.map((s): ArchiveRailOption => ({
+            value: s.value,
+            label: s.label,
+            count: s.count,
+          })),
+          completeness: { all: facets.records, sourced: facets.sourced, partial: facets.partial },
           topics: topics.map((t) => ({ slug: t.slug, name: t.name, count: t.n })),
-          total: total?.n ?? 0,
+          total,
+          page,
+          pageSize: ARCHIVE_INDEX_PAGE_SIZE,
+          selection,
+          emptyReason,
+          emptyHeadline,
         });
       }
       /*
@@ -1497,8 +1716,34 @@ export async function GET(
          * The design's example image points at `https://ozikoro.com/wp-content/uploads/…`, which is the live
          * WordPress install. These point at `/media/…` on this site, where the archive's own 3,437 files are
          * served, so the page does not depend on the system it is replacing.
+         *
+         * ── AND THE PAGE COMES FROM THE ADDRESS ──────────────────────────────────────────────────────
+         *
+         * `?page=2` is the whole mechanism, and it is the archive's own name for it — `/archive/` reads the
+         * same parameter (`apps/ozikoro/app/archive/page.tsx:110`) and `fillWatch` already renders a pager
+         * for `/watch/` from it. The middleware carries the reader's query string to this route; this reads
+         * it, `fillPhotographs` renders that page with real links to the pages either side, and **no script
+         * is involved**.
+         *
+         * **THE SLICE IS TAKEN IN SQL, NOT IN MEMORY.** The archive holds 3,468 image rows and the page ever
+         * draws 24 of them, so `limit`/`offset` read one page and a second query counts the collection. That
+         * count is what `page 2 of 145` is computed from — **it is never written down**, so a photograph
+         * added tomorrow moves the last page by itself.
+         *
+         * The two queries carry **the same `where` clause**, deliberately: a count read with a different
+         * filter from the rows would promise pages the rows cannot fill. A value that is not a page number
+         * (`abc`) or is below the first (`0`, `-3`) falls back to page 1, which is what `/archive/` does; a
+         * page past the last is answered by `fillPhotographs` with the count and a link rather than with
+         * another page's photographs.
          */
         const db = await getDb();
+        const url = new URL(request.url);
+        const requestedPage = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
+        const page = Number.isFinite(requestedPage) ? Math.max(1, requestedPage) : 1;
+        const totalRow = await db.one<{ n: number }>(
+          `select count(*)::int n from ozikoro_media where kind = 'image' and storage_key is not null`
+        );
+        const total = Number(totalRow?.n ?? 0);
         const rows = await db.rows<{
           id: number; slug: string; title: string | null; alt_text: string | null; storage_key: string | null;
           caption: string | null; description: string | null;
@@ -1507,7 +1752,8 @@ export async function GET(
           `select id, slug, title, alt_text, caption, description, storage_key, creator, credit, licence, captured_at
              from ozikoro_media
             where kind = 'image' and storage_key is not null
-            order by id limit 24`
+            order by id limit $1 offset $2`,
+          [PHOTOGRAPH_PAGE_SIZE, (page - 1) * PHOTOGRAPH_PAGE_SIZE]
         );
         const photos: RealPhotograph[] = rows.filter((r) => r.storage_key).map((r) => {
           /*
@@ -1539,7 +1785,19 @@ export async function GET(
             captured: r.captured_at ? new Date(r.captured_at).toISOString().slice(0, 10) : null,
           };
         });
-        if (photos.length > 0) html = fillPhotographs(html, photos);
+        /*
+         * THE FILL RUNS WHENEVER THE ARCHIVE HOLDS A PHOTOGRAPH — **not whenever this page's slice is
+         * non-empty.**
+         *
+         * The distinction is the whole of the out-of-range case. `?page=999` reads an empty slice, and a
+         * `photos.length > 0` guard would then leave the design's own example photograph and its "no
+         * additional item has been invented" placeholder on the served page: a reader who mistyped a page
+         * number would be shown a demonstration record, which is worse than an empty page. The fill is what
+         * answers with the count and a link instead.
+         */
+        if (total > 0) {
+          html = fillPhotographs(html, photos, { page, total, query: url.search });
+        }
         // An ImageObject per photograph. `licence` is null for every one of them, so `imageNode` emits a
         // `copyrightNotice` saying so rather than a `license` asserting a permission nobody granted.
         extraNodes = photos.map((ph) =>
