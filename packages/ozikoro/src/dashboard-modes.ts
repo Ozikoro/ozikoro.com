@@ -705,10 +705,12 @@ export function fillModeSwitcher(html: string, page: ModeSwitcherPage): string {
      *
      * ⚠️ IT IS AN ANCHOR NOW AND NOT A `<li>`, AND THE MATCH IS THE ANCHOR ALONE. `fillMasthead` places this
      * control in the masthead's own `.wrap` as a sibling of the `<nav>` rather than inside the design's menu
-     * — see the note there for the measured fault that made it so — and its element is `<a class="nav-account">`
-     * with no `<li>` around it. **A match that still expected the `<li>` would silently stop re-pointing the
-     * link the moment the shape changed**, which is the failure mode this whole round is about, so the
-     * assertion that covers it lives in `dashboard-modes.test.ts` rather than only here.
+     * — see the note there for the measured fault that made it so, and for why the phone's half of the same
+     * fault is answered in CSS instead of by putting the `<li>` back — and its element is
+     * `<a class="nav-account">` with no `<li>` around it. **A match that still expected the `<li>` would
+     * silently stop re-pointing the link the moment the shape changed**, which is the failure mode this whole
+     * round is about, so the assertion that covers it lives in `dashboard-modes.test.ts` rather than only
+     * here.
      *
      * AND FOR AN ADMINISTRATOR IT IS NOT RE-POINTED AT ALL. `accountItemFor` hands back the design's own
      * item — `My account` at `/dashboard-reader` — so the substitution below writes back the address and

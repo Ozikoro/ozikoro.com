@@ -359,6 +359,33 @@ function withThemeLink(html: string): string {
 }
 
 /**
+ * ⚠️ `/a11y.css` BELONGS HERE TOO, AND ITS ABSENCE WAS A FAULT THE OWNER FOUND BY LOOKING AT A PAGE.
+ *
+ * The owner: *"on the pc, when you go some pages, like https://ozikoro.com/upload/, the my account shows in
+ * green instead of same colour as the menus, please fix"* — and he was right, on `/upload/` and on five more.
+ *
+ * MEASURED, ON THE SERVED PAGE. `/` links `/design/styles/main.css`, `/design/styles/showcase.css`,
+ * `/a11y.css`, `/design-theme.css`. `/upload/` links `/styles/main.css`, `/styles/showcase.css`,
+ * `/design-theme.css` — **no `/a11y.css` at all**, because a screen with no fill returns at the branch below
+ * and never reaches `seoHead`, which is where the list of sheets is written. The account control's colour is
+ * `a11y.css`'s rule `.masthead-account > .nav-account { color: var(--on-night) }`; without it the anchor falls
+ * through to the design's own `main.css:52 a { color: var(--link) }`, and `--link` is `--accent`, `#0d5c45` —
+ * **the green the owner was looking at, with a text underline he did not mention.**
+ *
+ * It is not only a colour. This sheet carries this application's contrast corrections, its focus-ring repair
+ * and the masthead placement above; a screen served without it is a screen served without any of them, and
+ * six are: `/upload/`, `/type-test/`, `/oral-recordings/`, `/document-viewer/`, `/article/` and `/404/`,
+ * measured on the running site. **The same reasoning that put the theme link here puts this one here** — these
+ * screens never reach the generated head — and the order is the generated head's own, `a11y.css` after the
+ * design's two sheets and before `/design-theme.css`, so a token override still has the last word.
+ */
+function withA11yLink(html: string): string {
+  if (html.includes('/a11y.css')) return html;
+  const link = '<link rel="stylesheet" href="/a11y.css">';
+  return html.includes('</head>') ? html.replace('</head>', `${link}\n</head>`) : `${link}\n${html}`;
+}
+
+/**
  * The preview's overrides, if this request carries one AND the reader may edit the design.
  *
  * A pending value is a value the owner is considering, so it is never stored; it is carried in the URL and
@@ -887,13 +914,16 @@ export async function GET(
 
   if (!FILLED.has(name)) {
     /*
-     * A SCREEN WITH NO FILL STILL CARRIES THE OWNER'S EDITS. These screens never reach the generated head, so
-     * the theme stylesheet is linked here; the element overrides are applied by the same helper the filled
-     * screens use, which is what stops the two halves of the deliverable from behaving differently.
+     * A SCREEN WITH NO FILL STILL CARRIES THE APPLICATION'S OWN SHEETS AND THE OWNER'S EDITS. These screens
+     * never reach the generated head, so `/a11y.css` and the theme stylesheet are linked here — **in the
+     * order the generated head uses**, this sheet after the design's two and before the theme, so the theme's
+     * token overrides still win. The element overrides are applied by the same helper the filled screens use,
+     * which is what stops the two halves of the deliverable from behaving differently.
      */
     const url = new URL(request.url);
     const inventory = await inventoryResponse(html, url);
     if (inventory) return inventory;
+    html = withA11yLink(html);
     html = withThemeLink(html);
     html = await withDesignOverrides(html, name, url);
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });

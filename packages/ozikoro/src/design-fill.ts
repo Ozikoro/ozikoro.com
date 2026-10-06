@@ -2941,12 +2941,38 @@ function accountAnchor(viewer: { signedIn: boolean }): string {
  *                                           the same confusion in a smaller box.
  *   sibling of the `<nav>`, in `.wrap`      `showcase.css:658`'s `.masthead .nav li` border never matches it,
  *                                           `.nav ul`'s flex never lays it out, and the design's menu comes
- *                                           out of this function byte-identical. Chosen.
+ *                                           out of this function byte-identical. Chosen — **for the wide
+ *                                           screen. The phone's copy is the paragraph after this one.**
  *
  * ── AND IT IS PLACED LAST IN THE LOGICAL ORDER ───────────────────────────────────────────────────
  *
  * For a screen reader and for the tab order the control sits **after** the seven menu items, which is where
  * the owner asked for it — only outside the list rather than as its eighth member.
+ *
+ * ── THE PHONE, WHERE "BESIDE THE MENU" IS THE FAULT RATHER THAN THE FIX ───────────────────────────
+ *
+ * **Everything above is about the wide screen, and it stays true there.** On a phone the owner reported the
+ * same control a third time, from the other side: *"on the mobile, sign and my account shows despite the
+ * mobile having the three lines that leads you to the menu, why not also add the sign in and sign up there?"*
+ * The wide-screen reasoning — a third child of the flex row is somewhere the menu cannot scatter — is exactly
+ * what leaves a second control in the bar on a phone, where the bar is three things wide and the menu is
+ * behind a button.
+ *
+ * ⚠️ **AND THE ANSWER IS NOT TO PUT IT BACK IN THE `<ul>`, WHICH IS WHAT THIS FUNCTION DID BEFORE.** The two
+ * tests named for the owner's second report assert, against all 52 design files, that the menu comes out of
+ * this function **item for item identical** and that no `<li class="nav-account">` is written into it. Those
+ * tests are right and are left alone: what was wrong on the wide screen was an eighth item in the row, and
+ * what is wrong on a phone is a control beside the disclosure rather than inside it. **The second is a
+ * question about the disclosure, and the disclosure is CSS** — `showcase.css:658` hides `nav.nav` and shows
+ * it on `.masthead.menu-open` — so the phone's half of this is done there, in `a11y.css`, on the one copy
+ * this function already writes.
+ *
+ * ⚠️ **THE ROLE SWITCH DOES NOT MOVE WITH IT.** `fillModeSwitcher` puts the workspace switch into
+ * `div.masthead-account`, so a phone that hid that box would hide the switch with it — and a switch inside a
+ * collapsed menu is a control a person cannot reach. **The switch keeps the bar at every width and the
+ * account link is the thing the menu carries**, which is also the split the tests insist on: the switch must
+ * not be an item in the design's menu. A signed-in reader therefore opens the menu for `My account` and still
+ * finds the workspace chip in the bar when they hold a second workspace.
  *
  * ── WHAT WAS ALSO WRONG, WHICH THE OLD FALLBACK HID ──────────────────────────────────────────────
  *
@@ -2988,7 +3014,7 @@ export function fillMasthead(html: string, viewer: { signedIn: boolean }): strin
    * ONE. THE PRIMARY MENU — 31 screens, and the one the owner was looking at.
    *
    * The control goes immediately after `</nav>`, inside the masthead's `.wrap`, so the design's `<ul>` is
-   * returned exactly as it arrived.
+   * returned exactly as it arrived — **which the phone's fix must not change either: see the note above.**
    */
   const primary = /<nav class="nav"[^>]*>[\s\S]*?<\/nav>/i.exec(out);
   if (primary) {

@@ -432,12 +432,15 @@
 }
 
 /*
- * ── THE ACCOUNT CONTROL, PLACED BESIDE THE MENU INSTEAD OF INSIDE IT ────────────────────────────────
+ * ── THE ACCOUNT CONTROL: OUTSIDE THE MENU ON A WIDE SCREEN, THE MENU'S LAST ROW ON A PHONE ─────────
  *
- * The owner, twice: *"when i signed in and went to the front page, it scattered the menu."* and then
- * *"again, you have not fixed the menu to be exactly as it should fixed. again, go to the original github
- * design, see the original menu, and fix this shit"*. **He was right both times, and the second report is
- * the evidence that the first fix was the wrong shape.**
+ * The owner, three times. Twice about the wide screen: *"when i signed in and went to the front page, it
+ * scattered the menu."* and then *"again, you have not fixed the menu to be exactly as it should fixed.
+ * again, go to the original github design, see the original menu, and fix this shit"*. **He was right both
+ * times, and the second report is the evidence that the first fix was the wrong shape.** And once about a
+ * phone: *"on the mobile, sign and my account shows despite the mobile having the three lines that leads you
+ * to the menu, why not also add the sign in and sign up there?"* — the same control reported from the other
+ * end, and answered in rule 4 below.
  *
  * WHAT WAS PAINTED, MEASURED
  *
@@ -456,33 +459,46 @@
  * border**, so the account control was drawn as a menu item. **And `nav-account` had no rule anywhere**, so
  * nothing distinguished it: it *was* one more menu item, because that is exactly what it was emitted as.
  *
- * WHAT IS DIFFERENT NOW, AND WHY IT CANNOT HAPPEN AGAIN
+ * WHAT IS DIFFERENT NOW, AND WHY NEITHER FAULT CAN HAPPEN AGAIN
  *
- * `fillMasthead` writes the control as a `div.masthead-account` **outside the `<ul>`**, a sibling of the
- * `<nav>` inside the header's own `.wrap` — which `main.css:97` already sets to
- * `display: flex; align-items: center; justify-content: space-between` for the `.wordmark` and the `<nav>`.
- * The design's `<ul>` is served byte-identical, so `.nav ul`'s flex row holds **seven** items and has no
- * eighth item to wrap; and because the box is not inside `nav.nav`, `showcase.css:658`'s `.masthead .nav li`
- * border cannot reach it. **That is a structural guarantee rather than a width that happens to fit**, which
- * is what the earlier "My Account is narrower than Sign in / Sign up" mitigation relied on and why the
- * complaint survived it.
+ * `fillMasthead` writes the control **once**, as a `div.masthead-account`: a sibling of the `<nav>` inside the
+ * header's own `.wrap`, which `main.css:97` already sets to
+ * `display: flex; align-items: center; justify-content: space-between` for the `.wordmark` and the `<nav>`, so
+ * the row can hold a third child. Rules 1–4 above dress it for a wide screen, where it is where it has been
+ * since the second report — **outside the `<ul>`, so `.nav ul`'s flex row holds seven items and has no eighth
+ * item to wrap**, and not a `.nav li`, so `showcase.css:658`'s border cannot reach it. **That is a structural
+ * guarantee rather than a width that happens to fit**, which is what the earlier "My Account is narrower than
+ * Sign in / Sign up" mitigation relied on and why the complaint survived it.
+ *
+ * ⚠️ **ON A PHONE THAT SAME SINGLE CONTROL IS THE MENU'S LAST ROW, AND IT IS STILL OUTSIDE THE `<ul>`.** The
+ * owner's third report asks for it *in the menu*, and the disclosure the design already draws —
+ * `showcase.css:658` hides `nav.nav` and shows it on `.masthead.menu-open` — is what "in the menu" is made of.
+ * So below 40rem the control is hidden while the menu is shut and laid out as the menu's own last row when it
+ * is open: rule 4 below. **The `<ul>` still comes out of `fillMasthead` item for item identical**, which is
+ * what the two tests named for his second report assert against all 52 design files — an `<li>` put back into
+ * it is precisely the fault they exist to catch, so it is not the fix for this one.
+ *
+ * ⚠️ **AND THE ROLE SWITCH DOES NOT GO INTO THE MENU WITH IT.** `fillModeSwitcher` writes the workspace switch
+ * into this same box, and a switch a phone cannot reach without opening a menu is a control a person cannot
+ * use. Rule 4 hides `.nav-account` alone; **the switch keeps the bar at every width**, and the account link is
+ * the thing the menu carries.
  *
  * Three things this has to do, and where each is done:
  *
- *   1. it does not wrap the menu, at any width          here — the flex row, and the 40rem grid
- *   2. it does not take the menu item's border          by construction: it is not a `.nav li`. At 40rem it
- *                                                       takes a filled chip instead of the row border, so
- *                                                       the difference is visible and not merely true
- *   3. it still reads as the way into the account       the label carries the design's own `.nav a` type
- *                                                       and colour, and at 40rem it becomes the most
- *                                                       button-like thing in the bar — **a control that is
- *                                                       separate and unclickable-looking is a different
- *                                                       fault from one that scatters**
+ *   1. it does not wrap the menu, at any width          rules 1–2 — it is not in the `<ul>` at wide widths,
+ *                                                       and below 40rem it is a row of the menu rather than
+ *                                                       a cell of its grid
+ *   2. it does not take the menu item's border on a      by construction: it is not a `.nav li`. Below 40rem
+ *      wide screen                                       it takes that border deliberately, because there
+ *                                                       it is the menu's last row
+ *   3. it still reads as the way into the account       the label carries the design's own `.nav a` type and
+ *                                                       colour at every width — and its phone row repeats
+ *                                                       `showcase.css:658`'s own `1rem` / `.85rem .35rem`
  *
- * ⚠️ THIS SHEET IS THE ONLY ONE EDITED. `apps/ozikoro/public/design/` is inviolable and byte-compared
- * against the deliverable, and this sheet loads after both of the design's — which is where a rule that
- * corrects the design rather than contradicting it belongs. It is the same placement `main.css:97` already
- * gives a third child of `.wrap`.
+ * ⚠️ THIS SHEET IS THE ONLY ONE EDITED. `apps/ozikoro/public/design/` is inviolable and byte-compared against
+ * the deliverable, and this sheet loads after both of the design's — which is where a rule that corrects the
+ * design rather than contradicting it belongs. It is the same placement `main.css:97` already gives a third
+ * child of `.wrap`.
  */
 
 /*
@@ -561,32 +577,108 @@
  * corner where a reader looks for it.
  *
  * `display: contents` is what lets the injected button take part in this grid **without touching
- * `mobile-nav.js`, which is part of the deliverable**. This application has no reason to edit the design's
+ * `mobile-nav.js`, which is part of the deliverable`**. This application has no reason to edit the design's
  * script, and a control the web platform already understands should not be hidden by a wrapper this round
- * introduced.
+ * introduced. It is set for the reader header too, whose `.wrap` is the same grid — `showcase.css:656` names
+ * both — so that the account control is a grid item on either header rather than a flex row inside a cell.
  *
  * AND IT TAKES A CHIP INSTEAD OF THE MENU ITEM'S BORDER. `showcase.css:658` gives every `.nav li` a bottom
  * border; this box is not a `.nav li` and cannot receive it, and the rule below is what makes that visible
  * rather than merely true — a filled gold button, in the design's own `--gold` and `--ink-strong`, which
  * reads as the way into the account and as nothing else in that row.
+ *
+ * ⚠️ **AND ON A PHONE THE CHIP IS NOW ONLY THE FALLBACK, BECAUSE THE OWNER ASKED FOR THE CONTROL IN THE
+ * MENU.** His third report, from the phone: *"on the mobile, sign and my account shows despite the mobile
+ * having the three lines that leads you to the menu, why not also add the sign in and sign up there?"*
+ * **Measured at 390 px, he was looking at exactly this chip** — `44 × 44` of hamburger at the top right and a
+ * `123 × 36` gold "Sign in / Sign up" on its own row beneath it, beside a menu that was closed. So where the
+ * header has a menu button and the menu is shut, the chip is not displayed; where the menu is OPEN the same
+ * single control is laid out as the menu's last row, in the design's own type and with the same 18%-gold rule
+ * under it. **It is the menu's row rather than an eighth `<li>`**, which is why the design's `<ul>` still
+ * comes out of `fillMasthead` item for item identical — the two tests named for his second report assert
+ * that against all 52 design files, and putting an `<li>` back is the fault they exist to catch.
+ *
+ * ⚠️ THE STAND-DOWN IS GATED ON THE MENU BUTTON EXISTING, WHICH `:has()` IS HOW CSS ASKS. Without JavaScript
+ * `mobile-nav.js` injects no `.mobile-menu-button`, and `showcase.css:658` then hides `nav.nav` with nothing
+ * able to open it. Hiding the chip as well would leave a phone **no way into an account at all** — the
+ * design's own dead menu, plus a fault this round added. `:has()` makes the two facts one: where there is no
+ * button there is no menu, so the chip stays. A browser without `:has()` drops that rule and the chip shows —
+ * **the failure is the arrangement that shipped, never an unreachable control.**
+ *
+ * ⚠️ AND THE WORKSPACE SWITCH DOES NOT STAND DOWN WITH IT. `fillModeSwitcher` writes the switch into this
+ * same box, and a switch a phone cannot reach without opening a menu is a control a person cannot use. Only
+ * `.nav-account` is hidden, so a reader holding a second workspace keeps that chip in the bar at every width
+ * and the account LINK is the control the menu carries.
  */
 @media (max-width: 40rem) {
-  .masthead > .wrap > .masthead-account {
+  .masthead > .wrap > .masthead-account,
+  .sx-reader-header > .wrap > .masthead-account {
     display: contents;
   }
 
   /*
-   * `grid-column: 2` beside the wordmark, which `showcase.css:656` puts in column 1. The mobile datebar and
-   * the menu button keep the rows they had, and `nav.nav` keeps its own `grid-column: 1/-1`.
+   * THE CONTROL IS IN THE MENU, SO IT IS HIDDEN WHILE THE MENU IS SHUT. `:not(.menu-open)` rather than a
+   * second selector with the same weight: this rule has to lose to the one below it when the menu opens, and
+   * an explicit state is a smaller thing to reason about than a specificity that happens to be one class
+   * lighter.
+   */
+  .masthead:has(> .wrap > .mobile-menu-button):not(.menu-open)
+    > .wrap > .masthead-account > .nav-account,
+  .sx-reader-header:has(> .wrap > .mobile-menu-button):not(.menu-open)
+    > .wrap > .masthead-account > .nav-account {
+    display: none;
+  }
+
+  /*
+   * THE MENU'S LAST ROW. `grid-column: 1/-1` puts it under the seven menu rows that `nav.nav` already spans
+   * with its own `1/-1`, and the metrics are the design's own from `showcase.css:658` — `.masthead .nav a`
+   * is `padding: .85rem .35rem` at `1rem`, and every `.nav li` carries the same 18%-gold rule underneath.
+   * **The rule under it is what makes it read as a menu row rather than a control parked under a menu**, and
+   * the colour is `--on-night`, the bar's own foreground, because this row is in the menu the bar draws.
+   */
+  .masthead.menu-open > .wrap > .masthead-account > .nav-account,
+  .sx-reader-header.menu-open > .wrap > .masthead-account > .nav-account {
+    display: block;
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    align-self: center;
+    padding: 0.85rem 0.35rem;
+    border: 0;
+    border-bottom: 1px solid color-mix(in oklab, var(--gold) 18%, transparent);
+    border-radius: 0;
+    background: transparent;
+    color: var(--on-night);
+    font-size: 1rem;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: normal;
+  }
+
+  /* The hover stays the design's own masthead treatment rather than a new colour. */
+  .masthead.menu-open > .wrap > .masthead-account > .nav-account:hover,
+  .masthead.menu-open > .wrap > .masthead-account > .nav-account:focus-visible,
+  .sx-reader-header.menu-open > .wrap > .masthead-account > .nav-account:hover,
+  .sx-reader-header.menu-open > .wrap > .masthead-account > .nav-account:focus-visible {
+    color: var(--gold-bright);
+    background: color-mix(in oklab, var(--gold) 14%, transparent);
+  }
+
+  /*
+   * THE CHIP IS THE FALLBACK, AND IT IS STILL A CHIP RATHER THAN NOTHING.
    *
-   * ⚠️ IT TAKES ITS OWN ROW ON A PHONE, AND THAT IS ACCEPTED RATHER THAN HIDDEN. Measured at 390 px: the
-   * wordmark is 220 px and the injected menu button 44 px, so 124 px of the 390 is left — **not enough for a
-   * legible "Sign in / Sign up"**, and the three things that could be done about it are each worse than the
-   * row. Shrinking the label below the design's own type size fails the third requirement (it must still read
-   * as the way in); moving the button breaks `mobile-nav.js`, which injects it before the `<nav>` and is part
-   * of the deliverable; and hiding the control would leave the way into an account inside a menu a stranger
-   * has no reason to open. **Three rows and a visible control is the honest arrangement**, and it is the
-   * header only — the menu itself stays the design's two-column grid.
+   * `grid-column: 2` is beside the wordmark, which `showcase.css:656` puts in column 1; the mobile datebar and
+   * the menu button keep the rows they had, and `nav.nav` keeps its own `grid-column: 1/-1`. This is what the
+   * page shows when there is no menu button to put the control inside — **the no-JavaScript case, and a
+   * browser without `:has()`** — so it is kept rather than deleted: the arrangement that shipped is a working
+   * arrangement, and the stand-down above is a preference about where the control belongs, not a repair.
+   *
+   * ⚠️ IT IS NO LONGER WHAT A PHONE WITH A WORKING MENU SHOWS, AND THE OLD NOTE HERE IS WORTH CORRECTING
+   * RATHER THAN KEEPING. It read: *"It takes its own row on a phone, and that is accepted rather than hidden —
+   * three rows and a visible control is the honest arrangement."* **Measured at 390 px, that row is exactly
+   * what the owner reported**: the wordmark and the hamburger on the first row, a `123 × 36` gold
+   * "Sign in / Sign up" on the second, beside a menu that is closed. A control parked under a disclosure is
+   * not the way into an account; **it is the fault**, and where a menu exists the control is that menu's last
+   * row instead.
    *
    * The chip is drawn rather than filled, which is both quieter than a gold block beside a gold hamburger and
    * smaller: `--gold-bright` on the masthead's near-black is 9.8:1, and the border is the design's own
@@ -618,8 +710,10 @@
 
   /*
    * The switch, when there is one, takes the same cell. It is `display: contents`'s other child, so it is a
-   * grid item here — and one account control per row is the point, so the box holds either the plain link or
-   * the switch and never both competing for the same cell.
+   * grid item here — **and it is the one child of the box that does not stand down when the menu does.** A
+   * reader holding a second workspace keeps the chip in the bar whether the menu is open or shut, which is the
+   * whole reason the stand-down above names `.nav-account` and not the box: a switch that needs a menu opened
+   * first is a control a phone cannot use, and the account LINK is what the menu is carrying.
    */
   .masthead-account .nav-modes-item {
     grid-column: 2;
