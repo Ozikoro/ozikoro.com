@@ -838,6 +838,33 @@ asset_probe_reason() {
   printf ''
 }
 
+# ⚠️ `public/` IS COPIED, NOT COMPILED — SO IT MUST BE RE-SYNCED EVEN WHEN THE BUILD IS CURRENT.
+#
+# THE FAULT THIS FIXES, FOUND BY AN AGENT MEASURING A CSS CHANGE IT HAD JUST MADE.
+#
+# The staleness check above deliberately EXCLUDES `public/` (the comment at the top of this file says so:
+# the check runs over `apps/ozikoro` "minus `.next`, `node_modules` and `public`"). **That exclusion is
+# correct for the BUILD — nothing in `public/` needs compiling — and WRONG for the COPY, because the copy
+# only happens inside the build branch at line ~598.**
+#
+# So: a change to `public/a11y.css`, `public/design/**` or any other public asset **leaves the build
+# "current", skips the whole build-and-copy block, and restarts a server still serving the OLD bytes.**
+# `bash scripts/serve-review.sh` reports READY. `curl` returns 200. **And the fix is not being served.**
+#
+# That is the worst shape a fault can take: a green check over a change that did not ship. It was found
+# because an agent's CSS fix appeared to work only after ANOTHER agent happened to run `--rebuild`.
+#
+# **So the copy is now unconditional.** It is idempotent, it is what the build branch does anyway, and it
+# runs after every path that could have changed `$TARGET` rather than only the one that rebuilds.
+if [ -n "${TARGET:-}" ] && [ -d "$TARGET" ] && [ -d "$APP/public" ]; then
+  # Same two steps, and the same reasoning, as the build branch: remove the destination first, because
+  # `cp -R src dst` with `dst` present copies src INTO dst and produces `public/public/`.
+  rm -rf "$TARGET/public"
+  cp -R "$APP/public" "$TARGET/public"
+  # And the two files a route serves, for the reason documented at the build branch's own copy.
+  rm -f "$TARGET/public/favicon.ico" "$TARGET/public/favicon.png"
+fi
+
 READY_START="$(date +%s)"
 for _ in $(seq 1 40); do
   code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://127.0.0.1:$PORT/" 2>/dev/null || echo 000)"
