@@ -1,0 +1,528 @@
+/*
+ * The Classic Editor's screen furniture, drawn here rather than in `globals.css`.
+ *
+ * WHY ITS OWN FILE, AND NOT ANOTHER BLOCK IN THE SHARED STYLESHEET
+ *
+ * `globals.css` is the archive's own design system and it is being edited by another round while this
+ * screen is written. Adding to it would put this screen's rules and that round's in one file, one diff and
+ * one commit — and the fault this project has already recorded twice is a commit that absorbs work it did
+ * not do. So the Classic Editor's rules live beside the Classic Editor.
+ *
+ * WHY `.wpedit`, `.wplist` AND `.wpadmin` AND NOT BARE WORDPRESS SELECTORS
+ *
+ * The plugin being reproduced is WordPress's own: its markup is `#poststuff`, `.postbox`,
+ * `.mce-toolbar`, `.wp-menu`. Those names are reproduced **where this screen draws them** and every rule
+ * here is nested under the screen's own root class, so a future round that pastes a WordPress stylesheet
+ * into this site cannot have its rules apply to the whole archive, and these cannot leak out into the
+ * design's pages. The classes are WordPress's; the scope is ours.
+ *
+ * THE LOOK IS THE WORDPRESS ADMIN'S, deliberately, because the owner's instruction is *"everything should
+ * be like the wordpress design"*. The archive's own administration wears the design's `.sx-` vocabulary
+ * and this screen sits inside it — so the frame stays the design's and the editor inside it is
+ * WordPress's, which is the only way to be "exactly like the Classic Editor" without repainting the back
+ * office.
+ */
+
+/* ---------------------------------------------------------------------------
+   The page: H1, the section submenu under it, and a two-column body.
+   --------------------------------------------------------------------------- */
+.wpadmin {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1d2327;
+}
+
+.wpadmin__title {
+  font-size: 23px;
+  font-weight: 400;
+  margin: 0;
+  padding: 9px 0 4px;
+  line-height: 1.3;
+}
+
+/* The "All Posts | Add New | Categories | Tags" row WordPress draws under the H1. */
+.wpadmin__subsubsub {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: 13px;
+  color: #646970;
+}
+.wpadmin__subsubsub li {
+  display: inline;
+  margin: 0;
+  padding: 0;
+}
+.wpadmin__subsubsub li + li::before {
+  content: ' | ';
+  color: #a7aaad;
+  padding: 0 4px;
+}
+.wpadmin__subsubsub a {
+  text-decoration: none;
+}
+.wpadmin__subsubsub a.current {
+  font-weight: 600;
+  color: #000;
+}
+.wpadmin__count {
+  color: #50575e;
+}
+
+/* WordPress's "add new" button, which is that screen's primary control. */
+.wpadmin .page-title-action {
+  display: inline-block;
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 2.15384615;
+  min-height: 30px;
+  margin-left: 4px;
+  padding: 0 10px;
+  cursor: pointer;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-sizing: border-box;
+  background: #f6f7f7;
+  border-color: #2271b1;
+  color: #2271b1;
+}
+.wpadmin .page-title-action:hover {
+  background: #f0f0f1;
+  border-color: #0a4b78;
+  color: #0a4b78;
+}
+
+/* ---------------------------------------------------------------------------
+   The notices: WordPress's own, above the H1.
+   --------------------------------------------------------------------------- */
+.wpadmin .notice {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  border-left-width: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  margin: 5px 0 15px;
+  padding: 1px 12px;
+}
+.wpadmin .notice--success { border-left-color: #00a32a; }
+.wpadmin .notice--error { border-left-color: #d63638; }
+.wpadmin .notice--info { border-left-color: #72aee6; }
+.wpadmin .notice p { margin: 0.5em 0; }
+
+/* ---------------------------------------------------------------------------
+   The editor screen
+   --------------------------------------------------------------------------- */
+
+/* The title field, and its permalink line beneath. */
+.wpedit #titlediv { position: relative; margin-bottom: 12px; }
+.wpedit #titlewrap input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 1.7em;
+  height: 1.7em;
+  line-height: 1.3;
+  padding: 3px 8px;
+  margin: 0;
+  border: 1px solid #dcdcde;
+  border-radius: 4px;
+  background: #fff;
+  color: #1d2327;
+  box-shadow: 0 0 0 transparent;
+}
+.wpedit #titlewrap input:focus {
+  border-color: #2271b1;
+  box-shadow: 0 0 0 1px #2271b1;
+  outline: 2px solid transparent;
+}
+.wpedit #edit-slug-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+  min-height: 24px;
+  padding: 5px 0 0;
+  color: #50575e;
+  font-size: 12px;
+}
+.wpedit #edit-slug-box .mono,
+.wpedit #edit-slug-box code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+}
+.wpedit .screen-reader-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(1px, 1px, 1px, 1px);
+  white-space: nowrap;
+}
+
+/* The two columns: the content editor on the left, the meta boxes on the right. */
+.wpedit #poststuff { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.wpedit #post-body.columns-2 { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+@media (max-width: 900px) {
+  .wpedit #post-body.columns-2 { grid-template-columns: minmax(0, 1fr); }
+}
+.wpedit #postbox-container-1 { display: flex; flex-direction: column; gap: 12px; }
+
+/* A WordPress postbox. */
+.wpedit .postbox,
+.wplist .postbox {
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  border-radius: 3px;
+}
+.wpedit .postbox > .postbox-header,
+.wplist .postbox > .postbox-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #c3c4c7;
+  padding: 0 12px;
+  min-height: 36px;
+}
+.wpedit .postbox > .postbox-header h2,
+.wplist .postbox > .postbox-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  padding: 8px 0;
+  color: #1d2327;
+}
+.wpedit .postbox .inside,
+.wplist .postbox .inside { padding: 12px; margin: 0; font-size: 13px; }
+.wpedit .postbox .inside p { margin: 0 0 10px; }
+.wpedit .postbox .inside p:last-child { margin-bottom: 0; }
+.wpedit .postbox .hndle-note { font-size: 12px; color: #646970; }
+
+/* The Publish box's minor actions (status, visibility, date) and its major one. */
+.wpedit .misc-pub-section {
+  border-bottom: 1px solid #f0f0f1;
+  padding: 8px 12px;
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: baseline;
+}
+.wpedit .misc-pub-section:last-child { border-bottom: 0; }
+.wpedit .misc-pub-section strong { color: #1d2327; }
+.wpedit .misc-pub-section .edit-post-status,
+.wpedit .misc-pub-section .edit-visibility,
+.wpedit .misc-pub-section .edit-timestamp {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: #2271b1;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 0;
+  text-decoration: underline;
+}
+.wpedit #major-publishing-actions {
+  background: #f6f7f7;
+  border-top: 1px solid #dcdcde;
+  padding: 10px 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.wpedit #major-publishing-actions .spinner { display: none; }
+.wpedit #delete-action { margin-right: auto; }
+.wpedit #delete-action a { color: #b32d2e; }
+
+/* WordPress's buttons, in the two weights this screen uses. */
+.wpedit .button,
+.wplist .button,
+.wpadmin .button {
+  display: inline-block;
+  text-decoration: none;
+  font-size: 13px;
+  line-height: 2.15384615;
+  min-height: 30px;
+  margin: 0;
+  padding: 0 10px;
+  cursor: pointer;
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-sizing: border-box;
+  background: #f6f7f7;
+  border-color: #2271b1;
+  color: #2271b1;
+}
+.wpedit .button:hover,
+.wplist .button:hover { background: #f0f0f1; border-color: #0a4b78; color: #0a4b78; }
+.wpedit .button-primary,
+.wplist .button-primary,
+.wpadmin .button-primary {
+  background: #2271b1;
+  border-color: #2271b1;
+  color: #fff;
+}
+.wpedit .button-primary:hover,
+.wplist .button-primary:hover { background: #135e96; border-color: #135e96; color: #fff; }
+.wpedit .button-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: #2271b1;
+  text-decoration: underline;
+  min-height: 0;
+  line-height: inherit;
+}
+.wpedit .button:disabled,
+.wpedit .button[aria-disabled='true'] {
+  color: #a7aaad !important;
+  border-color: #dcdcde !important;
+  background: #f6f7f7 !important;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   The content box: its tool bar row, the second row the toggle reveals, and the area.
+   --------------------------------------------------------------------------- */
+.wpedit #postdivrich { background: #fff; border: 1px solid #c3c4c7; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04); }
+.wpedit #wp-content-editor-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  background: #f6f7f7;
+  border-bottom: 1px solid #dcdcde;
+  padding: 6px 8px;
+}
+.wpedit #wp-content-editor-tools .wp-media-buttons { margin-right: auto; }
+.wpedit .mce-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  align-items: center;
+  background: #f6f7f7;
+  border-bottom: 1px solid #dcdcde;
+  padding: 4px 6px;
+}
+.wpedit .mce-toolbar[data-row='2'][hidden] { display: none; }
+.wpedit .mce-btn {
+  background: #f6f7f7;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  min-width: 30px;
+  height: 28px;
+  padding: 0 6px;
+  font-size: 13px;
+  line-height: 1;
+  color: #1d2327;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.wpedit .mce-btn:hover { background: #f0f0f1; border-color: #c3c4c7; }
+.wpedit .mce-btn[aria-pressed='true'] { background: #dcdcde; border-color: #c3c4c7; }
+.wpedit .mce-btn:disabled { color: #a7aaad; cursor: not-allowed; background: #f6f7f7; }
+.wpedit .mce-btn i { font-style: normal; font-weight: 700; }
+.wpedit .mce-btn .mce-ico-em { font-style: italic; font-weight: 400; }
+.wpedit .mce-btn .mce-ico-s { text-decoration: line-through; }
+.wpedit .mce-separator { width: 1px; height: 22px; background: #dcdcde; margin: 0 4px; }
+
+.wpedit #wp-content-editor-container textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 340px;
+  resize: vertical;
+  border: 0;
+  border-radius: 0;
+  padding: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #1d2327;
+  background: #fff;
+}
+.wpedit #wp-content-editor-container textarea:focus { outline: 2px solid #2271b1; outline-offset: -2px; }
+
+.wpedit #post-status-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  border-top: 1px solid #dcdcde;
+  background: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #646970;
+}
+
+/* Distraction Free Writing: the meta boxes and the section menu step aside, the text is what is left. */
+.wpedit--dfw #post-body.columns-2 { grid-template-columns: minmax(0, 1fr); }
+.wpedit--dfw #postbox-container-1 { display: none; }
+.wpedit--dfw #titlediv { max-width: 60rem; margin-inline: auto; }
+.wpedit--dfw #postdivrich { max-width: 60rem; margin-inline: auto; }
+.wpedit--dfw #wp-content-editor-container textarea { min-height: 70vh; font-family: inherit; font-size: 15px; line-height: 1.8; }
+.wpedit__dfw-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 4px 0;
+}
+.wpedit--dfw .wpedit__dfw-bar { position: sticky; top: 0; z-index: 5; background: #f0f0f1; }
+
+/* The fields inside the meta boxes. */
+.wpedit .wpfield { margin: 0 0 12px; }
+.wpedit .wpfield > label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 13px; }
+.wpedit .wpfield input[type='text'],
+.wpedit .wpfield input[type='search'],
+.wpedit .wpfield input[type='url'],
+.wpedit .wpfield input[type='datetime-local'],
+.wpedit .wpfield input[type='number'],
+.wpedit .wpfield select,
+.wpedit .wpfield textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #8c8f94;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #fff;
+  color: #1d2327;
+}
+.wpedit .wpfield textarea { min-height: 90px; resize: vertical; }
+.wpedit .wphelp { font-size: 12px; color: #646970; margin: 4px 0 0; }
+.wpedit .wpcard-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  border-top: 1px solid #f0f0f1;
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+/* The tag box: WordPress's "Choose from the most used tags" cloud. */
+.wpedit .tagcloud { margin-top: 8px; line-height: 2; }
+.wpedit .tagcloud a {
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+  border: 0;
+  background: none;
+  color: #2271b1;
+  padding: 0 2px;
+}
+
+/* ---------------------------------------------------------------------------
+   The list tables
+   --------------------------------------------------------------------------- */
+.wplist table.wp-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  background: #fff;
+  border: 1px solid #c3c4c7;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04);
+  font-size: 13px;
+  clear: both;
+}
+.wplist table.wp-list-table th,
+.wplist table.wp-list-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0f0f1;
+  vertical-align: top;
+}
+.wplist table.wp-list-table thead th {
+  border-bottom: 1px solid #c3c4c7;
+  font-weight: 400;
+  color: #1d2327;
+}
+.wplist table.wp-list-table tbody tr:hover > * { background: #f6f7f7; }
+.wplist .column-title { width: 30%; }
+.wplist .column-author { width: 11%; }
+.wplist .column-categories,
+.wplist .column-tags { width: 13%; }
+.wplist .column-date { width: 15%; }
+.wplist .row-title { font-size: 14px; font-weight: 600; text-decoration: none; }
+.wplist .row-title--empty { color: #646970; font-style: italic; }
+.wplist .row-actions {
+  visibility: hidden;
+  color: #646970;
+  font-size: 13px;
+  padding-top: 2px;
+}
+.wplist tr:hover .row-actions,
+.wplist tr:focus-within .row-actions { visibility: visible; }
+.wplist .row-actions span + span::before { content: ' | '; color: #a7aaad; }
+.wplist .row-actions a, .wplist .row-actions button {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+  color: #2271b1;
+  text-decoration: underline;
+  cursor: pointer;
+  font-family: inherit;
+}
+.wplist .row-actions .submitdelete { color: #b32d2e; }
+.wplist .post-state { color: #646970; font-weight: 400; }
+.wplist .tablenav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+}
+.wplist .tablenav select,
+.wplist .tablenav input[type='search'] {
+  border: 1px solid #8c8f94;
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 13px;
+}
+.wplist .tablenav .displaying-num { color: #646970; font-size: 13px; margin-left: auto; }
+.wplist tr.quick-edit-row td { background: #f6f7f7 !important; }
+.wplist .quick-edit-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 10px; }
+.wplist .quick-edit-grid label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 3px; }
+.wplist .quick-edit-grid input,
+.wplist .quick-edit-grid select {
+  width: 100%; box-sizing: border-box;
+  border: 1px solid #8c8f94; border-radius: 4px; padding: 3px 8px; font-size: 13px;
+}
+.wplist .empty-state { padding: 22px 12px; color: #646970; }
+
+/* The submenu rail: WordPress's Posts / Pages menu, as the screen's own secondary navigation. */
+.wprail {
+  background: #1d2327;
+  border-radius: 3px;
+  padding: 6px 0;
+  margin: 0 0 14px;
+  font-size: 13px;
+  /*
+   * A MENU COLUMN, NOT A BANNER. WordPress's own admin menu is a narrow strip down the left; drawn full
+   * width inside the archive's content column it read as a panel of dark text above the work. The cap is
+   * 16rem, which is the width `.sx-dash-side` gives the archive's own rail — so the section's menu and the
+   * site's menu are the same shape.
+   */
+  max-width: 16rem;
+}
+.wprail__group + .wprail__group { border-top: 1px solid #2c3338; margin-top: 6px; padding-top: 6px; }
+.wprail__heading { color: #f0f0f1; font-weight: 600; padding: 6px 14px 2px; margin: 0; font-size: 13px; }
+.wprail ul { list-style: none; margin: 0; padding: 0; }
+.wprail a {
+  display: block;
+  color: #c3c4c7;
+  text-decoration: none;
+  padding: 5px 14px 5px 24px;
+  border-left: 4px solid transparent;
+}
+.wprail a:hover { color: #72aee6; background: #2c3338; }
+.wprail a[aria-current='page'] { color: #fff; font-weight: 600; border-left-color: #72aee6; background: #2c3338; }
+.wprail__note { color: #8c8f94; padding: 6px 14px 2px; margin: 0; font-size: 12px; }
