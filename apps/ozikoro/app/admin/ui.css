@@ -1,0 +1,56 @@
+/*
+ * The shared back-office primitives, in the owner's Design Studio vocabulary.
+ *
+ * ── WHY THIS FILE EXISTS BESIDE `studio.css` ─────────────────────────────────────────────────────
+ *
+ * `studio.css` is the owner's own stylesheet, scoped under `.ozstudio`, and it is the single source of
+ * the studio's look. **This file holds only the handful of rules that `ui.tsx` needs and the owner's
+ * mock-up has no equivalent for** — the tones of a notice, a definition list, a link drawn as a tab, a
+ * card's footer. They live here rather than being appended to `studio.css` so that the owner's sheet
+ * stays what it is: his, mechanical, and traceable to the file he sent.
+ *
+ * ── WHAT CHANGED AND WHY IT MATTERS MORE THAN IT LOOKS ───────────────────────────────────────────
+ *
+ * `ui.tsx` used to emit the design deliverable's dashboard classes — `sx-panel`, `sx-panel-head`,
+ * `sx-panel-body` from `showcase.css`, plus `admin-nav`, `pairs` and `notice` from the application's
+ * own `globals.css`. **The owner has replaced that design for the back office.** Because every one of
+ * the 39 admin screens draws its cards through this one file, changing it here is what makes the whole
+ * area wear the new design rather than just its frame — and it is the reason this was done as one
+ * change instead of forty.
+ *
+ * ⚠️ **AND THE PAGE TITLE IS NOW AN `<h2>`, WHICH IS A CORRECTION RATHER THAN A RESTYLE.** The new
+ * shell's top bar carries `<h1>Administration</h1>` — the owner's own markup, and the right outline for
+ * an area whose pages are its subsections. `Head` was still emitting an `<h1>`, so **every admin page
+ * had two first-level headings and no way for a screen reader to tell which named the page.** In the
+ * owner's design the top bar is the `<h1>` and `.title-row h2` is the page, so that is what this emits.
+ */
+
+/* A link drawn as one of the design's tabs. The owner's `.tab` is a `<button>` rule; a sub-navigation
+   uses anchors, which need the two properties a button gets for free. */
+.ozstudio a.tab{display:inline-block;text-decoration:none}
+
+/* The card's footer. The design has no foot on any of its cards; the back office puts a screen's own
+   "go there" link in one, so it takes the design's own hairline and padding rather than a new look. */
+.ozstudio .card-foot{border-top:1px solid var(--line);padding:12px 17px;background:#faf7f0}
+
+/* ⚠️ THE NOTICES. The design draws one `.notice` — a green "this is protected" reassurance. The back
+   office needs three, and they mean different things: a save that worked, a fact worth knowing, and a
+   refusal. The base `.notice` is the designer's; these three only set the border and text colour, so a
+   notice still reads as the design's notice. The reference is the archive's own vocabulary, not a new
+   palette: `--moss` for done, `--blue` for information, `--red` for not done. */
+.ozstudio .notice--success{background:#e9f0e9;border-color:#cadacb;color:#4f6652}
+.ozstudio .notice--info{background:#e8edf4;border-color:#c6d0dd;color:#4a5a70}
+.ozstudio .notice--error{background:#f6e6e4;border-color:#dfc0bc;color:#8a3c35}
+.ozstudio .notice p{margin:0}
+.ozstudio .notice__title{font-weight:700;margin-bottom:2px}
+.ozstudio .notice__body{font-size:11px;line-height:1.55}
+
+/* The label/value list the connection facts use. The design has no definition list; it draws the same
+   fact as a `.card-body` row of `<b>` and `<small>`. This is that shape, using the design's own
+   hairlines and its meta type size, so a facts list sits beside the design's cards without a seam. */
+.ozstudio .pairs{margin:0;display:grid;grid-template-columns:minmax(9rem,auto) 1fr;gap:8px 16px;font-size:12px}
+.ozstudio .pairs dt{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.08em;
+  align-self:baseline;padding-top:2px}
+.ozstudio .pairs dd{margin:0;color:var(--ink)}
+@media(max-width:640px){.ozstudio .pairs{grid-template-columns:1fr;gap:2px 0}
+  .ozstudio .pairs dd{margin-bottom:8px}}
