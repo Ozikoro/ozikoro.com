@@ -17,9 +17,12 @@
  *
  * WordPress's admin menu has Posts → (All Posts, Add New, Categories, Tags) and Pages → (All Pages, Add
  * New), and the design of this screen is the reason the owner asked. The archive's back office already has
- * its own rail — `app/admin/layout.tsx` — and this is the section's own submenu drawn in WordPress's own
- * shape, shown on every screen in the section. The shared rail carries the two top-level entries; this
- * carries what is under them.
+ * its own rail — `app/admin/layout.tsx` — and this is the section's own submenu shown on every screen in
+ * the section. The shared rail carries the two top-level entries; this carries what is under them.
+ *
+ * **AND IT OPENS LIKE A MENU.** The owner's complaint was that every link was laid out flat at once, so
+ * each heading here is now a control: it keeps its place, a triangle says it can fold, and the links are
+ * indented underneath it. `./rail-menu.tsx` draws it and remembers which groups are open.
  */
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
@@ -39,6 +42,7 @@ import { requireCapabilityOrRedirect } from '@/lib/access';
 import { Notices } from '../ui';
 import { ClassicEditor, type EditorMedia, type EditorPiece } from './editor';
 import { ListTable } from './list-table';
+import { RailMenu, type RailGroup } from './rail-menu';
 
 const PAGE_SIZE = 20;
 
@@ -51,60 +55,58 @@ export const KIND_ROUTES: Record<PieceKind, { base: string; all: string; addNew:
 /**
  * WordPress's Posts / Pages submenu, and the subsection the reader is in.
  *
+ * ── WHY THIS IS NOW A MENU RATHER THAN A LIST ────────────────────────────────────────────────────────
+ *
+ * The owner pasted what stood here —
+ *
+ *     Posts · All Posts · Add New Post · Categories · Tags · Pages · All Pages ·
+ *     The archive · Editorial queue · Trash
+ *
+ * — and asked for the section to open *"like wordpress drop-down, instead of all plastered on the writing
+ * page like this."* **That flat list was this function**: three groups, each printing its heading and its
+ * `<ul>` unconditionally. It was not the archive's shared rail in `app/admin/layout.tsx`, whose own section
+ * list does not contain "All Posts", "Add New Post", "Categories" or "Tags" at all.
+ *
+ * So the markup that was here is now built as data and handed to `./rail-menu.tsx`, which draws the same
+ * groups, the same links and the same `aria-current`, with each group's list behind its heading. **What is
+ * passed to the menu below is exactly what used to be printed**, so nothing has been added to the section's
+ * navigation and nothing taken away.
+ *
  * `active` is compared against the path the reader asked for, exactly as the archive's own rail does with
- * `aria-current`, so the current screen is marked rather than merely listed.
+ * `aria-current`, so the current screen is marked rather than merely listed — and the group holding it opens
+ * by default.
  */
 export function ClassicRail({ kind, active }: { kind: PieceKind; active: string }) {
   const routes = KIND_ROUTES[kind];
-  const links: { href: string; label: string }[] =
-    kind === 'post'
-      ? [
-          { href: '/admin/posts', label: 'All Posts' },
-          { href: '/admin/posts/new', label: 'Add New Post' },
-          { href: '/admin/posts/categories', label: 'Categories' },
-          { href: '/admin/posts/tags', label: 'Tags' },
-        ]
-      : [
-          { href: '/admin/pages', label: 'All Pages' },
-          { href: '/admin/pages/new', label: 'Add New Page' },
-        ];
-  return (
-    <nav className="wprail" aria-label={`${routes.plural} menu`}>
-      <div className="wprail__group">
-        <p className="wprail__heading">{routes.plural}</p>
-        <ul>
-          {links.map((link) => (
-            <li key={link.href}>
-              <a href={link.href} aria-current={active === link.href ? 'page' : undefined}>
-                {link.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="wprail__group">
-        <p className="wprail__heading">{kind === 'post' ? 'Pages' : 'Posts'}</p>
-        <ul>
-          <li>
-            <a href={kind === 'post' ? '/admin/pages' : '/admin/posts'}>
-              {kind === 'post' ? 'All Pages' : 'All Posts'}
-            </a>
-          </li>
-        </ul>
-      </div>
-      <div className="wprail__group">
-        <p className="wprail__heading">The archive</p>
-        <ul>
-          <li>
-            <a href="/admin/archive">Editorial queue</a>
-          </li>
-          <li>
-            <a href="/admin/trash">Trash</a>
-          </li>
-        </ul>
-      </div>
-    </nav>
-  );
+  const posts: RailGroup = {
+    key: 'posts',
+    heading: 'Posts',
+    links: [
+      { href: '/admin/posts', label: 'All Posts' },
+      { href: '/admin/posts/new', label: 'Add New Post' },
+      { href: '/admin/posts/categories', label: 'Categories' },
+      { href: '/admin/posts/tags', label: 'Tags' },
+    ],
+  };
+  const pages: RailGroup = {
+    key: 'pages',
+    heading: 'Pages',
+    links: [
+      { href: '/admin/pages', label: 'All Pages' },
+      { href: '/admin/pages/new', label: 'Add New Page' },
+    ],
+  };
+  const archive: RailGroup = {
+    key: 'archive',
+    heading: 'The archive',
+    links: [
+      { href: '/admin/archive', label: 'Editorial queue' },
+      { href: '/admin/trash', label: 'Trash' },
+    ],
+  };
+  // The section the reader is in comes first, which is the order the flat list was drawn in.
+  const groups = kind === 'post' ? [posts, pages, archive] : [pages, posts, archive];
+  return <RailMenu groups={groups} active={active} label={`${routes.plural} menu`} />;
 }
 
 /** The H1 and the submenu row, which is WordPress's header for both screens. */
@@ -312,6 +314,9 @@ export async function EditorScreen({
     key: m.key,
     name: m.name,
     altText: m.altText,
+    // What the file is. The picker draws an image as a thumbnail and anything else as a labelled plate,
+    // and what the chosen record becomes in the body is decided by this too. See `editor.tsx`.
+    kind: m.kind,
   }));
 
   const title = id === null ? routes.addNew : `Edit ${routes.noun}`;

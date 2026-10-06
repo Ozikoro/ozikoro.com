@@ -227,6 +227,63 @@
 .wpedit .postbox .inside p:last-child { margin-bottom: 0; }
 .wpedit .postbox .hndle-note { font-size: 12px; color: #646970; }
 
+/*
+ * THE BOX FOLDS FROM ITS TITLE BAR, IN THE DESIGN'S OWN VOCABULARY.
+ *
+ * The design's `.grid2>aside .box>.head` is `cursor:pointer; user-select:none; position:relative;
+ * padding-right:30px` with a `:hover{background:#f6f7f7}` and a `⌃` glyph that rotates half a turn when the
+ * body is hidden (`.box.collapsed>.head::after{transform:… rotate(180deg)}`). The glyph here is a real
+ * `<span>` inside the chevron button rather than a `::after`, because a decorative character drawn by CSS is
+ * a control assistive technology cannot name — and the button already carries the name.
+ *
+ * The bar keeps its height when the box is closed and loses its bottom border, so the column reads as a stack
+ * of title bars rather than a stack of gaps. See `meta-box.tsx`.
+ */
+.wpedit .postbox > .postbox-header {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 30px;
+}
+.wpedit .postbox > .postbox-header:hover { background: #f6f7f7; }
+.wpedit .postbox > .postbox-header .hndle { margin: 0; }
+.wpedit .postbox > .postbox-header .hndle__toggle {
+  background: none;
+  border: 0;
+  margin: 0;
+  padding: 8px 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d2327;
+  text-align: left;
+}
+.wpedit .postbox > .postbox-header .hndle__toggle:focus-visible { outline: 2px solid #2271b1; outline-offset: 2px; }
+.wpedit .postbox > .postbox-header .handlediv {
+  background: none;
+  border: 0;
+  margin: 0 0 0 auto;
+  padding: 0;
+  width: 30px;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #646970;
+}
+.wpedit .postbox > .postbox-header .handlediv:hover { color: #1d2327; }
+.wpedit .postbox > .postbox-header .handlediv:focus-visible { outline: 2px solid #2271b1; outline-offset: -2px; }
+.wpedit .postbox > .postbox-header .handlediv__arrow {
+  font-size: 13px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.wpedit .postbox--closed > .postbox-header .handlediv__arrow { transform: rotate(180deg); }
+.wpedit .postbox--closed > .postbox-header { border-bottom-color: transparent; }
+.wpedit .postbox > .inside[hidden] { display: none; }
+
 /* The Publish box's minor actions (status, visibility, date) and its major one. */
 .wpedit .misc-pub-section {
   border-bottom: 1px solid #f0f0f1;
@@ -550,15 +607,265 @@
   max-width: 16rem;
 }
 .wprail__group + .wprail__group { border-top: 1px solid #2c3338; margin-top: 6px; padding-top: 6px; }
-.wprail__heading { color: #f0f0f1; font-weight: 600; padding: 6px 14px 2px; margin: 0; font-size: 13px; }
+/*
+ * THE HEADING IS THE MENU'S CONTROL, IN THE DESIGN'S OWN VOCABULARY.
+ *
+ * The owner's `ozikoro-posts-media-pages-clone.html` draws this as `.nav-parent > .parent-link > .chev`, with
+ * `.parent-link.active` a solid blue bar, `.nav-parent .sub a` indented 43px behind a 3px left border, and
+ * `.sub a.active-sub` marking the screen you are on. The class names here stay the archive's (`wprail__…`)
+ * because the section markup was already built on them; the SHAPE and the states are the design's.
+ *
+ * It was a `<p>` that printed its links under it unconditionally. It is now a button that keeps its place
+ * while the links fold away — the bar keeps its height open or closed, so the rail does not jump under the
+ * pointer. See `rail-menu.tsx`.
+ */
+.wprail__menu { list-style: none; margin: 0; padding: 0; }
+.wprail__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+  width: 100%;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  user-select: none;
+  text-align: left;
+  color: #c3c4c7;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 14px;
+  margin: 0;
+}
+.wprail__heading:hover { background: #2c3338; color: #fff; }
+/* The design gives the parent of the current screen a filled bar (`.parent-link.active`). */
+.wprail__heading.is-active { background: #2271b1; color: #fff; }
+.wprail__heading:focus-visible { outline: 2px solid #72aee6; outline-offset: -2px; }
+.wprail__arrow {
+  flex: none;
+  font-size: 11px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.wprail__group:not(.wprail__group--open) .wprail__arrow { transform: rotate(-90deg); }
+.wprail__submenu { list-style: none; margin: 0; padding: 0; }
+.wprail__submenu[hidden] { display: none; }
 .wprail ul { list-style: none; margin: 0; padding: 0; }
+/* `.sub a` in the design: indented under its parent, marked by a left border rather than a bullet. */
 .wprail a {
   display: block;
   color: #c3c4c7;
   text-decoration: none;
-  padding: 5px 14px 5px 24px;
-  border-left: 4px solid transparent;
+  padding: 6px 14px 6px 43px;
+  border-left: 3px solid transparent;
+  font-size: 12px;
 }
-.wprail a:hover { color: #72aee6; background: #2c3338; }
-.wprail a[aria-current='page'] { color: #fff; font-weight: 600; border-left-color: #72aee6; background: #2c3338; }
+.wprail a:hover { color: #fff; background: #2c3338; border-left-color: #72777c; }
+.wprail a[aria-current='page'] { color: #fff; background: #2c3338; border-left-color: #72aee6; }
 .wprail__note { color: #8c8f94; padding: 6px 14px 2px; margin: 0; font-size: 12px; }
+
+/* ---------------------------------------------------------------------------
+ * The media picker — the design's `#modal`.
+ *
+ * ── WHY THESE NAMES AND WHY THEY ARE SCOPED UNDER `.modal` ──────────────────────────────────────────
+ *
+ * The panel is the owner's `#modal > .modalbox > .modalhead + .modalbody`, with `.insert`, `.insertgrid`,
+ * `.insertthumb`, `.upload`, `.box > .head + .body`, `.label`, `.sidefield`, `.media-controls`, `.btn`,
+ * `.meta` and `.notice` — his own vocabulary, so a reader comparing the two files reads the same words.
+ *
+ * **It renders into `document.body` (see `media-picker.tsx` for why), so nothing here can be scoped to the
+ * writing screen** — but `.box`, `.head`, `.body`, `.btn`, `.meta` and `.notice` are names the archive's own
+ * admin styles could grow into, so every rule that is not the overlay itself is scoped under `.modal`, which
+ * is the panel's own root. Checked: no other admin or global stylesheet defines `.modal`.
+ * ------------------------------------------------------------------------- */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.53);
+  align-items: center;
+  justify-content: center;
+  z-index: 100000;
+}
+.modal.show { display: flex; }
+.modal .modalbox {
+  background: #fff;
+  width: min(940px, 94vw);
+  max-height: 88vh;
+  overflow: auto;
+  border-radius: 3px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  color: #1d2327;
+}
+.modal .modalhead {
+  padding: 12px;
+  border-bottom: 1px solid #dcdcde;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+.modal .modalbody { padding: 14px; }
+.modal .insert { display: grid; grid-template-columns: minmax(0, 1fr) 270px; gap: 14px; }
+.modal .insertgrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 340px;
+  overflow: auto;
+}
+.modal .insertthumb {
+  position: relative;
+  height: 90px;
+  background: #e8e0d2;
+  border: 1px solid #dcdcde;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+  font: inherit;
+  color: #50575e;
+}
+.modal .insertthumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.modal .insertthumb:hover { border-color: #2271b1; }
+.modal .insertthumb.is-chosen { border-color: #2271b1; box-shadow: 0 0 0 3px rgba(34, 113, 177, 0.35); }
+.modal .insertthumb:focus-visible { outline: 2px solid #2271b1; outline-offset: 2px; }
+/*
+ * A RECORD THAT IS NOT A PICTURE GETS A PLATE, NOT A STAND-IN IMAGE. A film, a recording or a PDF has no
+ * thumbnail to fetch, and drawing the browser's broken-image glyph or a stock placeholder would be the
+ * archive implying it holds a picture it does not. It says what the file is instead.
+ */
+.modal .insertthumb__plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  text-align: center;
+}
+.modal .insertthumb__file {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  word-break: break-all;
+}
+.modal .insertthumb__check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2271b1;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+.modal .upload {
+  background: #f6f7f7;
+  border: 2px dashed #c3c4c7;
+  padding: 22px;
+  text-align: center;
+}
+.modal .upload--over { border-color: #2271b1; background: #f0f6fc; }
+.modal .upload strong { display: block; font-size: 15px; margin-bottom: 5px; }
+.modal .upload p { margin: 10px 0 0; }
+.modal .media-controls { display: flex; gap: 7px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+.modal .media-controls .input { flex: 1 1 200px; }
+.modal .box { background: #fff; border: 1px solid #dcdcde; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.04); margin-bottom: 13px; }
+.modal .head {
+  padding: 9px 11px;
+  border-bottom: 1px solid #dcdcde;
+  font-weight: 600;
+  font-size: 12px;
+  display: flex;
+  justify-content: space-between;
+}
+.modal .body { padding: 11px; }
+.modal .label { display: block; font-size: 10px; color: #50575e; font-weight: 600; margin: 9px 0 5px; }
+.modal .label:first-child { margin-top: 0; }
+.modal .sidefield,
+.modal .input {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #8c8f94;
+  border-radius: 3px;
+  background: #fff;
+  color: #2c3338;
+  font: inherit;
+}
+.modal .sidefield[readonly],
+.modal .input[readonly] { background: #f6f7f7; color: #50575e; }
+.modal .meta { font-size: 10px; color: #646970; margin: 8px 0 0; }
+.modal .notice { background: #fff; border-left: 4px solid #2271b1; padding: 10px 12px; margin-bottom: 14px; }
+.modal .btn {
+  background: #fff;
+  border: 1px solid #8c8f94;
+  border-radius: 3px;
+  padding: 7px 11px;
+  color: #2c3338;
+  font: inherit;
+  cursor: pointer;
+}
+.modal .btn:hover { background: #f0f0f1; }
+.modal .btn.primary { background: #2271b1; border-color: #2271b1; color: #fff; }
+.modal .btn.primary:hover { background: #135e96; border-color: #135e96; color: #fff; }
+.modal .btn.small { padding: 5px 8px; font-size: 11px; }
+.modal .btn:disabled { color: #a7aaad; border-color: #dcdcde; background: #f6f7f7; cursor: default; }
+.modal .btn.primary:disabled { background: #2271b1; border-color: #2271b1; color: #fff; opacity: 0.5; }
+.modal .mediamodal__chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.modal .mediamodal__empty { color: #646970; padding: 30px 0; text-align: center; margin: 0; }
+.modal .mediamodal__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #dcdcde;
+}
+.modal .mediamodal__blocked { color: #8a2424; flex: 1 1 100%; }
+.modal .mediamodal__actions { margin-left: auto; display: flex; gap: 8px; }
+/*
+ * A FACT THAT KEEPS THE SHAPE OF A FIELD. The Attachment Details column's Title and File rows are read-only
+ * facts about the choice; drawn as `<div>`s rather than as `<input readOnly>` because a box that looks
+ * editable and refuses the keystroke is a control that teaches the wrong thing — see the note in
+ * `media-picker.tsx` and `scripts/audit-buttons.mjs`, which counted them.
+ */
+.modal .sidefield--static {
+  width: 100%;
+  padding: 6px;
+  border: 1px solid #dcdcde;
+  border-radius: 3px;
+  background: #f6f7f7;
+  color: #50575e;
+  overflow-wrap: anywhere;
+}
+/*
+ * THE FALLBACK PLATE INSIDE THE PICKER'S GRID.
+ *
+ * `.insertthumb` is a 90px box; when `MediaThumb` cannot get the bytes it draws a plate instead of the
+ * browser's broken-image glyph. Styled here for the picker and in `media-register.css` for the register, so
+ * the one component reads correctly in both.
+ */
+.modal .mediathumb__plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px;
+  text-align: center;
+  color: #50575e;
+}
+.modal .mediathumb__file {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  word-break: break-all;
+}

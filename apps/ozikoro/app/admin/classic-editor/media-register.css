@@ -1,0 +1,170 @@
+/**
+ * /admin/media — the register drawn as the owner's design draws it: a grid of pictures.
+ *
+ * ── WHY THIS IS ITS OWN FILE, AND WHY EVERY RULE IS SCOPED UNDER `.mediareg` ─────────────────────────
+ *
+ * The class names are the design's own — `subtabs`, `filters`, `media-grid`, `media`, `thumb`, `mi`,
+ * `pager`, `pg`, `status`, `input`, `select`, `btn` — and the archive's admin ships other stylesheets that
+ * are loaded on other screens. `.status`, `.pg`, `.media` and `.btn` are all names a global rule would
+ * collide with, so the register's markup is wrapped in one `.mediareg` element and **every rule here names
+ * it**. Nothing in this file can reach the public archive or another admin screen.
+ *
+ * ── AND WHY IT IS NOT IN THE SHARED WORDPRESS SHEET ─────────────────────────────────────────────────
+ *
+ * `classic-editor.css` is the writing screens' sheet: it is imported by the posts and pages routes and every
+ * rule in it is scoped to `.wpadmin`, `.wpedit` or `.wplist`. The media register is neither a writing screen
+ * nor one of those scopes, so its styles live here rather than being appended to a file whose every other
+ * rule is about a different screen.
+ */
+
+.mediareg {
+  font-size: 13px;
+}
+
+/* The design's `.subtabs`: `All (126) | Images (98) | Audio (9) | Video (7) | Documents (12)`. */
+.mediareg .subtabs {
+  margin: 0 0 14px;
+  font-size: 12px;
+  color: #2271b1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+}
+.mediareg .subtabs a {
+  color: #2271b1;
+  text-decoration: none;
+}
+.mediareg .subtabs a:hover { color: #135e96; text-decoration: underline; }
+.mediareg .subtabs a[aria-current='page'] {
+  color: #1d2327;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+/* The design's `.filters`, with its search pushed to the right (`.search{margin-left:auto}`). */
+.mediareg .filters {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin: 0 0 12px;
+  flex-wrap: wrap;
+}
+.mediareg .search { margin-left: auto; display: flex; gap: 5px; }
+.mediareg .select,
+.mediareg .input {
+  border: 1px solid #8c8f94;
+  border-radius: 3px;
+  background: #fff;
+  padding: 6px 8px;
+  color: #2c3338;
+  font: inherit;
+}
+.mediareg .meta { font-size: 11px; color: #646970; }
+
+/*
+ * THE GRID. `repeat(6, 1fr)` is the design's own column count, and it steps down rather than overflowing on
+ * a narrow screen — the design does the same at 1150px.
+ */
+.mediareg .media-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+@media (max-width: 1400px) { .mediareg .media-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
+@media (max-width: 1150px) { .mediareg .media-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.mediareg .media {
+  background: #fff;
+  border: 1px solid #dcdcde;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.mediareg .thumb {
+  height: 125px;
+  background: #e8e0d2;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.mediareg .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/*
+ * A RECORD THAT IS NOT A PICTURE GETS A PLATE, NOT A STAND-IN IMAGE: a film, a recording or a PDF has no
+ * thumbnail to fetch, and the browser's broken-image glyph or a stock placeholder would be the archive
+ * claiming to hold a picture it does not.
+ */
+.mediareg .thumb__plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  text-align: center;
+  color: #50575e;
+}
+.mediareg .thumb__file {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  word-break: break-all;
+}
+.mediareg .mi { padding: 8px; display: flex; flex-direction: column; gap: 4px; flex: 1 1 auto; }
+.mediareg .mi b {
+  font-size: 11px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mediareg .mi small { font-size: 10px; color: #646970; }
+.mediareg .mi__actions { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
+
+/* The design's status pill: a soft background, a colour per state. */
+.mediareg .status {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: #f0f0f1;
+  color: #50575e;
+}
+.mediareg .status.published { background: #e7f5ea; color: #176b2c; }
+.mediareg .status.draft { background: #fff3cd; color: #7b4c00; }
+
+/* The design's `.pager`: right-aligned boxes, the current page filled. */
+.mediareg .pager {
+  padding: 12px 0 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+.mediareg .pg {
+  background: #fff;
+  border: 1px solid #dcdcde;
+  padding: 4px 8px;
+  font-size: 11px;
+  color: #2271b1;
+  text-decoration: none;
+}
+.mediareg .pg:hover { border-color: #2271b1; }
+.mediareg .pg--active { background: #2271b1; border-color: #2271b1; color: #fff; }
+.mediareg .pg--off { color: #a7aaad; }
+
+/*
+ * THE FALLBACK PLATE IN THE REGISTER'S GRID — the same component the picker uses (`media-thumb.tsx`), styled
+ * for this scope. A row whose object cannot be fetched draws this instead of a broken image.
+ */
+.mediareg .mediathumb__plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  text-align: center;
+  color: #50575e;
+}
+.mediareg .mediathumb__file {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 9px;
+  word-break: break-all;
+}

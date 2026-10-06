@@ -37,7 +37,7 @@
  *     allowlist (the design draws one `<h1>` per page and it is the record's title), so the menu starts
  *     at Heading 2.
  *
- * ── AND THE THREE CONTROLS THAT ARE DRAWN BUT DISABLED, WHICH IS THE HONEST ANSWER ───────────────────
+ * ── AND THE TWO CONTROLS THAT ARE DRAWN BUT DISABLED, WHICH IS THE HONEST ANSWER ────────────────────
  *
  *   * **align** — WordPress's align buttons write `style="text-align:…"`, and `sanitiseArchiveHtml` drops
  *     `style`, `class` and `id` on purpose: 1,629 inline styles arrived from Elementor and a saved
@@ -46,11 +46,25 @@
  *   * **Insert Read More tag** — `<!--more-->` is a WordPress loop instruction, and `sanitiseArchiveHtml`
  *     removes every HTML comment before anything else. This archive renders a record whole; it has no
  *     excerpt splitter. The button is drawn where WordPress draws it and says this.
- *   * **Format** — the archive stores no post format, and there is no column for one.
  *
- * Each of those is `disabled` with the reason in its `title` and, where there is room, in the meta box
- * itself. A control that returns 200 and does nothing is the fault class this archive has recorded four
- * times; a control that says why it cannot is not.
+ * Each is `disabled` with the reason in its `title`. A control that returns 200 and does nothing is the
+ * fault class this archive has recorded four times; a control that says why it cannot is not.
+ *
+ * ── ADD MEDIA, THE FEATURED IMAGE, AND THE BOXES THAT FOLD ──────────────────────────────────────────
+ *
+ * **Add Media and Set Featured Image are the same picker** — `./media-picker.tsx` — because the owner asked
+ * for the same behaviour on both: *"i should be able to upload new media or select the existing one which
+ * will show in thumbnail for me to know what i am selecting."* The control here used to be a `<select>` of
+ * forty names, which asked a person to recognise a photograph by its file name; it is now a button that
+ * opens a grid of the real register. What the chosen record becomes is decided by the body, on `kind`:
+ * the archive's sanitiser keeps `img`, `video`, `audio` and `a`, so a picture becomes a `<figure>`, a film a
+ * `<video>`, a recording an `<audio>`, and a document a link to its own address. See `mediaMarkupFor`.
+ *
+ * **Every box in the right column folds from its title bar** — `./meta-box.tsx` — and remembers that it is
+ * folded, which is the owner's *"one should be able to minimise any of them like it works in wordpress"*.
+ * The fold is one boolean per box, and the document being edited is not inside any of them: the content box
+ * is a sibling in the other column, so a fold cannot touch the typed document, and the seeding effect above
+ * survives unchanged.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -61,6 +75,8 @@ import {
   type ToolbarControl,
 } from '@/lib/classic-editor';
 import { bodyLostBeforeSave, visualBoxDocument } from '@/lib/classic-editor-content';
+import { MetaBox } from './meta-box';
+import { MediaPicker, mediaSrc, type PickerItem } from './media-picker';
 
 export type PieceKind = 'post' | 'page';
 
@@ -80,6 +96,14 @@ export interface EditorMedia {
   key: string;
   name: string;
   altText: string | null;
+  /**
+   * What the file is: `image`, `video`, `audio`, `document`, `dataset` or `other` (`ozikoro_media.kind`).
+   *
+   * IT DECIDES THREE THINGS AND ALL THREE ARE VISIBLE: whether the picker draws a picture or a labelled
+   * plate, what the chosen record becomes when it is placed in the body, and whether it may be a featured
+   * image at all.
+   */
+  kind: string;
 }
 
 export interface EditorPiece {
@@ -198,8 +222,28 @@ export function ClassicEditor(props: ClassicEditorProps) {
   const [tags, setTags] = useState((piece?.tags ?? []).join(', '));
   const [topicId, setTopicId] = useState<string>(piece?.topicId ? String(piece.topicId) : '');
   const [mediaId, setMediaId] = useState<string>(piece?.featuredMediaId ? String(piece.featuredMediaId) : '');
+  /*
+   * THE FEATURED IMAGE AS THIS SCREEN KNOWS IT.
+   *
+   * The server sends the stored record; this is the same five facts with a local override, because a picture
+   * chosen in the picker has to appear under the title bar BEFORE the piece is saved. Waiting for the save to
+   * show the one thing the box is about would make the control read as a no-op, which is the fault this
+   * screen's own history is full of.
+   */
+  const [featured, setFeatured] = useState<PickerItem | null>(() => {
+    if (!piece?.featuredMediaKey) return null;
+    const known = media.find((m) => m.id === piece.featuredMediaId);
+    return {
+      id: piece.featuredMediaId ?? 0,
+      key: piece.featuredMediaKey,
+      name: piece.featuredMediaName ?? piece.featuredMediaKey,
+      altText: known?.altText ?? null,
+      kind: known?.kind ?? 'image',
+    };
+  });
+  /** Which picker is open, if any: the one that places media in the body, or the one for the featured image. */
+  const [picker, setPicker] = useState<'insert' | 'featured' | null>(null);
   const [authorId, setAuthorId] = useState<string>(piece?.authorId ? String(piece.authorId) : '');
-  const [pickerMediaId, setPickerMediaId] = useState<string>(media[0] ? String(media[0].id) : '');
   const [statusChoice, setStatusChoice] = useState(piece?.status === 'review' ? 'review' : 'draft');
 
   const [visual, setVisual] = useState(true);
@@ -419,17 +463,61 @@ export function ClassicEditor(props: ClassicEditorProps) {
     if (control.kind === 'wrap') wrapSelection(control.open, control.close);
   }
 
-  /** Insert an image from the archive's own media register, at the cursor. */
-  function insertMedia() {
-    if (!visual) return;
-    const chosen = media.find((m) => String(m.id) === pickerMediaId);
-    if (!chosen) return;
-    const alt = (chosen.altText ?? chosen.name).replace(/"/g, '&quot;');
-    const src = `/media/${chosen.key.split('/').map(encodeURIComponent).join('/')}`;
-    const figure = `<figure><img src="${src}" alt="${alt}"><figcaption></figcaption></figure><p></p>`;
+  /**
+   * What a chosen register record becomes in the body, per kind.
+   *
+   * ── WHY THE KIND DECIDES THE MARKUP, RATHER THAN EVERYTHING BECOMING AN `<img>` ─────────────────────
+   *
+   * The register holds photographs, films, recordings and documents. The old control wrapped every one of
+   * them in `<figure><img>`, which for a film was a broken picture — a control that "worked" and produced a
+   * fault on the page. The archive's own sanitiser (`ALLOWED_TAGS` / `ALLOWED_ATTRIBUTES` in
+   * `packages/ozikoro/src/content.ts`) keeps `img`, `video`, `audio`, `source` and `a` with their `src`, so
+   * each kind can be placed honestly with something the served page will actually render:
+   *
+   *   image           `<figure><img src alt><figcaption></figcaption></figure>`
+   *   video           `<figure><video controls src></video><figcaption></figcaption></figure>`
+   *   audio           `<figure><audio controls src></audio><figcaption></figcaption></figure>`
+   *   document, other a paragraph linking to the file, because a PDF is not a picture and pretending
+   *                   otherwise would put a broken `<img>` into a published record
+   *
+   * `src` is the record's own `storage_key` through `/media/<key>` — never a pasted address, so the page
+   * cannot hot-link a file the archive does not hold. `alt` is the record's alternative text when it has
+   * one; when it does not, the file's name is used, and the empty `<figcaption>` is left for the writer
+   * rather than filled with invented words.
+   */
+  function mediaMarkupFor(item: PickerItem): string {
+    const src = mediaSrc(item.key);
+    const name = (item.altText ?? item.name).replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    if (item.kind === 'image') {
+      return `<figure><img src="${src}" alt="${name}"><figcaption></figcaption></figure><p></p>`;
+    }
+    if (item.kind === 'video') {
+      return `<figure><video controls src="${src}"></video><figcaption>${name}</figcaption></figure><p></p>`;
+    }
+    if (item.kind === 'audio') {
+      return `<figure><audio controls src="${src}"></audio><figcaption>${name}</figcaption></figure><p></p>`;
+    }
+    return `<p><a href="${src}">${name}</a></p>`;
+  }
+
+  /** Place a record from the register at the cursor. */
+  function insertMedia(item: PickerItem) {
+    setPicker(null);
+    if (!visual) {
+      /*
+       * THE TEXT TAB IS SHOWING, so there is no caret to place anything at. The markup goes into the box at
+       * the end rather than nowhere, which is the honest half of the gesture: the writer can see what arrived
+       * and move it, instead of a click that did nothing at all.
+       */
+      const next = `${mirror}${mediaMarkupFor(item)}`;
+      setMirror(next);
+      markDirty();
+      setWords(countWords(next));
+      return;
+    }
     editorRef.current?.focus();
     try {
-      document.execCommand('insertHTML', false, figure);
+      document.execCommand('insertHTML', false, mediaMarkupFor(item));
     } catch {
       /* ignored; see `command` */
     }
@@ -592,20 +680,21 @@ export function ClassicEditor(props: ClassicEditorProps) {
                 {/* The row above the toolbar: Add Media, the tabs, the toolbar toggles. */}
                 <div id="wp-content-editor-tools">
                   <span className="wp-media-buttons">
-                    <select
-                      aria-label="Choose an item from the media register"
-                      value={pickerMediaId}
-                      onChange={(event) => setPickerMediaId(event.target.value)}
-                      style={{ maxWidth: '16rem' }}
+                    {/*
+                      THE BUTTON THAT REPLACED THE PICK-LIST.
+
+                      What stood here was a `<select>` of the forty most recent names and a button that
+                      inserted whichever was highlighted — a control that asked a person to recognise a
+                      photograph by its file name, which is the thing the owner reported. It is now one
+                      button that opens the picker: the register shown as thumbnails, searchable, with an
+                      Upload door beside the library. See `./media-picker.tsx`.
+                    */}
+                    <button
+                      type="button"
+                      className="button"
+                      onClick={() => setPicker('insert')}
+                      title="Add Media — place a picture, film or recording from the archive's register in the body"
                     >
-                      {media.length === 0 ? <option value="">the media register is empty</option> : null}
-                      {media.map((m) => (
-                        <option key={m.id} value={String(m.id)}>
-                          {m.name}
-                        </option>
-                      ))}
-                    </select>{' '}
-                    <button type="button" className="button" onClick={insertMedia} disabled={media.length === 0}>
                       Add Media
                     </button>
                   </span>
@@ -796,11 +885,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
             {/* ------------------------------------------------------------------ the meta boxes */}
             <div id="postbox-container-1" className="postbox-container">
               {/* -------------------------------------------------- Publish */}
-              <div className="postbox" id="submitdiv">
-                <div className="postbox-header">
-                  <h2>Publish</h2>
-                </div>
-                <div className="inside" style={{ padding: 0 }}>
+              <MetaBox id="submitdiv" title="Publish" insideStyle={{ padding: 0 }}>
                   <div className="misc-pub-section">
                     <span>
                       Status: <strong>{STATUS_LABEL[piece?.status ?? 'draft'] ?? piece?.status ?? 'Draft'}</strong>
@@ -974,30 +1059,11 @@ export function ClassicEditor(props: ClassicEditorProps) {
                       ? 'Publishing is recorded once: the status moves from draft to published, the date is set, and a second attempt refuses rather than moving that date.'
                       : 'This account holds “edit entity” but not “publish”, so it can write and save. Publishing and unpublishing are refused by the write path, not only by this button.'}
                   </p>
-                </div>
-              </div>
-
-              {/* -------------------------------------------------- Format */}
-              <div className="postbox">
-                <div className="postbox-header">
-                  <h2>Format</h2>
-                </div>
-                <div className="inside">
-                  <p className="wphelp" style={{ margin: 0 }}>
-                    WordPress&rsquo;s post formats — Aside, Gallery, Quote and the rest — are not modelled here.
-                    The archive stores no format and there is no column for one, so this box is where WordPress
-                    puts it and says what is true rather than offering ten radios that would save nothing.
-                  </p>
-                </div>
-              </div>
+              </MetaBox>
 
               {/* -------------------------------------------------- Categories / Series. A page has none. */}
               {!isPage ? (
-                <div className="postbox">
-                  <div className="postbox-header">
-                    <h2>Categories</h2>
-                  </div>
-                  <div className="inside">
+                <MetaBox id="categorydiv" title="Categories">
                     <p className="wphelp" style={{ marginTop: 0 }}>
                       The archive stores <strong>one series</strong> per piece. WordPress allows several;{' '}
                       <span className="mono">ozikoro_article.topic_id</span> is a single reference to the fourteen
@@ -1037,14 +1103,9 @@ export function ClassicEditor(props: ClassicEditorProps) {
                         </li>
                       ))}
                     </ul>
-                  </div>
-                </div>
+                </MetaBox>
               ) : (
-                <div className="postbox">
-                  <div className="postbox-header">
-                    <h2>Categories</h2>
-                  </div>
-                  <div className="inside">
+                <MetaBox id="categorydiv" title="Categories">
                     <p className="wphelp" style={{ margin: 0 }}>
                       A page has no categories or tags, which is WordPress&rsquo;s own rule and this archive&rsquo;s:
                       a page is part of the site rather than a filed record, and{' '}
@@ -1052,17 +1113,12 @@ export function ClassicEditor(props: ClassicEditorProps) {
                       <span className="mono">ozikoro_article_label</span> are read by the archive index, which
                       excludes pages. The box is here because the screen would be missing a box WordPress draws.
                     </p>
-                  </div>
-                </div>
+                </MetaBox>
               )}
 
               {/* -------------------------------------------------- Tags. A page has none. */}
               {!isPage ? (
-                <div className="postbox">
-                  <div className="postbox-header">
-                    <h2>Tags</h2>
-                  </div>
-                  <div className="inside">
+                <MetaBox id="tagsdiv" title="Tags">
                     <label className="screen-reader-text" htmlFor="tags">
                       Tags, separated by commas
                     </label>
@@ -1101,23 +1157,21 @@ export function ClassicEditor(props: ClassicEditorProps) {
                         </button>
                       ))}
                     </div>
-                  </div>
-                </div>
+                </MetaBox>
               ) : null}
 
               {/* -------------------------------------------------- Featured Image */}
-              <div className="postbox">
-                <div className="postbox-header">
-                  <h2>Featured Image</h2>
-                </div>
-                <div className="inside">
-                  {piece?.featuredMediaKey ? (
+              <MetaBox id="postimagediv" title="Featured Image">
+                  {featured ? (
                     <p style={{ marginTop: 0 }}>
                       <img
-                        src={`/media/${piece.featuredMediaKey.split('/').map(encodeURIComponent).join('/')}`}
-                        alt={piece.featuredMediaName ?? ''}
+                        src={mediaSrc(featured.key)}
+                        alt={featured.altText ?? featured.name}
                         style={{ maxWidth: '100%', height: 'auto', border: '1px solid #c3c4c7' }}
                       />
+                      <span className="wphelp" style={{ display: 'block', marginTop: '6px' }}>
+                        {featured.name}
+                      </span>
                     </p>
                   ) : (
                     <p className="wphelp" style={{ marginTop: 0 }}>
@@ -1125,31 +1179,43 @@ export function ClassicEditor(props: ClassicEditorProps) {
                       a broken picture.
                     </p>
                   )}
-                  <label className="screen-reader-text" htmlFor="mediaId">
-                    Featured image
-                  </label>
-                  <select id="mediaId" name="mediaId" value={mediaId} onChange={(event) => { setMediaId(event.target.value); markDirty(); }}>
-                    <option value="">— none —</option>
-                    {media.map((m) => (
-                      <option key={m.id} value={String(m.id)}>
-                        {m.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="wphelp">
-                    Chosen from the archive&rsquo;s own media register — the same pick-list the content box&rsquo;s
-                    Add Media uses. Nothing here is a pasted address, so the page cannot hot-link a file the
-                    archive does not hold.
+                  <p className="row" style={{ gap: '8px', flexWrap: 'wrap' }}>
+                    <button type="button" className="button" onClick={() => setPicker('featured')}>
+                      {featured ? 'Replace featured image' : 'Set featured image'}
+                    </button>
+                    {featured ? (
+                      <button
+                        type="button"
+                        className="button"
+                        onClick={() => {
+                          setFeatured(null);
+                          setMediaId('');
+                          markDirty();
+                        }}
+                      >
+                        Remove featured image
+                      </button>
+                    ) : null}
                   </p>
-                </div>
-              </div>
+                  {/*
+                    THE NAME AND THE VALUE THE WRITE PATH READS ARE UNCHANGED.
+
+                    `/api/admin/posts` reads `form.get('mediaId')` and nothing else, so the field that carried
+                    it stays — as a hidden input rather than the `<select>` that stood here, because the
+                    choosing now happens in the picker. An empty value is a real state and the route already
+                    reads it as "no featured image".
+                  */}
+                  <input type="hidden" name="mediaId" value={mediaId} readOnly />
+                  <p className="wphelp">
+                    Chosen from the archive&rsquo;s own media register — the same picker the content box&rsquo;s
+                    Add Media opens. Nothing here is a pasted address, so the page cannot hot-link a file the
+                    archive does not hold. Only an image record can be a featured image: the article frame draws
+                    it with an <span className="mono">&lt;img&gt;</span>.
+                  </p>
+              </MetaBox>
 
               {/* -------------------------------------------------- Excerpt */}
-              <div className="postbox">
-                <div className="postbox-header">
-                  <h2>Excerpt</h2>
-                </div>
-                <div className="inside">
+              <MetaBox id="excerptdiv" title="Excerpt">
                   <label className="screen-reader-text" htmlFor="standfirst">
                     Excerpt
                   </label>
@@ -1170,30 +1236,20 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     <strong>Historical context</strong> under the title and what a search result shows as the
                     description. Leave it empty rather than half-filling it.
                   </p>
-                </div>
-              </div>
+              </MetaBox>
 
               {/* -------------------------------------------------- Discussion */}
-              <div className="postbox">
-                <div className="postbox-header">
-                  <h2>Discussion</h2>
-                </div>
-                <div className="inside">
+              <MetaBox id="commentstatusdiv" title="Discussion">
                   <p className="wphelp" style={{ margin: 0 }}>
                     This archive has no comment system: there is no comment table, no moderation queue for
                     readers&rsquo; replies and no column on a piece that would record whether comments are open.
                     WordPress&rsquo;s &ldquo;Allow comments&rdquo; and &ldquo;Allow pingbacks&rdquo; would therefore
                     be two switches with nothing behind them, so the box says this instead.
                   </p>
-                </div>
-              </div>
+              </MetaBox>
 
               {/* -------------------------------------------------- Slug */}
-              <div className="postbox">
-                <div className="postbox-header">
-                  <h2>Slug</h2>
-                </div>
-                <div className="inside">
+              <MetaBox id="slugdiv" title="Slug">
                   <label className="screen-reader-text" htmlFor="slug">
                     Slug
                   </label>
@@ -1215,15 +1271,10 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     <span className="mono">onicha</span>) so the address can be typed. If the address is already
                     taken a number is added. Changing it on a published piece moves a cited address.
                   </p>
-                </div>
-              </div>
+              </MetaBox>
 
               {/* -------------------------------------------------- Author */}
-              <div className="postbox">
-                <div className="postbox-header">
-                  <h2>Author</h2>
-                </div>
-                <div className="inside">
+              <MetaBox id="authordiv" title="Author">
                   <label className="screen-reader-text" htmlFor="authorId">
                     Author
                   </label>
@@ -1247,15 +1298,10 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     The byline is a person in the archive&rsquo;s own register of writers, not a login. Leaving it
                     empty is a real state — the page then prints no author rather than inventing one.
                   </p>
-                </div>
-              </div>
+              </MetaBox>
 
               {piece ? (
-                <div className="postbox">
-                  <div className="postbox-header">
-                    <h2>This piece</h2>
-                  </div>
-                  <div className="inside">
+                <MetaBox id="pieceinfodiv" title="This piece">
                     <p style={{ margin: 0 }}>
                       {noun} <span className="mono">#{piece.id}</span> · {STATUS_LABEL[piece.status] ?? piece.status}
                       <br />
@@ -1277,12 +1323,37 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     <p className="wphelp" style={{ marginBottom: 0 }}>
                       <a href={`/admin/archive/${piece.id}/record`}>Clan, period and sources</a>
                     </p>
-                  </div>
-                </div>
+                </MetaBox>
               ) : null}
             </div>
           </div>
         </div>
+
+        {/*
+          THE PICKER, WHICH IS ONE COMPONENT FOR BOTH CONTROLS.
+
+          It is rendered inside the form element here, but it renders itself into `document.body` through a
+          portal, so its search box and its file input are outside the form that saves the piece. See the
+          note on the portal in `./media-picker.tsx` — a search box whose Enter key saved the article is the
+          fault that arrangement exists to prevent.
+        */}
+        <MediaPicker
+          open={picker !== null}
+          purpose={picker ?? 'insert'}
+          initial={media}
+          selectedId={picker === 'featured' && mediaId.length > 0 ? Number(mediaId) : null}
+          onChoose={(item) => {
+            if (picker === 'featured') {
+              setFeatured(item);
+              setMediaId(String(item.id));
+              markDirty();
+              setPicker(null);
+              return;
+            }
+            insertMedia(item);
+          }}
+          onClose={() => setPicker(null)}
+        />
       </form>
     </div>
   );

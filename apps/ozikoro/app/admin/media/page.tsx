@@ -24,12 +24,25 @@
  * checked row in `ozikoro_media_rights`; reading the string column instead would report items as settled on
  * the strength of a value nobody recorded. The register shows which of the two it is reporting.
  *
- * WHAT IT DOES NOT DO
+ * WHAT IT DOES NOT DO, AND WHAT IT NOW DOES
  *
- * No upload, no replace, no delete. **This register is a list, not an editor** — one item's own description
- * is edited at `/admin/media/[id]`, which is where the "Edit the record" link on each row leads. The file
- * itself has no write path anywhere in the archive: 3,443 objects against 3,488 rows, and 307 files with no
- * row at all whose keys were deliberately not invented.
+ * **The register itself has no replace and no delete, and it still has no upload control** — one item's own
+ * description is edited at `/admin/media/[id]`, which is where the "Edit the record" link on each card leads.
+ * The file itself has no delete path anywhere in the archive: 3,443 objects against 3,488 rows, and 307 files
+ * with no row at all whose keys were deliberately not invented.
+ *
+ * **Adding a NEW file is possible, and it is not on this screen.** `/api/admin/media/upload` stores a file
+ * and opens its record, and it is reached from the media picker on the writing screens — "Add Media" and "Set
+ * featured image" — because that is where a person is when they want a picture. This paragraph used to read
+ * *"No file is uploaded, replaced or deleted anywhere"*, which stopped being true when that route was added;
+ * it is corrected here rather than left as a claim a reader would act on.
+ *
+ * AND THE REGISTER IS NOW PICTURES.
+ *
+ * The owner asked for the archive's media section to look like his own design, whose library is a grid of
+ * thumbnails rather than a list of names. Every card's picture is a real `ozikoro_media` row fetched from its
+ * own `/media/<key>` address, and **a record that is not a picture is drawn as a labelled plate rather than
+ * given a stand-in image** — a broken `<img>` would be the archive claiming to hold a picture it does not.
  */
 import { getDb } from '@ozituma/db/client';
 import {
@@ -40,18 +53,27 @@ import {
 } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
 import { AtAGlance, Card, Head } from '../ui';
+import { MediaThumb } from '../classic-editor/media-thumb';
+import '../classic-editor/media-register.css';
 
 export const dynamic = 'force-dynamic';
 
 const PAGE_SIZE = 25;
 
-const KINDS = [
-  { value: 'all', label: 'Every kind' },
-  { value: 'image', label: 'Photographs' },
+/**
+ * The design's subtab row: `All (126) | Images (98) | Audio (9) | Video (7) | Documents (12)`.
+ *
+ * The labels are the design's own words, and each tab asks the register for its own count under the filters
+ * already in force — see `kindCounts`. `dataset` is not a tab: the archive holds none, and a tab reading
+ * "(0)" would be a link to an empty grid. Those records still appear under **All**, which is where a filter
+ * that does not name them belongs.
+ */
+const SUBTABS = [
+  { value: 'all', label: 'All' },
+  { value: 'image', label: 'Images' },
+  { value: 'audio', label: 'Audio' },
   { value: 'video', label: 'Video' },
   { value: 'document', label: 'Documents' },
-  { value: 'audio', label: 'Audio' },
-  { value: 'other', label: 'Other' },
 ];
 
 const RIGHTS = [
@@ -68,21 +90,6 @@ const KIND_LABEL: Record<string, string> = {
   dataset: 'Dataset',
   other: 'Other',
 };
-
-/** `1,240 × 900 · 240 KB`, or what is actually known about the file. */
-function facts(item: {
-  width: number | null;
-  height: number | null;
-  filesizeBytes: number | null;
-  held: boolean;
-}): string {
-  const parts: string[] = [];
-  if (item.width && item.height) parts.push(`${item.width} × ${item.height}`);
-  const size = humanBytes(item.filesizeBytes);
-  if (size) parts.push(size);
-  if (!item.held) parts.push('file not held');
-  return parts.join(' · ') || 'no size or dimensions recorded';
-}
 
 export default async function MediaRegisterPage({
   searchParams,
@@ -109,6 +116,19 @@ export default async function MediaRegisterPage({
     countMediaRegister(db, { kind, rights, search }),
     listMediaRegister(db, { kind, rights, search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
   ]);
+
+  /*
+   * THE SUBTAB COUNTS, ASKED OF THE REGISTER FOR EACH KIND AND UNDER THE FILTERS ALREADY CHOSEN.
+   *
+   * The design draws `All (126) | Images (98) | Audio (9) …`. Those numbers are only useful if they answer
+   * the question the screen is currently asking, so each one is a `count(*)` under the same rights state and
+   * the same search the grid below is showing — **not the table's total, which would be a different number
+   * from the one a click produces.** Five counts over a table of a few thousand rows is cheaper than the
+   * grid's own query.
+   */
+  const kindCounts = await Promise.all(
+    SUBTABS.map((tab) => countMediaRegister(db, { kind: tab.value === 'all' ? null : tab.value, rights, search }))
+  );
 
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -151,112 +171,169 @@ export default async function MediaRegisterPage({
       </Card>
 
       <Card title="The register">
-        <form method="get" action="/admin/media" className="row" style={{ gap: '0.6rem', flexWrap: 'wrap' }}>
-          <label className="visually-hidden" htmlFor="kind">Kind</label>
-          <select id="kind" name="kind" defaultValue={kind}>
-            {KINDS.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
-          </select>
-          <label className="visually-hidden" htmlFor="rights">Rights</label>
-          <select id="rights" name="rights" defaultValue={rights}>
-            {RIGHTS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-          </select>
-          <label className="visually-hidden" htmlFor="q">Search</label>
-          <input id="q" name="q" type="search" defaultValue={search ?? ''} placeholder="Search titles" />
-          <button className="btn btn--sm btn--primary" type="submit">Apply</button>
-        </form>
+        {/*
+          THE SUBTABS, THE FILTERS AND THE GRID ARE THE DESIGN'S OWN STRUCTURE, SCOPED UNDER `.mediareg`.
 
-        {stats.total === 0 ? (
-          <p className="help" style={{ marginTop: '1rem' }}>
-            The archive holds no media at all. That is the real state of
-            <span className="mono"> ozikoro_media</span>, not a failure to load: the 3,488 files arrive from the
-            WordPress import, so an empty table means that import has not run.
-          </p>
-        ) : items.length === 0 ? (
-          <p className="help" style={{ marginTop: '1rem' }}>
-            Nothing matches {search ? `“${search}”` : 'that filter'}. Nothing has been hidden — the register
-            holds {stats.total.toLocaleString('en-GB')} items and none of them answers this question.
-          </p>
-        ) : (
-          <>
-            <p className="small muted" style={{ marginTop: '0.75rem' }}>
-              {total.toLocaleString('en-GB')} {total === 1 ? 'item' : 'items'}
-              {total > PAGE_SIZE ? `, showing ${items.length} on page ${page} of ${lastPage}` : ''}
+          The class names are the owner's (`subtabs`, `filters`, `media-grid`, `media`, `thumb`, `mi`,
+          `pager`, `pg`, `status`, `input`, `select`, `btn`) and they are scoped because the admin shell has
+          its own stylesheet: a bare `.status` or `.pg` would reach every other admin screen. See
+          `media-register.css`, which says the same thing where the rules are written.
+        */}
+        <div className="mediareg">
+          <nav className="subtabs" aria-label="Filter by kind">
+            {SUBTABS.map((tab, index) => (
+              <a
+                key={tab.value}
+                href={query({ kind: tab.value === 'all' ? undefined : tab.value, page: undefined })}
+                aria-current={kind === tab.value ? 'page' : undefined}
+              >
+                {tab.label} ({kindCounts[index]!.toLocaleString('en-GB')})
+              </a>
+            ))}
+          </nav>
+
+          <form method="get" action="/admin/media" className="filters">
+            {/* The kind is carried by the subtabs above, so the form keeps it in a hidden field. */}
+            <input type="hidden" name="kind" value={kind} />
+            <label className="visually-hidden" htmlFor="rights">Rights basis</label>
+            <select className="select" id="rights" name="rights" defaultValue={rights}>
+              {RIGHTS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+            <label className="visually-hidden" htmlFor="q">Search</label>
+            <div className="search">
+              <input
+                className="input"
+                id="q"
+                name="q"
+                type="search"
+                defaultValue={search ?? ''}
+                placeholder="Search titles"
+              />
+              <button className="btn btn--sm btn--primary" type="submit">Search</button>
+            </div>
+          </form>
+
+          {stats.total === 0 ? (
+            <p className="help" style={{ marginTop: '1rem' }}>
+              The archive holds no media at all. That is the real state of
+              <span className="mono"> ozikoro_media</span>, not a failure to load: the 3,488 files arrive from
+              the WordPress import, so an empty table means that import has not run.
             </p>
+          ) : items.length === 0 ? (
+            <p className="help" style={{ marginTop: '1rem' }}>
+              Nothing matches {search ? `“${search}”` : 'that filter'}. Nothing has been hidden — the register
+              holds {stats.total.toLocaleString('en-GB')} items and none of them answers this question.
+            </p>
+          ) : (
+            <>
+              <p className="meta" style={{ margin: '0 0 0.6rem' }}>
+                {total.toLocaleString('en-GB')} {total === 1 ? 'item' : 'items'}
+                {total > PAGE_SIZE ? `, showing ${items.length} on page ${page} of ${lastPage}` : ''}
+              </p>
 
-            <table className="record" style={{ marginTop: '0.5rem' }}>
-              <thead>
-                <tr>
-                  <th scope="col">Item</th>
-                  <th scope="col">Kind</th>
-                  <th scope="col">Credit</th>
-                  <th scope="col">Rights basis</th>
-                  <th scope="col">Used by</th>
-                  <th scope="col" />
-                </tr>
-              </thead>
-              <tbody>
+              {/*
+                ⚠️ THE DESIGN DRAWS A `.mc` CHECKBOX ON EVERY CARD AND NO CHECKBOX IS DRAWN HERE.
+
+                A tick box exists to select rows for a bulk action, and this archive has no bulk media route:
+                `/api/admin/media` acts on ONE `mediaId` per request — a caption save or a move to the trash.
+                A checkbox with no Apply button behind it is the exact fault the owner has reported three
+                times, so the control is not rendered. **What the card does draw is the three real links
+                below**, and one of them moves a record to the trash.
+              */}
+              <div className="media-grid">
                 {items.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <span className="mono small">{item.reference}</span>
-                      <div>{item.title}</div>
-                      <div className="history__when">{facts(item)}</div>
-                    </td>
-                    <td className="small">{KIND_LABEL[item.kind] ?? item.kind}</td>
-                    <td className="small">
-                      {item.creator ?? item.credit ?? 'no creator or credit recorded'}
-                      {item.licence ? <div className="history__when">{item.licence}</div> : null}
-                    </td>
-                    <td className="small">
-                      {item.rightsRecorded ? (
-                        item.restricted ? (
-                          'restricted by decision'
-                        ) : item.allowsPublication ? (
-                          'permits publication'
-                        ) : (
-                          'checked, does not permit publication'
-                        )
+                  <div className="media" key={item.id}>
+                    <div className="thumb">
+                      {item.kind === 'image' ? (
+                        /*
+                          The picture is the record's own file, at its own /media/<key> address, drawn through
+                          `MediaThumb` so that a row whose object is genuinely absent becomes a labelled plate
+                          rather than the browser's broken-image glyph. See that component.
+                        */
+                        <MediaThumb
+                          src={item.url}
+                          alt={item.altText ?? ''}
+                          label={KIND_LABEL[item.kind] ?? item.kind}
+                          file={item.url ? item.url.split('/').pop()! : 'file not held'}
+                        />
                       ) : (
-                        <>
-                          not recorded
-                          <div className="history__when">nothing is permitted</div>
-                        </>
+                        <span className="thumb__plate">
+                          <strong>{KIND_LABEL[item.kind] ?? item.kind}</strong>
+                          <span className="thumb__file">{item.url ? item.url.split('/').pop() : 'file not held'}</span>
+                        </span>
                       )}
-                    </td>
-                    <td className="small">
-                      {item.usedByArticles} {item.usedByArticles === 1 ? 'placement' : 'placements'}
-                    </td>
-                    <td>
-                      <div className="row" style={{ gap: '0.3rem', flexWrap: 'wrap' }}>
+                    </div>
+                    <div className="mi">
+                      <b title={item.title}>{item.title}</b>
+                      <small>
+                        {KIND_LABEL[item.kind] ?? item.kind}
+                        {humanBytes(item.filesizeBytes) ? ` · ${humanBytes(item.filesizeBytes)}` : ''}
+                      </small>
+                      <small className="mono">{item.reference}</small>
+                      <small>
+                        <span
+                          className={`status ${
+                            item.rightsRecorded
+                              ? item.restricted || !item.allowsPublication
+                                ? 'draft'
+                                : 'published'
+                              : ''
+                          }`}
+                        >
+                          {item.rightsRecorded
+                            ? item.restricted
+                              ? 'restricted by decision'
+                              : item.allowsPublication
+                                ? 'permits publication'
+                                : 'checked, does not permit publication'
+                            : 'no rights recorded'}
+                        </span>
+                      </small>
+                      <small>
+                        {item.usedByArticles} {item.usedByArticles === 1 ? 'placement' : 'placements'}
+                        {item.creator || item.credit ? ` · ${item.creator ?? item.credit}` : ''}
+                      </small>
+                      <span className="mi__actions">
                         {item.url ? (
                           <a className="btn btn--sm" href={item.url} target="_blank" rel="noopener noreferrer">
-                            Open the file
+                            Open
                           </a>
                         ) : null}
                         <a className="btn btn--sm btn--primary" href={`/admin/media/${item.id}`}>
-                          Edit the record
+                          Edit
                         </a>
                         <a className="btn btn--sm" href={`/admin/rights/?filter=all&item=${item.id}`}>
-                          Record rights
+                          Rights
                         </a>
-                      </div>
-                    </td>
-                  </tr>
+                      </span>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
 
-            <nav className="row" style={{ marginTop: '1rem' }} aria-label="Pagination">
-              {page > 1 ? (
-                <a className="btn btn--sm" href={query({ page: String(page - 1) })}>← Previous</a>
-              ) : <span />}
-              <span className="small muted">page {page} of {lastPage}</span>
-              {page < lastPage ? (
-                <a className="btn btn--sm" href={query({ page: String(page + 1) })}>Next →</a>
-              ) : <span />}
-            </nav>
-          </>
-        )}
+              <nav className="pager" aria-label="Pagination">
+                {page > 1 ? (
+                  <a className="pg" href={query({ page: page - 1 === 1 ? undefined : String(page - 1) })}>
+                    ‹ Previous
+                  </a>
+                ) : (
+                  <span className="pg pg--off">‹ Previous</span>
+                )}
+                <span className="pg pg--active">{page}</span>
+                <span className="pg pg--off">
+                  page {page} of {lastPage}
+                </span>
+                {page < lastPage ? (
+                  <a className="pg" href={query({ page: String(page + 1) })}>
+                    Next ›
+                  </a>
+                ) : (
+                  <span className="pg pg--off">Next ›</span>
+                )}
+              </nav>
+            </>
+          )}
+        </div>
       </Card>
 
       <Card title="What this screen can and cannot do" quiet>
@@ -268,11 +345,17 @@ export default async function MediaRegisterPage({
           capability, and lives in the <a href="/admin/rights/">rights queue</a>.
         </p>
         <p>
-          <strong>No file is uploaded, replaced or deleted anywhere.</strong> There are 3,443 objects in the
-          bucket against 3,488 records, and a further 307 files in
+          <strong>No file is replaced or deleted anywhere on this screen.</strong> There are 3,443 objects in
+          the bucket against 3,488 records, and a further 307 files in
           <span className="mono"> data/media/ozikoro-wp</span> with no record at all. Keying those was
           deliberately declined — it would mean inventing keys — and an upload control here is how they would
           get invented by accident.
+        </p>
+        <p>
+          <strong>A new file can be added, from the writing screens.</strong> The media picker behind{' '}
+          <strong>Add Media</strong> and <strong>Set featured image</strong> uploads through{' '}
+          <span className="mono">/api/admin/media/upload</span> and the file joins this register. It is not a
+          control on this screen because a picture is chosen while writing, not while auditing.
         </p>
       </Card>
     </>
