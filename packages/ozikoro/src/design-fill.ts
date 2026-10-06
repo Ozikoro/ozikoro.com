@@ -3144,6 +3144,27 @@ const DASHBOARD_LINK: Record<string, string> = {
   Security: '/account/#security',
 
   /*
+   * ── THE READER'S OWN LIBRARY, WHICH IS NOW A PAGE RATHER THAN A PROMISE ────────────────────────────
+   *
+   * THE OWNER'S REPORT, VERBATIM: *"even 'Saved histories — Not built yet / Followed topics — Not built
+   * yet / Reading history — Not' are not working."* They were not working because there was nothing behind
+   * them: `ozikoro_follow` existed for the research network, and saves and reads had no table at all. The
+   * honest answer then was a label saying the feature was missing. **The honest answer now is the feature.**
+   *
+   * `0060_ozikoro_library.sql` adds `ozikoro_saved` and `ozikoro_read_event`; `library.ts` reads and writes
+   * them; `/library/` lists all three; reading is recorded by the record route itself for a signed-in
+   * reader, and Save and Follow are forms on the archive's own series pages. Each label points at its own
+   * list on that page, so the module a reader presses opens on the module they pressed.
+   *
+   * ⚠️ **AND THE THREE ARE NOT LEFT IN `DASHBOARD_UNBUILT_MAP`, WHICH IS THE POINT.** An entry there would
+   * keep the dashboard saying "Not built yet" about a feature that answers — the same untruth, pointed the
+   * other way.
+   */
+  'Saved histories': '/library/#saved',
+  'Followed topics': '/library/#following',
+  'Reading history': '/library/#history',
+
+  /*
    * ── THREE LABELS THAT WERE SERVED AS "NOT BUILT YET" WHILE THE PAGE THEY NAME WAS LIVE ─────────────
    *
    * This is the quiet half of the owner's report. He named `Open next task`, `Saved histories`,
@@ -3248,8 +3269,12 @@ const DASHBOARD_LINK_OVERRIDE: Record<string, Record<string, string>> = {
    * items at all. There are now two screens with two jobs, and the labels separate cleanly: **`Media` is the
    * register — what the archive holds — and `Sources` is the permissions and provenance work.** Pointing
    * `Media` at the work queue made an administrator who wanted to look something up land on a to-do list.
+   *
+   * THE ADMINISTRATOR'S ENTRY NOW CARRIES THEIR WORK CONTROLS TOO, and it is written once, further down
+   * with the rest of the `Open next task`/`View all` decisions — **a second `'dashboard-admin'` key in this
+   * object literal would be silently ignored by JavaScript and would still fail `tsc`**, which is the one
+   * thing that would have caught it.
    */
-  'dashboard-admin': { Media: '/admin/media/', 'Audit logs': '/admin/audit/' },
   /*
    * `Submissions` MEANS A REAL PAGE TO A STUDENT AND NOTHING TO A KNOWLEDGE HOLDER.
    *
@@ -3261,7 +3286,64 @@ const DASHBOARD_LINK_OVERRIDE: Record<string, Record<string, string>> = {
    * different way of being dead. It is wired for the student and left an honest non-link for the holder,
    * and the two are decided here rather than by widening the global map.
    */
-  'dashboard-student': { Submissions: '/submit/' },
+  'dashboard-student': {
+    Submissions: '/submit/',
+    /*
+     * A STUDENT'S NEXT TASK IS THE WORK THEY HAVE IN FLIGHT. `/submit/` is the page that lists their own
+     * submissions at every state, so "Open next task" opens the one screen that answers it — rather than a
+     * label saying no task queue exists, which was true of the archive's schema and false of the student's
+     * own workspace.
+     */
+    'Open next task': '/submit/',
+    'View all': '/submit/',
+  },
+
+  /*
+   * ── "Open next task", WHICH IS THE CONTROL THE OWNER CLICKED ────────────────────────────────────────
+   *
+   * It was served as a gold `.btn-gold` reading *Open next task* with nothing behind it, and it is the
+   * control he reported by name. **He is right that the work exists**: the archive holds 1,622 records and
+   * the editorial queue opens on the ones needing work, a reviewer's queue is their assigned manuscripts,
+   * and a reader's next thing to do is the record they were last reading. So the label resolves per
+   * workspace instead of being disabled everywhere.
+   *
+   * ⚠️ **WHAT IT IS NOT WIRED TO, AND WHY THAT IS A DECISION RATHER THAN AN OVERSIGHT.** There is no
+   * `task` table and no task route anywhere in this application — measured. `/admin/archive/` is a queue of
+   * CONTENT, ordered worst-documented first, and **its first row is the next thing to work on**, so the
+   * editorial workspaces open it. A separate "next task" redirect could not be built without inventing a
+   * task model the archive does not have, and `/admin/archive/` already means exactly what the label says
+   * for an editor: open the queue and take the first record.
+   */
+  'dashboard-reader': { 'Open next task': '/library/#history', 'View all': '/library/' },
+  'dashboard-editor': {
+    'Open next task': '/admin/archive/',
+    'View all': '/admin/archive/',
+    'Tasks': '/admin/archive/',
+    /*
+     * `Entity linking` IS `/admin/entities/`. That screen runs `buildEntityGraph`, which links published
+     * records to the entities their titles name — *"the archive's filter rail can offer a clan, a town or an
+     * ethnic group only if a record is linked to one"* — and it is gated on `edit_entity`, **which the
+     * editor role holds**. So it is a real page, it is the tool the label names, and the role that sees the
+     * label may open it.
+     */
+    'Entity linking': '/admin/entities/',
+  },
+  'dashboard-admin': {
+    Media: '/admin/media/',
+    'Audit logs': '/admin/audit/',
+    'Open next task': '/admin/archive/',
+    'View all': '/admin/archive/',
+  },
+  'dashboard-reviewer': { 'Open next task': '/reviews/', 'View all': '/reviews/' },
+  'dashboard-teacher': { 'Open next task': '/submit/', 'View all': '/submit/' },
+  'dashboard-researcher': { 'View all': '/submit/' },
+  'dashboard-independent-researcher': { 'View all': '/submit/' },
+  /*
+   * A KNOWLEDGE HOLDER MAY NOT OPEN `/submit/` — that role does not hold `submit_work` (migration 0037) —
+   * so their two "everything of mine" labels reach their library, which they do hold: saves, follows and
+   * reading history are the whole of what this role's own workspace can list today.
+   */
+  'dashboard-knowledge-holder': { 'View all': '/library/' },
 };
 
 /**
@@ -3271,19 +3353,20 @@ const DASHBOARD_LINK_OVERRIDE: Record<string, Record<string, string>> = {
  * why `design-fill.test.ts` asserts that every placeholder on the real screens is answered somewhere.
  */
 export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
-  'Saved histories': 'a saved-items table per account, and a route to list it',
   /*
-   * THE FOLLOW TABLE EXISTS; THE PAGE THAT READS IT BACK DOES NOT.
+   * ── `Saved histories`, `Followed topics` AND `Reading history` HAVE LEFT THIS TABLE, BECAUSE THEY ARE
+   *    BUILT. ──────────────────────────────────────────────────────────────────────────────────────────
    *
-   * `ozikoro_follow` holds follows of kind `researcher`, `topic` and `institution`, `POST /api/follows`
-   * writes them, and `followedIds` reads them back for pages that need to filter. **What is missing is
-   * only the destination**: nothing on the site lists the topics one account follows, so the label cannot
-   * be wired without inventing a page. Recorded precisely because the earlier wording — "a follow table per
-   * account and topic, and a route to list it" — described work that is half done, and a report that says
-   * half-done work is undone is the kind of claim this table exists to prevent.
+   * They were the three labels the owner reported by name, and the entries that used to sit here said what
+   * they were waiting for: a saved-items table, a route to list follows, a read-events table. **All three
+   * now exist** — `0060_ozikoro_library.sql` adds `ozikoro_saved` and `ozikoro_read_event`, `library.ts`
+   * reads and writes them, `/library/` lists them, the record route records a read for a signed-in reader,
+   * and the series pages carry the Save and Follow forms. `DASHBOARD_LINK` points the three labels at their
+   * lists.
+   *
+   * **An entry left here would be the same untruth this table exists to prevent, pointed the other way:**
+   * the dashboard would keep telling a reader the feature is missing while it answers.
    */
-  'Followed topics': 'a route that lists the topics this account follows; the `ozikoro_follow` table and the API that writes it both exist, and no page reads them back',
-  'Reading history': 'a read-events table per account, and a route to list it',
   'Supervisor & institution': 'fields on the member record, and a route to edit them',
   Notes: 'a private notes table per account, and a route to read and write it',
   /*
@@ -3317,9 +3400,16 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   Collaborations: 'a collaboration table joining two accounts, and a route to invite one',
   'Community profile': 'a public profile page for a knowledge holder, and a route to edit it',
   'Review status': 'a view of where this account’s own submissions stand, and a route to serve it',
-  'Entity linking': 'an entity-resolution tool over the archive’s place and person names',
+  /*
+   * `Entity linking` AND `Tasks` HAVE LEFT THIS TABLE.
+   *
+   * `Entity linking` is wired to `/admin/entities/` for the editor, which is the tool the label names and
+   * the role holds `edit_entity` to open. **`Tasks` is the editorial queue**: there is no task table
+   * anywhere in this application — measured — and the work an editor has is the records needing work, which
+   * `/admin/archive/` opens on, worst-documented first. *An entry here would keep the editor's sidebar
+   * saying the work list does not exist while the work list answers.*
+   */
   Revisions: 'a revision history table per record, and a route to compare two of them',
-  Tasks: 'a task table assigned to an account, and a route to list it',
   /*
    * `Assigned manuscripts` HAS LEFT THIS TABLE — `/reviews/` IS THE QUEUE IT NAMED, and it is wired in
    * `DASHBOARD_LINK`. `Decisions` STAYS, AND THE TWO ARE NOT THE SAME PAGE: `/reviews/` is *"only the
@@ -3340,24 +3430,23 @@ export const DASHBOARD_UNBUILT_MAP: Record<string, string> = {
   // above a `/search/` page that had been answering 200 all along.
   'Primary action': 'the screen’s own next step, which the design does not name',
   /*
-   * `Open next task` NAMES A TASK QUEUE, AND THERE IS NO TASK QUEUE ON THIS SITE.
+   * ── `Open next task` AND `View all` HAVE LEFT THIS TABLE, AND THE REASON THEY WERE IN IT WAS WRONG ──
    *
-   * The label is the control the owner clicked on `/dashboard-reader` and reported. **The judgement was
-   * whether `/admin/archive/` is the queue he would use, and it is not, for two measured reasons:**
+   * They are the two controls the owner actually clicked, and the first version of this table answered him
+   * with reasons why they could not work. **Both reasons were true of the schema and false of the
+   * workspace.** `Open next task` was called "a task queue; the dashboard has no tasks to open" — but the
+   * archive holds 1,622 records, the editorial queue opens on the ones needing work, a reviewer's queue is
+   * their assigned manuscripts, a student's is their own submission in flight, and a reader's is the record
+   * they were last reading. `View all` was called "a list view of this panel's contents" — and for every
+   * one of the nine screens that draws it, that list is a page the archive already serves.
    *
-   *   1. it is a queue of CONTENT waiting to be worked on — 1,051 migrated records, worst documented first —
-   *      and the design already gives that page its own label, `Content queue`, which is wired to it;
-   *   2. three of the four screens that carry this control are the reader's, the student's and the
-   *      reviewer's, and none of those roles may open `/admin/archive/` at all. **Wiring all three to an
-   *      administrative page would swap a link that does nothing for a link that refuses them** — the
-   *      "a link an editor cannot follow reads as broken" fault this table's neighbours already record.
+   * **So both are now resolved per workspace in `DASHBOARD_LINK_OVERRIDE`, and neither is a span
+   * anywhere.** The one thing that stayed a judgement rather than a lookup is recorded there: an editor is
+   * sent to `/admin/archive/`, because there is no `task` table and the queue IS the work list.
    *
-   * Measured across the whole application: there is no task route, no task table and no `task` directory
-   * anywhere under `apps/ozikoro/app`. So it is an inert span that says what is missing, which is the
-   * honest outcome.
+   * ⚠️ AND THE READER'S OWN LABELS REACH `/library/`, WHICH IS WHY THIS ROUND ALSO ADDED TWO TABLES — see
+   * `0060_ozikoro_library.sql`. A reason why something cannot work is only honest until it can.
    */
-  'Open next task': 'a task queue for this workspace; the archive holds no task table and serves no task route',
-  'View all': 'a list view of this panel’s contents',
   'Open →': 'the record named above it in the design’s example material',
   'Try again': 'an error the reader can actually retry',
   'Request access': 'a rights-request workflow, with a table and an approval route',

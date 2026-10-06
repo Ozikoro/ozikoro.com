@@ -203,24 +203,60 @@ test('one label can mean a different place to a different role', () => {
   );
 });
 
-test('a label with nothing behind it stops being a link and says so', () => {
+test('the owner’s own front door is entirely live — nothing on the reader dashboard is unbuilt', () => {
   const out = fillDashboardLinks(screen('dashboard-reader'), 'dashboard-reader');
 
   /*
-   * ── THE SHAPE CHANGED, DELIBERATELY, AND THIS TEST IS WHERE THE CHANGE IS RECORDED ───────────────
+   * ── THE REPORTED SCREEN, AND THE REPORTED LABELS, ASSERTED TO BE FINISHED ─────────────────────────
    *
-   * It used to assert `<a aria-disabled="true" …>Saved histories`. **That assertion was the defect the
-   * owner reported**: *"even 'Saved histories — Not built yet / Followed topics — Not built yet / Reading
-   * history — Not' are not working."* `aria-disabled` on an anchor stops nothing — not the click, not the
-   * navigation, not the pointer cursor the design draws on every `a:hover` — so the button still looked
-   * live and did nothing. **A marking that a reader cannot see is not a disabled control.**
+   * The owner opened `/dashboard-reader` first and found *"the 'Open next task' is not working"* and
+   * *"even 'Saved histories — Not built yet / Followed topics — Not built yet / Reading history — Not' are
+   * not working."* **Measured, every one of those labels has something real behind it now**: the three
+   * library modules are tables and a page (`0060_ozikoro_library.sql`, `library.ts`, `/library/`), a read is
+   * recorded by the record route itself, and Save and Follow are forms on the archive's own series pages.
+   * `Open next task` opens the reader's reading history; `View all` opens their library; `Search` opens
+   * `/search/`.
    *
-   * So the three assertions below are the three things that make it actually inert: it is not an anchor,
-   * it cannot be focused (a span is not in the tab order), and its own style says unavailable.
+   * **SO THE ASSERTION IS THE ABSENCE OF THE OLD ONE.** This screen used to carry six inert controls, and a
+   * test that only checked "they are inert" would have passed all along. What it must now check is that
+   * there is nothing left to be inert: no `Not built yet` anywhere, and no `aria-disabled` at all.
    */
-  assert.match(out, /<span[^>]*aria-disabled="true" title="Not built yet[^"]*"[^>]*>Saved histories /);
+  assert.doesNotMatch(out, /— Not built yet/, 'a label on the reader’s own dashboard still says it is not built');
+  assert.doesNotMatch(out, /aria-disabled="true"/, 'an inert control is still on the reader’s dashboard');
+  assert.doesNotMatch(out, /Not built yet — nothing to open\./, 'a tile on the reader’s dashboard still promises nothing');
+
+  // Each of the six, at the page it now reaches.
+  assert.match(out, /<a href="\/library\/#saved">Saved histories<\/a>/);
+  assert.match(out, /<a href="\/library\/#following">Followed topics<\/a>/);
+  assert.match(out, /<a href="\/library\/#history">Reading history<\/a>/);
+  assert.match(out, /<a class="btn btn-quiet btn-sm" href="\/search\/">Search<\/a>/);
+  assert.match(out, /<a class="btn btn-gold" href="\/library\/#history">Open next task<\/a>/);
+  assert.match(out, /<a href="\/library\/">View all<\/a>/);
+  // The tiles keep the design's promise line, because the promise is now true.
+  assert.match(out, /<a class="sx-state" href="\/library\/#saved">/);
+  assert.match(out, /<a class="sx-state" href="\/archive\/">/);
+});
+
+test('a label with nothing behind it is a visibly inert span, not an anchor', () => {
+  /*
+   * ── WHERE THIS TEST LIVES NOW, AND WHY IT MOVED ─────────────────────────────────────────────────
+   *
+   * It used to run on the reader's dashboard, because that screen carried `Saved histories` as an inert
+   * label. **It does not any more** — that label is wired — so the shape is asserted where unbuilt labels
+   * still genuinely exist: the administrator's `Settings`, which the archive has no page for.
+   *
+   * ── AND THE SHAPE ITSELF IS THE POINT ───────────────────────────────────────────────────────────
+   *
+   * `aria-disabled` on an anchor stops nothing: not the click, not the navigation, not the pointer cursor
+   * the design draws on every `a:hover`. **A marking a reader cannot see is not a disabled control**, which
+   * is why the served dashboards carried 78 of them while every `href="#"` count read zero. The honest
+   * shape is a `<span>`: not focusable, not clickable, and visibly inert.
+   */
+  const out = fillDashboardLinks(screen('dashboard-admin'), 'dashboard-admin');
+
+  assert.match(out, /<span[^>]*aria-disabled="true" title="Not built yet[^"]*"[^>]*>Settings /);
   assert.match(out, /style="[^"]*cursor:not-allowed[^"]*"/);
-  assert.doesNotMatch(out, /<a[^>]*>Saved histories/, 'the sidebar item is still an anchor');
+  assert.doesNotMatch(out, /<a[^>]*>Settings</, 'the sidebar item is still an anchor');
   /*
    * AND THE SIDEBAR KEEPS THE LAYOUT `.sx-dash-nav a` GAVE IT. The design's own rule is
    * `display:block; padding:var(--s-3); color:var(--on-night-muted); border-left:2px solid transparent`,
@@ -232,9 +268,7 @@ test('a label with nothing behind it stops being a link and says so', () => {
   // The tile's promise is replaced, not merely annotated.
   assert.match(out, /<div class="sx-state" aria-disabled="true">/);
   assert.match(out, /Not built yet — nothing to open\./);
-  // `Collections` has a real destination, so its tile must keep the promise and the link.
-  assert.match(out, /<a class="sx-state" href="\/archive\/">/);
-  assert.doesNotMatch(out, /Saved histories<\/h3><p class="small muted">Open workspace/);
+  assert.doesNotMatch(out, /Settings<\/h3><p class="small muted">Open workspace/);
 });
 
 test('every non-dashboard screen in the transform is free of placeholder links too', () => {
@@ -396,7 +430,13 @@ test('every unbuilt label on the real screens is accounted for in the report map
   const missing = new Set<string>();
   for (const { name, html } of [...dashboards(), ...linkedScreens()]) {
     const out = fillDashboardLinks(html, name);
-    for (const m of out.matchAll(/<a[^>]*aria-disabled="true"[^>]*>([^<]*?)\s*<span class="small muted">— Not built yet/g)) {
+    /*
+     * ⚠️ **THE MARKER IS A `<span>` NOW, AND A TEST THAT MATCHED ONLY `<a>` WOULD HAVE PASSED BY FINDING
+     * NOTHING — which is the blind spot this rewrite closes.** `aria-disabled` on an anchor stops nothing
+     * (see `unbuiltAnchor`), so the marking moved to a span; the pattern therefore matches **either tag**,
+     * and a label marked inert in some third shape would fail here rather than slip through.
+     */
+    for (const m of out.matchAll(/<(?:span|a)\b[^>]*aria-disabled="true"[^>]*>([^<]*?)\s*<span class="small muted">— Not built yet/g)) {
       const label = decode(m[1] ?? '');
       if (label && !(label in DASHBOARD_UNBUILT_MAP)) missing.add(label);
     }

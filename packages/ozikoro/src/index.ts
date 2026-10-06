@@ -61,6 +61,14 @@ export * from './audit.ts';
 export * from './publications.ts';
 export * from './publication-files.ts';
 export * from './follows.ts';
+/*
+ * THE READER'S OWN LIBRARY — saved records, reading history and the counts the dashboard shows.
+ *
+ * It sits beside `follows.ts` because the three are one promise: the design's reader workspace draws
+ * *Saved histories*, *Followed topics* and *Reading history* as the reader's own material, and `follows.ts`
+ * was the only one of the three that had a table behind it until migration `0060`.
+ */
+export * from './library.ts';
 export * from './rights.ts';
 /*
  * THE SECOND MARK ON A RECORD, AND THE AGREEMENT THAT OPENS IT.

@@ -89,14 +89,29 @@ export type GuardResult =
  * `/admin/rights/?item=3368?saved=...` — which a browser reads as one long `item` value, so the
  * record was not selected and the notice never appeared. It looked like the save had failed when it
  * had worked.
+ *
+ * ⚠️ **AND THE QUERY GOES BEFORE THE FRAGMENT, WHICH IS A SECOND VERSION OF THE SAME FAULT.** A form
+ * that returns a reader to a section of a page — `/library/#saved`, which is where the dashboard's
+ * *Saved histories* module points — used to produce `/library/#saved?saved=Saved+to+your+library.`
+ * **A fragment is never sent to the server**, so the browser reads `?saved=…` as part of the anchor, the
+ * page's `searchParams` never sees it, and the notice the reader earned by pressing the button silently
+ * disappears. *It looked exactly like the save had failed*, which is the same confusion the paragraph
+ * above was written to end — one level further down.
  */
 export function redirectTo(path: string, params: Record<string, string> = {}): Response {
   const target = safeRedirectPath(path);
   const search = new URLSearchParams(params).toString();
-  const separator = target.includes('?') ? '&' : '?';
+  if (search.length === 0) {
+    return new Response(null, { status: 303, headers: { Location: target } });
+  }
+  // `/a/b/?x=1#frag` -> base `/a/b/?x=1`, fragment `#frag`; the query is appended to the base.
+  const hashAt = target.indexOf('#');
+  const base = hashAt === -1 ? target : target.slice(0, hashAt);
+  const fragment = hashAt === -1 ? '' : target.slice(hashAt);
+  const separator = base.includes('?') ? '&' : '?';
   return new Response(null, {
     status: 303,
-    headers: { Location: search.length > 0 ? `${target}${separator}${search}` : target },
+    headers: { Location: `${base}${separator}${search}${fragment}` },
   });
 }
 

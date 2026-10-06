@@ -3,10 +3,73 @@
 The owner asked: *"make sure every single function on the dashboard is working, every single role's dashboard
 should be working."* This is the honest answer to that question, measured rather than assumed.
 
-**The short version: every dashboard screen renders, and most of what their sidebars promise does not
-exist.** Before this work the fourteen dashboard screens carried **156 links written as `href="#"`** — a
-placeholder that looks like a link and goes nowhere. **Every one of them has now either been pointed at a
-real page or turned into a non-link that says, in the page itself, that the feature is not built.**
+**The short version: every dashboard screen renders. 87 of the 156 placeholders now reach a real page,
+69 are visibly inert controls that name what is missing, and none of the 156 is a dead link.** The reader's
+own dashboard — the screen the owner opened first — has **nothing unbuilt left on it at all**.
+
+## The two faults, and the measurement that separates them
+
+**THE OWNER'S REPORT, VERBATIM:** *"the 'Open next task' is not working, and i am sure every other dashboard
+has similar buttons and links not working. even 'Saved histories — Not built yet / Followed topics — Not
+built yet / Reading history — Not' are not working."*
+
+He was right, and the first version of this work had measured the wrong thing.
+
+| measured on the fourteen SERVED dashboards | before | after |
+|---|---|---|
+| `href="#"` in the served HTML | **0** | **0** |
+| **`<a aria-disabled="true">` — dead, and drawn exactly like a live control** | **78** | **0** |
+| `<span aria-disabled="true">` — visibly inert, saying what is missing | 0 | **69** |
+
+**The `href="#"` count was zero the whole time, and the owner was still right.** The transform turned every
+placeholder into `<a aria-disabled="true" title="Not built yet — …">`, and *`aria-disabled` on an anchor
+stops nothing*: not the click, not the navigation, not the pointer cursor the design draws on every
+`a:hover`. The gold `.btn-gold` reading *Open next task* looked live, sat in the tab order, and did nothing.
+**A marking a reader cannot see is not a disabled control**, and a check that counted `href="#"` could not
+see the fault at all. `scripts/audit-buttons.mjs --served` now counts all three shapes on the served page,
+and that is the number this document is written from.
+
+## The 156, one screen at a time
+
+*Every placeholder in the design files, classified by what the transform serves in its place. `WIRED` means a
+real page; `INERT` means a `<span>` that cannot be clicked or focused and carries the reason.*
+
+| Screen | placeholders | wired to a real page | inert, with what is missing named |
+|---|---|---|---|
+| `/dashboard-reader/` | 11 | **11** | **0** |
+| `/dashboard-admin/` | 25 | 23 | 2 — `Settings` |
+| `/dashboard-student/` | 15 | 11 | 4 — `Supervisor & institution`, `Notes` |
+| `/dashboard-researcher/` | 18 | 6 | 12 — `Datasets`, `Fieldwork`, `Questions`, `Groups`, `Collaborators`, `Citations` |
+| `/dashboard-independent-researcher/` | 14 | 8 | 6 — `Fieldwork`, `Verification`, `Collaborations` |
+| `/dashboard-teacher/` | 13 | 7 | 6 — `Resources`, `Courses`, `Classes & projects` |
+| `/dashboard-editor/` | 12 | 8 | 4 — `Verification`, `Revisions` |
+| `/dashboard-reviewer/` | 11 | 7 | 4 — `Decisions`, `Reviewer profile` |
+| `/dashboard-knowledge-holder/` | 12 | 6 | 6 — `Community profile`, `Submissions`, `Review status` |
+| `/dashboard-workflow/` | 7 | 0 | 7 — the design's example publishing steps |
+| `/dashboard-moderation/` | 5 | 0 | 5 — `Primary action`, four example `Open →` |
+| `/dashboard-account/` | 5 | 0 | 5 — `Primary action`, four example `Open →` |
+| `/dashboard-review/` | 5 | 0 | 5 — `Primary action`, four example `Open →` |
+| `/dashboard-states/` | 3 | 0 | 3 — `Try again`, `Request access`, `View version` |
+| **total** | **156** | **87** | **69** |
+
+### What was BUILT for the owner's own screen, and how big it was
+
+The three labels he named had no table behind them, which is why they could only be marked unavailable. They
+have one now:
+
+| part | what it is |
+|---|---|
+| `packages/db/migrations/0060_ozikoro_library.sql` | two tables — `ozikoro_saved` and `ozikoro_read_event` — each `unique (account_id, article_id)` so save and read are idempotent at the database rather than in TypeScript |
+| `packages/ozikoro/src/library.ts` | `setSaved`, `listSaved`, `recordRead`, `listReadingHistory`, `forgetRead`, `libraryCounts`, `listFollowedTopics`, `savedAmong` |
+| `apps/ozikoro/app/library/page.tsx` | the reader's library: three lists, each with the control that removes a row, plus Follow/Unfollow on every series the archive holds |
+| `apps/ozikoro/app/api/library/route.ts` | a plain form POST — save, unsave, forget — returning a 303, so the page works without JavaScript |
+| `apps/ozikoro/app/[slug]/route.ts` | records a read for a signed-in reader; **no button**, because a read is not an act to ask somebody to perform |
+| `apps/ozikoro/app/topics/[slug]/page.tsx` | Save on every record and Follow in the series header |
+
+**And the honest gap in it:** the design's article screen draws **no Save control**, so saving happens from
+the archive's own series pages, not from the record the reader is looking at. Adding one to the article
+design would mean drawing a new control into the owner's approved artwork, so it is left as a design
+decision and named here rather than invented.
 
 Nothing in this document describes a feature that does not exist. Where a feature does not exist, the
 destination column says `NOT BUILT` and the last section lists what would have to be written.
@@ -23,14 +86,24 @@ The new step is `fillDashboardLinks` in `packages/ozikoro/src/design-fill.ts`, a
 | the design has | what the served page has |
 |---|---|
 | `<a href="#">Publications</a>` where a page exists | `<a href="/publications/">Publications</a>` |
-| `<a href="#">Saved histories</a>` where nothing exists | `<a aria-disabled="true" title="Not built yet — waiting on …">Saved histories <span>— Not built yet</span></a>` |
+| `<a href="#">Saved histories</a>` where nothing exists | `<span style="display:block;…;opacity:.6;cursor:not-allowed;text-decoration:none" aria-disabled="true" title="Not built yet — waiting on …">Saved histories <span>— Not built yet</span></span>` |
 | `<a class="sx-state" href="#">…<p>Open workspace</p></a>` where nothing exists | `<div class="sx-state" aria-disabled="true">…<p>Not built yet — nothing to open.</p></div>` |
 | `<a href="dashboard-account.html">` | `<a href="/account/">` |
 
-An anchor with no `href` **is not a link**: it cannot be clicked, it cannot be focused, and a screen reader
-announces it as text. The design's own classes are kept, so the sidebar still looks like the design's
-sidebar, and the design's stylesheet is not touched. The marker is the important part — *a label with no
-destination looks identical to one that was forgotten.*
+**AND AN `aria-disabled` ANCHOR IS NOT A DISABLED ONE — that was this document's own fault, and the owner
+found it.** The first version of this table wrote the unbuilt shape as `<a aria-disabled="true" …>`, and the
+served dashboards carried **78 of them**. *`aria-disabled` is an accessibility hint: it does not prevent the
+click, it does not prevent navigation, and it does not change what a sighted person sees.* The gold
+`.btn-gold` still looked live, the item still sat in the tab order, and pressing it did nothing — which is
+exactly what the owner reported (*"the 'Open next task' is not working"*, and *"even 'Saved histories — Not
+built yet' … are not working"*).
+
+The unbuilt shape is therefore a **`<span>`**: not a link, not focusable, not clickable, and visibly inert —
+reduced opacity, `cursor:not-allowed`, no underline — while keeping the design's words and classes. **A
+sidebar item also keeps the layout `.sx-dash-nav a` gave it**, written inline from the design's own rule,
+because a sidebar that collapsed to inline text the moment it told the truth would be a worse page than the
+one that lied. The marker is still the important part — *a label with no destination looks identical to one
+that was forgotten.*
 
 There is **no stub route for any unbuilt feature.** A stub page per promise would be fourteen screens of
 invented addresses, each of which a reader would reasonably read as "this exists but is empty". The
@@ -72,7 +145,7 @@ before it was linked to, and the "health" column is what the page actually rende
 | `/folklore/` | The 17 records filed under Folklores. | **Healthy.** |
 | `/listen/` | The listening library. **The archive holds no audio**, so nothing here is presented as a recording. | **Healthy, and says so.** |
 | `/watch/` | The 24 published articles that embed a film. | **Healthy.** |
-| `/search/` | A search route exists and answers. | **Exists, but it is not the site-wide search the dashboards' "Search" button promises** — it is not linked from the dashboards. |
+| `/search/` | **The site-wide search** — Knowledge over the archive and the knowledge graph, Research over the publications and the people who wrote them, as one plain GET form with `?q=` and `&mode=`. | **Healthy, and linked.** Every dashboard's `Search` button reaches it; this row used to say the opposite and was wrong. |
 | `/signin/`, `/join/` | The two ways in. | **Healthy.** |
 
 ### The one finding that looked like a fault and is not
@@ -110,17 +183,17 @@ screen**, which is asserted by `packages/ozikoro/src/design-fill.test.ts` agains
 
 | Where | Label | Destination |
 |---|---|---|
-| sidebar | Saved histories | `NOT BUILT` |
-| sidebar | Followed topics | `NOT BUILT` |
-| sidebar | Reading history | `NOT BUILT` |
+| sidebar | Saved histories | `/library/#saved` |
+| sidebar | Followed topics | `/library/#following` |
+| sidebar | Reading history | `/library/#history` |
 | sidebar | Collections | `/archive/` |
 | sidebar | Account settings | `/account/` |
 | sidebar | Return to public site | `/` |
-| top bar | Search | `NOT BUILT` |
+| top bar | Search | `/search/` |
 | top bar | Profile | `/account/` |
-| title | Open next task | `NOT BUILT` |
-| panel | View all | `NOT BUILT` |
-| tile 01–03 | Saved histories · Followed topics · Reading history | `NOT BUILT` |
+| title | Open next task | `/library/#history` |
+| panel | View all | `/library/` |
+| tile 01–03 | Saved histories · Followed topics · Reading history | `/library/#saved` · `/library/#following` · `/library/#history` |
 | tile 04 | Collections | `/archive/` |
 
 Before **11** → after **0**.
@@ -133,15 +206,16 @@ Before **11** → after **0**.
 | sidebar | Publications | `/publications/` |
 | sidebar | Supervisor & institution | `NOT BUILT` |
 | sidebar | Notes | `NOT BUILT` |
-| sidebar | Submissions | `NOT BUILT` |
-| sidebar | Learning | `NOT BUILT` |
+| sidebar | Submissions | `/submit/` |
+| sidebar | Learning | `https://academy.ozikoro.com/` |
 | sidebar | Account settings / Return to public site | `/account/` · `/` |
-| top bar | Search | `NOT BUILT` |
+| top bar | Search | `/search/` |
 | top bar | Profile | `/account/` |
-| title | Open next task | `NOT BUILT` |
-| panel | View all | `NOT BUILT` |
+| title | Open next task | `/submit/` |
+| panel | View all | `/submit/` |
 | tiles | Projects · Publications | `/projects/` · `/publications/` |
-| tiles | Supervisor & institution · Notes · Submissions · Learning | `NOT BUILT` |
+| tiles | Supervisor & institution · Notes | `NOT BUILT` |
+| tiles | Submissions · Learning | `/submit/` · `https://academy.ozikoro.com/` |
 
 Before **15** → after **0**.
 
@@ -161,7 +235,7 @@ Before **15** → after **0**.
 | sidebar | Sources | `/admin/rights/` |
 | sidebar | Publications | `/publications/` |
 | sidebar | Account settings / Return to public site | `/account/` · `/` |
-| top bar | Search · Profile · Open next task · View all | `NOT BUILT` · `/account/` · `NOT BUILT` · `NOT BUILT` |
+| top bar | Search · Profile · Open next task · View all | `/search/` · `/account/` · `/submit/` · `/submit/` |
 | tiles | Resources · Courses · Classes & projects | `NOT BUILT` |
 | tiles | Sources · Publications | `/admin/rights/` · `/publications/` |
 
@@ -175,7 +249,7 @@ Before **13** → after **0**.
 | sidebar | Projects | `/projects/` |
 | sidebar | Datasets · Fieldwork · Questions · Groups · Collaborators · Citations | `NOT BUILT` |
 | sidebar | Account settings / Return to public site | `/account/` · `/` |
-| top bar | Search · Profile · View all | `NOT BUILT` · `/account/` · `NOT BUILT` |
+| top bar | Search · Profile · View all | `/search/` · `/account/` · `BUILT` see below |
 | tiles | Publications · Projects | `/publications/` · `/projects/` |
 | tiles | Datasets · Fieldwork · Questions · Groups · Collaborators · Citations | `NOT BUILT` |
 
@@ -189,7 +263,7 @@ Before **18** → after **0**.
 | sidebar | Fieldwork · Verification · Collaborations | `NOT BUILT` |
 | sidebar | Sources | `/admin/rights/` |
 | sidebar | Account settings / Return to public site | `/account/` · `/` |
-| top bar | Search · Profile · View all | `NOT BUILT` · `/account/` · `NOT BUILT` |
+| top bar | Search · Profile · View all | `/search/` · `/account/` · `BUILT` see below |
 | tiles | Publications · Projects · Sources | `/publications/` · `/projects/` · `/admin/rights/` |
 | tiles | Fieldwork · Verification · Collaborations | `NOT BUILT` |
 
@@ -204,7 +278,7 @@ Before **14** → after **0**.
 | sidebar | Media | `/photographs/` |
 | sidebar | Submissions · Review status | `NOT BUILT` |
 | sidebar | Account settings / Return to public site | `/account/` · `/` |
-| top bar | Search · Profile · View all | `NOT BUILT` · `/account/` · `NOT BUILT` |
+| top bar | Search · Profile · View all | `/search/` · `/account/` · `BUILT` see below |
 | tiles | Community profile · Submissions · Review status | `NOT BUILT` |
 | tiles | Oral traditions · Media | `/folklore/` · `/photographs/` |
 
@@ -215,11 +289,13 @@ Before **12** → after **0**.
 | Where | Label | Destination |
 |---|---|---|
 | sidebar | Content queue | `/admin/archive/` |
-| sidebar | Entity linking · Verification · Revisions · Tasks | `NOT BUILT` |
+| sidebar | Entity linking · Tasks | `/admin/entities/` · `/admin/archive/` |
+| sidebar | Verification · Revisions | `NOT BUILT` |
 | sidebar | Account settings / Return to public site | `/account/` · `/` |
-| top bar | Search · Profile · View all | `NOT BUILT` · `/account/` · `NOT BUILT` |
+| top bar | Search · Profile · View all | `/search/` · `/account/` · `BUILT` see below |
 | tiles | Content queue | `/admin/archive/` |
-| tiles | Entity linking · Verification · Revisions · Tasks | `NOT BUILT` |
+| tiles | Entity linking · Tasks | `/admin/entities/` · `/admin/archive/` |
+| tiles | Verification · Revisions | `NOT BUILT` |
 
 Before **12** → after **0**.
 
@@ -227,12 +303,14 @@ Before **12** → after **0**.
 
 | Where | Label | Destination |
 |---|---|---|
-| sidebar | Assigned manuscripts · Decisions · Reviewer profile | `NOT BUILT` |
+| sidebar | Assigned manuscripts | `/reviews/` |
+| sidebar | Decisions · Reviewer profile | `NOT BUILT` |
 | sidebar | Evidence review | `/admin/reviews/` |
 | sidebar | Account settings / Return to public site | `/account/` · `/` |
-| top bar | Search · Profile · Open next task · View all | `NOT BUILT` · `/account/` · `NOT BUILT` · `NOT BUILT` |
+| top bar | Search · Profile · Open next task · View all | `/search/` · `/account/` · `/reviews/` · `/reviews/` |
 | tiles | Evidence review | `/admin/reviews/` |
-| tiles | Assigned manuscripts · Decisions · Reviewer profile | `NOT BUILT` |
+| tiles | Assigned manuscripts | `/reviews/` |
+| tiles | Decisions · Reviewer profile | `NOT BUILT` |
 
 Before **11** → after **0**.
 
@@ -252,7 +330,7 @@ Before **11** → after **0**.
 | sidebar | Settings | `NOT BUILT` | The archive stores no configurable platform settings. |
 | sidebar | Audit logs | `NOT BUILT` | There is no audit table. |
 | sidebar | Account settings / Return to public site | `/account/` · `/` | |
-| top bar | Search · Profile · Open next task · View all | `NOT BUILT` · `/account/` · `NOT BUILT` · `NOT BUILT` | No site-wide search route is linked. |
+| top bar | Search · Profile · Open next task · View all | `/search/` · `/account/` · `/admin/archive/` · `/admin/archive/` | `/search/` is the site-wide search; it is linked now, and the queue opens on the next record needing work. |
 | tiles 01–09 | System overview … Analytics | the same eight destinations as the sidebar | |
 | tiles 10–11 | Settings · Audit logs | `NOT BUILT` | |
 
@@ -331,17 +409,22 @@ Grouped by dashboard, in the words of the table or route that does not exist. **
 
 | Feature | What is missing |
 |---|---|
-| **Site-wide search** | The "Search" button on every workspace. `/search/` exists but is not a site-wide search over histories, towns, documents and people, and linking a button labelled "Search" to it would promise more than it does. A route that queries every index and one page that shows the result groups. |
-| **A task queue** | The "Open next task" button and the "Priority work" panel's "View all". A `task` table with an assignee, a due date and a link back to its subject, plus a route to list one account's tasks. |
-| **Follow / save / history** | The reader's four metrics and four tiles. A `saved_item` table, a `topic_follow` table and a `read_event` table, each keyed by account, plus routes to list them. `fillDashboard` can already render real counts the moment those tables exist. |
+| **`Open next task` and `View all`** | **BOTH ARE RESOLVED PER WORKSPACE AND ARE NO LONGER MISSING.** Every one of the 14 placeholders behind them now reaches a real page: `/library/#history` or `/submit/` for a reader, student or teacher, `/reviews/` for an expert reviewer, `/admin/archive/` for an editor or administrator (the queue opens on the next record needing work), and `View all` opens the same list the panel summarises. *What would still be a new feature is a**dedicated task model** — a `task` table with an assignee and a due date — because the archive's work list is records, not tickets.* |
+| **Follow / save / history** | **BUILT.** `0060_ozikoro_library.sql` adds `ozikoro_saved` and `ozikoro_read_event`; `library.ts` reads and writes them; `/library/` lists all three; the record route records a read for a signed-in reader; and the series pages carry Save and Follow. *What is still missing is one design decision rather than a table:* **the design's article screen draws no Save control**, so saving happens from the archive's own series pages, not from the record itself. |
+
+> **`Site-wide search` HAS LEFT THIS LIST.** It was the first row, and it was wrong: `/search/` is a real
+> page — *"Search across the whole platform … Knowledge over the archive and the knowledge graph, and Research
+> over the publications and the people who wrote them"* — and its own health row above used to claim it was
+> "not the site-wide search the dashboards' Search button promises". **Every dashboard's `Search` button now
+> reaches it**, and `DASHBOARD_UNBUILT_MAP` no longer says otherwise.
 
 ### Reader
 
 | Feature | What is missing |
 |---|---|
-| Saved histories | A table of saved articles per account, and a route to list it. |
-| Followed topics | A follow table joining account to topic, and a route to list it. |
-| Reading history | A read-event table per account, and a route to list it. |
+| Saved histories | **BUILT.** `ozikoro_saved` (migration 0060), `setSaved`/`listSaved`, the Save form on every series page, and the list at `/library/#saved`. |
+| Followed topics | **BUILT.** `ozikoro_follow` already existed; `/library/#following` lists the topics followed and offers Follow/Unfollow on every series, and `/topics/<slug>/` carries the control in the series header. |
+| Reading history | **BUILT.** `ozikoro_read_event` (migration 0060), recorded by `/[slug]/route.ts` for a signed-in reader, listed at `/library/#history` with a Forget button per record. |
 
 ### Student
 
@@ -350,8 +433,8 @@ Grouped by dashboard, in the words of the table or route that does not exist. **
 | Projects (own) | A project record owned by an account, and a route to list that account's own work. The public `/projects/` lists finished programmes. |
 | Supervisor & institution | Fields on the member record, and a route to edit them. |
 | Notes | A private notes table per account, and a route to read and write it. |
-| Submissions | A submission queue joining an account to what it sent, and a route to list it. |
-| Learning | A course catalogue for this site. `learn.ozituma.com` is a **separate application** with its own accounts database; nothing here serves it. |
+| Submissions | **WIRED for the student** — `/submit/` lists *"the author's own work at every state"* — and still `NOT BUILT` for the community knowledge holder, whose role does not hold `submit_work` to open that page. |
+| Learning | **WIRED, NOT BUILT HERE.** The label is a link to `https://academy.ozikoro.com/` — measured HTTP/2 200 — which is the host the archive's own course titles already use. *It keeps its own accounts*, so a signed-in reader may arrive there signed out; that is recorded as the one counter-argument in `DASHBOARD_LINK`. |
 
 ### Teacher
 
@@ -389,16 +472,16 @@ Grouped by dashboard, in the words of the table or route that does not exist. **
 
 | Feature | What is missing |
 |---|---|
-| Entity linking | An entity-resolution tool over the archive's place and person names — `/entities/<slug>` exists, the tool that maintains it does not. |
+| Entity linking | **WIRED, NOT BUILT HERE.** `/admin/entities/` is the tool: it runs `buildEntityGraph`, which links published records to the entities their titles name, and it is gated on `edit_entity` — **which the editor role holds**. |
 | Verification | A verification queue over the claims a record makes, and a route to decide them. |
 | Revisions | A revision-history table per record, and a route to compare two of them. |
-| Tasks | A task table assigned to an account, and a route to list it. |
+| Tasks | **WIRED, NOT BUILT HERE.** The editor's work list is the editorial queue, which `/admin/archive/` opens on, worst-documented first. A dedicated task table with an assignee and a due date is still not built. |
 
 ### Reviewer
 
 | Feature | What is missing |
 |---|---|
-| Assigned manuscripts | An assignment table joining a reviewer to a work, and a route to list it. |
+| Assigned manuscripts | **WIRED, NOT BUILT HERE.** `/reviews/` is *"a reviewer's own queue … only the reviews assigned to this person, and only the open ones"*, gated on `expert_review` — the reviewer role's own capability. |
 | Decisions | A reviewer-decision record, and a route to read it back. |
 | Reviewer profile | Reviewer-specific fields on the member record, and a route to edit them. |
 
@@ -657,9 +740,14 @@ route and `design-fill.test.ts` cannot disagree, and the test reads all twenty r
 | `/academy/` | the five course titles | `https://learn.ozituma.com/` | 200 |
 | `/archive-index/` | All 62 clans → | `/clans/` | 200 |
 
-The academy's five are wired to `learn.ozituma.com` **because the screen says so in its own words** —
-"Delivered at learn.ozituma.com · enrolment opens there". This is not the dashboards' `Learning` item, which
-promises a catalogue inside this site and remains `NOT BUILT`.
+The academy's five are wired to the Academy's own host — `https://academy.ozikoro.com/`, measured HTTP/2 200
+— and **the dashboards' `Learning` item is wired to the same host.** This paragraph used to say the opposite:
+that `Learning` "promises a catalogue inside this site and remains `NOT BUILT`". **That is now false.** The
+archive retired its interim `/academy/` page in favour of the Academy, the academy screen's own course titles
+point there, and *"Learning" on a student's workspace means the courses*. The judgement is recorded in
+`DASHBOARD_LINK` alongside the one counter-argument — **the Academy keeps its own accounts, so a signed-in
+reader here may arrive there signed out** — because a link to a real page the reader may have to sign in to is
+still a smaller untruth than a gold sidebar item that does nothing.
 
 ### The twenty-eight that became non-links
 
