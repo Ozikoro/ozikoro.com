@@ -40,6 +40,7 @@ import { extendWatchScript, fillWatchVideo } from './design-fill.ts';
 import { COLLECTION_CAMERA_SIGN, renderCollection } from './design-fill.ts';
 import { fillDocuments } from './design-fill.ts';
 import { renderNoNameableDocuments } from './design-fill.ts';
+import { renderTown } from './design-fill.ts';
 import {
   AFRICAN_COUNTRIES,
   AFRICAN_COUNTRY_COUNT,
@@ -3758,4 +3759,76 @@ test('an empty grid is emptied and explained, and never left holding the demonst
   /* An empty list with no sentence still says the plain thing rather than showing a blank space. */
   const bare = fillDocuments(DOCUMENTS, []);
   assert.match(pdfGrid(bare), /No document is listed here yet\./);
+});
+
+/* ------------------------------------------------------------------------------------------------
+ * THE REGISTER'S CARD, MEASURED AGAINST THE DESIGN'S OWN CARD
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * THE DESIGN DRAWS ONE CARD SHAPE AND THIS IS IT, READ FROM `towns.html` RATHER THAN RESTATED.
+ *
+ * `towns.html`'s own grid holds six cards and every one is
+ * `<a href><img src alt=""><span><small>REGION</small><strong>NAME</strong><em>View connected records →</em></span></a>`
+ * — **four elements and no others**: a photograph, the region, the name, and the design's own call to
+ * action. The `alt` is the empty string in all six, because the picture is decorative and the name beneath
+ * it is visible text.
+ *
+ * The register at `/towns/` (which is `clan-towns/page.tsx`, 301'd to `/clan-towns/`) draws its own cards,
+ * so this asserts the two shapes cannot drift: `renderTown` is the design screen's card and the page's card
+ * is the same four elements in the same order. **An earlier round put a fifth thing in the `<small>` line**
+ * — `· photograph from "…"`, which is true and which the design does not draw — so the count of elements is
+ * asserted as well as their names.
+ */
+test('the register’s town card is the design’s town card, element for element, and no more', () => {
+  const design = screen('towns');
+  const grid = /<div class="sx-town-grid">([\s\S]*?)<\/div>/.exec(design)?.[1] ?? '';
+  const designCards = grid.match(/<a\b[\s\S]*?<\/a>/g) ?? [];
+  assert.ok(designCards.length >= 6, 'the design’s grid no longer holds the cards this test reads');
+
+  /*
+   * The design's own card, in its own words: pull the element sequence out of the first one. It is the
+   * `<em>` text that matters most — `View connected records →` is the design's sentence, not the archive's.
+   */
+  const designEm = /<em>([\s\S]*?)<\/em>/.exec(designCards[0] ?? '')?.[1];
+  assert.equal(designEm, 'View connected records →', 'the design’s call to action has changed');
+  for (const card of designCards) {
+    assert.match(card, /^<a\b[^>]*><img\b[^>]* alt=""><span><small>[\s\S]*?<\/small><strong>[\s\S]*?<\/strong><em>[\s\S]*?<\/em><\/span><\/a>$/,
+      `a design card is not the four-element shape this test asserts: ${card.slice(0, 120)}`);
+  }
+
+  /* One card with a photograph and one without, which is the whole of what the archive can say. */
+  const withPhoto = renderTown({
+    name: 'Igbodo', href: '/town/igbodo-northern-ika/', region: 'Delta',
+    image: '/media/ozikoro/11219-obi-of-igbodo.jpg', records: 1,
+  });
+  const without = renderTown({
+    name: 'Unwana', href: '/town/unwana/', region: 'Ebonyi', image: null, records: 0,
+  });
+
+  /*
+   * THE ELEMENT SEQUENCE, WHICH IS THE PART THE TWO CARDS MUST SHARE. The design puts the photograph
+   * first and the words in a `<span>`; a card that leads with a letter, a glyph or nothing is not the
+   * design's card. The trailing `span` is the arrow's own: this module wraps the design's `→` in
+   * `<span aria-hidden="true">`, so a screen reader does not read an arrow as part of the sentence.
+   */
+  assert.match(withPhoto, /^<a href="\/town\/igbodo-northern-ika\/"><img\b[^>]*><span><small>Delta<\/small><strong>Igbodo<\/strong><em>[\s\S]*?<\/em><\/span><\/a>$/);
+  assert.match(without, /^<a href="\/town\/unwana\/"><span><small>Ebonyi<\/small><strong>Unwana<\/strong><em>[\s\S]*?<\/em><\/span><\/a>$/);
+  assert.deepEqual(
+    [...withPhoto.matchAll(/<([a-z]+)\b/g)].map((m) => m[1]),
+    ['a', 'img', 'span', 'small', 'strong', 'em', 'span'],
+    'a card with a photograph carries an element the design does not draw'
+  );
+  assert.deepEqual(
+    [...without.matchAll(/<([a-z]+)\b/g)].map((m) => m[1]),
+    ['a', 'span', 'small', 'strong', 'em', 'span'],
+    'a card without a photograph carries an element the design does not draw'
+  );
+  /*
+   * THE EMPTY STATE IS THE DESIGN'S OWN: no photograph slot at all, not a glyph, a letter or a stand-in.
+   * `renderTown` draws nothing where the archive holds no photograph for the entry, which is the same
+   * choice `clan-towns/page.tsx` makes for `entry.imageKey === null`.
+   */
+  assert.doesNotMatch(without, /<img/, 'a card with no photograph grew one');
+  assert.doesNotMatch(without, /photograph from/, 'the card is attributing a photograph it does not draw');
 });

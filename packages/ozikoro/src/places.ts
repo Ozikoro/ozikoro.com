@@ -137,41 +137,27 @@ export interface PlaceSummary {
    * same link the article cards are built from — so it is a photograph the archive already asserts
    * belongs to this place rather than a picture chosen to fill the slot.
    *
-   * **Null is the honest answer for the 115 of 190 entries the archive holds no such photograph
-   * for**, and the card is drawn without one rather than given a stand-in. "renderTown" has made that
-   * call for the design screen since it was written; this is the same fact for the app's own page.
+   * ── BUT ONLY WHEN THE RECORD'S TITLE NAMES THIS ENTRY AND NO OTHER ────────────────────────────────
+   *
+   * A record's featured media is its own photograph of its own subject, and one record can be linked to
+   * several entries. **Drawing that picture on every linked entry's card is how the same photograph came
+   * to stand for two different places, which is the one thing this card must not do** — measured, the
+   * register holds TWO published entries called Igbodo (a section in Enugu, `igbodo`; the Ika town in
+   * Delta, `igbodo-northern-ika`) and `/igbodo-a-community-formed-by-convergence/` is linked to both, so
+   * its `11219-obi-of-igbodo.jpg` was drawn on the Enugu section's card as well as the Ika town's.
+   *
+   * So the record must NAME this entry in its own title, by the register's own name or one of its
+   * aliases, with the same word boundary `titleNames` applies (`entity-graph.ts`) and a dash and a space
+   * read alike, so `Ute-Okpu` matches the entry the register writes as `Ute Okpu`. **And the title must
+   * name exactly ONE published entry**, so a record whose title names two places is a record whose
+   * photograph is not evidence for either card.
+   *
+   * **Null is the honest answer where the archive holds no such photograph for this entry**, and the card
+   * is then drawn without one rather than given a stand-in — the design's own empty state.
+   * "renderTown" has made that call for the design screen since it was written; this is the same fact for
+   * the app's own page.
    */
   imageKey: string | null;
-  /**
-   * The record the photograph above comes from, and how many places that record names — or null.
-   *
-   * ── WHY THE PHOTOGRAPH IS NOT SIMPLY "THIS PLACE'S" ────────────────────────────────────────────────
-   *
-   * Measured on the served "/towns/": **seven photographs are drawn on sixteen cards across sixteen
-   * distinct entries** (`11196-izuogu-town.jpg` on Ndizuogu and Aro; `10234-5E0E1409-….jpeg` on Edda,
-   * Abam and Ohafia; `5850-Okposi-Salt-Lake-1.webp` on Okposi and both Uburus; `11219-obi-of-igbodo.jpg`
-   * on both Igbodos; and three more on two cards each). The mechanism is one row: a record may be linked
-   * to more than one entry through "ozikoro_article_entity", and its **own** featured media is then drawn
-   * on each linked entry's card.
-   *
-   * **The Igbodo pair was read end to end and the record names both places on its own page** —
-   * "/igbodo-a-community-formed-by-convergence/" carries `<a href="/entities/igbodo/">Clan Igbodo</a>` and
-   * `<a href="/entities/igbodo-northern-ika/">Town Igbodo</a>` beside the figure
-   * "/media/ozikoro/11219-obi-of-igbodo.jpg". So the picture is the record's, and the record names the
-   * place the card names. **What a reader cannot see from the card is which record the picture came
-   * from**, and that is what these two fields let the card say.
-   *
-   * "links" counts the DISTINCT entities the supplying record names — every card in the seven groups was
-   * checked against its record's own page, and each record names the place on the card beside the others:
-   * "The Nsukka Industrial Complex: Lejja and Opi" names `Clan Nsukka`, `Town Lejja` and `Town Opi`;
-   * "The Igbo-Egu-Nkalu War…" names `Clan Afikpo` and `Clan Nkalu`; "The History and Origins of
-   * Arondizuogu" names `Clan Ndizuogu` and `Ethnic group Aro`; "Ije Udo Onicha Mmili" names `Clan Onicha`
-   * and `Town Onicha`; and the Okposi salt-lake record names `Clan Uburu`, `Town Okposi` and `Town Uburu`.
-   * **So the count is of things named, not of entries with a "clan_id"** — an "Ethnic group" chip is a
-   * name the record carries too, and counting only clan rows would have let the Aro card draw the picture
-   * with no attribution at all. It is 1 for a record that names one thing, which is the ordinary case.
-   */
-  imageRecord: { slug: string; title: string; links: number } | null;
 }
 
 /** One place: an entry, its towns, the names borne there, and where else it is recorded. */
@@ -269,14 +255,6 @@ function toSummary(row: Record<string, unknown>): PlaceSummary {
         : null,
     matchedTown: row.matched_town == null ? null : String(row.matched_town),
     imageKey: row.image_key == null ? null : String(row.image_key),
-    imageRecord:
-      row.image_key == null || row.photo_slug == null
-        ? null
-        : {
-            slug: String(row.photo_slug),
-            title: String(row.photo_title ?? ''),
-            links: Number(row.photo_links ?? 1),
-          },
   };
 }
 
@@ -372,7 +350,7 @@ export async function listPlaces(
               where ct.clan_id = c.id and ct.name ilike ${patternAt}
               order by ct.is_head desc, ct.name limit 1) as matched_town,
             /*
-             * A PHOTOGRAPH THE ARCHIVE LINKS TO THIS ENTRY, OR NOTHING — AND THE RECORD IT CAME FROM.
+             * A PHOTOGRAPH THE ARCHIVE LINKS TO THIS ENTRY, OR NOTHING.
              *
              * The design's town card leads with an image and the register's cards carried none, so the
              * served page was missing a shape the design draws. The image is the featured media of a
@@ -383,31 +361,57 @@ export async function listPlaces(
              * a "clan_id" — "getPlace" reads it with "limit 1" for exactly that reason — and a join would
              * multiply the register's rows, which is a wrong list rather than a missing picture. "order
              * by" makes the choice stable run to run rather than whatever the planner returns first, and
-             * "limit 1" keeps it one value per entry. A lateral is what lets the ONE chosen row bring
-             * back three columns; three copies of the same correlated subquery would be three chances for
-             * them to name different records.
+             * "limit 1" keeps it one value per entry.
              *
-             * "photo_links" IS WHY THE CARD CAN BE HONEST. It counts the DISTINCT entities the supplying
-             * record names, because a record may be linked to several — measured, seven of the register's
-             * photographs are drawn on sixteen cards that way — so the card can say which record the
-             * picture came from when the picture also stands for a differently named place. See
-             * "PlaceSummary.imageRecord" for the measurement.
+             * ── THE RECORD'S TITLE MUST NAME EXACTLY ONE PUBLISHED ENTRY, AND THIS ONE ────────────────
+             *
+             * A record's featured media is its own picture of its own subject, and one record can be
+             * linked to several entries. **Drawing it on every linked card is how one photograph came to
+             * stand for two places**: /igbodo-a-community-formed-by-convergence/ is linked to BOTH
+             * Igbodos, and its 11219-obi-of-igbodo.jpg — the obi of the IKA town — was drawn on the
+             * Enugu section's card as well.
+             *
+             * So a card is given a picture only when the record's title names **exactly one** published
+             * entry, which is the entry the card is for. That drops the Igbodos entirely: the title
+             * "Igbodo: A Community Formed by Convergence" names two published entries, so the record is
+             * not evidence for either card and the obi is withheld rather than shown to one of them. An
+             * entry left without a picture is drawn without one, which is the design's own empty state.
+             *
+             * The boundary and the dash/space equivalence are titleNames's ("entity-graph.ts"): a name is
+             * matched whole, so Owa does not match Owan, and Ute-Okpu matches the entry the register
+             * writes as Ute Okpu. "c.name" is the register's own name and "c.aliases" its other
+             * spellings, with names under three characters refused ("MIN_NAME"); the claim read here is
+             * "this record names this entry", not "this record belongs to this entity", so no name is
+             * refused for being another entity's alias.
              */
-            photo.storage_key as image_key, photo.record_slug as photo_slug,
-            photo.record_title as photo_title, photo.record_links as photo_links
+            photo.storage_key as image_key
        from clan c
        left join tribe t on t.id = c.tribe_id
        left join clan p on p.id = c.parent_id
        left join lateral (
-         select m.storage_key, a.slug as record_slug, a.title as record_title,
-                (select count(distinct ae2.entity_id)::int
-                   from ozikoro_article_entity ae2
-                  where ae2.article_id = a.id) as record_links
+         select m.storage_key
            from ozikoro_article a
            join ozikoro_media m on m.id = a.featured_media_id
           where a.status = 'published' and a.is_page = false
             and a.id in (select ae.article_id from ozikoro_article_entity ae
                           where ae.entity_id in (select id from ozikoro_entity where clan_id = c.id))
+            and (select count(*)::int
+                   from clan c2
+                  where c2.published
+                    and exists (
+                      select 1
+                        from (
+                          select regexp_replace(lower(c2.name), '[^a-z0-9]+', ' ', 'gi') as n
+                          union all
+                          select regexp_replace(lower(al.alias), '[^a-z0-9]+', ' ', 'gi')
+                            from unnest(coalesce(c2.aliases, '{}'::text[])) as al(alias)
+                        ) n2
+                       where length(btrim(n2.n)) >= 3
+                         and (btrim(n2.n) = regexp_replace(lower(a.title), '[^a-z0-9]+', ' ', 'gi')
+                              or ' ' || regexp_replace(lower(a.title), '[^a-z0-9]+', ' ', 'gi') || ' '
+                                 like '% ' || btrim(n2.n) || ' %')
+                    )
+                 ) = 1
           order by a.published_at desc nulls last, a.id desc
           limit 1
        ) photo on true

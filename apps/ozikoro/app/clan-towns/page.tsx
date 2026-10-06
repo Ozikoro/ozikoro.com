@@ -67,26 +67,25 @@
  * ── THE CARD'S PHOTOGRAPH, AND WHICH RECORD IT COMES FROM ────────────────────────────────────────
  *
  * `towns.html` draws every card as `<a href><img …><span><small><strong><em></span></a>` — a photograph
- * behind a dark gradient, with the region, the name and the call to action over it — and the photograph is
- * read from the archive rather than chosen: `PlaceSummary.imageKey` is the featured media of a published
- * record linked to the entry through `ozikoro_article_entity`.
+ * behind a dark gradient, with the region, the name and the call to action over it, and **nothing else**.
+ * The photograph is read from the archive rather than chosen: `PlaceSummary.imageKey` is the featured
+ * media of a published record linked to the entry through `ozikoro_article_entity`.
  *
- * **Seven of those photographs are drawn on sixteen cards across sixteen distinct entries**, because a
- * record may be linked to more than one place and the picture is that record's own. Every one of the seven
- * was checked against its record's own page and **each record names the place on the card**: "The Nsukka
- * Industrial Complex: Lejja and Opi" names `Clan Nsukka`, `Town Lejja` and `Town Opi`; "The Igbo-Egu-Nkalu
- * War…" names `Clan Afikpo` and `Clan Nkalu`; "The History and Origins of Arondizuogu" names `Clan
- * Ndizuogu` and `Ethnic group Aro`; "Ije Udo Onicha Mmili" names `Clan Onicha` and `Town Onicha`; the
- * Okposi salt-lake record names `Clan Uburu`, `Town Okposi` and `Town Uburu`; and "Igbodo: A Community
- * Formed by Convergence" names `Clan Igbodo` and `Town Igbodo` beside `11219-obi-of-igbodo.jpg`.
+ * **THE RECORD'S TITLE MUST NAME EXACTLY ONE PUBLISHED ENTRY, AND THIS ONE.** A record's featured media is
+ * its own photograph of its own subject, and one record can be linked to several entries, so drawing it
+ * on every linked card is how one picture came to stand for two places. Measured:
+ * `/igbodo-a-community-formed-by-convergence/` is linked to BOTH Igbodos — `igbodo`, a *section* in
+ * Enugu, and `igbodo-northern-ika`, the Ika *town* in Delta — and its `11219-obi-of-igbodo.jpg`, which is
+ * the Ika town's obi, was therefore drawn on the Enugu section's card too. **Its title names two published
+ * entries, so it is not evidence for either card and both Igbodos are drawn without a picture** rather
+ * than the wrong one being shown; an entry the archive holds no photograph of its own for is drawn without
+ * one, which is the design's own empty state.
  *
- * So the card is not showing one place's photograph as another's — it is showing a record's photograph,
- * and the record names this place too. **What the card could not say is which record the picture came
- * from**, and it says so now, on exactly the cards whose record names more than one thing, in the same
- * `<small>` line that carries the region. Drawing the picture only where a record names one place was
- * rejected deliberately: it would strip the obi of Igbodo off the Ika town's card, and that photograph is
- * correct for it. The `alt` stays the design's empty string — the image is decorative, and the record's
- * name is visible text rather than something only a screen reader receives.
+ * **THE CARD SAYS NOTHING THE DESIGN DOES NOT DRAW.** An earlier round added `· photograph from “…”` to
+ * the `<small>` line on the cards whose record names more than one thing. It was true and it is not in
+ * `towns.html`, so it is gone: the card is the photograph, the region, the name and the call to action.
+ * The `alt` stays the design's empty string — the image is decorative, and the record's name is visible
+ * text rather than something only a screen reader receives.
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -444,27 +443,17 @@ export default async function ClanTownsPage({
                 <Link key={entry.slug} href={`/town/${entry.slug}/`}>
                   {/*
                     The design's own `<img>` slot, filled only where the archive links a photograph to
-                    this place. An entry with none is drawn without one rather than given a stand-in:
-                    the card's words carry the whole meaning and a borrowed picture would be worse than
-                    an absent one. `alt=""` is the design's, so a decorative image makes no claim — the
-                    record's name below is visible text instead.
+                    this place — a record whose title names this entry and no other published entry.
+                    An entry with none is drawn without one rather than given a stand-in: the card's
+                    words carry the whole meaning and a borrowed picture would be worse than an absent
+                    one. `alt=""` is the design's, so a decorative image makes no claim — the record's
+                    name below is visible text instead.
                   */}
                   {entry.imageKey ? (
                     <img src={mediaPath(entry.imageKey)} alt="" loading="lazy" />
                   ) : null}
                   <span>
-                    <small>
-                      {entry.region ?? 'Region not recorded'}
-                      {/*
-                        WHICH RECORD THE PHOTOGRAPH COMES FROM, SAID ONLY WHERE IT MATTERS. When the
-                        supplying record names more than one thing, the same picture stands on another
-                        card too, and the card says whose it is so a reader is not left reading it as
-                        this place's own. One name is the ordinary case and needs no sentence.
-                      */}
-                      {entry.imageRecord && entry.imageRecord.links > 1
-                        ? ` · photograph from “${entry.imageRecord.title}”`
-                        : null}
-                    </small>
+                    <small>{entry.region ?? 'Region not recorded'}</small>
                     <strong className="oz-igbo" lang="ig">
                       {entry.name}
                     </strong>
