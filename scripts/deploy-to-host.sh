@@ -319,17 +319,34 @@ REMOTE
 # 873 files uploaded, the container never rebuilt, and the town and dashboard fixes never landed.
 # The values the parent must supply are placeholders now, and they are substituted here.
 #
-# ⚠️ NO BACKSLASH LINE-CONTINUATIONS. The first version of this was `sed -i \` with six continued
-# lines, and it died with `sed: -e: No such file or directory` — sed read the `-e` as a FILENAME,
-# the remote script kept its placeholders, and THE INSTALL NEVER RAN. **That was the second
-# consecutive deploy that uploaded 873 files and installed none of them**, and both times the local
-# output looked like success. One `sed` per placeholder, each on one line, cannot be miscontinued.
-sed -i "s|__BUCKET__|$BUCKET|g" /tmp/deploy-remote.sh
-sed -i "s|__REMOTE_DIR__|$REMOTE_DIR|g" /tmp/deploy-remote.sh
-sed -i "s|__AWS_REGION__|$AWS_REGION|g" /tmp/deploy-remote.sh
-sed -i "s|__COMPOSE__|$COMPOSE|g" /tmp/deploy-remote.sh
-sed -i "s|__DO_BUILD__|$DO_BUILD|g" /tmp/deploy-remote.sh
-sed -i "s|__INSTANCE_ID__|$INSTANCE_ID|g" /tmp/deploy-remote.sh
+# ⚠️ NOT `sed`. Two distinct failures, both from this one step:
+#
+#   1. `sed -i \` with six continued lines died with `sed: -e: No such file or directory` —
+#      sed read the `-e` as a FILENAME, the placeholders survived, and THE INSTALL NEVER RAN.
+#   2. `sed -i "s|…|…|g" file` died with `sed: 1: "file": undefined label` — **because this script
+#      runs on macOS, whose `sed -i` takes a MANDATORY SUFFIX argument** (`sed -i '' …`), unlike the
+#      GNU sed on the host. The same line is correct on Linux and wrong here, and this script only
+#      ever runs here.
+#
+# `python3` is already a dependency of this script and has neither problem: no continuation, no
+# platform-specific in-place flag, and it fails loudly if a placeholder is left behind.
+DEPLOY_BUCKET="$BUCKET" DEPLOY_REMOTE_DIR="$REMOTE_DIR" DEPLOY_AWS_REGION="$AWS_REGION" \
+DEPLOY_COMPOSE="$COMPOSE" DEPLOY_DO_BUILD="$DO_BUILD" DEPLOY_INSTANCE_ID="$INSTANCE_ID" \
+python3 - <<'PYSUB'
+import pathlib, os, sys
+p = pathlib.Path('/tmp/deploy-remote.sh')
+s = p.read_text()
+for name in ['BUCKET', 'REMOTE_DIR', 'AWS_REGION', 'COMPOSE', 'DO_BUILD', 'INSTANCE_ID']:
+    s = s.replace(f'__{name}__', os.environ.get(f'DEPLOY_{name}', ''))
+p.write_text(s)
+left = [l for l in s.split('\n') if '__' in l and l.split('__')[1][:1].isupper() and l.split('__')[1].rstrip('_').isupper()]
+if left:
+    sys.stderr.write('!! a placeholder survived substitution:\n')
+    for l in left[:8]:
+        sys.stderr.write(f'   {l}\n')
+    sys.exit(1)
+print(f'    substituted; {len(s)} bytes, no placeholder left')
+PYSUB
 # --- and prove nothing unexpanded survived ---
 if grep -qE '__[A-Z_]+__' /tmp/deploy-remote.sh; then
   echo "!! a placeholder survived substitution:" >&2
