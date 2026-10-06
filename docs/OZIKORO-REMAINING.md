@@ -28685,3 +28685,119 @@ contributor`, `article → media`, `article_media → article`, `article_media �
 
 **The archive on the host is now the newer copy's archive, set for set, and the one record the cutover
 document called the only WordPress page never imported is served rather than 404.**
+
+---
+
+## Round 369 — the town page said "no published history" and the records were there all along
+
+**The owner's report, verbatim:** *"i went to this page https://ozikoro.com/town/ndizuogu/ and it told me it
+has no archive links to published history to izuogu, then i serched and found many articles izuogu and
+arondizuogu were mentioned."*
+
+**That sentence is not a bug and it was not deleted.** `/town/<slug>/` read `ozikoro_article_entity` — the
+records CATALOGUED under a place — and zero is a real answer to *"is this record about this place"*.
+`entity-graph.ts` links on the TITLE alone for exactly that reason and says so. **What the page lacked was
+the second, weaker, true claim: the records whose own words NAME the place.** The archive held every record
+the owner found by searching. It now lists them, under their own heading.
+
+### 1. The words, which are the archive's own and not an invented list
+
+`evidenceNames` in `packages/ozikoro/src/entity-graph.ts` (new export, and `buildEntityGraph`'s own
+`matchesFor` now calls it, so there is ONE rule) reads a place's name and its aliases through the filters
+that file already measured:
+
+| | |
+|---|---|
+| Ndizuogu's aliases, from `data/clans/clans.json` | `Arondizuogu`, `Ndi Izuogu`, `Izuogu na Iheme`, `Aro-Ndizuogu`, `Izuogu` |
+| read (5) | the name and every alias except the last |
+| refused (1) | **`Izuogu` — "a surname"**, the reason `entity-graph.ts` recorded after measuring *"Ezekiel Izuogu"* |
+
+**`Izuogu` is the word the owner searched for and it is deliberately NOT matched.** `Izuogu Mgbokpo` (the
+founder) and `Ezekiel Izuogu` (the architect) are the same string; a matcher cannot tell them apart, so the
+page prints the refusal and its reason instead of claiming the architect as a mention of the town. Measured
+across the 188 published entries: **231 name-and-alias tokens, 219 read, 12 refused**, 0 below the
+three-letter floor, 0 carrying a tone mark or a dotted vowel (so the `english` configuration's
+diacritic-blindness does not bite here — checked per token against the database, 0 produce an empty query).
+
+### 2. The query, and why it is shaped the way it is
+
+One statement per name token (mean 1.15, max 5 per page — Ndizuogu is the maximum), each a materialized CTE
+around the full-text predicate plus a join back, then `recordText` and the word-boundary rule in JavaScript.
+**No new table, no new index, no precomputation** — nothing to go stale when a record is edited.
+
+Measured with `explain (analyze)` on the archive's own 1,051 records, for `Arondizuogu`:
+
+| shape | cost |
+|---|---|
+| the predicate in the same WHERE as `status`/`is_page` | **74.1 ms**, reads all 1,051 rows |
+| the predicate alone in a MATERIALIZED cte, joined back | **6.2 ms**, 23 index entries, 12 rows |
+| no full-text predicate — the per-page body scan | **1,846.2 ms** |
+
+The partial index `ozikoro_article_title_idx` (`btree (id) where status='published' and is_page=false`)
+covers every published record, so with those predicates beside the full-text one the planner satisfies them
+from it and tests the tsvector in the heap. Inside the CTE the predicate stands alone, that index cannot
+cover it, and the GIN index answers it.
+
+**Two things were tried and removed because the measurement condemned them.** A `strpos` prefilter over
+`regexp_replace(body_html, '<[^>]+>', ' ')` — a correct superset test, and 3,620 ms for the town `Item`
+against the index alone's 12.7 ms — and the pair of as-written/space-separated query forms, replaced by
+prefix queries on each part (`aro:* & ndizuogu:*`), because **the tokenizer is not a word-boundary engine**.
+
+### 3. What the cross-check found, which reading the code would not have
+
+For eight places, the indexed candidate set was compared with a brute-force scan of all 1,051 bodies under
+the same rule. It found two real faults:
+
+* **`Nsukka/Igbo-Ukwu` is ONE lexeme.** The record
+  `funeral-rites-for-dead-young-people-in-igboland` says *"In Nsukka/Igbo-Ukwu areas"*; the index holds
+  `nsukka/igbo-ukwu`, so the exact query missed a genuine mention. **Prefix queries fix it** (111 rows
+  against 110) and after the change **all eight places agree exactly: 0 missed, 0 extra.**
+* **A domain is not a sentence.** The record `k-o-mbadiwe-…` carries `www.arochukwu.info`; the index
+  indexes that as one lexeme and did not match, while the matcher did. The index was right.
+  `recordText` now removes a bare `www.` host as well as a scheme URL.
+
+**Still not reachable, stated rather than left to be found:** a tsquery cannot ask about the TAIL of a
+lexeme, so a record writing `Igbo/Nsukka` rather than `Nsukka/Igbo-Ukwu` would still not be listed. Nothing
+in the 1,051 records does that. `pg_trgm` is not available to PGlite (`pg_available_extensions` is empty of
+it), so a trigram index — the textbook fix — cannot be added to a migration that this cluster can replay.
+
+### 4. A name that is also an ordinary word: measured, then narrowed
+
+`Item` is a town in Abia State and the English noun. Under a bare word-boundary rule **23 records match and
+18 write it in lower case** — *"a significant trade item"*, *"each item carries traditional symbols"*.
+None of them mentions Item. A mention now counts only where the occurrence is written with a capital, which
+is how this archive writes a place's name. Cost, measured over all 188 places: **67 of 1,787 matches, 3.7%**
+— `Item` 23 → 5, `Ihechiowa` 54 → 27 (its alias `Ihe` is the Igbo word for *thing*), `Oke` 18 → 12.
+
+The direction is the archive's own: *"a wrong one is worse than a missing one"* (`NAME_IS_NOT_EVIDENCE`).
+
+### 5. The route, before and after
+
+`getPlace` + `getEntityBySlug` + `listPlaceMentions`, one run per place, all 188 published places, against
+the real archive with the review server stopped:
+
+| | mean | median | p90 | p99 | max |
+|---|---|---|---|---|---|
+| before (the page as it was) | 76.4 ms | 65.2 ms | 106.2 ms | 280.9 ms | 332.4 ms |
+| after | 100.6 ms | 82.5 ms | 162.2 ms | 350.1 ms | 518.9 ms |
+| **the mention work alone** | **24.3 ms** | **13.8 ms** | **54.4 ms** | **271.8 ms** | **283.3 ms** |
+
+**The wall-clock comparison is not the measurement** — the load average moved between 68 and 406 while this
+round ran, and the same page measured 0.39 s and 1.63 s minutes apart on builds that differed only by other
+agents' work. The two numbers that mean something are the per-shape plan above (6.2 ms against 1,846.2 ms)
+and the median 13.8 ms this adds to a page.
+
+### 6. Not verified, and why
+
+* **`ozikoro.com` was not touched.** The live page's fault is the same page code, but the entity links that
+  make its "about" list empty locally present are data, and no deploy was made from here.
+* **The 267 `<loc>` in `/sitemap/places` are not 267 place pages.** 190 are `/clans/`, 76 are `/entities/`,
+  and one is the register index. The place pages are 190 by URL and 188 by `clan where published`.
+* **The sweep is a wall-clock number taken while the machine was crushed, and it is not a benchmark.** All
+  190 place URLs in `/sitemap/places` were fetched on the final build: **188 answered 200 and 2 did not** —
+  `/town/tribes/` and `/town/regions/`, which this sweep invented by rewriting `/clans/tribes/` and
+  `/clans/regions/` as if they were slugs. Every one of the 188 rendered both headings; 113 render the
+  "about" sentence, and all 113 of those render a mention list beneath it — **the shape production's
+  Ndizuogu is in, on 113 pages.** Times: mean 703 ms, median 600 ms, p90 1,105 ms, max 6,095 ms, with load
+  averages between 68 and 406 during the run. **The attributable number is the median 13.8 ms the mention
+  work adds, not this.**

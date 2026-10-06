@@ -29,12 +29,39 @@
  * match exists it is shown, and where it does not the page says the archive holds nothing for this community
  * yet. The brief is explicit that a town filed with nothing is a feature and must survive implementation;
  * inventing three sample placements would be the one thing it forbids.
+ *
+ * ── AND THE SENTENCE THAT STOOD THERE ALONE, WHICH IS THE FAULT THE OWNER REPORTED ──────────────────
+ *
+ * *"i went to this page https://ozikoro.com/town/ndizuogu/ and it told me it has no archive links to
+ * published history to izuogu, then i serched and found many articles izuogu and arondizuogu were
+ * mentioned."*
+ *
+ * **He is describing two different claims and the page was making only one of them.** "Histories about
+ * Ndizuogu" is a catalogue claim — `ozikoro_article_entity` — and zero is a real, honest answer to it. What
+ * was missing was the weaker, also-true claim underneath: records whose own words NAME the place. The
+ * archive held every record he found by searching; the page had nowhere to put them.
+ *
+ * So the `#histories` section now carries two lists under two headings, and **the "about" sentence is left
+ * word for word as it was** (`noLinkedHistorySentence`), because telling a reader "histories about
+ * Ndizuogu" and showing them a record that merely names it is exactly the misleading the sentence exists
+ * to prevent. See `packages/ozikoro/src/place-mentions.ts` for the matching rule, what it refuses and why.
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { getEntityBySlug, getPlace, placeKindSingular } from '@ozikoro/platform';
+import {
+  getEntityBySlug,
+  getPlace,
+  listPlaceMentions,
+  mentionsCapSentence,
+  mentionsHeading,
+  mentionsIntroSentence,
+  mentionsNamesSentence,
+  noLinkedHistorySentence,
+  noRecordNamesSentence,
+  placeKindSingular,
+} from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +106,17 @@ export default async function TownPage({ params }: { params: Promise<{ slug: str
    */
   const entity = clan.entitySlug ? await getEntityBySlug(db, clan.entitySlug) : null;
   const histories = entity?.articles ?? [];
+
+  /*
+   * THE RECORDS THAT NAME THIS PLACE, WHICH IS A DIFFERENT AND WEAKER CLAIM.
+   *
+   * The records already listed above are passed in so they are not repeated: a record catalogued as a
+   * history of this place is already named, and listing it twice would read as two records. The archive's
+   * own name-and-alias rule decides what counts, and the page prints what was read and what was refused —
+   * `Izuogu` among the refusals, because in this archive it is also a surname.
+   */
+  const mentions = await listPlaceMentions(db, { name: clan.name, aliases: clan.aliases }, histories.map((a) => a.slug));
+  const capNote = mentionsCapSentence(mentions.mentions.length, mentions.total);
 
   return (
     <>
@@ -132,11 +170,51 @@ export default async function TownPage({ params }: { params: Promise<{ slug: str
                   ))}
                 </div>
               ) : (
-                <p className="lede">
-                  The archive links no published history to {clan.name} yet. Its neighbours&rsquo; histories
-                  are not shown here, because a link to another community is not a history of this one.
-                </p>
+                <p className="lede">{noLinkedHistorySentence(clan.name)}</p>
               )}
+
+              {/*
+                THE SECOND LIST, AND IT IS NOT THE FIRST ONE.
+
+                The heading says "mention" because that is the claim, and the sentence under it says a
+                mention is not a history — which the reader needs before the cards, not after them. The
+                cards are the design's own three-child shape (`sx-town-articles` styles `a` as a grid with
+                exactly `small`, `strong` and `span`), and the `<small>` line says which of the place's
+                names the record carries and whether it is in the title or only in the text: a title match
+                is evidence the record is about the place, a body match is a mention, and the two are not
+                the same claim.
+              */}
+              <section className="section">
+                <div className="sx-head">
+                  <div>
+                    <p className="eyebrow">Named in other records</p>
+                    <h2>{mentionsHeading(clan.name)}</h2>
+                  </div>
+                </div>
+                {mentions.mentions.length > 0 ? (
+                  <>
+                    <p className="lede">{mentionsIntroSentence(clan.name, histories.length)}</p>
+                    <div className="sx-town-articles">
+                      {mentions.mentions.map((mention) => (
+                        <Link key={mention.slug} href={`/${mention.slug}/`}>
+                          <small>
+                            {mention.inTitle ? 'Named in the title' : 'Named in the text'} ·{' '}
+                            {mention.tokens.join(', ')}
+                          </small>
+                          <strong>{mention.title}</strong>
+                          <span>Read article →</span>
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="lede">{noRecordNamesSentence(clan.name)}</p>
+                )}
+                <p className="small muted">
+                  {mentionsNamesSentence(mentions.names)}
+                  {capNote ? ` ${capNote}` : ''}
+                </p>
+              </section>
             </section>
 
             <section id="record">

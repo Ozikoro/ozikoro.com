@@ -822,3 +822,23 @@ export async function getRegisterCascade(
     towns,
   };
 }
+
+/* ------------------------------------------------------------------------------------------------
+ * The records that NAME a place
+ * ---------------------------------------------------------------------------------------------- */
+
+/*
+ * `place-mentions.ts` is re-exported HERE rather than given its own line in `index.ts`.
+ *
+ * It is a module of its own because the claim it makes is a different one — the registers' rows are places,
+ * and this reads the RECORDS that name them — and because its matching rules want a test that reads no
+ * database. But it is reached through the export that already reaches this file, so the barrel needs no
+ * new entry and `/town/<slug>/` imports it from `@ozikoro/platform` exactly as it imports `getPlace`.
+ *
+ * **The two claims stay two.** `getPlace` and `entities.ts` answer "what is catalogued under this place";
+ * `listPlaceMentions` answers "which records' own words carry its name". A reader told "histories about
+ * Ndizuogu" and shown a record that merely names it has been misled, which is why the place page renders
+ * them under two headings and never merges them. See the module header for the matching rule, what it
+ * refuses, and the measurement behind each decision.
+ */
+export * from './place-mentions.ts';

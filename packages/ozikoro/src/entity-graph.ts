@@ -112,10 +112,24 @@ const WORD_CHAR = String.raw`[\p{L}\p{N}\u2010-\u2015_\-]`;
 const INNER_SEPARATOR = String.raw`[\s\u2010-\u2015_\-]+`;
 
 export function titleNames(title: string, token: string): boolean {
+  return nameOccurrence(title, token) !== null;
+}
+
+/**
+ * The occurrence `titleNames` accepts, with the text it actually matched — or null.
+ *
+ * `titleNames` is this function with the surface thrown away. It is separated out because the place page
+ * needs the SURFACE: the archive's prose writes a place's name with a capital, and a lower-case occurrence
+ * of a name that is also an ordinary word is the word. See `writtenAsName` in `place-mentions.ts` for the
+ * measurement that made that a rule rather than a preference.
+ */
+export function nameOccurrence(text: string, token: string): { surface: string } | null {
   const parts = token.trim().split(/[\s\u2010-\u2015_\-]+/).filter(Boolean);
-  if (parts.length === 0) return false;
+  if (parts.length === 0) return null;
   const body = parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join(INNER_SEPARATOR);
-  return new RegExp(`(?<!${WORD_CHAR})${body}(?!${WORD_CHAR})`, 'iu').test(title);
+  const match = new RegExp(`(?<!${WORD_CHAR})(${body})(?!${WORD_CHAR})`, 'iu').exec(text);
+  const surface = match?.[1];
+  return surface === undefined ? null : { surface };
 }
 
 /**
@@ -126,7 +140,7 @@ export function titleNames(title: string, token: string): boolean {
  * it; `Owan` and `Owa-Alero` are excluded by the boundary above, which is the rule that actually
  * does the work. The floor stays at three because a two-letter token is a syllable, not a name.
  */
-const MIN_NAME = 3;
+export const MIN_NAME = 3;
 
 /**
  * Names and aliases that are NOT evidence on their own, with the reason each was measured.
@@ -156,8 +170,15 @@ const MIN_NAME = 3;
  *     out (`Aro Confederacy`) still matches.
  *
  * A refused match is COUNTED and NAMED in `report.ambiguousNames`, never dropped in silence.
+ *
+ * **⚠️ AND THE LIST IS READ BY A SECOND CALLER, WHICH IS WHY IT IS EXPORTED.** `/town/<slug>/` lists the
+ * records that MENTION a place as well as the records linked to it, and a mention is a weaker claim than
+ * a link — but the WORDS that carry either claim are the same words. `evidenceNames` below is that shared
+ * reading, and this table is the half of it that says which tokens are not evidence at all. The reasons
+ * are quoted on the place page beside the counts, so a refusal is visible to the reader it affects rather
+ * than only to the operator who ran the builder.
  */
-const NAME_IS_NOT_EVIDENCE: Record<string, string> = {
+export const NAME_IS_NOT_EVIDENCE: Record<string, string> = {
   oba: 'the Benin royal title',
   osu: 'the caste institution',
   opi: 'the ọpị musical instrument',
@@ -180,6 +201,88 @@ interface ClanRow {
   origin_summary: string | null;
   aliases: string[] | null;
   published: boolean;
+}
+
+/**
+ * The names the archive will read for one place, and the names it will not — ONE rule with two callers.
+ *
+ * ── WHY THIS IS A FUNCTION RATHER THAN THE FILTER CHAIN IT REPLACES ─────────────────────────────────
+ *
+ * `buildEntityGraph` read this list inline: `[name, ...aliases]`, dropped anything shorter than
+ * `MIN_NAME`, dropped anything in `NAME_IS_NOT_EVIDENCE`, and dropped an alias another entity already
+ * owns as its own name. **`/town/<slug>/` now needs the same list for a different claim** — not "is this
+ * record ABOUT the place" but "does this record's own words NAME the place" — and a second copy of those
+ * four filters would drift from this one the first time either was edited. The two claims are different;
+ * the words that carry them are not.
+ *
+ * ── WHAT EACH REFUSAL MEANS, AND WHY EVERY ONE IS RETURNED RATHER THAN DROPPED ──────────────────────
+ *
+ *   * `refused` — the token is in `NAME_IS_NOT_EVIDENCE`, with the archive's own measured reason. `Izuogu`
+ *     is here: it is Ndizuogu's last alias and it is also a surname in this archive (*"Ezekiel Izuogu"*),
+ *     and a matcher cannot tell which one a bare occurrence is. **The owner searched for `Izuogu` and
+ *     found records; this is why the place page will not claim them all as mentions of Ndizuogu, and the
+ *     reason is printed on the page rather than kept in this file.**
+ *   * `ownedByAnother` — another entity already bears this name, so reading it here would take that
+ *     entity's records. `Aro` is the Aro people's own name and an alias of Arochukwu, and matching it
+ *     made the Aro people's records claim the town.
+ *   * `tooShort` — a token shorter than `MIN_NAME`. A two-letter token is a syllable, not a name.
+ *
+ * The three lists are returned rather than only counted because a caller has to be able to say WHY a name
+ * a reader typed was not read. A refusal the reader cannot see is a refusal they cannot correct.
+ */
+export interface EvidenceNames {
+  /** The tokens that may carry a match, the entity's own name first, in the order the register holds them. */
+  counted: string[];
+  /** Tokens `NAME_IS_NOT_EVIDENCE` refuses, each with the reason recorded there. */
+  refused: { token: string; reason: string }[];
+  /** Tokens not read because another entity already owns the name. */
+  ownedByAnother: string[];
+  /** Tokens below `MIN_NAME`. */
+  tooShort: string[];
+}
+
+/**
+ * Read one place's name and aliases through the three filters above.
+ *
+ * `ownedNames` is the set of every entity name in the graph, lowercased; it is only consulted for tokens
+ * that are not this entity's own name, so an entity can always match its own name even if another entity
+ * somehow holds it too. Pass an empty set when aliases are not being read — an entity with no aliases can
+ * only be dropped by length or by `NAME_IS_NOT_EVIDENCE`, and the query that builds `ownedNames` is one
+ * this function then does not need.
+ */
+export function evidenceNames(
+  entity: { name: string; aliases?: string[] | null },
+  ownedNames: ReadonlySet<string> = new Set()
+): EvidenceNames {
+  const ownName = entity.name.trim().toLowerCase();
+  const counted: string[] = [];
+  const refused: { token: string; reason: string }[] = [];
+  const ownedByAnother: string[] = [];
+  const tooShort: string[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of [entity.name, ...(entity.aliases ?? [])]) {
+    const token = raw.trim();
+    const key = token.toLowerCase();
+    if (token.length === 0 || seen.has(key)) continue;
+    seen.add(key);
+    if (token.length < MIN_NAME) {
+      tooShort.push(token);
+      continue;
+    }
+    const reason = NAME_IS_NOT_EVIDENCE[key];
+    if (reason) {
+      refused.push({ token, reason });
+      continue;
+    }
+    if (key !== ownName && ownedNames.has(key)) {
+      ownedByAnother.push(token);
+      continue;
+    }
+    counted.push(token);
+  }
+
+  return { counted, refused, ownedByAnother, tooShort };
 }
 
 /**
@@ -340,15 +443,14 @@ export async function buildEntityGraph(
     `select id, title from ozikoro_article where is_page = false and status = 'published'`
   );
 
-  /** Every match this article has on this entity, names first, with the token that carried it. */
-  const matchesFor = (title: string, entity: { name: string; aliases: string[] }): string[] => {
-    const tokens = [entity.name, ...entity.aliases]
-      .map((t) => t.trim())
-      .filter((t) => t.length >= MIN_NAME)
-      .filter((t) => !NAME_IS_NOT_EVIDENCE[t.toLowerCase()])
-      .filter((t) => t.toLowerCase() === entity.name.trim().toLowerCase() || !ownedNames.has(t.toLowerCase()));
-    return tokens.filter((t) => titleNames(title, t));
-  };
+  /**
+   * Every match this article has on this entity, names first, with the token that carried it.
+   *
+   * The token list is `evidenceNames`' — the same list `/town/<slug>/` reads for its mentions — and this
+   * function only adds the title test on top. See that function for what each filter refuses and why.
+   */
+  const matchesFor = (title: string, entity: { name: string; aliases: string[] }): string[] =>
+    evidenceNames(entity, ownedNames).counted.filter((t) => titleNames(title, t));
 
   const ambiguous = new Map<string, Set<number>>();
   const linked = new Set<number>();
