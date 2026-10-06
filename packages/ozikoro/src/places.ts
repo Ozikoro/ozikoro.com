@@ -674,8 +674,8 @@ export interface RegisterCascade {
  * reads as "the register does not hold this" when the truth is "that is not one of the words the
  * register uses". Each level is resolved against the level above it, so:
  *
- *   * "?ethnic=Igbo" is kept; anything the register has published no entry for falls back to the first
- *     published people, which today is the same Igbo the design's own finder has selected when it opens.
+ *   * "?ethnic=Igbo" is kept; a people the register does not offer at all falls back to the first people
+ *     in the list, which is the same Igbo the design's own finder has selected when it opens.
  *   * "?division=northern-igbo" is kept only while that division holds published entries of the resolved
  *     people; a division holding none produces no option and is dropped with it.
  *   * "?clan=" is resolved inside both of those, so a clan the address places in a division that does not
@@ -685,10 +685,12 @@ export interface RegisterCascade {
  *     and the name search is what answers that reader: "listPlaces" matches a town's name across the
  *     whole register, and "matchedTown" says which town answered.
  *
- * A resolved value that holds nothing published is a different case and is not reachable yet: every
- * option returned below is built from rows the register has published, so a value that resolves always
- * has the row that resolved it. When a non-Igbo entry is published it appears here on its own, with no
- * change to this function or to the page.
+ * ⚠️ **A PEOPLE THAT RESOLVES AND HOLDS NOTHING PUBLISHED IS A CASE THIS FUNCTION NOW RETURNS ON PURPOSE.**
+ * The list of peoples is the register's full list, not a list of the peoples it happens to hold (see step
+ * 1), so "?ethnic=Kanuri" resolves, keeps its value, and carries a count of zero — the page is what says
+ * so. What is dropped is a people the list does not name, not a people the register holds nothing under:
+ * the first is a word this register does not use, the second is a gap in the record, and they are
+ * different answers that must not be given the same one.
  */
 export async function getRegisterCascade(
   db: Db,
@@ -760,7 +762,7 @@ export async function getRegisterCascade(
 
   /* ---- step 1: the people -------------------------------------------------- */
   /*
-   * THE DESIGN'S SEVEN, ALWAYS — not only the peoples that happen to have published rows.
+   * THE PEOPLES THE REGISTER OFFERS, WHICH IS NOT THE SAME LIST AS THE PEOPLES IT HOLDS YET.
    *
    * The owner asked for the finder to be copied WITH ITS FUNCTIONS, and this is the function he named:
    * 'it showed ethnicity selection, clan, town, etc'. The first attempt listed only Igbo, because only
@@ -769,10 +771,46 @@ export async function getRegisterCascade(
    * option, and it is the register's full list of peoples, published or not.
    *
    * A people with nothing published still appears, and selecting one shows an honest empty register
-   * rather than hiding the choice: the entries are held back pending review, not absent, and a reader
-   * asking for Efik should be told that rather than being unable to ask.
+   * rather than hiding the choice. **The reason the entries are absent is said on the page rather than
+   * here**: the register's own empty state names the people and says it holds no entry for it, because
+   * a list that offers a choice the register cannot explain is a list that looks broken.
+   *
+   * ── AND THE OWNER WIDENED THE LIST, SO IT IS WIDENED ──────────────────────────────────────────────
+   *
+   * His instruction: *"i even wrote something relating to edo and kanuri, yet the archive section is
+   * not showing other ethnicities. go to the website ozituma.com, and see the list of languages there,
+   * add the ethnicities to the ethnic groups listed, even if there's no article about them, it can be
+   * added later."*
+   *
+   * So the seven above are followed by the peoples the dictionary registers at `ozituma.com/languages`
+   * (read 6 October 2026) that the register did not already offer, **in that page's own order**, and
+   * then by Kanuri, which he named and which the page does not list.
+   *
+   * ⚠️ **NOTHING ABOUT ANY OF THEM IS STATED BUT THE NAME.** The page states each one's endonym, ISO
+   * code, speaker estimate, tier and status; **none of that is copied here**, because this list is a
+   * list of peoples and a population figure or a language family is a claim this register cannot check.
+   * The name is the whole addition, which is what he asked for.
+   *
+   * ⚠️ **'Dagbani' IS THE PAGE'S OWN WORD AND IS KEPT AS THE PAGE SPELLS IT.** Its table's left column
+   * is the language's name, and for every other row that name is also the people's name; Dagbani is the
+   * one row where the two may not be the same word. **The people's own name is not on the page**, and a
+   * name supplied from anywhere else would be exactly the invention the rest of this comment refuses,
+   * so the page's spelling goes in rather than a substitute being guessed at.
+   *
+   * ⚠️ **THE ARCHIVE'S OWN REGISTER HOLDS PEOPLES THIS LIST DOES NOT NAME** — Isoko, Itsekiri, Ebira,
+   * Nupe and Tiv are filed in `data/clans/clans.json` and are not on the dictionary's page. They are
+   * NOT added here: the owner asked for the page's list, they are not on it, and the loop below already
+   * appends any people the register publishes, so each one appears by itself the day its entry is filed.
    */
-  const DESIGN_PEOPLES = ['Igbo', 'Ijaw', 'Efik', 'Ibibio', 'Idoma', 'Yoruba', 'Edo'];
+  const DESIGN_PEOPLES = [
+    // The design's seven, in the design's order. Not reordered, not renamed, not removed.
+    'Igbo', 'Ijaw', 'Efik', 'Ibibio', 'Idoma', 'Yoruba', 'Edo',
+    // The dictionary's registry at ozituma.com/languages, minus the four already above, in its order.
+    'Hausa', 'Urhobo', 'Igala', 'Akan', 'Fulani', 'Dagbani', 'Ewe', 'Fante', 'Ga-Dangme',
+    'Wolof', 'Mandinka',
+    // Named by the owner, and on neither list until now.
+    'Kanuri',
+  ];
   const counts = new Map(ethnicRows.map((r) => [String(r.ethnic_group), Number(r.n ?? 0)]));
   const ethnicGroups: FinderOption[] = DESIGN_PEOPLES.map((label) => ({
     value: label,

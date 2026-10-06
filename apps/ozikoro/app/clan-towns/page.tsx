@@ -216,6 +216,16 @@ export default async function ClanTownsPage({
       active.region ||
       (selection.ethnic && selection.ethnic !== defaultEthnic)
   );
+  /*
+   * HOW MANY PUBLISHED ENTRIES THE SELECTED PEOPLE HOLDS — WHICH MAY BE NONE.
+   *
+   * The finder's list is the register's full list of peoples rather than the peoples it holds (see
+   * `DESIGN_PEOPLES` in `places.ts`), so the first option's count is not evidence that the chosen one
+   * has any. The empty state below reads this to tell "no entry is filed under this people" apart from
+   * "the search found nothing", which are different answers.
+   */
+  const ethnicHolds = cascade.ethnicGroups.find((g) => g.value === selection.ethnic)?.count ?? 0;
+
   const composition = facets.kinds
     .map((k) => `${k.count} ${k.count === 1 ? placeKindSingular(k.kind) : placeKindLabel(k.kind).toLowerCase()}`)
     .join(', ');
@@ -421,14 +431,44 @@ export default async function ClanTownsPage({
           <div className="empty section">
             <p className="eyebrow">Nothing filed</p>
             <h2>
+              {/*
+                A PEOPLE THE REGISTER HOLDS NOTHING UNDER IS TOLD APART FROM A SEARCH THAT FAILED.
+                The list of peoples is the register's full list rather than the peoples it happens to
+                hold — the owner's instruction, so a reader can ask for a people whose entry has not
+                been filed yet — so "?ethnic=Kanuri" is a real address that resolves and matches
+                nothing. The generic sentence underneath ("a name may be spelled differently … or the
+                entry may not be filed yet") is true of a search and misleads here: nothing was
+                misspelled, and there is no near match. So the people is named, and the count it is
+                absent from is given, which is the same shape `/archive/` uses when a filter matches
+                nothing because no record carries that value.
+              */}
               {active.q
                 ? `No entry matches “${active.q}”.`
-                : 'Nothing in the register matches those filters.'}
+                : selection.ethnic && ethnicHolds === 0
+                  ? `The register holds no ${selection.ethnic} entry yet.`
+                  : 'Nothing in the register matches those filters.'}
             </h2>
             <p>
-              The register holds {facets.total} published entries and none of them matches. A name may be
-              spelled differently in the records — the survey printed some names the way an officer heard
-              them, and the towns write them another way — or the entry may not be filed yet.
+              {active.q ? (
+                <>
+                  The register holds {facets.total} published entries and none of them matches. A name may
+                  be spelled differently in the records — the survey printed some names the way an officer
+                  heard them, and the towns write them another way — or the entry may not be filed yet.
+                </>
+              ) : selection.ethnic && ethnicHolds === 0 ? (
+                <>
+                  All {facets.total} published entries are filed under another people, so nothing is hidden
+                  by a filter: {selection.ethnic} is offered so a reader can ask, and an entry appears here
+                  the day one is filed. The towns, clans and histories come first and the register reads
+                  them.
+                </>
+              ) : (
+                <>
+                  The register holds {facets.total} published entries and none of them matches. A name may
+                  be spelled differently in the records — the survey printed some names the way an officer
+                  heard them, and the towns write them another way — or the entry may not be filed yet.
+                </>
+              )}
             </p>
             <p>
               <Link className="btn" href="/clan-towns">
