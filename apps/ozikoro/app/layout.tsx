@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { accountItemFor, FAVICON_LINKS, renderModeSwitcher } from '@ozikoro/platform';
+import { accountItemFor, FAVICON_LINKS, renderModeSwitcher, WORDMARK_MARK_SRC } from '@ozikoro/platform';
 import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
 import './globals.css';
 
@@ -257,6 +257,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <header className="masthead">
           <div className="wrap">
             <Link className="wordmark" href="/">
+              {/*
+                ⚠️ THE OWNER'S MARK, AND IT IS A CHANGE TO HIS OWN DESIGN RATHER THAN A FIX.
+
+                An agent measured the logo question and put three options to him. He chose the second —
+                **the mark on all 53 screens** — and the option he accepted said in as many words:
+                *"Literal 'every single page', but 52 screens gain an image your design never gave them."*
+                So he knowingly authorised it.
+
+                IT IS THE SAME IMAGE `screens/home.html` DRAWS, at the same absolute address. The design
+                draws this element as `<img>` then `<b>Ozikoro</b> <span>Archive</span>`, and the mark's
+                34×34 round sizing is `showcase.css:20` (`.wordmark img`) — which this layout loads, so no
+                value is repeated here. `alt=""` is the design's own: the name is beside it, in words.
+
+                ⚠️ AND IT IS ABSOLUTE, `/media/…`. This one masthead is served at `/researchers/`,
+                `/clans/`, `/documents/`, `/admin/` and every other application route, and a relative
+                address would resolve at a different depth on each and 404 on most of them.
+
+                `design-paths.ts` puts the same mark into the deliverable's own wordmark at serve time,
+                under `WORDMARK_MARK_SRC`, which is why the address is imported rather than typed twice.
+              */}
+              <img src={WORDMARK_MARK_SRC} alt="" />
               <b>Ozikoro</b>
               {/*
                 THE STRAP IS THE SECOND OF THE TWO WORDS THE OWNER CHOSE.

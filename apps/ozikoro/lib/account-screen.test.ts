@@ -236,10 +236,28 @@ test('the account screen serves the wordmark the owner chose, and the design fil
    */
   const served = await accountScreen();
 
+  /*
+   * ⚠️ AND THE MARK, WHICH IS A CHANGE TO THE OWNER'S OWN DESIGN RATHER THAN A FIX. He was shown three
+   * options and chose **the mark on all 53 screens**; the one he accepted said *"Literal 'every single
+   * page', but 52 screens gain an image your design never gave them."* `account.html` is the forty-fifth
+   * brand-bearing screen and the only one `designScreenLinks` never sees, so the replacement is made here
+   * and the whole reasoning is at `withBrandMark`.
+   *
+   * THE STAND-IN LETTER IS REPLACED, NOT JOINED. The design drew `<span class="brandmark">O</span>` — an
+   * `O` in a gold ring — in the mark's own slot, so an insertion beside it would be a second mark. The
+   * image keeps the design's own class and therefore its own 38 px / 34 px circle, and **the name
+   * `<strong>Ozikoro</strong>` and its strap are untouched**, which is the half of the decision that
+   * matters most: he asked for a logo, not for the name to go.
+   */
   assert.match(
     served,
-    /<a class="brand" href="\/"><span class="brandmark">O<\/span><span><strong>Ozikoro<\/strong><small>Archive<\/small><\/span><\/a>/,
-    'the served account brand still carries the old strap'
+    /<a class="brand" href="\/"><img class="brandmark" src="\/media\/ozikoro\/486-cropped-Ozi-Ikoro-Icon-Yellow-1\.png" alt=""><span><strong>Ozikoro<\/strong><small>Archive<\/small><\/span><\/a>/,
+    'the served account brand did not take the owner\u2019s mark and the strap he chose'
+  );
+  assert.equal(
+    served.match(/<img class="brandmark"/g)?.length,
+    1,
+    'the account brand is served with more than one mark'
   );
   assert.match(served, /<a href="\/" class="active">History &amp; Archive<\/a>/, 'the platform bar lost its own label');
   assert.match(served, /<p class="eyebrow">Ozikoro · History &amp; Archive<\/p>/, 'a line of prose was rewritten as a brand');
@@ -249,6 +267,10 @@ test('the account screen serves the wordmark the owner chose, and the design fil
   assert.ok(
     onDisk.includes('<strong>Ozikoro</strong><small>History &amp; Archive</small>'),
     'the inviolable design screen was edited rather than the served copy'
+  );
+  assert.ok(
+    onDisk.includes('<span class="brandmark">O</span>'),
+    'the design file lost the stand-in mark this replacement is written against'
   );
   assert.ok(
     onDisk.includes('<a href="#" class="active">History &amp; Archive</a>'),

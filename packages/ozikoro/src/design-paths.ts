@@ -34,6 +34,104 @@ export function designScriptPaths(html: string): string {
 }
 
 /**
+ * ── THE OWNER'S MARK, IN THE WORDMARK, ON EVERY SCREEN — AND THIS ONE IS A CHANGE TO HIS OWN DESIGN ───
+ *
+ * ⚠️ **THIS IS NOT A BUG FIX AND IT MUST NOT BE DESCRIBED AS ONE.** An agent measured the logo question and
+ * put three options to the owner:
+ *
+ *     1  mark on the reader header only          ← not chosen
+ *     2  MARK ON ALL 53 SCREENS                  ← CHOSEN
+ *     3  leave it text-only                      ← not chosen
+ *
+ * and the option he picked was presented to him in these words, which he accepted: *"Literal 'every single
+ * page', but 52 screens gain an image your design never gave them."* **So he knowingly authorised a change
+ * to his own design**, and this constant is where that authorisation is carried out.
+ *
+ * ── WHAT WAS MEASURED, SO IT IS NOT RE-MEASURED ────────────────────────────────────────────────────────
+ *
+ * **Exactly one of the deliverable's 53 screens draws the mark**: `screens/home.html`, whose brand anchor is
+ *
+ *     <a class="wordmark" href="home.html"><img src="https://ozikoro.com/wp-content/uploads/2024/08/
+ *       cropped-Ozi-Ikoro-Icon-Yellow-1-80x80.png" alt=""><b>Ozikoro</b> <span>History &amp; Archive</span></a>
+ *
+ * and whose image the home fill resolves to the archive's own media store. The other 52 draw the brand as
+ * text and **no image at all**. The `src` below is that same file, at the address the served front page
+ * already carries — measured: `GET /media/ozikoro/486-cropped-Ozi-Ikoro-Icon-Yellow-1.png` is `200
+ * image/png`, 15,175 bytes, and it is a 512×512 PNG.
+ *
+ * ── WHY IT IS ABSOLUTE, WHICH IS THE FAULT THIS WOULD OTHERWISE PRODUCE ────────────────────────────────
+ *
+ * It is written `/media/…` and not `media/…` or `../media/…`. **A relative address that works on `/` and
+ * 404s on `/why-a-hawk-kills-chickens/` is exactly what this change would produce**: the same markup is
+ * served at `/`, at `/<slug>/`, at `/folklore/`, at `/dashboard-reader/` and at `/admin/`, which are five
+ * different depths. The leading slash is what makes one element correct on all of them.
+ *
+ * ── THE `alt` IS THE DESIGN'S OWN, AND IT IS EMPTY ON PURPOSE ──────────────────────────────────────────
+ *
+ * `alt=""` is what `home.html` writes: the mark is decorative and the anchor already carries the name in
+ * words beside it. **No alt text is invented here** — a description of a logo announced next to the same
+ * logo's name is noise for a screen reader, and the design has already decided this question.
+ */
+export const WORDMARK_MARK_SRC = '/media/ozikoro/486-cropped-Ozi-Ikoro-Icon-Yellow-1.png';
+
+/**
+ * THE MARK AS THE DESIGN DRAWS IT — the same element, in the same slot, and **never a second one**.
+ *
+ * It is inserted as the FIRST CHILD of the brand anchor, exactly where `home.html` puts it: the image, then
+ * the `<b>` and the `<span>` the design colours. **The words are not touched** — not by this function and
+ * not here: the owner asked for a logo, not a replacement for the name, and the wordmark's text and its
+ * strap are `designScreenLinks`' business below.
+ *
+ * ⚠️ AN ANCHOR THAT ALREADY CARRIES AN IMAGE IS LEFT ALONE, WHICH IS TWO RULES IN ONE. It stops
+ * `home.html` — the one screen that already drew the mark — gaining a SECOND one, and it is what makes this
+ * idempotent, because that is the shape the first pass leaves behind and the route calls this function twice
+ * on one request.
+ *
+ * ── AND THE TWO BRAND SHAPES THE DELIVERABLE USES, WHICH THE BRIEF'S OWN NOTE DID NOT NAME ────────────
+ *
+ * The brief says *"every other screen draws the mark as the word `Ozikoro` in `<b>`"*. Measured across all
+ * 53 files, that is true of **35** of them. The other brand-bearing screens are:
+ *
+ *     <a class="sx-dash-brand" href="home.html">Ozikoro</a>     9 screens — the role dashboards' night rail
+ *     <a class="brand" href="#">…</a>                           account.html, served by `account-screen.ts`
+ *                                                               and never by this function
+ *
+ * so the dashboard rail's anchor is matched too. **It is given the design's own `wordmark` class as well**,
+ * and that is not decoration: the design sizes its mark with a DESCENDANT rule — `showcase.css:20`,
+ * `.wordmark img { width:34px; height:34px; border-radius:50% }` — so an image inside an anchor that is not
+ * a `.wordmark` would be `display:block; max-width:100%` from `main.css:11` and render at the width of the
+ * whole rail. The class puts the archive's own 34×34 round treatment on it **without a second copy of the
+ * 34 px**, which is the rule `a11y.css` states for exactly this value. `.sx-dash-brand`'s own
+ * `display:block` (showcase.css:276) is later in the same sheet than `.wordmark`'s `display:inline-flex`
+ * (main.css:98), so the rail's own layout is unchanged: the mark sits above the name.
+ *
+ * THE SEVEN SCREENS WITH NO BRAND SLOT ARE NOT GIVEN ONE. `dashboard-account`, `dashboard-moderation`,
+ * `dashboard-review`, `dashboard-states` and `dashboard-workflow` draw a platform bar and a "← Back to
+ * workspace" link and no brand element at all; `type-test.html` is the closed walkthrough's typeface proof;
+ * `oral-recordings.html` is a 365-byte `<meta http-equiv="refresh">` notice with no header. **A mark placed
+ * on one of those would be a new element in a place the design left empty — that is drawing a design, not
+ * applying the owner's decision** — so they are left as they are and named here rather than guessed at.
+ */
+const WORDMARK_MARK_IMG = `<img src="${WORDMARK_MARK_SRC}" alt="">`;
+
+/** The mark, into every brand anchor the deliverable has, once. */
+function withWordmarkMark(html: string): string {
+  return html
+    .replace(
+      /<a class="sx-dash-brand"([^>]*)>([\s\S]*?)<\/a>/g,
+      (whole: string, attrs: string, inner: string) =>
+        /<img\b/i.test(inner)
+          ? whole
+          : `<a class="sx-dash-brand wordmark"${attrs}>${WORDMARK_MARK_IMG}${inner}</a>`
+    )
+    .replace(
+      /<a class="wordmark"([^>]*)>([\s\S]*?)<\/a>/g,
+      (whole: string, attrs: string, inner: string) =>
+        /<img\b/i.test(inner) ? whole : `<a class="wordmark"${attrs}>${WORDMARK_MARK_IMG}${inner}</a>`
+    );
+}
+
+/**
  * The design's own relative LINKS and STYLESHEETS, at the addresses this site actually serves.
  *
  * ── THE SAME FAULT AS THE SCRIPTS, ONE ELEMENT OVER ─────────────────────────────────────────────
@@ -353,6 +451,17 @@ export function designScreenLinks(html: string, at?: string): string {
    */
   out = out.replace(/OZI IKORO/g, 'Ozikoro');
   out = out.replace(/<span>History &amp; Archive<\/span>/g, '<span>Archive</span>');
+
+  /*
+   * AND THE OWNER'S MARK GOES INTO THE WORDMARK ITSELF — EVERY BRAND ANCHOR ON EVERY SCREEN.
+   *
+   * The rule, the measurement and the reason it is a change to his own design rather than a fix are all at
+   * `WORDMARK_MARK_SRC` above. What belongs here is the ORDER: this runs after the two text rewrites so
+   * that the element it inserts into is the one already carrying `Ozikoro` and `Archive`, and it is safe to
+   * run before or after the fills because an anchor that already carries an image is left exactly as it is —
+   * which is also why the second call on one request changes nothing.
+   */
+  out = withWordmarkMark(out);
 
   /*
    * AN `aria-current="page"` THAT NAMES ANOTHER PAGE GOES.

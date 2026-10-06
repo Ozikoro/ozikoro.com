@@ -367,12 +367,12 @@ test('the wordmark leaves the serve as Ozikoro and its strap as Archive, on the 
   // The two headers, served: the same brand and the same second word.
   assert.match(
     servedFixture,
-    /<a class="wordmark" href="\/">Ozikoro <span>Archive<\/span><\/a>/,
+    /<a class="wordmark" href="\/"><img src="\/media\/ozikoro\/486-cropped-Ozi-Ikoro-Icon-Yellow-1\.png" alt="">Ozikoro <span>Archive<\/span><\/a>/,
     'the reader header did not serve as Ozikoro Archive'
   );
   assert.match(
     servedFixture,
-    /<a class="wordmark" href="\/"><b>Ozikoro<\/b> <span>Archive<\/span><\/a>/,
+    /<a class="wordmark" href="\/"><img src="\/media\/ozikoro\/486-cropped-Ozi-Ikoro-Icon-Yellow-1\.png" alt=""><b>Ozikoro<\/b> <span>Archive<\/span><\/a>/,
     'the masthead did not serve as Ozikoro Archive'
   );
   // And the phrase outside a wordmark is prose, and stays prose.
@@ -380,6 +380,111 @@ test('the wordmark leaves the serve as Ozikoro and its strap as Archive, on the 
     servedFixture,
     /<p>Ozikoro · History &amp; Archive is the archive&rsquo;s strapline in prose\.<\/p>/,
     'a sentence containing the phrase was rewritten as if it were a brand'
+  );
+});
+
+test('the owner\u2019s mark is served in every brand slot, exactly once per screen, on the real deliverable', () => {
+  /*
+   * ── A CHANGE TO THE DESIGN HE AUTHORISED, ASSERTED THE WAY A FIX WOULD BE ────────────────────────
+   *
+   * An agent measured the logo question and put three options to the owner. He chose **the mark on all 53
+   * screens**, and the option he accepted said *"Literal 'every single page', but 52 screens gain an image
+   * your design never gave them."* So the change below is his decision about his own design, and this test
+   * exists to hold it to the two things that make it safe rather than to pretend it is a defect repaired:
+   *
+   *   1. **EXACTLY ONE MARK PER SCREEN.** The one screen that already drew it — `home.html` — must not gain
+   *      a second, and a screen with two brand anchors must not gain two. This is the assertion that fails
+   *      if the insertion ever stops checking for an existing `<img>`.
+   *   2. **THE ADDRESS IS ABSOLUTE.** `src="/media/…"`. The same element is served at `/`, at `/<slug>/`,
+   *      at `/folklore/` and at `/dashboard-reader/` — four different depths — and a relative address that
+   *      works on `/` and 404s on a record is the fault this change would otherwise have produced. The
+   *      literal in the regex is the assertion; `startsWith` is asserted separately so the failure says so.
+   *
+   * AND THE COUNT IS ASSERTED, for the reason the host test asserts its own: a deliverable that had already
+   * gained the mark everywhere would leave this passing while testing nothing.
+   */
+  const screens = join(here, '..', '..', '..', 'apps', 'ozikoro', 'public', 'design', 'screens');
+  const files = readdirSync(screens).filter((f: string) => f.endsWith('.html'));
+  assert.equal(files.length, 53, 'the deliverable is no longer 53 screens');
+
+  const MARK = /<img src="(\/media\/ozikoro\/486-cropped-Ozi-Ikoro-Icon-Yellow-1\.png)" alt="">/;
+  const MARK_ALL = /<img src="\/media\/ozikoro\/486-cropped-Ozi-Ikoro-Icon-Yellow-1\.png" alt="">/g;
+  /* The seven files with no brand element anywhere. Their names and why are at `WORDMARK_MARK_SRC`. */
+  const noBrandSlot = new Set([
+    'dashboard-account.html',
+    'dashboard-moderation.html',
+    'dashboard-review.html',
+    'dashboard-states.html',
+    'dashboard-workflow.html',
+    'oral-recordings.html',
+    'type-test.html',
+  ]);
+
+  let inserted = 0;
+  for (const file of files) {
+    const raw = readFileSync(join(screens, file), 'utf8');
+    const served = designScreenLinks(raw);
+
+    if (file === 'account.html' || noBrandSlot.has(file)) {
+      /* Neither is this function's screen: the account page is served by `account-screen.ts`, asserted
+       * there, and the seven above have no brand slot for a mark to go into. */
+      assert.equal(
+        [...served.matchAll(MARK_ALL)].length,
+        0,
+        `${file} is not served through this function, so a mark here is unexpected`
+      );
+      continue;
+    }
+
+    /* EXACTLY ONE IMAGE IN THE BRAND ANCHOR — the whole of the "no second mark" rule. `home.html` already
+     * drew one (the deliverable's own WordPress address, which the home fill resolves) and the other 44 are
+     * given the archive's media address below. Two would mean the insertion stopped checking. */
+    const anchors = [...served.matchAll(/<a class="(?:wordmark|sx-dash-brand)[^"]*"[^>]*>([\s\S]*?)<\/a>/g)];
+    assert.equal(anchors.length, 1, `${file} serves ${anchors.length} brand anchors and the measurement is one`);
+    const images = anchors[0]![1]!.match(/<img\b/g) ?? [];
+    assert.equal(images.length, 1, `${file} serves ${images.length} images in its brand anchor, not one`);
+
+    if (file === 'home.html') {
+      assert.doesNotMatch(served, MARK, 'the front page gained a second mark beside the one it already had');
+    } else {
+      assert.match(served, MARK, `${file} was not given the owner's mark`);
+      inserted += 1;
+    }
+
+    const src = served.match(MARK)?.[1];
+    if (src) assert.ok(src.startsWith('/'), `${file} serves the mark at a relative address: ${src}`);
+    assert.equal(designScreenLinks(served), served, `${file} gained a second mark on the second pass`);
+  }
+
+  /* 35 screens write `a.wordmark` without an image and 9 write `a.sx-dash-brand`; `home.html` is the
+   * fifty-third and already had one. `account.html`'s mark is the forty-fifth and is asserted in
+   * `apps/ozikoro/lib/account-screen.test.ts`, which is where that screen is served. */
+  assert.equal(inserted, 44, `${inserted} screens were given the mark, and the number measured is 44`);
+
+  /*
+   * THE DASHBOARD RAIL IS SIZED BY THE DESIGN'S OWN RULE, AND THIS IS WHAT MAKES THAT TRUE. The design's
+   * mark is sized by a DESCENDANT rule — `showcase.css:20 .wordmark img` — so the rail's anchor, which does
+   * not carry that class in the deliverable, is given it at serve time. Without it the image is
+   * `display:block; max-width:100%` (`main.css:11`) and renders at the width of the whole rail.
+   */
+  const dash = designScreenLinks(
+    readFileSync(join(screens, 'dashboard-reader.html'), 'utf8')
+  );
+  assert.match(
+    dash,
+    /<a class="sx-dash-brand wordmark" href="\/"><img src="\/media\/ozikoro\/486-cropped-Ozi-Ikoro-Icon-Yellow-1\.png" alt="">Ozikoro<\/a>/,
+    'the dashboard brand is not served in the design\u2019s own wordmark slot'
+  );
+
+  /*
+   * AND THE WORDS SURVIVE. He wants a logo, not a replacement for the name: `<b>` for the gold and the
+   * `<span>` strap are still there, on the same anchors, and the anchor still points at `/`.
+   */
+  const about = designScreenLinks(readFileSync(join(screens, 'about.html'), 'utf8'));
+  assert.match(
+    about,
+    /<a class="wordmark" href="\/"><img src="[^"]+" alt=""><b>Ozikoro<\/b><span>Archive<\/span><\/a>/,
+    'the mark displaced the design\u2019s own name or its gold'
   );
 });
 

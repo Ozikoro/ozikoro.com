@@ -18,6 +18,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { WORDMARK_MARK_SRC } from '@ozikoro/platform';
 
 export interface ScreenNotice {
   /** Empty means no message is shown, and the element stays hidden. */
@@ -337,7 +338,49 @@ export function accountScreenLinks(html: string): string {
       + out.slice(openEnd + 1 + close);
     from = at + replacement.length;
   }
-  return withWordmarkStrap(out);
+  return withBrandMark(withWordmarkStrap(out));
+}
+
+/**
+ * ── THE OWNER'S MARK, ON THE ONE BRAND-BEARING SCREEN `designScreenLinks` NEVER SEES ───────────────────
+ *
+ * ⚠️ **AND, LIKE THE FORTY-FIVE OTHER SCREENS, THIS IS A CHANGE TO HIS OWN DESIGN RATHER THAN A FIX.** The
+ * owner was shown three options and chose **the mark on all 53 screens**; the option he accepted said
+ * *"Literal 'every single page', but 52 screens gain an image your design never gave them."*
+ * `design-paths.ts` carries the same change for the deliverable, and the whole reasoning is at
+ * `WORDMARK_MARK_SRC` there. It is repeated here for the reason the strap below is repeated: **this screen
+ * is not served through that function.**
+ *
+ * ── WHAT THIS SCREEN ALREADY DREW, WHICH IS WHY IT IS A REPLACEMENT AND NOT AN INSERTION ───────────────
+ *
+ * `account.html`'s brand is
+ *
+ *     <a class="brand" href="#"><span class="brandmark">O</span>
+ *       <span><strong>Ozikoro</strong><small>History &amp; Archive</small></span></a>
+ *
+ * — a stand-in mark, **the letter `O` in a gold ring**, and `account.html` is the only screen in the
+ * deliverable that draws one. So there was nothing to insert beside: the mark's own slot holds a letter.
+ * **The archive's own mark takes the letter's place and the name stays** — *"he wants a logo, not a
+ * replacement for the name"*, and `<strong>Ozikoro</strong>` and its `<small>` are untouched.
+ *
+ * ── AND IT KEEPS THE DESIGN'S OWN CLASS, SO NOTHING IS SIZED HERE ─────────────────────────────────────
+ *
+ * The image is written with `class="brandmark"` rather than a class of this file's invention. That class is
+ * `account.html`'s own — `width:38px;height:38px;border:1px solid var(--gold);border-radius:50%`, and
+ * `34px` at the design's own breakpoint — so the mark lands in the circle the design drew for it, at the
+ * design's own size, with **no new declaration anywhere**. This screen links no stylesheet of the
+ * deliverable's (`showcase.css`'s `.wordmark img` rule is not available to it), which is exactly why the
+ * class is the one the screen itself carries. `/signin/`, `/join/`, `/forgot/` and `/reset/` are all at the
+ * site root, and the address is absolute in any case.
+ *
+ * `alt=""` is the design's own decision on its own mark: the name is beside it in words.
+ */
+function withBrandMark(html: string): string {
+  return replaceOnce(
+    html,
+    '<span class="brandmark">O</span>',
+    `<img class="brandmark" src="${WORDMARK_MARK_SRC}" alt="">`
+  );
 }
 
 /**
