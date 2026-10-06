@@ -358,14 +358,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       */}
       <div className="app">
         <aside className="rail">
-          <div className="brand">
+          {/*
+            ⚠️ THE BRAND IS A LINK, AND IT WAS NOT — THE OWNER: *"the ozikoro logo and text on the top
+            left in dashboard is not clickable, please fix"*.
+
+            It was a plain `<div class="brand">`, copied from the mock-up, which is a static picture and
+            has no reason to go anywhere. **On a real screen the mark in the top-left is the one control
+            every reader already knows: it takes you home.** Every back-office screen in this archive
+            had a logo-shaped thing that did nothing, on all 41 routes.
+
+            `href="/admin/"` rather than `/` — the owner's own design puts the mark on the *administration*
+            bar with "Administration" written under it, and WordPress's own logo goes to the dashboard
+            rather than out to the public site. **The rail already carries "Return to public site" as its
+            last entry**, so this is the inside-the-back-office door and that is the way out.
+          */}
+          <a className="brand" href="/admin/">
             {/* The design's conic-gradient sun; decorative, so it is hidden from assistive tech. */}
             <div className="mark" aria-hidden="true" />
             <div>
               <b>Ozikoro</b>
               <small>Administration</small>
             </div>
-          </div>
+          </a>
 
           <div className="nav-title">Control centre</div>
           <nav className="nav" aria-label="Sections">

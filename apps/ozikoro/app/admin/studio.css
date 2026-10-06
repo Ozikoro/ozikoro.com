@@ -321,3 +321,13 @@
    reachable at every width; the drawing above 1280 is unaffected, because ten tabs fit on one line
    there. The 3px gold rule the open tab carries is kept by `.tab.active` either way. */
 .ozstudio .tabs{flex-wrap:wrap}
+
+/* 5 · ⚠️ THE BRAND IS AN ANCHOR NOW, AND AN ANCHOR CARRIES TWO THINGS A DIV DOES NOT.
+   The owner: *"the ozikoro logo and text on the top left in dashboard is not clickable, please fix"*.
+   `.brand` was a `<div>` in the mock-up — a static picture — and it became a link to `/admin/` in
+   `layout.tsx`. **A browser underlines a link and colours it `-webkit-link` blue**, so without these two
+   lines the mark would have been clickable and looked wrong, which is a different fault rather than a
+   fix. The designer's own layout (`display:flex`, the gap, the padding, the hairline) is untouched. */
+.ozstudio a.brand{text-decoration:none;color:inherit}
+.ozstudio a.brand:hover b{color:#f0c862}
+.ozstudio a.brand:focus-visible{outline:2px solid var(--gold);outline-offset:2px;border-radius:6px}
