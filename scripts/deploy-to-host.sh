@@ -236,9 +236,49 @@ SK=$(awk -F= '/^AWS_SECRET_ACCESS_KEY=/{sub(/^AWS_SECRET_ACCESS_KEY=/,"");print;
 export AWS_ACCESS_KEY_ID="$AK" AWS_SECRET_ACCESS_KEY="$SK" AWS_DEFAULT_REGION=__AWS_REGION__
 
 echo "==> host: backup before anything is written"
-docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \\
-  pg_dump -U ozituma -Fc ozituma > /opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump 2>/dev/null
-echo "    /opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump $(wc -c < /opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump) bytes"
+# ⚠️ THE LINE BELOW USED TO END IN **TWO** BACKSLASHES, INSIDE A **QUOTED** HEREDOC, AND THAT IS WHY
+# A 0-BYTE PRE-DEPLOY DUMP EXISTS ON THIS HOST.
+#
+# `cat > /tmp/deploy-remote.sh <<'REMOTE'` is quoted (`<<'REMOTE'`), so nothing in the body is
+# expanded or unescaped here — the host receives the bytes literally. `\\` at end of line is
+# therefore NOT a continuation: the shell reads an escaped backslash, a literal `\` argument, and
+# the command ENDS. The next line then runs as its own command **on the host**:
+#
+#     docker compose ... exec -T postgres \                     <- exec's the argument `\`; fails
+#     pg_dump -U ozituma -Fc ozituma > ...pre-deploy-$TS.dump 2>/dev/null   <- runs on the HOST
+#
+# and **the host has no `pg_dump`** (measured: `pg_dump -> MISSING`). `2>/dev/null` swallowed
+# "command not found", the `>` still created the file, and the deploy carried on.
+#
+# MEASURED CONSEQUENCE, in /opt/ozituma/backups on 2026-10-06:
+#     ozikoro-pre-deploy-2026-10-06T03-12-08Z.dump   21248872 bytes   <- written before the rewrite
+#     ozikoro-pre-deploy-2026-10-06T04-22-08Z.dump   21263853 bytes   <- written before the rewrite
+#     ozikoro-pre-deploy-2026-10-06T04-32-43Z.dump          0 bytes   <- written after it
+# and `pg_restore --list` on the 0-byte file answers `input file is too short (read 0, expected 5)`.
+#
+# **A deploy that takes its own safety net away and reports success is the exact fault this script
+# exists to remove**, so this is fixed in two places: the continuation is one backslash again, and the
+# dump is then CHECKED — pg_dump's exit status, a non-zero size, and a listable table of contents —
+# and the deploy REFUSES to write anything if any of the three is wrong.
+BK=/opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump
+if docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \
+     pg_dump -U ozituma -Fc ozituma > "$BK"; then
+  :
+else
+  echo "    !! pg_dump FAILED. Nothing is deployed." >&2
+  rm -f "$BK"
+  exit 1
+fi
+BK_BYTES=$(wc -c < "$BK" | tr -d '[:space:]')
+BK_TOC=$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \
+  pg_restore --list < "$BK" 2>/dev/null | grep -cE '^[0-9]+;' | tr -d '[:space:]')
+echo "    $BK $BK_BYTES bytes, $BK_TOC TOC entries"
+if [ "${BK_BYTES:-0}" -lt 1 ] || [ "${BK_TOC:-0}" -lt 1 ]; then
+  echo "    !! REFUSING TO DEPLOY: the pre-deploy dump is $BK_BYTES bytes with $BK_TOC TOC entries." >&2
+  echo "    !! Nothing has been written. Fix the dump first — the copy you are about to replace is" >&2
+  echo "    !! the only one there is." >&2
+  exit 1
+fi
 
 echo "==> host: download and verify every hash BEFORE writing"
 aws s3 cp "s3://__BUCKET__/manifest.txt" /tmp/dm.txt --no-progress >/dev/null

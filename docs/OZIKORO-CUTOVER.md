@@ -998,14 +998,51 @@ not be reached for. It is listed so that "we have no other option" is never said
 
 ### 4a. The encrypted database backup: the key, and what a lost key costs
 
+> ⚠️ **CORRECTED 2026-10-06: EVERY COMMAND IN THIS SECTION NAMED THE WRONG COMPOSE FILE, AND WOULD HAVE
+> FAILED AT THE MOMENT OF NEED.** The service this section is about is **`backup`**, and it is defined
+> in **`docker/docker-compose.ozikoro.yml`** — not in `docker/docker-compose.prod.yml`. The host's
+> `docker-compose.prod.yml` was measured to hold `postgres`, `web` and `caddy` **only**:
+>
+> ```
+> $ docker compose --env-file /opt/ozituma/.env $CF config --services
+> postgres
+> web
+> caddy
+> $ docker compose --env-file /opt/ozituma/.env $CF logs backup
+> no such service: backup
+> ```
+>
+> So the invocation every command below used could not have listed a dump, run `age-keygen`, restored
+> anything or read a log. **Both files are now named**, and the env-file is given explicitly, because
+> `POSTGRES_PASSWORD` is interpolated from it (`${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}`) and a
+> command without it fails rather than guessing. Set this once per shell and the whole section works:
+>
+> ```bash
+> cd /opt/ozituma/app
+> CF="-f docker/docker-compose.prod.yml -f docker/docker-compose.ozikoro.yml"
+> ```
+>
+> Measured: with both files, `config --services` answers `postgres backup backup-upload web caddy
+> ozikoro healthwatch`.
+>
+> ⚠️ **And on the host, add `--no-deps` to any `up`.** `backup` declares `depends_on: postgres`, and if
+> compose decided to recreate `postgres` the dictionary, the academy *and* the archive would all go
+> down together. `--dry-run` first, every time.
+
 **This section is new in round 360, and it has to say first that this document did not describe the
 database backup pipeline at all.** Every "dump" above is the *WordPress* SQL dump (`§3.4`), a different
 artefact with a different lifecycle. The production database backup — `backup` and `backup-upload` in
-`docker/docker-compose.prod.yml`, dumping to `backupdata` and uploading to `backups/ozituma/` in R2 —
+`docker/docker-compose.ozikoro.yml`, dumping to `backupdata` and uploading to `backups/ozituma/` in R2 —
 was documented only in that compose file's own comments. **It is here now because the key's offline
 copy is an operator step, and an operator step that lives in a compose comment is an operator step
 nobody performs.** It sits beside the rollback deliberately: this is the other thing that has to be
 right on the day something has gone wrong.
+
+> ⚠️ **AND ON 2026-10-06 IT WAS FOUND TO HAVE NEVER RUN.** No `ozituma-backup-tools` image, no
+> container, and no object under `backups/` in the bucket — its only top-level prefixes were `audio/`
+> and `ozikoro/`. The design in this section was real, and the backup was not. It is running now. The
+> measured restore, the retention policy, its cost, and the defects found in the pipeline are in
+> **`docs/OZIKORO-BACKUP-AND-ROLLBACK.md`**.
 
 #### Why it changed, in one measurement
 
@@ -1035,11 +1072,11 @@ mystery:
 
 ```bash
 # what the dumper does, once a day, on the host, in /opt/ozituma/app
-docker compose -f docker/docker-compose.prod.yml logs --tail 20 backup
+docker compose --env-file /opt/ozituma/.env $CF logs --tail 20 backup
 #   backup: ok /backups/ozituma-2026-10-06T03-00-00Z.dump.age (…) — marked .verified for backup-upload
 
 # and what the uploader does, every minute, until it succeeds
-docker compose -f docker/docker-compose.prod.yml logs --tail 20 backup-upload
+docker compose --env-file /opt/ozituma/.env $CF logs --tail 20 backup-upload
 #   upload: ok backups/ozituma/ozituma-2026-10-06T03-00-00Z.dump.age (… , read back from R2, decrypted
 #           and listed) — marked .uploaded
 ```
@@ -1083,7 +1120,7 @@ the credential to the bucket.
 1. Generate the key on the host, in `/opt/ozituma/app`:
 
    ```bash
-   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint age-keygen backup
+   docker compose --env-file /opt/ozituma/.env $CF run --rm -T --entrypoint age-keygen backup
    ```
 
 2. Put the `# public key:` line into the `APP_SECRET` secret as `BACKUP_AGE_RECIPIENT`, and the
@@ -1100,9 +1137,9 @@ the credential to the bucket.
    ```bash
    sudo install -m 600 /dev/null /opt/ozituma/.env   # then re-run the boot step, or re-apply the stack
    cd /opt/ozituma/app
-   docker compose -f docker/docker-compose.prod.yml up -d backup backup-upload
-   docker compose -f docker/docker-compose.prod.yml logs --tail 5 backup      # must NOT say REFUSING TO START
-   docker compose -f docker/docker-compose.prod.yml logs --tail 5 healthwatch | grep -i backup
+   docker compose --env-file /opt/ozituma/.env $CF up -d backup backup-upload
+   docker compose --env-file /opt/ozituma/.env $CF logs --tail 5 backup      # must NOT say REFUSING TO START
+   docker compose --env-file /opt/ozituma/.env $CF logs --tail 5 healthwatch | grep -i backup
    ```
 
 5. **One-time cleanup, only if an earlier revision ever uploaded a plaintext dump.** It could not have:
@@ -1111,11 +1148,11 @@ the credential to the bucket.
 
    ```bash
    # list first. Any *.dump key here (no .age) is plaintext and readable by anyone.
-   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+   docker compose --env-file /opt/ozituma/.env $CF run --rm -T --entrypoint sh backup-upload -c '
      aws s3api list-objects-v2 --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
        --prefix "$BACKUP_UPLOAD_PREFIX" --query "Contents[].Key" --output text'
    # then, for each plaintext key you saw, and not before:
-   docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+   docker compose --env-file /opt/ozituma/.env $CF run --rm -T --entrypoint sh backup-upload -c '
      aws s3api delete-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" --key "$BACKUP_UPLOAD_PREFIX/<the key>"'
    ```
 
@@ -1126,32 +1163,46 @@ entrypoint is the upload loop, and `docker compose run` uses an entrypoint unles
 
 ```bash
 # 1. list what is there, then fetch one dump by its own timestamped name
-docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+docker compose --env-file /opt/ozituma/.env $CF run --rm -T --entrypoint sh backup-upload -c '
   aws s3api list-objects-v2 --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
     --prefix "$BACKUP_UPLOAD_PREFIX" --query "Contents[].Key" --output text'
-docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+docker compose --env-file /opt/ozituma/.env $CF run --rm -T --entrypoint sh backup-upload -c '
   aws s3api get-object --endpoint-url "$S3_ENDPOINT" --bucket "$S3_BUCKET" \
     --key "$BACKUP_UPLOAD_PREFIX/ozituma-2026-10-06T03-00-00Z.dump.age" /dev/stdout' > /tmp/restore.dump.age
 
 # 2. DECRYPT IT. A wrong key fails here and says so — there is no way to mistake that for a good dump.
-docker compose -f docker/docker-compose.prod.yml run --rm -T --entrypoint sh backup-upload -c '
+docker compose --env-file /opt/ozituma/.env $CF run --rm -T --entrypoint sh backup-upload -c '
   umask 077; printf "%s\n" "$BACKUP_AGE_IDENTITY" > /tmp/k
   age -d -i /tmp/k /dev/stdin' < /tmp/restore.dump.age > /tmp/restore.dump
 
 # 3. read what it holds BEFORE touching the database
-docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+docker compose --env-file /opt/ozituma/.env $CF exec -T postgres \
   pg_restore --list < /tmp/restore.dump | head -40
 
 # 4. put it back. --clean --if-exists makes this a restore OVER the live database, not a merge into it;
 #    --no-owner because the restore may run as a different role than the dump was taken by.
-docker compose -f docker/docker-compose.prod.yml exec -T postgres \
+docker compose --env-file /opt/ozituma/.env $CF exec -T postgres \
   pg_restore --clean --if-exists --no-owner -U ozituma -d ozituma < /tmp/restore.dump
 ```
 
 The round trip this describes was taken locally in round 360 — encrypt, decrypt, list, and a real
-restore into a second database — and the numbers are in `docs/OZIKORO-REMAINING.md` ROUND 360. **What
-was not taken is any of it against R2**, because the S3 credential is on the host and not in this
-checkout.
+restore into a second database — and the numbers are in `docs/OZIKORO-REMAINING.md` ROUND 360.
+
+> ✅ **CORRECTED 2026-10-06: IT HAS NOW BEEN TAKEN AGAINST R2, ON THE HOST, TWICE.** The paragraph that
+> stood here said *"What was not taken is any of it against R2, because the S3 credential is on the
+> host and not in this checkout"* — true when written, and false now. Two encrypted dumps were
+> uploaded, **pulled back out of R2, decrypted and listed**, and one of them was then restored into a
+> scratch database: **130 public tables, 362,054 rows, `account` 6 rows, and article `id=1`
+> `ute-okpu-an-ika-igbo-clan-and-its-nri-roots` read back out of it.** The figures and the exact
+> commands are in `docs/OZIKORO-BACKUP-AND-ROLLBACK.md` §3–§4.
+>
+> ⚠️ **AND THE SERVICE THIS SECTION'S COMMANDS NAME CANNOT UPLOAD.** `backup-upload`'s `put-object`
+> passes `--only-show-errors`, which is not an `aws s3api` option — measured in that image:
+> `aws: [ERROR]: Unknown options: --only-show-errors`. It retried for ever and uploaded nothing, which
+> is why `backups/` in the bucket was empty. It is **stopped**, and `scripts/offsite-upload.sh` on a
+> systemd timer does the job correctly. So the `docker compose … run --rm --entrypoint sh backup-upload`
+> commands below still describe the right *idea* and the right *checks*, but the service they name is
+> not running; use the `docker run --env-file …` form in `docs/OZIKORO-BACKUP-AND-ROLLBACK.md` §4.1.
 
 #### The monitor
 
@@ -1160,7 +1211,7 @@ at the backups at all until round 360, which meant nothing watched the one thing
 discovered on the worst day. It now says one of:
 
 ```bash
-docker compose -f docker/docker-compose.prod.yml logs --tail 50 healthwatch | grep -i backup
+docker compose --env-file /opt/ozituma/.env $CF logs --tail 50 healthwatch | grep -i backup
 #   healthwatch: backup ok — … is fresh, decrypts and lists, and was read back out of R2 after upload
 #   healthwatch: BACKUP ALARM — there is no encrypted dump in /backups at all. …
 #   healthwatch: BACKUP ALARM — the newest encrypted dump is … and it is more than 26 hours old. …
@@ -1172,6 +1223,40 @@ docker compose -f docker/docker-compose.prod.yml logs --tail 50 healthwatch | gr
 **The alarm is a line in that container's log and it does not page anybody.** Nothing on this host does.
 Wiring it to something that reaches a person is outstanding, and it is the one gap that makes the rest
 of this section less than it looks.
+
+> ⚠️ **AND ON ITS FIRST REAL RUN, 2026-10-06, IT PRODUCED A PERMANENT FALSE ALARM.** Measured:
+>
+> ```
+> healthwatch: BACKUP ALARM — /backups/ozituma-2026-10-06T03-57-54Z.dump.age arrived and is NOT marked
+> .verified with a later timestamp, which means the dumper could not decrypt it and list it.
+> ```
+>
+> **The marker was there** — `ozituma-2026-10-06T03-57-54Z.dump.age.verified`, written seconds after the
+> dump, and the dumper had logged `backup: ok … decrypted in full and listed`. The check is
+>
+> ```sh
+> [ -z "$(find "$newest.verified" -newer "$newest" 2>/dev/null)" ]
+> ```
+>
+> and `find -newer` compares modification times at **one-second granularity**. The dumper renames the
+> dump and creates the marker inside the same second, so `-newer` is false for ever and the branch can
+> never be satisfied. Measured inside the container:
+>
+> ```
+> find -newer says: []        shell -nt says: NOT-NEWER        shell -ot says: NOT-OLDER
+> ```
+>
+> **A line that is always an alarm is a line an operator learns to skip** — and the case it exists for,
+> a wrong key, is indistinguishable from it. The fix is one line and is **not applied**, because this
+> round was instructed not to touch the compose files:
+>
+> ```diff
+> -          elif [ ! -f "$$newest.verified" ] || [ -z "$$(find "$$newest.verified" -newer "$$newest" 2>/dev/null)" ]; then
+> +          elif [ ! -f "$$newest.verified" ] || [ "$$newest.verified" -ot "$$newest" ]; then
+> ```
+>
+> **Until that line changes, read the `backup` log's own `backup: ok …` line rather than
+> `healthwatch`'s backup verdict.** See `docs/OZIKORO-BACKUP-AND-ROLLBACK.md` §3 and §8.
 
 ---
 
