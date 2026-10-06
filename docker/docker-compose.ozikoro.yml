@@ -885,7 +885,13 @@ services:
           # because nothing here can judge how old it is from a name it did not write. Legacy
           # plaintext keys DO carry that shape, and they are named rather than deleted for the reason
           # in the comment above.
-          cutoff=$$(date -u -d "$$REMOTE_DAYS days ago" +%Y-%m-%dT%H-%M-%SZ 2>/dev/null || echo "")
+          # Busybox `date` (this image is postgres:16-alpine) has NO `-d "N days ago"` — that form
+          # fails with "invalid date", the `|| echo ""` swallows it, and this whole retention pass
+          # is skipped on every cycle. **Measured in the running container:**
+          #   date -u -d "45 days ago"      -> date: invalid date '45 days ago'
+          #   date -u -d "@1787372007"      -> 2026-08-22T04-13-27Z   ✅
+          # so the cutoff is computed from the epoch instead, which is the form this `date` does accept.
+          cutoff=$$(date -u -d "@$$(( $$(date +%s) - $$REMOTE_DAYS * 86400 ))" +%Y-%m-%dT%H-%M-%SZ 2>/dev/null || echo "")
           if [ -n "$$cutoff" ]; then
             aws $$ENDPOINT_ARGS s3api list-objects-v2 --bucket "$$S3_BUCKET" --prefix "$$PREFIX/" --max-keys 1000 --query 'Contents[].[Key,LastModified]' --output text 2>/dev/null \
               | while read -r k m; do
