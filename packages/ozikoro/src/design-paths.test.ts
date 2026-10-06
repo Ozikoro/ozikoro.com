@@ -299,6 +299,90 @@ test('no design screen names the retiring host once it has been served', () => {
   assert.deepEqual(after, [], `these screens still name the retiring host after the rewrite: ${after.join(', ')}`);
 });
 
+test('the wordmark leaves the serve as Ozikoro and its strap as Archive, on the real deliverable', () => {
+  /*
+   * ── THE OWNER'S TWO ANSWERS, ASSERTED RATHER THAN DESCRIBED ──────────────────────────────────────
+   *
+   * *"the Ozi Ikoro limited you do put on the top menu should be removed everywhere. ozikoro is enough"*,
+   * and, asked what the wordmark should be: **"Ozikoro Archive"**. `article.html` is the record route's own
+   * template and `folklore.html` is `/folklore/`, so the two screens carrying a bare `OZI IKORO` are the
+   * header of every record and of the folklores library — the bar that disagreed with the front page.
+   *
+   * THIS TEST READS THE DELIVERABLE'S OWN FILES, because that is where the strings are; the rewrite happens
+   * to a copy in memory and the files are never written. `before` is asserted non-empty for the reason the
+   * host test above asserts it: a design handoff that had already fixed these words would leave this test
+   * passing while testing nothing.
+   */
+  const screens = join(here, '..', '..', '..', 'apps', 'ozikoro', 'public', 'design', 'screens');
+  const files = readdirSync(screens).filter((f: string) => f.endsWith('.html'));
+
+  let namedOziIkoro = 0;
+  const strapsLeftHistoric: string[] = [];
+  const strapsAfter = new Set<string>();
+
+  for (const file of files) {
+    const raw = readFileSync(join(screens, file), 'utf8');
+    if (raw.includes('OZI IKORO')) namedOziIkoro += 1;
+
+    const served = designScreenLinks(raw);
+    assert.doesNotMatch(served, /OZI IKORO/, `${file} still writes OZI IKORO once served`);
+
+    for (const strap of served.matchAll(/<a class="wordmark"[^>]*>[\s\S]*?<span>([^<]*)<\/span>/g)) {
+      strapsAfter.add(strap[1]!);
+    }
+    if (/<a class="wordmark"[^>]*>[\s\S]*?<span>History &amp; Archive<\/span>/.test(served)) {
+      strapsLeftHistoric.push(file);
+    }
+
+    // Idempotent, because the route calls this twice in one request.
+    assert.equal(designScreenLinks(served), served, `${file} was changed by a second pass`);
+  }
+
+  assert.ok(namedOziIkoro >= 3, `only ${namedOziIkoro} screen(s) wrote OZI IKORO — this test has stopped testing anything`);
+  assert.deepEqual(strapsLeftHistoric, [], `these screens keep the old strap after the serve: ${strapsLeftHistoric.join(', ')}`);
+  // The front page's bar and the record template's bar now carry the same second word.
+  assert.ok(strapsAfter.has('Archive'), 'no wordmark is served with the strap the owner chose');
+
+  /*
+   * AND THE REWRITE IS BOUNDED TO THE WORDMARK. `account.html` writes the same phrase three times outside
+   * one — the platform bar's label, the brand's `<small>` and a line of prose — and **this function is not
+   * the one that serves that screen**: the brand's `<small>` is changed where it IS served
+   * (`apps/ozikoro/lib/account-screen.ts`, asserted in `account-screen.test.ts`), and the other two are not
+   * brands at all. **A page-wide replace of the words would have edited a label and a sentence**, which is
+   * what this asserts did not happen.
+   */
+  const account = readFileSync(join(screens, 'account.html'), 'utf8');
+  const accountServed = designScreenLinks(account);
+  assert.match(accountServed, /<small>History &amp; Archive<\/small>/, 'the account screen lost a label that is not a brand');
+  assert.match(accountServed, /<strong>Ozikoro<\/strong>/, 'the account brand word changed under the wrong function');
+
+  // A fixture, so the rule is asserted and not only the deliverable's current wording.
+  const fixture = '<html><head></head><body><header class="sx-reader-header"><div class="wrap">'
+    + '<a class="wordmark" href="home.html">OZI IKORO <span>Archive</span></a></div></header>'
+    + '<header class="masthead"><div class="wrap">'
+    + '<a class="wordmark" href="home.html"><b>Ozikoro</b> <span>History &amp; Archive</span></a>'
+    + '<p>Ozikoro · History &amp; Archive is the archive&rsquo;s strapline in prose.</p>'
+    + '</div></header></body></html>';
+  const servedFixture = designScreenLinks(fixture);
+  // The two headers, served: the same brand and the same second word.
+  assert.match(
+    servedFixture,
+    /<a class="wordmark" href="\/">Ozikoro <span>Archive<\/span><\/a>/,
+    'the reader header did not serve as Ozikoro Archive'
+  );
+  assert.match(
+    servedFixture,
+    /<a class="wordmark" href="\/"><b>Ozikoro<\/b> <span>Archive<\/span><\/a>/,
+    'the masthead did not serve as Ozikoro Archive'
+  );
+  // And the phrase outside a wordmark is prose, and stays prose.
+  assert.match(
+    servedFixture,
+    /<p>Ozikoro · History &amp; Archive is the archive&rsquo;s strapline in prose\.<\/p>/,
+    'a sentence containing the phrase was rewritten as if it were a brand'
+  );
+});
+
 test('the four fragments that name a section no page draws come off, whole item and all', () => {
   /*
    * ── THE DESIGN'S SIX `about.html` FRAGMENTS, AND WHICH OF THEM COME OFF HERE ────────────────────

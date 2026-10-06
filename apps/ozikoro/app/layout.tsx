@@ -233,7 +233,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <a href="https://academy.ozikoro.com/">academy.ozikoro.com — academy</a>
               </li>
             </ul>
-            <span className="owner">Ozi Ikoro Limited</span>
+            {/*
+              THE PLATFORM BAR'S OWN SLOT, AND THE ONE PLACE THE COMPANY NAME WAS DRAWN AT THE TOP.
+
+              `.platform-bar .owner` is the design's own element — `main.css:93` gives it small
+              letterspaced caps — and the deliverable fills it with a short label rather than a
+              proprietor: on `screens/type-test.html` it reads `Typeface proof`. This bar filled it with
+              `Ozi Ikoro Limited`, which is **the string the owner pointed at when he said the company
+              name should come off the top**: *"the Ozi Ikoro limited you do put on the top menu should be
+              removed everywhere. ozikoro is enough."*
+
+              It is a label in the top strip and not a legal notice — there is no ©, no notice and no
+              terms in it, and the footer keeps `© ... Ozi Ikoro Limited.` exactly as he asked. So the
+              label takes the brand he named and the slot keeps its job.
+
+              ⚠️ THE CLASS AND THE SLOT STAY. `a11y.css` and `main.css` both place `.owner`, and removing
+              the element would take the right-hand half of the top strip with it.
+            */}
+            <span className="owner">Ozikoro</span>
           </div>
         </div>
 
@@ -241,7 +258,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="wrap">
             <Link className="wordmark" href="/">
               <b>Ozikoro</b>
-              <span>History &amp; Archive</span>
+              {/*
+                THE STRAP IS THE SECOND OF THE TWO WORDS THE OWNER CHOSE.
+
+                Asked what the wordmark should be, he answered **"Ozikoro Archive"** — and every design screen
+                that writes this header writes its strap the same way (`a.wordmark span`). `design-paths.ts`
+                rewrites the deliverable's own copy of this element at serve time for exactly this reason, and
+                this file is the one masthead the deliverable does not serve: **`/researchers/`, `/clans/`,
+                `/documents/`, `/towns/`, `/attachments/` and every other application route draw THIS header**,
+                so without this line the site would show two different wordmarks depending on which route
+                answered — which is the disagreement the change exists to remove.
+              */}
+              <span>Archive</span>
             </Link>
             <nav className="nav" aria-label="Primary">
               <ul>

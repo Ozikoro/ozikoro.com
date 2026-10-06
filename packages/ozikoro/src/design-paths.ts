@@ -299,6 +299,62 @@ export function designScreenLinks(html: string, at?: string): string {
   out = out.replace(/learn\.ozituma\.com/g, 'academy.ozikoro.com');
 
   /*
+   * ── THE WORDMARK: `OZI IKORO` BECOMES `Ozikoro`, AND THE STRAP BECOMES `Archive` ──────────────
+   *
+   * The owner: *"the Ozi Ikoro limited you do put on the top menu should be removed everywhere.
+   * ozikoro is enough"* — and, asked what the wordmark should be, he answered in two words:
+   * **"Ozikoro Archive"**.
+   *
+   * MEASURED ACROSS THE FIFTY-THREE SCREENS BEFORE THIS RULE EXISTED. Fifty of them draw the brand the
+   * design's own way — `<b>Ozikoro</b>` beside a per-section `<span>` — and three do not:
+   *
+   *     screens/article.html         <a class="wordmark" href="home.html">OZI IKORO <span>Archive</span></a>
+   *     screens/folklore.html        <a class="wordmark" href="home.html">OZI IKORO <span>Archive</span></a>
+   *     screens/folklore-reader.html <a class="wordmark" href="folklore.html"><b>OZI IKORO</b><span>Folklores</span></a>
+   *
+   * **AND `article.html` IS THE RECORD ROUTE'S OWN TEMPLATE AND `folklore.html` IS `/folklore/`**, so those
+   * two are the header of every record in the archive and of the folklores library. Served, they read
+   * *"OZI IKORO Archive"* while the front page reads *"Ozikoro · History & Archive"* — an article's top bar
+   * naming a brand the front page does not, which is the disagreement the owner was looking at.
+   *
+   * ── TWO REWRITES, AND WHY THE SECOND IS NOT A TIDY-UP ───────────────────────────────────────────
+   *
+   *   1. `OZI IKORO` BECOMES `Ozikoro`, which is what the other fifty screens already write. **The `<b>` is
+   *      deliberately NOT added around it:** `a11y.css` paints a BARE wordmark text node with the design's
+   *      own reader-header gold, and wrapping these words would make that rule dead code mid-flight. The
+   *      wording is this change's business; the colour is that sheet's.
+   *   2. THE WORDMARK'S STRAP BECOMES `Archive`. He named the wordmark in two words, and the front page's
+   *      strap is `History & Archive` — so served beside a record the two bars still did not say the same
+   *      thing. `Archive` is the second of the two words he chose and the word the record template's own
+   *      markup already carries, so the front page and an article now read the same brand.
+   *
+   *      IT IS BOUNDED TO THE ELEMENT AND NOT THE PHRASE, AND THAT IS THE POINT.
+   *      `<span>History &amp; Archive</span>` occurs twenty-six times in the deliverable and **every one of
+   *      them is a wordmark's strap**, so the match is the element. `account.html` writes the phrase three
+   *      times outside one — the platform bar's right-hand label, the brand's `<small>` and the eyebrow over
+   *      `#intro` — and **only the middle one is a brand**: it is changed where that screen is served
+   *      (`apps/ozikoro/lib/account-screen.ts`, which is the eighteenth screen this function never sees), and
+   *      the other two stay. A page-wide replace of the words would have rewritten a label and a sentence.
+   *
+   *      THE PER-SECTION STRAPS ARE NOT TOUCHED: measured served, `/watch/` still says `Watch`, `/listen/`
+   *      `Listen`, `/documents/` `Research Library` and `/folklore-reader/` `Folklores`. Those describe the
+   *      page a reader is on; they are not the brand, and the owner was asked about the brand.
+   *
+   * ── WHY HERE, AND NOT IN THE DELIVERABLE ────────────────────────────────────────────────────────
+   *
+   * `public/design/` is the approved handoff and is byte-identical to it, and every design correction this
+   * project has made at serve time — including the `learn.ozituma.com` name two rules above — is made to the
+   * template in memory. **This function is the one every design-derived page passes through**: the
+   * design-screen route calls it for all fifty-three screens, the record route for every article, the
+   * transcript route and the institutional-refusal page. A rewrite in any one fill would reach one of them.
+   *
+   * ⚠️ IT IS IDEMPOTENT, which it has to be: this function is called twice on one request, before the fills
+   * and again after them. The second pass finds neither string and changes nothing.
+   */
+  out = out.replace(/OZI IKORO/g, 'Ozikoro');
+  out = out.replace(/<span>History &amp; Archive<\/span>/g, '<span>Archive</span>');
+
+  /*
    * AN `aria-current="page"` THAT NAMES ANOTHER PAGE GOES.
    *
    * The rule above has just turned the nav's `Researchers` item into a link to `/researchers/` — **the

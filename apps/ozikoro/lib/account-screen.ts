@@ -337,7 +337,43 @@ export function accountScreenLinks(html: string): string {
       + out.slice(openEnd + 1 + close);
     from = at + replacement.length;
   }
-  return out;
+  return withWordmarkStrap(out);
+}
+
+/**
+ * THE BRAND'S STRAP, ON THE ONE SCREEN THAT IS NOT SERVED THROUGH `designScreenLinks`.
+ *
+ * ── WHY IT IS HERE AND NOT IN `design-paths.ts` ─────────────────────────────────────────────────
+ *
+ * `account.html` is the eighteenth screen in the deliverable that carries the platform bar and the brand,
+ * and it is the only one served by this file rather than by `designScreenLinks` — the note above
+ * `ACCOUNT_LINK_LABELS` already records that, because the retired `learn.ozituma.com` label had to be
+ * repeated here for the same reason. **This is the second rule that has to be stated twice, and the honest
+ * thing to say is that it is stated twice.**
+ *
+ * ── WHAT IT CHANGES, AND WHY ────────────────────────────────────────────────────────────────────
+ *
+ * The owner's request was that the company name leave the top of the site — *"the Ozi Ikoro limited you do
+ * put on the top menu should be removed everywhere. ozikoro is enough"* — and, asked what the wordmark
+ * should be, he answered in two words: **"Ozikoro Archive"**. The design draws this screen's brand as
+ *
+ *     <a class="brand" href="#"><span class="brandmark">O</span>
+ *       <span><strong>Ozikoro</strong><small>History &amp; Archive</small></span></a>
+ *
+ * so the brand word already conforms and the strap is the one thing left. `design-paths.ts` makes the same
+ * change to every `.wordmark` in the deliverable, and `/signin/`, `/join/`, `/forgot/` and `/account/`
+ * must not be the pages that still show the old one.
+ *
+ * ⚠️ IT IS BOUNDED TO THE BRAND'S OWN `<small>`. `account.html` writes the phrase `History &amp; Archive`
+ * three times: the platform bar's own right-hand label, this `<small>`, and the eyebrow above `#intro`.
+ * **The first is a section label and the third is a line of prose; neither is a brand**, and a replace of
+ * the words would have rewritten all three.
+ */
+function withWordmarkStrap(html: string): string {
+  return html.replace(
+    /(<a class="brand"[^>]*>[\s\S]*?<small>)History &amp; Archive(<\/small>)/g,
+    '$1Archive$2'
+  );
 }
 
 /**

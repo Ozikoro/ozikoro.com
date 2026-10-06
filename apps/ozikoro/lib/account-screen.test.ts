@@ -217,3 +217,41 @@ test('the served design directory is the deliverable\'s byte for byte, and the o
     assert.ok(a.equals(b), `${file} differs between the served copy and the deliverable`);
   }
 });
+
+test('the account screen serves the wordmark the owner chose, and the design file still has its own', async () => {
+  /*
+   * ── THE STRAP, ON THE ONE SCREEN `designScreenLinks` DOES NOT REACH ──────────────────────────────
+   *
+   * The owner's request was that the company name leave the top of the site — *"the Ozi Ikoro limited you do
+   * put on the top menu should be removed everywhere. ozikoro is enough"* — and, asked what the wordmark
+   * should be, he answered in two words: **"Ozikoro Archive"**. `account.html` is the eighteenth screen that
+   * draws the brand and the only one served by this file, so the rule is stated here as well; without that,
+   * `/signin`, `/join`, `/forgot` and `/account` would be the four pages showing the old wordmark.
+   *
+   * THE BOUND IS THE POINT OF THE ASSERTIONS BELOW. The design writes the phrase `History &amp; Archive`
+   * three times on this screen: the platform bar's own right-hand label, the brand's `<small>`, and the
+   * eyebrow above `#intro`. **Only the middle one is a brand** — the other two are a section label and a line
+   * of prose — so a replace of the words rather than of the element would have rewritten all three, and the
+   * two that must survive are asserted rather than assumed.
+   */
+  const served = await accountScreen();
+
+  assert.match(
+    served,
+    /<a class="brand" href="\/"><span class="brandmark">O<\/span><span><strong>Ozikoro<\/strong><small>Archive<\/small><\/span><\/a>/,
+    'the served account brand still carries the old strap'
+  );
+  assert.match(served, /<a href="\/" class="active">History &amp; Archive<\/a>/, 'the platform bar lost its own label');
+  assert.match(served, /<p class="eyebrow">Ozikoro · History &amp; Archive<\/p>/, 'a line of prose was rewritten as a brand');
+
+  // The deliverable is not the file this changed, and this is where that is said.
+  const onDisk = readFileSync(join(DESIGN, 'screens', 'account.html'), 'utf8');
+  assert.ok(
+    onDisk.includes('<strong>Ozikoro</strong><small>History &amp; Archive</small>'),
+    'the inviolable design screen was edited rather than the served copy'
+  );
+  assert.ok(
+    onDisk.includes('<a href="#" class="active">History &amp; Archive</a>'),
+    'the design file no longer carries the platform-bar label this test is written against'
+  );
+});
