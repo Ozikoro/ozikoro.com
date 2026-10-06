@@ -1027,11 +1027,19 @@ export default async function DesignStudioPage({
    * THE SERVED PAGE IS ASKED WHAT IT HOLDS ONLY WHEN A TAB DRAWS THE LIST.
    *
    * `inventoryFor` fetches the served page — a fill, a head, an inventory pass — so doing it to render the
-   * palette would spend that on every visit to every tab and show the answer to nobody. The widgets tab and
-   * the text tab need it; nothing else does. **The owner's complaint is that this page did too much at
-   * once; making it do less is part of the fix rather than a tidy-up.**
+   * palette would spend that on every visit to every tab and show the answer to nobody. **The owner's
+   * complaint is that this page did too much at once; making it do less is part of the fix rather than a
+   * tidy-up.** Three tabs draw from it and nothing else does:
+   *
+   *   widgets  the page builder's structure list and the whole element list
+   *   text     the searchable table of every place on the screen
+   *   media    the per-screen image overrides — ⚠️ **AND THIS TAB WAS MISSING FROM THIS LINE, which made
+   *            its "photographs on /{screen}/ and the control that changes each one" section permanently
+   *            empty.** It reported "the served page reports no image slot" for every screen, including
+   *            the ones that have several, because `items` was the empty array this line hands out. Found
+   *            by measuring the built page rather than by reading this comment.
    */
-  const needsInventory = tab === 'widgets' || tab === 'text';
+  const needsInventory = tab === 'widgets' || tab === 'text' || tab === 'media';
   const inventory = needsInventory ? await inventoryFor(screen, from) : { items: [] as InventoryItem[], total: 0 };
   const items = 'items' in inventory ? inventory.items : [];
   const inventoryError = 'error' in inventory ? inventory.error : null;
