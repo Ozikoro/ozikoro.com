@@ -272,8 +272,21 @@ echo "==> host: backup before anything is written"
 # dump is then CHECKED — pg_dump's exit status, a non-zero size, and a listable table of contents —
 # and the deploy REFUSES to write anything if any of the three is wrong.
 BK=/opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump
-if docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \
-     pg_dump -U ozituma -Fc ozituma > "$BK"; then
+# ⚠️ ONE LINE, NO CONTINUATION — AND THAT IS THE FIX FOR A 0-BYTE BACKUP THAT LOOKED FINE.
+#
+# The measured failure, from a real deploy:
+#
+#     OCI runtime exec failed: exec failed: unable to start container process:
+#       exec: "\\": executable file not found in $PATH: unknown
+#     /opt/ozituma/backups/ozikoro-pre-deploy-2026-10-06T04-32-43Z.dump   0 bytes
+#
+# **The `\` that continued the command across two lines reached `docker exec` as the thing to run**, so
+# the container tried to execute a backslash, the dump was never written, `pg_dump`'s exit status was
+# whatever the runtime returned — and the deploy moved on. *The paragraph above this one records an
+# earlier version of the same fault and says "the continuation is one backslash again". It is not any
+# more: there is no continuation.* **Nothing about this command needs two lines, and a line that cannot
+# be broken cannot be broken wrongly.**
+if docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres pg_dump -U ozituma -Fc ozituma > "$BK"; then
   :
 else
   echo "    !! pg_dump FAILED. Nothing is deployed." >&2
@@ -281,8 +294,8 @@ else
   exit 1
 fi
 BK_BYTES=$(wc -c < "$BK" | tr -d '[:space:]')
-BK_TOC=$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \
-  pg_restore --list < "$BK" 2>/dev/null | grep -cE '^[0-9]+;' | tr -d '[:space:]')
+# Same reason: one line.
+BK_TOC=$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres pg_restore --list < "$BK" 2>/dev/null | grep -cE '^[0-9]+;' | tr -d '[:space:]')
 echo "    $BK $BK_BYTES bytes, $BK_TOC TOC entries"
 if [ "${BK_BYTES:-0}" -lt 1 ] || [ "${BK_TOC:-0}" -lt 1 ]; then
   echo "    !! REFUSING TO DEPLOY: the pre-deploy dump is $BK_BYTES bytes with $BK_TOC TOC entries." >&2
