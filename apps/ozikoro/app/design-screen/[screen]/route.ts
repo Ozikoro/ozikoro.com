@@ -66,6 +66,7 @@ import {
   fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMarquee, fillMaterialCulture, fillPhotographs,
   fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
   fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
+  renderNoNameableDocuments,
   extractArchiveFilms,
   COLLECTION_CAMERA_SIGN,
   HOME_STRIP_PLACES,
@@ -992,21 +993,54 @@ export async function GET(
             where kind = 'document' and mime_type = 'application/pdf' and storage_key is not null
             order by id`
         );
-        const docs: RealDocument[] = rows.map((r) => ({
+        /*
+         * ── THE LIBRARY LISTS DOCUMENTS IT CAN NAME. THE ARCHIVE KEEPS EVERY ONE IT HOLDS. ────────────
+         *
+         * The owner: *"on the document page 'https://ozikoro.com/documents/', please remove the two document
+         * there written 'untitled document'."* Two of the four PDFs the archive holds reach `mediaName`'s
+         * fallback — `capacity_building_for_traditional` and `SAMTDO-7v1` — because every field they carry is
+         * the file's own single-word name, so the card is headed `Untitled document — <filename>`. **A grid
+         * of two real names and two headings a reader cannot choose between is a grid that offers nothing
+         * for half its cards**, so those two are not listed.
+         *
+         * ⚠️ AND NOTHING IS DELETED, BECAUSE THE ROW IS THE ADDRESS. Both records keep their `storage_key`,
+         * their size and their downloadable file, and `/documents/capacity_building_for_traditional/` and
+         * `/documents/samtdo-7v1/` still answer — **a record removed from a library grid is not a record
+         * removed from the archive**, and deleting the row would break an address the archive published and
+         * take the file out of the archive entirely.
+         *
+         * ⚠️ AND NO TITLE IS INVENTED FOR THEM. Giving `capacity_building_for_traditional` a human name
+         * would be fabricating a name the archive does not hold; `mediaName`'s own comment already records
+         * that the honest label is the one it produces. **These two are removed from the listing, not
+         * renamed**, and the rule is the `from` field `mediaName` already returns: a name that came from the
+         * record (`caption`, `description`, `alt`, `title`) is listed; the `'fallback'` is not.
+         *
+         * THE TEST IS HERE AND NOT IN `mediaName`, DELIBERATELY. `mediaName` names the photograph gallery,
+         * the media library and every record page as well, and those pages *must* keep showing an unnameable
+         * record honestly — `/documents/opta/` is the case its comment was written for. Changing it there
+         * would put "Untitled" out of sight on pages that need it. So the shared function is untouched and
+         * only this listing declines a fallback name.
+         */
+        const named: { name: string; from: string; row: typeof rows[number] }[] = rows.map((r) => {
           /*
            * THE CARD IS NAMED THE WAY THE RECORD PAGE IS HEADED — one rule, in one place. The card used to
            * print `title`, which for these records is the uploaded file's own name: `/documents/` offered
            * "capacity_building_for_traditional" and "SAMTDO-7v1" as if they were titles. `mediaName` reads
            * the record's own caption and description first. See `packages/ozikoro/src/media.ts`.
            */
-          title: mediaName({
+          const named = mediaName({
             kind: 'document',
             slug: r.slug,
             storedTitle: r.title,
             caption: r.caption,
             description: r.description,
             altText: r.alt_text,
-          }).name,
+          });
+          return { name: named.name, from: named.from, row: r };
+        }).filter((d) => d.from !== 'fallback');
+
+        const docs: RealDocument[] = named.map(({ name, row: r }) => ({
+          title: name,
           /*
            * THE RECORD, FIRST. This grid used to offer a download and nothing else, so the page that
            * carries the provenance, the rights and the citation was unreachable from the library — the
@@ -1022,7 +1056,26 @@ export async function GET(
           note: 'Downloadable file held in the archive. Rights and reuse terms are recorded with the record.',
           size: r.filesize_bytes ? `${Math.max(1, Math.round(r.filesize_bytes / 1024))} KB` : null,
         }));
-        if (docs.length > 0) html = fillDocuments(html, docs);
+        /*
+         * AND THE GRID IS FILLED EVEN WHEN IT IS EMPTY, WHICH IS THE OTHER HALF OF THE SAME RULE.
+         *
+         * This used to read `if (docs.length > 0)`. **So a documents screen where nothing is nameable kept
+         * the design's two demonstration PDFs** — "Ozikoro archive record guide" and "Collection finding-aid
+         * pattern" — and presented them as the archive's holdings. The design's demo is not an empty state;
+         * it is somebody else's document. `fillDocuments` now empties the grid either way and takes the
+         * sentence to put in the space, which is this page's to write because the reason the space is empty
+         * is this page's rule. `renderNoNameableDocuments` holds that sentence beside the grid, so the page
+         * and `design-fill.test.ts` read the same words.
+         *
+         * THE WORDS SAY WHAT IS ACTUALLY TRUE, AND NAME NO REMEDY THAT MIGHT NOT EXIST. The two records are
+         * not gone: they keep their record pages, their files and their addresses, and they are reachable by
+         * anyone who has the address. What the library withholds is a *card*. **No link is offered from this
+         * state, deliberately** — `/search/` is behind a Suspense boundary, so a fetch of it for
+         * `check-links` returns the fallback rather than a page, and a hand-built query for a filename could
+         * easily lead a reader to an empty result. A sentence that claims nothing beats a button that might
+         * resolve to nothing.
+         */
+        html = fillDocuments(html, docs, renderNoNameableDocuments());
       }
     } catch (error) {
       /*

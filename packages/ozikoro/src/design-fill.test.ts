@@ -38,6 +38,8 @@ import { HOME_STRIP_PLACES, fillHomeTowns, fillTown } from './design-fill.ts';
 import { extractArchiveFilms, fillWatch, renderFilmCard } from './design-fill.ts';
 import { extendWatchScript, fillWatchVideo } from './design-fill.ts';
 import { COLLECTION_CAMERA_SIGN, renderCollection } from './design-fill.ts';
+import { fillDocuments } from './design-fill.ts';
+import { renderNoNameableDocuments } from './design-fill.ts';
 import {
   AFRICAN_COUNTRIES,
   AFRICAN_COUNTRY_COUNT,
@@ -3364,3 +3366,106 @@ test('the design’s own page is given a film page’s shape, and says the archi
   assert.match(own, /<a href="\/watch\/">Watch<\/a>/, 'the block does not point at the films the archive holds');
 });
 
+
+/*
+ * ==================================================================================================
+ * THE DOCUMENT LIBRARY LISTS WHAT IT CAN NAME, AND AN EMPTY GRID IS A REAL STATE
+ * ==================================================================================================
+ *
+ * `mediaName` names a record from the record's own text and falls back to `Untitled document — <file>`
+ * when every field it holds is the file's own name. `/documents/` does not list the fallback: the owner
+ * asked for the two cards headed `Untitled document` to be removed, because **a heading gives a reader
+ * nothing to choose between.** The two records are not deleted — they keep their pages, their files and
+ * their addresses — so this rule belongs to the LISTING and must not move into `mediaName`, which names
+ * the photograph gallery, the media library and every record page, and must keep showing an unnameable
+ * record honestly.
+ *
+ * The test is here because the decision is read off `mediaName`'s `from` field, and a later refactor that
+ * "simplifies" the listing back to `title` would restore the fault silently: the page would still render,
+ * still 200, and still offer two headings nobody can choose between.
+ */
+const DOCUMENTS = readFileSync(join(SCREENS, 'documents.html'), 'utf8');
+
+/** The design's `#other-pdfs` grid, out of a screen — the container this listing is. */
+function pdfGrid(html: string): string {
+  const start = html.indexOf('<div class="sx-pdf-grid"');
+  assert.notEqual(start, -1, 'the grid container is gone from the screen, so this test measures nothing');
+  const open = html.indexOf('>', start) + 1;
+  let depth = 1;
+  let i = open;
+  while (i < html.length && depth > 0) {
+    const nextOpen = html.indexOf('<div', i);
+    const nextClose = html.indexOf('</div>', i);
+    if (nextClose === -1) break;
+    if (nextOpen !== -1 && nextOpen < nextClose) { depth += 1; i = nextOpen + 4; }
+    else { depth -= 1; i = nextClose + '</div>'.length; }
+  }
+  return html.slice(open, i - '</div>'.length);
+}
+
+/** The two records the owner asked to have removed from the listing, and the two names that are real. */
+const namedDoc = (title: string, slug: string) => ({
+  title,
+  recordHref: `/documents/${slug}/`,
+  href: `/media/${slug}.pdf`,
+  label: 'Held by the archive · PDF',
+  note: 'Downloadable file held in the archive. Rights and reuse terms are recorded with the record.',
+  size: '120 KB',
+});
+
+test('the grid lists the documents it can name, and not one of the design’s demonstration files', () => {
+  const out = fillDocuments(DOCUMENTS, [
+    namedDoc('Igbo Folk Idioms In Caribbean Phrase', 'igbo-folk-idioms-in-caribbean-phrase'),
+    namedDoc('Introduction To Igbo Mythology For Kids   Chinelo Anyadiegwu', 'introduction-to-igbo-mythology-for-kids-chinelo-anyadiegwu'),
+  ]);
+  const grid = pdfGrid(out);
+  /* The two real names, at their two real addresses, and the download beside each . */
+  assert.match(grid, /Igbo Folk Idioms In Caribbean Phrase/);
+  assert.match(grid, /Introduction To Igbo Mythology For Kids/);
+  assert.match(grid, /href="\/documents\/igbo-folk-idioms-in-caribbean-phrase\/"/);
+  assert.match(grid, /href="\/documents\/introduction-to-igbo-mythology-for-kids-chinelo-anyadiegwu\/"/);
+  assert.equal(grid.match(/<article/g)?.length, 2, 'the grid is not exactly the documents it was given');
+  /* And every demonstration card is gone from the container, not merely hidden below the real ones. */
+  assert.doesNotMatch(grid, /Ozikoro archive record guide/, 'the design’s demonstration guide is still listed');
+  assert.doesNotMatch(grid, /Collection finding-aid pattern/, 'the design’s demonstration finding aid is still listed');
+  assert.doesNotMatch(grid, /Depositor-restricted document/, 'the design’s demonstration locked card is still listed');
+  assert.doesNotMatch(grid, /archive-guide-demonstration\.pdf/, 'a demonstration download is still listed');
+});
+
+test('an empty grid is emptied and explained, and never left holding the demonstration', () => {
+  /*
+   * THE SERVED PIPELINE, IN THE ORDER THE ROUTE RUNS IT. The route reads the screen from
+   * `apps/ozikoro/public/design/screens/`, runs `designScreenLinks` over it, and then calls
+   * `fillDocuments` with whatever the archive could name — so this reads the deliverable's copy, links it
+   * the same way, and asserts the grid the reader actually receives. A test that skipped the link pass
+   * would be measuring a page the archive never serves.
+   */
+  const served = designScreenLinks(DOCUMENTS, '/documents/');
+  const out = fillDocuments(served, [], renderNoNameableDocuments());
+  const grid = pdfGrid(out);
+  assert.doesNotMatch(grid, /Ozikoro archive record guide/, 'an empty list fell back to the demonstration');
+  assert.doesNotMatch(grid, /Collection finding-aid pattern/, 'an empty list fell back to the demonstration');
+  assert.doesNotMatch(grid, /Depositor-restricted document/, 'an empty list fell back to the demonstration');
+  assert.equal(grid.match(/<article/g)?.length ?? 0, 0, 'the grid is not empty');
+  /*
+   * AND THE SENTENCE IS THE ONE THE ROUTE SERVES, not a copy of it typed here. `renderNoNameableDocuments`
+   * is what `route.ts` passes into this function, so an edit to the words fails here before it reaches a
+   * reader — which is the whole reason the sentence is a function and not an inline string in the route.
+   */
+  assert.match(
+    grid,
+    /No document the archive can name is listed here yet\./,
+    'the served empty state does not say why the list is empty'
+  );
+  assert.match(grid, /still held by the archive, still downloadable/, 'the empty state does not say the records survive');
+  assert.match(grid, /left out of this list/, 'the empty state does not distinguish the listing from the archive');
+  /*
+   * AND THE REST OF THE SCREEN IS UNTOUCHED: the research section above is still emptied of its
+   * fabricated publication, which is a different container and a different rule.
+   */
+  assert.match(out, /No publication has been deposited yet\./);
+  assert.doesNotMatch(out, /Market week and ritual office/, 'the fabricated publication is back');
+  /* An empty list with no sentence still says the plain thing rather than showing a blank space. */
+  const bare = fillDocuments(DOCUMENTS, []);
+  assert.match(pdfGrid(bare), /No document is listed here yet\./);
+});

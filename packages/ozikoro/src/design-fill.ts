@@ -2337,6 +2337,29 @@ export function renderDocument(d: RealDocument): string {
 }
 
 /**
+ * What `/documents/` says when it has no document it can name.
+ *
+ * `mediaName` names a record from the record's own text and falls back to `Untitled document — <file>`
+ * when every field the record holds is the file's own name. **This library does not list the fallback**:
+ * a heading gives a reader nothing to choose between — which is the owner's own request, *"please remove
+ * the two document there written 'untitled document'."*
+ *
+ * ⚠️ THE RECORDS ARE NOT DELETED, AND NO NAME IS INVENTED FOR THEM. Each one keeps its page, its file,
+ * its rights and its address, so the sentence says exactly that rather than implying the archive lost
+ * them. Giving `capacity_building_for_traditional` a human title would be fabricating a name the archive
+ * does not hold; `mediaName`'s comment records that the honest label is the one it produces. **They are
+ * removed from the listing, not renamed.**
+ *
+ * The words live here, beside the grid they fill, so the page and the test read the same sentence and a
+ * later edit cannot leave the test asserting copy nobody serves.
+ */
+export function renderNoNameableDocuments(): string {
+  return `<div class="empty">
+          <p>No document the archive can name is listed here yet. A record whose heading would read “Untitled document — …” is left out of this list, because a heading gives a reader nothing to choose between — but the file is still held by the archive, still downloadable, and still reachable at its own record address.</p>
+        </div>`;
+}
+
+/**
  * Fill `documents.html`'s file grid.
  *
  * THE MIGRATION'S `document` KIND IS NOT ALL DOCUMENTS
@@ -2347,10 +2370,30 @@ export function renderDocument(d: RealDocument): string {
  *
  * The design's own examples are two *demonstration* PDFs, and the brief forbids converting those into
  * official records. They are replaced by files the archive genuinely holds.
+ *
+ * ⚠️ AND WHEN THE CALLER HAS NOTHING TO LIST, THE DEMONSTRATIONS GO TOO. This function used to be called
+ * only when `docs` was non-empty, so a screen with no nameable real documents kept the design's invented
+ * files. It now empties the grid in either case: with the real cards, or with the caller's `empty`
+ * sentence. **An empty state is a real state**, and it is never the demonstration.
  */
-export function fillDocuments(html: string, docs: RealDocument[]): string {
+export function fillDocuments(html: string, docs: RealDocument[], empty?: string): string {
   let out = dropExampleFlag(html);
-  const rendered = docs.map(renderDocument).join('\n        ');
+  /*
+   * ⚠️ AN EMPTY GRID IS A REAL STATE, AND IT IS NOT THE DESIGN'S DEMONSTRATION.
+   *
+   * `sx-pdf-grid` holds two demonstration PDFs and a locked card. Until now this function was called only
+   * when there was something to put in it (`if (docs.length > 0)`), so a documents screen with **nothing
+   * nameable to list** kept the design's invented files — `Ozikoro archive record guide`, `Collection
+   * finding-aid pattern` — and presented them as the archive's holdings. That is the fault this repository
+   * keeps recording: the demo is what a reader meets whenever the real content is absent.
+   *
+   * So the grid is emptied either way, and when there is nothing real to list it says so. The caller passes
+   * the sentence, because the reason the list is empty is the caller's to state (`/documents/` builds its
+   * from the rule that a library lists what it can name); the default says the plain thing.
+   */
+  const rendered = docs.length
+    ? docs.map(renderDocument).join('\n        ')
+    : empty ?? '<div class="empty"><p>No document is listed here yet. Nothing is presented in its place.</p></div>';
   out = replaceContainer(out, '<div class="sx-pdf-grid"', rendered);
 
   /*
