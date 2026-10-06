@@ -392,6 +392,14 @@ export async function getArticleBySlug(db: Db, slug: string): Promise<ArticleDet
 
 export interface ListOptions {
   topicSlug?: string | null;
+  /**
+   * The categories the reader ticked on `/archive/`'s rail, by topic slug.
+   *
+   * **A LIST, BECAUSE THE RAIL DRAWS CHECKBOXES**, exactly as `ethnicGroups` and `clanSlugs` are lists for
+   * the same reason. Two ticked boxes are a request for the union; `topicSlug` (singular) remains for the
+   * routes that offer one category at a time. See `listWhere` for the predicate and why it is one.
+   */
+  topicSlugs?: string[] | null;
   labelSlug?: string | null;
   entityId?: number | null;
   /**
@@ -553,6 +561,24 @@ export function listWhere(options: ListOptions): { clause: string; params: unkno
   if (options.topicSlug) {
     params.push(options.topicSlug);
     conditions.push(`t.slug = $${params.length}`);
+  }
+  /*
+   * ── THE READER'S CATEGORIES, WHICH THE RAIL DRAWS AS CHECKBOXES ───────────────────────────────────
+   *
+   * `/archive/`'s rail now offers all fourteen of the WordPress categories the archive files its records
+   * under, and a reader may tick *Ethnohistory* and *Folklores* together. A `GET` form of checkboxes
+   * submits `?topic=ethnohistory&topic=folklores`, and **honouring only the first would answer a question
+   * the reader did not ask** — the identical fault `ethnicGroups` and `clanSlugs` were added to prevent, in
+   * the third group that needed it.
+   *
+   * `= any(...)` is that union: one predicate over the same `t.slug` the single-tick count runs, extended
+   * to the set rather than a second condition written beside it. The singular `topicSlug` above is
+   * untouched and still serves every route that offers one category at a time — `/topics/<slug>/`,
+   * `/folklore/`, and a record's own category link.
+   */
+  if (options.topicSlugs?.length) {
+    params.push(options.topicSlugs);
+    conditions.push(`t.slug = any($${params.length}::text[])`);
   }
   if (options.authorSlug) {
     params.push(options.authorSlug);

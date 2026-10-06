@@ -74,6 +74,14 @@ import {
   fillIgboCalendar, fillJourneys, fillLedger, fillListen, fillMarquee, fillMaterialCulture, fillPhotographs,
   fillProjectRecord, fillProjectsIndex, fillPublicationRecord, fillPublications, fillResearcherProfile,
   fillTopics, fillTowns, fillTown, fillWatch, fillWatchVideo,
+  /*
+   * The one rule for a name that begins with an invisible character, imported rather than rewritten.
+   * `"⁠Religion and Spirituality"` is stored with a leading U+2060 WORD JOINER, and both the rail's label
+   * and the empty-state sentence have to read the name a reader can see. **A second copy of that strip
+   * here is a second copy that drifts**, which is the fault every shared helper in this file exists to
+   * prevent.
+   */
+  stripLeadingFormat,
   renderNoNameableDocuments,
   extractArchiveFilms,
   COLLECTION_CAMERA_SIGN,
@@ -1108,12 +1116,18 @@ export async function GET(
           place: one('place'),
           q: one('q'),
           state: completeness,
-          topic: one('topic'),
+          /*
+           * ⚠️ **EVERY `topic`, NOT THE FIRST.** The rail draws the archive's fourteen categories as
+           * check-boxes, so `?topic=ethnohistory&topic=folklores` is a reader asking for both. Reading only
+           * the first would return half of what was ticked under a heading naming both — the "control that
+           * does nothing" fault, said about the second box rather than the first.
+           */
+          topic: url.searchParams.getAll('topic').map((value) => value.trim()).filter((value) => value.length > 0),
           sort: one('sort') === 'title' ? 'title' : null,
         };
 
         const listing: ListOptions = {
-          topicSlug: selection.topic,
+          topicSlugs: selection.topic.length > 0 ? selection.topic : null,
           peopleNames: groups.length > 0 ? groups : null,
           clanSlugs: selection.clan.length > 0 ? selection.clan : null,
           place: selection.place,
@@ -1170,11 +1184,37 @@ export async function GET(
           ),
           getArchiveFacets(db),
           db.one<{ n: number }>(`select count(*)::int n from clan where published`),
-          db.rows<{ slug: string; name: string; n: number }>(
-            `select t.slug, t.name, count(a.id)::int n from ozikoro_topic t
-               left join ozikoro_article a on a.topic_id = t.id and a.status = 'published' and a.is_page = false
-              group by t.slug, t.name order by n desc`
-          ),
+          /*
+           * ── ALL FOURTEEN CATEGORIES, AND EVERY COUNT THE PREDICATE ITS OWN TICK-BOX RUNS ─────────────
+           *
+           * `countArticles(db, { topicSlugs: [slug] })` is the very call the listing makes with the very
+           * option the rail's own check-box submits, so **the number beside a category cannot promise
+           * records the filter will not produce** — the property this rail's `peoples` group is built on,
+           * and the one whose absence produced the fabricated figures this fill exists to remove.
+           *
+           * ⚠️ **THE CATALOGUE AND THE COUNTS ARE TWO STATEMENTS ON PURPOSE.** A single `group by` over
+           * `ozikoro_article.topic_id` would be a *second* statement of the same predicate written beside
+           * the first, which is the thing this archive refuses everywhere else: the day the rail's predicate
+           * changes, the group-by keeps counting the old one and every number on the rail silently becomes a
+           * different question. Fourteen counts over a `topic_id` index are cheap — PGlite is in-process.
+           *
+           * **AND NO CATEGORY IS FILTERED OUT.** The catalogue is the whole of `ozikoro_topic`, so a
+           * category with 0 published records is drawn reading `0` rather than dropped; a reader cannot tell
+           * a hidden category from a category that does not exist, and those are different answers. Measured
+           * today: `Video` is one of the fourteen and holds 0.
+           */
+          (async () => {
+            const catalogue = await db.rows<{ slug: string; name: string }>(
+              `select slug, name from ozikoro_topic`
+            );
+            return Promise.all(
+              catalogue.map(async (t) => ({
+                slug: t.slug,
+                name: t.name,
+                count: await countArticles(db, { topicSlugs: [t.slug] }),
+              }))
+            );
+          })(),
         ]);
 
         /*
@@ -1221,8 +1261,25 @@ export async function GET(
           if (completeness === 'partial') {
             return 'Every published record is partial — none carries a source of its own yet.';
           }
-          if (selection.topic) {
-            return 'This series has no published records yet. That is a gap in the archive rather than a search that failed.';
+          if (selection.topic.length > 0) {
+            /*
+             * ⚠️ **A CATEGORY THAT HOLDS NOTHING AND A CATEGORY THAT DOES NOT EXIST ARE TWO ANSWERS.**
+             *
+             * Every slug on the rail comes from `ozikoro_topic`, so a tick-box always names a real
+             * category and an empty listing under one means the archive has written nothing under it —
+             * `Video` today, with 0 published records. A slug typed into the address bar may name no
+             * category at all, and the rail's own list is the whole of them. Returning the same sentence
+             * for both would tell a reader their spelling was a gap in the record.
+             */
+            const named = selection.topic.map((slug) => topics.find((t) => t.slug === slug)?.name ?? slug);
+            const unknown = selection.topic.filter((slug) => !topics.some((t) => t.slug === slug));
+            if (unknown.length > 0) {
+              return `The archive files its records under fourteen categories, and none is called “${unknown.join('”, “')}”. Nothing is hidden — the list on the left is the whole of them.`;
+            }
+            const shown = named.map((name) => `“${stripLeadingFormat(name)}”`);
+            return shown.length === 1
+              ? `${shown[0]} holds no published record yet. It is one of the fourteen categories the archive files under and nothing has been filed there — that is a gap in the record rather than a search that failed.`
+              : `Nothing is filed under ${shown.slice(0, -1).join(', ')} or ${shown[shown.length - 1]} together. Each is one of the fourteen categories the archive files under, and no record carries both — that is a gap in the record rather than a search that failed.`;
           }
           return 'The archive has no published records yet. That would mean the WordPress import has not run.';
         })();
@@ -1237,7 +1294,16 @@ export async function GET(
           if (groups.length > 1) return `${groups.join(' or ')} — on the register's list, with nothing written yet`;
           if (completeness === 'sourced') return 'Nothing is fully sourced yet';
           if (completeness === 'partial') return 'Nothing is partial';
-          if (selection.topic) return 'This series is empty';
+          if (selection.topic.length > 0) {
+            const unknown = selection.topic.filter((slug) => !topics.some((t) => t.slug === slug));
+            if (unknown.length > 0) return `“${unknown.join('”, “')}” is not a category the archive files under`;
+            const named = selection.topic.map(
+              (slug) => stripLeadingFormat(topics.find((t) => t.slug === slug)?.name ?? slug)
+            );
+            return named.length === 1
+              ? `Nothing is filed under ${named[0]} yet`
+              : `Nothing carries ${named.join(' and ')} together`;
+          }
           return 'The archive holds no published records';
         })();
 
@@ -1253,7 +1319,7 @@ export async function GET(
             count: s.count,
           })),
           completeness: { all: facets.records, sourced: facets.sourced, partial: facets.partial },
-          topics: topics.map((t) => ({ slug: t.slug, name: t.name, count: t.n })),
+          topics,
           total,
           page,
           pageSize: ARCHIVE_INDEX_PAGE_SIZE,

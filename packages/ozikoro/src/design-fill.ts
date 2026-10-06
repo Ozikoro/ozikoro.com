@@ -143,7 +143,16 @@ export interface ArchiveRailSelection {
   place: string | null;
   q: string | null;
   state: 'sourced' | 'partial' | null;
-  topic: string | null;
+  /**
+   * The categories the reader has ticked, by topic slug — the archive's fourteen WordPress categories.
+   *
+   * ⚠️ **A LIST, BECAUSE THIS RAIL DRAWS THEM AS CHECKBOXES TOO.** The owner asked to *"see every category
+   * in the website which every article is in"*, and a reader who ticks *Ethnohistory* and *Folklores*
+   * together has asked for the union. `?topic=a&topic=b` is that request; honouring only the first would be
+   * the dead control this rail was reported for, in a new group. See `topicSlugs` in
+   * `packages/ozikoro/src/archive.ts` for the one predicate both the count and the listing run.
+   */
+  topic: string[];
   sort: 'title' | null;
 }
 
@@ -195,6 +204,26 @@ function archiveRailHidden(selection: ArchiveRailSelection, except: readonly str
 
 const railCount = (n: number): string => n.toLocaleString('en-GB');
 
+/**
+ * Strip the leading run of invisible format and control characters from a label a reader must read.
+ *
+ * ⚠️ **THIS IS A RENDERING RULE FOR ONE STORED NAME, AND THE STORED NAME IS NOT CHANGED.** Measured in the
+ * database: topic 21's `name` is `"\u2060Religion and Spirituality"` — U+2060 WORD JOINER, Unicode category
+ * Cf, invisible in every renderer, left at the front by the WordPress export. `String.trim()` does not
+ * remove it, because it is not whitespace.
+ *
+ * **Changing a name is a content change and this is not one.** The value `ozikoro_topic.name` holds is what
+ * the editorial queue, the record pages and the API read, and none of them is touched. What is removed is a
+ * character **that cannot be seen**, from the one string a reader is asked to choose from — which is a defect
+ * whether or not anybody meant it. The rule is deliberately general rather than a patch for U+2060: a name
+ * beginning with a zero-width space (U+200B), a left-to-right mark (U+200E) or a byte-order mark (U+FEFF)
+ * loses it too, and **`fillTopics` already groups the A–Z index by exactly this rule** — so the two pages
+ * that show category names cannot disagree about where the name starts.
+ */
+export function stripLeadingFormat(name: string): string {
+  return name.replace(/^[\p{Cf}\p{Cc}\s]+/u, '');
+}
+
 /** Replace one `<fieldset>` of the rail, found by its own legend. */
 function railFieldset(html: string, legend: string, inner: string): string {
   const legendAt = html.indexOf(`<legend>${legend}</legend>`);
@@ -206,6 +235,40 @@ function railFieldset(html: string, legend: string, inner: string): string {
     html.slice(0, open) +
     `<fieldset>\n        <legend>${legend}</legend>\n        ${inner}\n      </fieldset>` +
     html.slice(close + '</fieldset>'.length)
+  );
+}
+
+/**
+ * Add a `<fieldset>` to the rail where the design drew none, immediately before the one named.
+ *
+ * ⚠️ **WHY THIS IS AN INSERT AND NOT A REPLACE.** The design's `archive-index.html` draws **six** fieldsets —
+ * Ethnic group, Sub-group or clan, Town or place, Time period, Source type, Completeness — and **none of
+ * them is a category group.** Measured, so this is not a group the fill dropped: `grep -c 'topic=' ` over
+ * the design file returns 0. The archive's fourteen categories are therefore a group the design never drew,
+ * and the owner's request — *"i need to see every category in the website which every article is in"* — is
+ * answered by adding it rather than by restoring something removed.
+ *
+ * It is inserted **first**, ahead of *Ethnic group*, because it is the archive's broadest filing axis: the
+ * migration's own comment on `ozikoro_topic` calls the fourteen *"the narrative spine of the site"*, and
+ * every published record that is filed at all is filed under exactly one of them. A reader who came to
+ * select by category should meet it without scrolling.
+ *
+ * Anchoring on the legend rather than on an index keeps this correct if the design's own order changes.
+ */
+function railInsertFieldsetBefore(
+  html: string,
+  beforeLegend: string,
+  legend: string,
+  inner: string
+): string {
+  const legendAt = html.indexOf(`<legend>${beforeLegend}</legend>`);
+  if (legendAt === -1) return html;
+  const open = html.lastIndexOf('<fieldset>', legendAt);
+  if (open === -1) return html;
+  return (
+    html.slice(0, open) +
+    `<fieldset>\n        <legend>${legend}</legend>\n        ${inner}\n      </fieldset>\n      ` +
+    html.slice(open)
   );
 }
 
@@ -238,6 +301,8 @@ function railFieldset(html: string, legend: string, inner: string): string {
  * ── AND EVERY REMAINING CONTROL EITHER FILTERS OR IS NOT DRAWN ───────────────────────────────────────
  *
  * * **clan** — real clans, counted by `getArchiveFacets().clans`, filtered by the same `role = 'clan'`.
+ * * **category** — **all fourteen** the archive files under, added as a group the design never drew, each
+ *   counted by the predicate its own tick-box runs. Zero-count categories stay on the list; see section 0.
  * * **place** — the design's own free-text field, wired to the archive's place filter; it carries the
  *   reader's value rather than the design's example.
  * * **completeness** — the design's three radios, which drew no numbers and now carry the real ones.
@@ -277,6 +342,44 @@ export function fillArchiveIndex(html: string, opts: {
   let out = dropExampleFlag(html);
   const { selection } = opts;
   const check = (name: string) => selection.group.some((g) => g.toLowerCase() === name.toLowerCase());
+
+  /*
+   * ---- 0. THE CATEGORY: EVERY ONE THE ARCHIVE FILES UNDER, INCLUDING THE EMPTY AND THE UNFILED -------
+   *
+   * The owner: *"i cannot find the categories when I go to the archive section to select articles. i need to
+   * see every category in the website which every article is in."* **All fourteen are drawn, always, and
+   * each carries the number of published records its own tick-box returns.**
+   *
+   * ⚠️ **A ZERO-COUNT CATEGORY IS SHOWN, NOT HIDDEN.** *Video* is one of WordPress's fourteen and this
+   * archive holds 0 published records under it. The precedent set on this rail tonight is the right one: a
+   * people the register names but nobody has written under is drawn reading `0`, with the listing saying so.
+   * **Hiding a category because it is empty hides the fact that the archive has one** — a reader cannot tell
+   * a category that is empty from a category that does not exist, and those are different answers.
+   *
+   * ⚠️ **THE NAME IS WHATEVER THE DATABASE HOLDS, WITH ONE DOCUMENTED EXCEPTION.** One stored name begins
+   * with U+2060 WORD JOINER, an invisible format character WordPress left in `"⁠Religion and Spirituality"`.
+   * `stripLeadingFormat` removes it from the LABEL a reader reads — it is a rendering defect, not a name —
+   * and the slug that goes in the address is untouched. **This is a display decision about one leading
+   * format character, taken in one named place, and it is said out loud rather than done silently**; the
+   * stored `ozikoro_topic.name` is not modified. The A–Z index on `/topics/` groups by the same rule already
+   * (`fillTopics`), so the two pages agree about where the name starts.
+   *
+   * The predicate each number is counted with is the rail's own — `countArticles(db, { topicSlugs: [slug] })`
+   * — so an option reading `Ethnohistory 86` above a listing of eighty-five is impossible by construction.
+   */
+  const categoryRows = opts.topics.map(
+    (t) =>
+      `<label><input type="checkbox" name="topic" value="${esc(t.slug)}"${selection.topic.includes(t.slug) ? ' checked' : ''}> ` +
+      `${esc(stripLeadingFormat(t.name))} <span class="count">${railCount(t.count)}</span></label>`
+  );
+  if (categoryRows.length > 0) {
+    categoryRows.push(
+      `<p class="small muted" style="margin-top:var(--s-3)">Every published history is filed under one of ` +
+        `these — the fourteen categories the archive came from WordPress with. A category holding nothing ` +
+        `yet counts 0 and stays on the list, so you can tell an empty one from one that is not there.</p>`
+    );
+    out = railInsertFieldsetBefore(out, 'Ethnic group', 'Category', categoryRows.join('\n        '));
+  }
 
   // ---- 1. the ethnic group: the register's peoples, and the records that name each one -------------
   const peopleRows = opts.peoples.map(
@@ -375,13 +478,26 @@ export function fillArchiveIndex(html: string, opts: {
       archiveRailHidden(selection, ['q'])
   );
   // And the rail form, whose Apply button must not throw the search away.
+  //
+  // ⚠️ `topic` IS EXCLUDED HERE BECAUSE THIS FORM NOW DRAWS THE CATEGORY CHECKBOXES ITSELF. It used to be
+  // carried as a hidden input, which was correct while no control in this form submitted it. Leaving that
+  // hidden field in place beside fourteen real checkboxes would submit the same parameter twice — a form
+  // that cannot be cleared of a category, because the hidden copy would re-assert it on every Apply.
   out = out.replace(
     /(<form class="rail" method="get"[^>]*>)/,
-    `$1\n      ${archiveRailHidden(selection, ['group', 'clan', 'place', 'state'])}`
+    `$1\n      ${archiveRailHidden(selection, ['group', 'clan', 'place', 'state', 'topic'])}`
   );
 
   // ---- 6. the heading over the listing, which said "24 entries · Igbo · Ụ̀mụ̀nrì · 1800–1900" -------
   const applied = [
+    selection.topic.length > 0
+      ? selection.topic
+          .map((slug) => {
+            const t = opts.topics.find((o) => o.slug === slug);
+            return t ? stripLeadingFormat(t.name) : slug;
+          })
+          .join(', ')
+      : null,
     selection.group.length > 0 ? selection.group.join(', ') : null,
     selection.clan.length > 0
       ? selection.clan.map((slug) => opts.clans.find((c) => c.value === slug)?.label ?? slug).join(', ')
@@ -403,6 +519,13 @@ export function fillArchiveIndex(html: string, opts: {
    * removed. Each real chip is a link that drops exactly its own filter and keeps the rest.
    */
   const chips: string[] = [];
+  // One chip per category, each removing only its own value and keeping its neighbours ticked.
+  for (const slug of selection.topic) {
+    const t = opts.topics.find((o) => o.slug === slug);
+    chips.push(
+      `<a class="chip" href="${esc(archiveRailHref(selection, { topic: selection.topic.filter((s) => s !== slug) }))}">${esc(t ? stripLeadingFormat(t.name) : slug)} ✕</a>`
+    );
+  }
   // One chip per ticked box, each removing only its own value and keeping its neighbours.
   for (const group of selection.group) {
     chips.push(

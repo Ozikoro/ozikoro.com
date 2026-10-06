@@ -53,6 +53,7 @@ import {
 import { designScreenLinks } from './design-paths.ts';
 import { BACKER_ROLES, namedBackers } from './partners.ts';
 import { fillApproach } from './design-fill.ts';
+import { fillArchiveIndex } from './design-fill.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 /** The deliverable's screens, four levels up: packages/ozikoro/src -> the repository root. */
@@ -4143,4 +4144,100 @@ test('the sponsors page names him a partner, and does not call him an investor',
     assert.ok(!out.toLowerCase().includes(banned.toLowerCase()), `the sponsors page carries "${banned}", which nobody stated`);
   }
   assert.ok(!/\b(19|20)\d{2}\b/.test(out.replace(/© \d{4}/g, '© YEAR')), 'a year has been written beside the name; he gave no date');
+});
+
+/*
+ * ── THE CATEGORY GROUP ON `/archive/`'s RAIL, WHICH THE DESIGN NEVER DREW ──────────────────────────────
+ *
+ * The owner: *"i cannot find the categories when I go to the archive section to select articles. i need to
+ * see every category in the website which every article is in."* **The design's `archive-index.html` draws
+ * six fieldsets and none of them is a category group** — measured, `topic=` appears zero times in the file —
+ * so this is a group the fill adds rather than one it restored, and the assertions below are about the
+ * properties that make it a real control rather than a list beside one:
+ *
+ *   1. every category is drawn, by name, with a count;
+ *   2. a category holding nothing is drawn reading `0` and is not dropped;
+ *   3. the one name that carries an invisible U+2060 reaches the reader without it;
+ *   4. the rail form submits the boxes it draws and **not a hidden second copy of the parameter**, which
+ *      would make a category impossible to clear;
+ *   5. two ticked categories are two chips and one union, and each chip drops only its own value;
+ *   6. a category that matches nothing gets a sentence rather than an empty grid.
+ *
+ * The real screens are read from the deliverable rather than from fixtures, as the rest of this file does,
+ * and the transform is in memory — the design file is byte-identical afterwards and asserted so below.
+ */
+test('the archive rail draws every category the archive files under, with the number its own box returns', () => {
+  const html = readFileSync(join(SCREENS, 'archive-index.html'), 'utf8');
+  const topics = [
+    { slug: 'historical-studies', name: 'Historical Studies', count: 125 },
+    { slug: 'religion-and-spirituality', name: '\u2060Religion and Spirituality', count: 14 },
+    { slug: 'uncategorized', name: 'Uncategorized', count: 3 },
+    { slug: 'video', name: 'Video', count: 0 },
+  ];
+  const railFor = (topic: string[], total: number) =>
+    fillArchiveIndex(html, {
+      entries: [],
+      peoples: [],
+      clans: [],
+      registerClans: 0,
+      periods: [],
+      sourceTypes: [],
+      completeness: { all: 1_051, sourced: 0, partial: 1_051 },
+      topics,
+      total,
+      page: 1,
+      pageSize: 24,
+      selection: { group: [], clan: [], place: null, q: null, state: null, topic, sort: null },
+      emptyReason: total === 0 ? 'Nothing is filed under Video yet.' : null,
+      emptyHeadline: total === 0 ? 'Nothing is filed under Video yet' : null,
+    });
+
+  const out = railFor([], 12);
+  assert.match(out, /<legend>Category<\/legend>/, 'the rail draws a category group');
+
+  // 1 and 2 — every one, by name, with its own count, and the empty one kept.
+  for (const t of topics) {
+    assert.ok(
+      out.includes(`name="topic" value="${t.slug}"`),
+      `${t.slug} is offered as a control the reader can tick`
+    );
+    assert.ok(
+      out.includes(`${t.name.replace('\u2060', '')} <span class="count">${t.count}</span>`),
+      `${t.slug} carries the number its own box returns`
+    );
+  }
+  assert.match(out, /Video <span class="count">0<\/span>/, 'a category holding nothing is drawn reading 0, not hidden');
+
+  // 3 — a leading format character is a rendering defect, not a name, and does not reach the rail.
+  assert.ok(!out.includes('\u2060Religion'), 'the U+2060 WordPress left at the front of one name is stripped from the label');
+  assert.ok(out.includes('Religion and Spirituality <span'), 'the name itself is unchanged and still readable');
+
+  // 4 — the rail form owns these boxes, so it must not also carry a hidden copy of the parameter.
+  const railStart = out.indexOf('<form class="rail"');
+  const rail = out.slice(railStart, out.indexOf('</form>', railStart));
+  assert.ok(!/type="hidden" name="topic"/.test(rail), 'the rail form submits no hidden second copy of `topic`');
+
+  // 5 — two ticked categories are a union, one chip each, and a chip drops only its own value.
+  const two = railFor(['historical-studies', 'video'], 125);
+  assert.match(two, /name="topic" value="historical-studies" checked/, 'the box the reader ticked is drawn ticked');
+  assert.match(two, /name="topic" value="video" checked/, 'both boxes the reader ticked are drawn ticked');
+  assert.match(two, /class="chip"[^>]*>Historical Studies ✕<\/a>/, 'each chosen category is a chip');
+  assert.match(two, /class="chip"[^>]*>Video ✕<\/a>/, 'including the one that holds nothing');
+  assert.match(
+    two,
+    /<b>125 entries<\/b> · Historical Studies, Video/,
+    'the heading names the categories the listing is narrowed by'
+  );
+  assert.match(
+    two,
+    /href="\/archive\/\?topic=historical-studies"[^>]*>Video ✕/,
+    'the Video chip drops only Video and keeps Historical Studies ticked'
+  );
+
+  // 6 — a category that matches nothing explains itself rather than showing an empty grid.
+  const empty = railFor(['video'], 0);
+  assert.match(empty, /Nothing is filed under Video yet/, 'the empty state names the category, not a generic blank');
+
+  // The design file is the deliverable and is read, never written.
+  assert.equal(readFileSync(join(SCREENS, 'archive-index.html'), 'utf8'), html, 'the design file is byte-identical after the fill');
 });
