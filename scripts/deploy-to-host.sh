@@ -175,6 +175,25 @@ done
 mv "$STAGE/../deploy-manifest.txt" /tmp/deploy-manifest.txt
 echo "    manifest: $(wc -l < /tmp/deploy-manifest.txt | tr -d ' ') files"
 
+# ── WHAT THIS DEPLOY IS, IN THREE FACTS, FOR THE IMMUTABLE TAG AND ITS PROVENANCE LINE ─────────
+#
+# ⚠️ **THE TAG CARRIES A COMMIT, AND THE COMMIT IS NOT THE WHOLE TRUTH — SO THE TRUTH IS RECORDED
+# BESIDE IT.** This script ships the WORKING TREE (`git ls-files` chooses the paths, `cp` reads the
+# files), so a deploy made while the tree is dirty ships content that is not in `HEAD`. Measured at
+# the last deploy of 2026-10-06: 872 files travelled from a tree with dozens of modified files. A
+# tag reading `...-607e0ac` therefore means "launched from 607e0ac", not "identical to 607e0ac".
+#
+# That distinction is exactly the "file and production disagree" fault this repository keeps
+# producing, so it is not left to a comment: the manifest's own sha256, the number of dirty paths,
+# and the file count go into `/opt/ozituma/backups/image-provenance.log` on the host, one line per
+# build. The tag stays short and memorable — which is what a rollback needs — and the honesty lives
+# in the line next to it, which is where somebody debugging a rollback will look.
+REV="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+MANIFEST_SHA="$(shasum -a 256 /tmp/deploy-manifest.txt | cut -d' ' -f1)"
+DIRTY="$(git status --porcelain | wc -l | tr -d ' ')"
+FILE_COUNT="${#KEEP[@]}"
+echo "    revision to be tagged: $REV (dirty paths in the tree: $DIRTY; manifest sha256: $(printf '%s' "$MANIFEST_SHA" | cut -c1-16)…)"
+
 if [ "$DRY_RUN" = "1" ]; then
   echo "==> DRY RUN — nothing uploaded, nothing written"
   echo "    would copy ${#KEEP[@]} files to $REMOTE_DIR, then ${DO_BUILD:+rebuild}"
@@ -208,54 +227,112 @@ echo "==> uploading"
 # `OZITUMA_MAIL_FROM=Ozituma <hello@ozikoro.com>` — the shell reads `<…>` as a redirect — and an
 # unquoted space and a `+` elsewhere. That is why two installs died with exit 0 and empty output.
 # The two keys are extracted by `awk` instead, and nothing prints their values.
-cat > /tmp/deploy-remote.sh <<REMOTE
+cat > /tmp/deploy-remote.sh <<'REMOTE'
 set -u
-cd $REMOTE_DIR || exit 1
-TS=\$(date -u +%Y-%m-%dT%H-%M-%SZ)
-AK=\$(awk -F= '/^AWS_ACCESS_KEY_ID=/{sub(/^AWS_ACCESS_KEY_ID=/,"");print;exit}' /opt/ozituma/.env)
-SK=\$(awk -F= '/^AWS_SECRET_ACCESS_KEY=/{sub(/^AWS_SECRET_ACCESS_KEY=/,"");print;exit}' /opt/ozituma/.env)
-export AWS_ACCESS_KEY_ID="\$AK" AWS_SECRET_ACCESS_KEY="\$SK" AWS_DEFAULT_REGION=$AWS_REGION
+cd __REMOTE_DIR__ || exit 1
+TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+AK=$(awk -F= '/^AWS_ACCESS_KEY_ID=/{sub(/^AWS_ACCESS_KEY_ID=/,"");print;exit}' /opt/ozituma/.env)
+SK=$(awk -F= '/^AWS_SECRET_ACCESS_KEY=/{sub(/^AWS_SECRET_ACCESS_KEY=/,"");print;exit}' /opt/ozituma/.env)
+export AWS_ACCESS_KEY_ID="$AK" AWS_SECRET_ACCESS_KEY="$SK" AWS_DEFAULT_REGION=__AWS_REGION__
 
 echo "==> host: backup before anything is written"
-docker compose --env-file /opt/ozituma/.env $COMPOSE exec -T postgres \\
-  pg_dump -U ozituma -Fc ozituma > /opt/ozituma/backups/ozikoro-pre-deploy-\$TS.dump 2>/dev/null
-echo "    /opt/ozituma/backups/ozikoro-pre-deploy-\$TS.dump \$(wc -c < /opt/ozituma/backups/ozikoro-pre-deploy-\$TS.dump) bytes"
+docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \\
+  pg_dump -U ozituma -Fc ozituma > /opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump 2>/dev/null
+echo "    /opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump $(wc -c < /opt/ozituma/backups/ozikoro-pre-deploy-$TS.dump) bytes"
 
 echo "==> host: download and verify every hash BEFORE writing"
-aws s3 cp "s3://$BUCKET/manifest.txt" /tmp/dm.txt --no-progress >/dev/null
+aws s3 cp "s3://__BUCKET__/manifest.txt" /tmp/dm.txt --no-progress >/dev/null
 rm -rf /tmp/din && mkdir -p /tmp/din
 OK=0; BAD=0
 while read -r sha path; do
-  [ -z "\$path" ] && continue
-  mkdir -p "/tmp/din/\$(dirname "\$path")"
-  aws s3 cp "s3://$BUCKET/files/\$path" "/tmp/din/\$path" --no-progress >/dev/null 2>&1
-  got=\$(sha256sum "/tmp/din/\$path" 2>/dev/null | cut -d' ' -f1)
-  if [ "\$got" = "\$sha" ]; then OK=\$((OK+1)); else BAD=\$((BAD+1)); echo "    MISMATCH \$path"; fi
+  [ -z "$path" ] && continue
+  mkdir -p "/tmp/din/$(dirname "$path")"
+  aws s3 cp "s3://__BUCKET__/files/$path" "/tmp/din/$path" --no-progress >/dev/null 2>&1
+  got=$(sha256sum "/tmp/din/$path" 2>/dev/null | cut -d' ' -f1)
+  if [ "$got" = "$sha" ]; then OK=$((OK+1)); else BAD=$((BAD+1)); echo "    MISMATCH $path"; fi
 done < /tmp/dm.txt
-echo "    verified \$OK ok, \$BAD bad"
-[ "\$BAD" != "0" ] && { echo "    STOPPING — nothing written"; exit 1; }
+echo "    verified $OK ok, $BAD bad"
+[ "$BAD" != "0" ] && { echo "    STOPPING — nothing written"; exit 1; }
 
 # A whole-directory backup of the two things whose loss is unrecoverable here: the design screens
 # and the stylesheets. Path-derived names, because a basename-derived name once collided for two
 # different `publication.ts` files.
-mkdir -p "/opt/ozituma/backups/design-\$TS"
-cp -a apps/ozikoro/public/design/. "/opt/ozituma/backups/design-\$TS/" 2>/dev/null
-echo "    design backed up: \$(find /opt/ozituma/backups/design-\$TS -type f | wc -l) files"
+mkdir -p "/opt/ozituma/backups/design-$TS"
+cp -a apps/ozikoro/public/design/. "/opt/ozituma/backups/design-$TS/" 2>/dev/null
+echo "    design backed up: $(find /opt/ozituma/backups/design-$TS -type f | wc -l) files"
 
 echo "==> host: install"
 cp -a /tmp/din/. .
-echo "    design files now: \$(find apps/ozikoro/public/design -type f | wc -l)"
-echo "    screens now:      \$(ls apps/ozikoro/public/design/screens/*.html 2>/dev/null | wc -l)"
+echo "    design files now: $(find apps/ozikoro/public/design -type f | wc -l)"
+echo "    screens now:      $(ls apps/ozikoro/public/design/screens/*.html 2>/dev/null | wc -l)"
 
-if [ "$DO_BUILD" = "1" ]; then
+if [ "__DO_BUILD__" = "1" ]; then
   echo "==> host: rebuild"
-  echo "    before: \$(docker inspect ozituma-ozikoro-1 --format '{{.State.StartedAt}}' 2>/dev/null)"
-  docker compose --env-file /opt/ozituma/.env $COMPOSE up -d --build ozikoro 2>&1 | tail -8
-  echo "    after:  \$(docker inspect ozituma-ozikoro-1 --format '{{.State.StartedAt}} img={{.Image}}' 2>/dev/null | cut -c1-72)"
+  echo "    before: $(docker inspect ozituma-ozikoro-1 --format '{{.State.StartedAt}}' 2>/dev/null)"
+  docker compose --env-file /opt/ozituma/.env __COMPOSE__ up -d --build ozikoro 2>&1 | tail -8
+  echo "    after:  $(docker inspect ozituma-ozikoro-1 --format '{{.State.StartedAt}} img={{.Image}}' 2>/dev/null | cut -c1-72)"
+
+  # ── NAME THE BUILD, BECAUSE `latest` IS A MOVING TAG AND AN ID IS UNMEMORABLE ────────────────
+  #
+  # `docker-compose.ozikoro.yml` already reads its image from `${OZIKORO_IMAGE_TAG:-latest}`, so a
+  # rollback needs nothing but a tag to name. Without this step there was no such tag: `latest` moved
+  # to each new build and the previous image became dangling, and `docker image prune -af` in
+  # `/usr/local/bin/ozituma-docker-cleanup` then deleted it — tags and all, because `-a` cannot be
+  # told to spare an image. (That script now keeps the newest five immutable tags per repository; the
+  # pair of changes is what makes either of them mean anything.)
+  #
+  # ⚠️ THE STAMP IS THE DEPLOY'S START, NOT THE BUILD'S END. `TS` is the same stamp the pre-deploy
+  # dump is named with, so a tag, the dump taken before it, and the design backup beside it all sort
+  # together in one place. A build that takes nine minutes still gets the stamp of the deploy that
+  # asked for it.
+  TAGSTAMP=$(printf '%s' "$TS" | tr -d ':-')
+  IMMUTABLE_TAG="${TAGSTAMP}-$REV"
+  TARGET="ozikoro-site:$IMMUTABLE_TAG"
+  EXISTING=$(docker image inspect "$TARGET" --format '{{.Id}}' 2>/dev/null || true)
+  NEW_ID=$(docker image inspect ozikoro-site:latest --format '{{.Id}}' 2>/dev/null || true)
+  if [ -n "$EXISTING" ] && [ "$EXISTING" != "$NEW_ID" ]; then
+    # Two deploys inside one second, or a tag left from an earlier interrupted run. Refuse rather
+    # than repoint a name that already means something — `docker tag` would do it silently.
+    echo "    !! NOT tagging: $TARGET already exists as $EXISTING, and this build is $NEW_ID"
+  elif docker tag ozikoro-site:latest "$TARGET"; then
+    echo "    immutable tag: $TARGET  ($NEW_ID)"
+    printf '%s tag=%s image=%s rev=%s manifest=%s dirty=%s files=%s deployed=%s\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$TARGET" "$NEW_ID" "$REV" "$MANIFEST_SHA" "$DIRTY" "$FILE_COUNT" "$TS" \
+      >> /opt/ozituma/backups/image-provenance.log
+    echo "    provenance:    /opt/ozituma/backups/image-provenance.log"
+    echo "    ROLL BACK TO THIS BUILD WITH:"
+    echo "      cd /opt/ozituma/app && OZIKORO_IMAGE_TAG=$IMMUTABLE_TAG \\"
+    echo "        docker compose --env-file /opt/ozituma/.env __COMPOSE__ up -d --no-build --no-deps ozikoro"
+  else
+    echo "    !! could not tag ozikoro-site:latest as $TARGET — the rollback target for this build does not exist"
+  fi
 fi
 
 echo "==> host: done"
 REMOTE
+
+# ⚠️ THE DELIMITER IS QUOTED, SO THE SHELL EXPANDS NOTHING INSIDE IT — and that is the fix.
+# The unquoted form expanded every backtick and `$(` in the body, including inside COMMENTS:
+# an agent added a paragraph mentioning `docker-compose.ozikoro.yml` and `docker image prune -af`,
+# and the shell tried to RUN each of those words — "publication.ts: command not found",
+# "docker: command not found" — while writing the file. The deploy then installed nothing at all:
+# 873 files uploaded, the container never rebuilt, and the town and dashboard fixes never landed.
+# The values the parent must supply are placeholders now, and they are substituted here.
+sed -i \
+  -e "s|__BUCKET__|$BUCKET|g" \
+  -e "s|__REMOTE_DIR__|$REMOTE_DIR|g" \
+  -e "s|__AWS_REGION__|$AWS_REGION|g" \
+  -e "s|__COMPOSE__|$COMPOSE|g" \
+  -e "s|__DO_BUILD__|$DO_BUILD|g" \
+  -e "s|__INSTANCE_ID__|$INSTANCE_ID|g" \
+  /tmp/deploy-remote.sh
+# --- and prove nothing unexpanded survived ---
+if grep -qE '__[A-Z_]+__' /tmp/deploy-remote.sh; then
+  echo "!! a placeholder survived substitution:" >&2
+  grep -nE '__[A-Z_]+__' /tmp/deploy-remote.sh >&2
+  exit 1
+fi
+
 
 python3 - "$BUCKET" <<'PY'
 import json, sys, pathlib
