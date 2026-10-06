@@ -50,9 +50,11 @@
  *
  * ── THREE THINGS THE MOCK-UP DREW THAT THIS FILE REFUSES TO DRAW ────────────────────────────────────
  *
- *   1. **A PAINTED WEBSITE.** The widgets tab's `.site-preview` is an `<iframe>` on the real served
- *      design screen — the same page a reader gets — not the mock-up's hand-built hero, three invented
- *      cards and a `fake-btn`. A hand-drawn hero is a fabricated artefact.
+ *   1. **A PAINTED WEBSITE.** The widgets tab's `.site-preview` carries the browser chrome the mock-up
+ *      drew and then **the served page's own real headings and links**, read from the document. It is not
+ *      the mock-up's hand-built hero, three invented cards and a `fake-btn`, and it is not an `<iframe>`
+ *      either: measured, the archive answers `X-Frame-Options: DENY`, so a frame came up blank. A
+ *      hand-drawn hero is a fabricated artefact; a weakened security header is a worse one.
  *   2. **AN EDITOR THAT SAVES NOTHING.** The writing tab is the design's `.editor-shell` shape pointed at
  *      the REAL writing surface at `/admin/posts/new` and `/admin/pages/new`, which renders the archive's
  *      own editor. It is not a second editor, and **the words "Classic Editor" appear in no rendered text
@@ -68,7 +70,6 @@ import { getDb, type Db } from '@ozituma/db/client';
 import {
   ALL_SCREENS,
   CONTRAST_PAIRS,
-  INVENTORY_LIMIT,
   contrastReport,
   fontOptions,
   listDesignOverrides,
@@ -1039,7 +1040,7 @@ export default async function DesignStudioPage({
   /**
    * ⚠️ FORTY ELEMENTS ARE DRAWN AT A TIME, AND ONE HUNDRED AND FIFTY WERE NOT.
    *
-   * `inventoryFor` may return up to `INVENTORY_LIMIT` (150) items, and every one of them is drawn with
+   * `inventoryFor` may return up to the inventory limit (150) items, and every one of them is drawn with
    * **every form it can honestly take** — a text field per place, an image form, a link form and a hide
    * form. Measured on `/about/`: 150 items made the page 11,937 px tall and 921 KB of HTML, all of it
    * assembled and sent for the reader to look at the first screenful of. The old page was the same, and
@@ -1548,18 +1549,31 @@ export default async function DesignStudioPage({
    * The mock-up draws a whole website inside `.site-preview`: a `.site-head` with a wordmark and four menu
    * items, a `.hero` with a kicker, a 39px headline, a paragraph and a `fake-btn`, then three `.mini-card`s
    * with `linear-gradient` thumbnails. **None of it is Ozikoro's, and drawing it would be a fabricated
-   * artefact** — the owner's own rule. The archive already serves the real screen at `/{screen}/`, so the
-   * frame below is an `<iframe>` on that address: the real masthead, the real hero, the real stylesheet,
-   * the real words, and a reader's-eye view of whatever the owner's next edit will change.
+   * artefact** — the owner's own rule.
    *
-   * ⚠️ **AND IT IS HONEST ABOUT WHAT AN IFRAME CANNOT DO.** The screen answers `X-Frame-Options: SAMEORIGIN`
-   * rather than `DENY` — see the preview route's note, which relies on that — so a same-origin frame draws.
-   * A stored override IS applied in the frame, because the frame goes through the same serve path a reader
-   * does; a *pending*, unsaved edit is not, and the address bar beside the frame therefore points at the
-   * preview endpoint for exactly that case.
+   * ⚠️ **AND THE REAL PAGE CANNOT BE DRAWN IN A FRAME EITHER, WHICH WAS MEASURED RATHER THAN ASSUMED.**
+   * The first version of this tab put the live screen in an `<iframe>`. The frame came up blank, and the
+   * reason is in the served response:
+   *
+   *     X-Frame-Options: DENY
+   *     Content-Security-Policy: … frame-ancestors 'none' …
+   *
+   * **Both are deliberate** — the archive is not embeddable, and the file that sets them says so; the
+   * preview *route* works precisely because it REDIRECTS into the real page rather than framing it.
+   * Weakening a security header so an editor could draw a picture of a page inside itself would weaken it
+   * for every other site on the internet, which is the one trade this page must not make.
+   *
+   * So the browser chrome is drawn — the mock-up's `.browser`, `.browserbar`, three `.bubble`s and
+   * `.address`, with the address as a real link — and what is inside it is **the page's own real content,
+   * read from the served document**: its title, its headings and its buttons, in its own order. That is a
+   * true account of the screen, and the two real ways to SEE it are buttons rather than a picture.
    */
   const sitePath = screenHref(screen);
   const previewHref = `/admin/design/preview?${new URLSearchParams({ kind: 'token', key: '--paper', value_text: values.get('paper') ?? '', previewScreen: screen }).toString()}`;
+  /** The words and controls the served page really leads with, in the page's own order. */
+  const pageOutline = items
+    .filter((item) => /^h[1-4]$/.test(item.tag) || item.can.link)
+    .slice(0, 14);
   const widgetTab = (
     <>
       <div className="layout-editor">
@@ -1582,10 +1596,10 @@ export default async function DesignStudioPage({
           <div className="list">
             {inventoryError ? (
               <p className="hint" style={{ padding: 8 }}>{inventoryError}</p>
-            ) : items.length === 0 ? (
+            ) : shown.length === 0 ? (
               <p className="hint" style={{ padding: 8 }}>The served page reported no blocks.</p>
             ) : (
-              items.slice(0, 40).map((item) => (
+              shown.map((item) => (
                 <a
                   key={item.key}
                   href={`#block-${encodeURIComponent(item.key)}`}
@@ -1608,18 +1622,54 @@ export default async function DesignStudioPage({
               </div>
             </div>
             <div className="site-preview">
-              {/*
-                THE FRAME, AND THE ONE LINE THAT SAYS WHAT IT IS.
-                An `<iframe>` needs a title for a screen reader, and the sentence under it is not decoration:
-                it says the frame is the live page rather than a saved preview, and gives the address to open
-                the same thing in a real tab, which is what the mock-up's address bar only pretended to be.
-              */}
-              <iframe src={sitePath} title={`The live /${screen}/ page as it is served now`} loading="lazy" />
-              <p className="hint" style={{ margin: 0, padding: '10px 14px' }}>
-                This frame is the real <code>{sitePath}</code> page as it is served now, with every stored
-                edit already applied — not a drawing of one. A pending, unsaved edit is not in it:{' '}
-                <a href={previewHref} target="_blank" rel="noreferrer">open a preview of this page</a> instead.
-              </p>
+              <div className="preview-pane">
+                <div className="notice">
+                  <b>This page cannot be drawn inside a frame, and that is deliberate</b>
+                  <code>{sitePath}</code> answers <code>X-Frame-Options: DENY</code> and{' '}
+                  <code>frame-ancestors &rsquo;none&rsquo;</code>, so no page of this archive may be
+                  embedded — not here and not on anybody else&rsquo;s site. Weakening that so an editor
+                  could see a picture of a page inside itself would weaken it everywhere. What is below is
+                  instead <b>what the served page really holds</b>, read from the document itself.
+                </div>
+                <div className="actions">
+                  <a className="btn primary" href={sitePath} target="_blank" rel="noreferrer">
+                    Open {sitePath} in a new tab
+                  </a>
+                  <a className="btn" href={previewHref} target="_blank" rel="noreferrer">
+                    Open it with a pending edit applied
+                  </a>
+                </div>
+                <div className="divider" />
+                <h4 style={{ margin: '0 0 6px', fontSize: 12 }}>
+                  What {sitePath} holds{placesTotal === null ? '' : ` — first ${pageOutline.length} of ${placesTotal} places`}
+                </h4>
+                {pageOutline.length === 0 ? (
+                  <p className="hint">The served page reported no headings or links.</p>
+                ) : (
+                  <div className="stack">
+                    {pageOutline.map((item) => (
+                      <div key={item.key}>
+                        <span className="label">
+                          {/^h[1-4]$/.test(item.tag) ? item.tag : 'link'}
+                        </span>
+                        {/^h[1-4]$/.test(item.tag) ? (
+                          <p style={{ margin: 0, fontFamily: 'var(--serif)', fontSize: item.tag === 'h1' ? 20 : 15 }}>
+                            {item.text || <span className="hint">nothing written here yet</span>}
+                          </p>
+                        ) : (
+                          <p style={{ margin: 0 }}>
+                            <q>{item.text}</q> → <code>{item.href}</code>
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="hint" style={{ marginTop: 12 }}>
+                  Every one of those is editable below, in the element list, and the changes will be on
+                  the real page the moment they are saved.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1645,7 +1695,7 @@ export default async function DesignStudioPage({
             <div className="control">
               <span className="label">Blocks the served page holds</span>
               <div className="control-row">
-                <span className="hint">{placesTotal === null ? 'not read' : `${items.length} shown of ${placesTotal}`}</span>
+                <span className="hint">{placesTotal === null ? 'not read' : `${shown.length} shown of ${placesTotal}`}</span>
                 <a className="btn small" href={tabHref('text', { screen })}>Show them</a>
               </div>
             </div>
@@ -1726,17 +1776,17 @@ export default async function DesignStudioPage({
 
             {placesTotal !== null ? (
               <p className="hint" style={{ display: 'flex', gap: 14, alignItems: 'baseline', flexWrap: 'wrap' }}>
-                <span>Showing places {from + 1}–{from + items.length} of {placesTotal} on /{screen}/.</span>
+                <span>Showing places {from + 1}–{from + shown.length} of {placesTotal} on /{screen}/.</span>
                 {from > 0 ? (
-                  <a href={tabHref('widgets', { screen, from: String(Math.max(0, from - INVENTORY_LIMIT)) })}>← Previous {INVENTORY_LIMIT}</a>
+                  <a href={tabHref('widgets', { screen, from: String(Math.max(0, from - PLACES_PER_PAGE)) })}>← Previous {Math.min(PLACES_PER_PAGE, from)}</a>
                 ) : null}
-                {from + items.length < placesTotal ? (
-                  <a href={tabHref('widgets', { screen, from: String(from + items.length) })}>Next {Math.min(INVENTORY_LIMIT, placesTotal - from - items.length)} places →</a>
+                {from + shown.length < placesTotal ? (
+                  <a href={tabHref('widgets', { screen, from: String(from + shown.length) })}>Next {Math.min(PLACES_PER_PAGE, placesTotal - from - shown.length)} places →</a>
                 ) : null}
               </p>
             ) : null}
 
-            {items.map((item) => (
+            {shown.map((item) => (
               <div key={item.key} id={`block-${encodeURIComponent(item.key)}`}>
                 <ElementRow
                   item={item}
@@ -2053,8 +2103,8 @@ export default async function DesignStudioPage({
             <b>There is no password field here and no &ldquo;Change password&rdquo; button, and that is
             deliberate.</b> This page can reach the design tables and the media register; changing an
             account&rsquo;s password is a different act, and the archive&rsquo;s own account screen records
-            that it has no write path for it yet. **A control wired to nothing is the fault this whole tab
-            exists to avoid**, so the screen says where the account lives instead:{' '}
+            that it has no write path for it yet. <b>A control wired to nothing is the fault this whole tab
+            exists to avoid</b>, so the screen says where the account lives instead:{' '}
             <a href="/account/">the account screen at /account/</a>.
           </p>
           <div className="divider" />

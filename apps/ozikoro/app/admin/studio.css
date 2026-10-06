@@ -271,13 +271,14 @@
 .ozstudio .address a{color:inherit;text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ozstudio .address a:hover{color:var(--ink);text-decoration:underline}
 
-/* 7 · THE PREVIEW IS THE REAL PAGE, SO THE FRAME HAS TO BE ABLE TO HOLD IT.
-   `LayoutPreview` is an `<iframe>` pointed at the served design screen. **This is the one place the
-   delivered page deliberately departs from the mock-up's painted hero**: a hand-drawn hero would be a
-   fabricated artefact, and this repository has a real preview at `/admin/design/preview` (a 303 into
-   the same `/design-screen/` route a reader goes through). `.site-preview` is `min-height:680px` with
-   the frame at `height:100%`, so the frame needs a definite box to fill — hence the height here. */
-.ozstudio .site-preview iframe{display:block;width:100%;height:680px;border:0;background:var(--surface)}
+/* 7 · THE PREVIEW PANE, WHICH IS NOT AN IFRAME AND CANNOT BE ONE.
+   The page builder first drew the live screen in an `<iframe>` and the frame came up blank. Measured on
+   the served response: `X-Frame-Options: DENY` and `frame-ancestors 'none'` — deliberate, and the file
+   that sets them says so. **So the chrome is the mock-up's own and what is inside it is the page's own
+   real headings and links, read from the served document.** `.site-preview` is already `min-height:680px`
+   with `background:var(--paper)`; this rule gives the pane inside it the padding the design gives a
+   `.preview-section`, so the notice and the outline sit on the paper the way the mock-up's sections do. */
+.ozstudio .preview-pane{padding:22px 26px}
 
 /* 8 · THE ROWS THE MOCK-UP NEVER HAD, AND THE PLACEHOLDER THAT MUST NOT LOOK LIKE A VALUE.
    Every colour row's hex box IS seeded with the value in force — that is the design's own shape
