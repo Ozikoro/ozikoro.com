@@ -409,11 +409,21 @@ test('a relative link with a fragment keeps the fragment and stops being relativ
    * The design writes `about.html#terms`, `upload.html#community-knowledge` and `projects.html?status=ongoing`.
    * The earlier pattern required the closing quote immediately after `.html`, so **every one of those stayed
    * relative** and resolved against the served directory — `/archive-index/about.html#entrust`, which 404s.
+   *
+   * ⚠️ **AND THE THIRTEEN `#terms` LINKS ARE NOW REMOVED RATHER THAN MADE ABSOLUTE, WHICH IS THE OTHER HALF
+   * OF THE SAME STORY.** They were right and the pattern was wrong, and now their *target* is gone: the owner
+   * asked for the three-column block at the foot of `/about/` — `<section id="terms">`, whose three `<h2>`s
+   * were `#terms`, `#privacy` and `#licensing` — to be deleted, so `designScreenLinks` takes the footer items
+   * off instead of pointing them at a section that is no longer drawn. **The two rules are asserted together
+   * here, in the order they run:** the address is made absolute first, and then the item is removed. What is
+   * left to prove the fragment survives is `about.html#entrust`, the same grammar with a target that is still
+   * on the page.
    */
   const out = fillDashboardLinks(screen('archive-index'), 'archive-index');
 
   assert.match(out, /href="\/about\/#entrust"/);
-  assert.match(out, /href="\/about\/#terms"/);
+  assert.doesNotMatch(out, /#terms/, 'a link into the block the owner deleted survived the serve');
+  assert.doesNotMatch(out, /#privacy/, 'a link into the block the owner deleted survived the serve');
   assert.doesNotMatch(out, /href="about\.html/);
   assert.doesNotMatch(out, /href="[a-z0-9-]+\.html/);
 });
@@ -2998,7 +3008,7 @@ test('the people note does not claim the authors supplied no portrait, a card sh
 });
 
 /* ------------------------------------------------------------------------------------------------
- * THE DESIGN'S OWN FOOTERS LINK SIX `about.html` FRAGMENTS, AND THE ABOUT PAGE CARRIES THREE IDS
+ * THE DESIGN'S OWN FOOTERS LINK SIX `about.html` FRAGMENTS, AND THE ABOUT PAGE NOW CARRIES THREE IDS
  * ------------------------------------------------------------------------------------------------
  *
  * Fourteen of the deliverable's screens link `about.html#entrust`, `#privacy`, `#access`, `#partners`,
@@ -3007,24 +3017,27 @@ test('the people note does not claim the authors supplied no portrait, a card sh
  * footer, since the handover. The design drew the sections and forgot the ids; that is the design's fault and
  * not a fill's, and it is the reason the check that found it called them inherited.
  *
- * **WHAT THE PAGE REALLY DRAWS, WHICH IS THE WHOLE JUDGEMENT HERE.** Five of the six labels name a section
+ * **WHAT THE PAGE REALLY DRAWS, WHICH IS THE WHOLE JUDGEMENT HERE.** Three of the six labels name a section
  * that IS on the page under no id at all:
  *
  *     #entrust     "How a record earns its place" — the front page's own door promises "How material is held
  *                  and who may read it", and this section's four principles answer it, "Community terms:
  *                  Depositors define access and reuse" among them
- *     #privacy     <h2>Privacy</h2> at the foot, beside Terms and Licensing, where the design put it
- *     #licensing   <h2>Licensing</h2>, the same block
  *     #partners    <h3>Partnerships</h3> — "Institutions, sponsors and media"
  *     #contact     <h2>Talk to Ozi Ikoro Limited</h2>, the contact section
  *
- * The sixth, `#access` ("Institutional access", "Request access", "What the tier covers"), is on no page
- * under any id: the deliverable never drew an institutional-access section, and the served page's only
- * sentences about access describe a RECORD's terms and a publication's availability. **A section is not
- * invented for it, so its link comes off the serve instead** — see `design-paths.test.ts`.
+ * ⚠️ **THREE OTHERS ARE NO LONGER ON THE PAGE AT ALL, AND THE OWNER IS WHY.** `#privacy` and `#licensing`
+ * named the `<h2>`s inside `<section id="terms">` — the three-column block between the contact section and
+ * the footer — and `#terms` was that section's own id. The owner asked for the block to be deleted by name
+ * (*"on the about page … before footer, delete this part they wrote these: Terms … Privacy … Licensing …"*),
+ * so `fillAbout` removes the section and the three ids go with it. The sixth, `#access` ("Institutional
+ * access", "Request access", "What the tier covers"), was never on any page under any id: the deliverable
+ * never drew an institutional-access section, and the served page's only sentences about access describe a
+ * RECORD's terms and a publication's availability. **No section is invented for any of the four, so all four
+ * links come off the serve instead** — see `design-paths.test.ts`.
  */
 
-test('the about page carries the five ids the design’s footers have been linking all along', () => {
+test('the about page carries the three ids the design’s footers still link, and the owner’s block is gone', () => {
   const html = readFileSync(join(SCREENS, 'about.html'), 'utf8');
   assert.equal((html.match(/\bid="/g) ?? []).length, 3, 'the deliverable must still carry only its own three ids');
 
@@ -3035,25 +3048,50 @@ test('the about page carries the five ids the design’s footers have been linki
   });
 
   assert.match(out, /<h2 id="entrust">How a record earns its place<\/h2>/);
-  assert.match(out, /<h2 id="privacy">Privacy<\/h2>/);
-  assert.match(out, /<h2 id="licensing">Licensing<\/h2>/);
   assert.match(out, /<h3 id="partners">Partnerships<\/h3>/);
   assert.match(out, /<h2 id="contact">Talk to Ozi Ikoro Limited<\/h2>/);
 
   /*
    * EACH ID APPEARS EXACTLY ONCE, WHICH IS NOT A FORMALITY. "Privacy" is on this page twice — the design's
    * own `<h2>Privacy</h2>` at the foot and the institution block's `<h3>Privacy</h3>` summary — and a rule
-   * that put the id on both would make `#privacy` resolve to whichever the browser met first. The anchor is
-   * deliberately the design's own `<h2>`. **The institution block's `<h3>` is not a statement of absence any
-   * more**: it points at `/privacy/`, which serves the notice the owner published.
+   * that put the id on both would make `#privacy` resolve to whichever the browser met first. The anchor was
+   * deliberately the design's own `<h2>`. **That `<h2>` is gone now, with the block the owner deleted, so
+   * there is no `#privacy` id at all** — the institution block's `<h3>` is a summary that points at
+   * `/privacy/`, which serves the notice the owner published, and it carries no id.
    */
-  for (const id of ['entrust', 'privacy', 'licensing', 'partners', 'contact']) {
+  for (const id of ['entrust', 'partners', 'contact']) {
     assert.equal((out.match(new RegExp(`id="${id}"`, 'g')) ?? []).length, 1, `id="${id}" must be written once`);
   }
   // And nothing is invented: `#access` is still not on the page, because no section of that kind exists.
   assert.doesNotMatch(out, /id="access"/);
-  // The installable ids are still there and unchanged.
-  for (const id of ['main', 'faq', 'terms']) assert.match(out, new RegExp(`id="${id}"`));
+
+  /*
+   * ⚠️ THE OWNER'S BLOCK IS GONE — ITS SECTION, ITS THREE HEADINGS, ITS THREE SENTENCES AND ITS OWN
+   * `id="terms"`. *"on the about page … before footer, delete this part they wrote these: Terms — Binding
+   * terms must be supplied by Ozi Ikoro Limited. Privacy — The complete data-controller notice must be
+   * supplied. Licensing — Each record displays its own access and reuse terms."* Each string below occurs on
+   * the page in that one section and nowhere else, which is why one assertion per string is the whole claim.
+   */
+  assert.doesNotMatch(out, /id="terms"/, 'the block the owner asked to be deleted is still in the served markup');
+  assert.doesNotMatch(out, /id="privacy"/, 'the removed block’s Privacy heading is still carrying an id');
+  assert.doesNotMatch(out, /id="licensing"/, 'the removed block’s Licensing heading is still carrying an id');
+  assert.doesNotMatch(out, /<h2>Terms<\/h2>/);
+  assert.doesNotMatch(out, /Binding terms must be supplied by Ozi Ikoro Limited/);
+  assert.doesNotMatch(out, /The complete data-controller notice must be supplied/);
+  assert.doesNotMatch(out, /Each record displays its own access and reuse terms/);
+  // AND THE WHOLE SECTION, not only its words: nothing with that id is left for a browser to land on.
+  assert.doesNotMatch(out, /<section[^>]*class="wrap section"[^>]*>\s*<div class="grid-3">/);
+
+  /*
+   * AND THE TWO SECTIONS THE OWNER ASKED TO KEEP ARE STILL THERE, so this test cannot pass by the fill having
+   * thrown the page away: the institution section that precedes the block, and the contact section above it.
+   */
+  assert.match(out, /id="institution"/, 'the institution section the owner asked to keep went with the block');
+  assert.match(out, /Official address and telephone number have not been supplied/,
+    'the contact section’s sentence went with the block');
+
+  // The design's own remaining ids are still there and unchanged.
+  for (const id of ['main', 'faq']) assert.match(out, new RegExp(`id="${id}"`));
 });
 
 test('a page whose markup has moved on gains no anchor it was never designed to have', () => {

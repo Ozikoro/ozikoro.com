@@ -4398,14 +4398,50 @@ export function fillAbout(html: string, d: AboutData): string {
   );
 
   /*
-   * AND THE IDS THE DESIGN'S FOURTEEN FOOTERS HAVE BEEN LINKING SINCE THE HANDOVER, ON THE SECTIONS IT
-   * ALREADY DRAWS. Read `anchorHeading` above for the fault, for which five of the six are answered here,
-   * and for why the sixth (`#access`) is not — it names a section no page draws, so its link comes off the
-   * served screens in `designScreenLinks` rather than a section being invented for it here.
+   * 8. THE THREE-COLUMN BLOCK AT THE FOOT GOES, BECAUSE THE OWNER ASKED FOR IT BY NAME.
+   *
+   * *"on the about page https://ozikoro.com/about before footer, delete this part they wrote these: Terms —
+   * Binding terms must be supplied by Ozi Ikoro Limited. Privacy — The complete data-controller notice must
+   * be supplied. Licensing — Each record displays its own access and reuse terms."*
+   *
+   * It is the design's own `<section class="wrap section" id="terms">`: three `<h2>`s over three
+   * `partial-note` sentences, standing between the contact section and the footer. **He named exactly those
+   * three headings, so exactly that one section comes off** — the contact section above it, the institution
+   * section before that, and the footer below it are untouched, and nothing else on the page is in scope.
+   *
+   * ⚠️ **AND THE THREE SENTENCES ARE NOT REWORDED INTO A SMALLER VERSION OF THEMSELVES.** They are not
+   * softened, not shortened, not moved to another section and not replaced by a column that says the same
+   * thing more gently: he asked for the part to go, so the part goes. A paragraph saying the block is
+   * "unavailable" would be the same three sentences wearing a different coat.
+   *
+   * Nothing a reader needs leaves with it. `/privacy/` serves Ozi Ikoro Limited's own data-controller notice
+   * in full — the record imported from the owner's WordPress site — and the institution section immediately
+   * above states the terms position ("Binding terms of use have not been supplied by Ozi Ikoro Limited. What
+   * applies today is stated on each record…") and the licensing position, both in the fill's own words.
+   *
+   * ⚠️ **WHAT DOES LEAVE WITH IT IS THE THREE ANCHORS THE DESIGN'S FOOTERS LINKED INTO IT** — `#terms`,
+   * `#privacy` and `#licensing` were the three `<h2>`s in this section and exist nowhere else on the page, so
+   * the twenty-one links that pointed here would scroll nowhere. They come off the served screens in
+   * `designScreenLinks`, which is the same treatment `#access` already gets for naming a section no page
+   * draws. **`#terms` is not in `anchorHeading`'s list** — the design carries `id="terms"` on the section
+   * itself — so only the two ids below are affected here.
+   */
+  out = out.replace(/<section\b[^>]*\bid="terms"[\s\S]*?<\/section>/, '');
+
+  /*
+   * AND THE IDS THE DESIGN'S FOOTERS HAVE BEEN LINKING SINCE THE HANDOVER, ON THE SECTIONS IT ALREADY DRAWS.
+   * Read `anchorHeading` above for the fault. **Three of the six it names are answered here.**
+   *
+   * ⚠️ **`#privacy` AND `#licensing` ARE NOT, AND THEIR CALLS ARE GONE RATHER THAN LEFT STANDING.** They used
+   * to anchor the `<h2>Privacy</h2>` and `<h2>Licensing</h2>` in the block that 8 above removes, and once it
+   * is gone no `<h2>` with either word is on the page — the institution block's summary headings are `<h3>`,
+   * which is a different tag and deliberately not what these calls matched. `anchorHeading` is a no-op when
+   * its heading is absent (`if (!match) return html;`), so leaving the two calls would have changed nothing
+   * on the page — but a call that is written to anchor a section the page no longer draws reads as though the
+   * section were still there, and the next person to add a `<h2>Privacy</h2>` would anchor it by accident.
+   * The three calls that still name a section on this page stay.
    */
   out = anchorHeading(out, 'h2', 'How a record earns its place', 'entrust');
-  out = anchorHeading(out, 'h2', 'Privacy', 'privacy');
-  out = anchorHeading(out, 'h2', 'Licensing', 'licensing');
   out = anchorHeading(out, 'h3', 'Partnerships', 'partners');
   out = anchorHeading(out, 'h2', 'Talk to Ozi Ikoro Limited', 'contact');
 

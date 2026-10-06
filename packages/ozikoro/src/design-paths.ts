@@ -368,37 +368,69 @@ export function designScreenLinks(html: string, at?: string): string {
   if (at) out = out.replace(/href="#([^"]+)"/g, (_m, fragment: string) => `href="${at}#${fragment}"`);
 
   /*
-   * ── AND THE ONE FRAGMENT THAT NAMES A SECTION NO PAGE DRAWS ─────────────────────────────────────
+   * ── THE FOUR FRAGMENTS THAT NAME SECTIONS NO PAGE DRAWS ──────────────────────────────────────────
    *
-   * Fourteen of the design's screens link `about.html#access` — the footer's own *"Institutional access"*
-   * under Research, a locked document's *"Request access"* on `/documents/`, and *"What the tier covers →"*
-   * on the researcher profile — and **the deliverable's `about.html` has never carried `id="access"` or any
-   * institutional-access section at all.** The page's only sentences about access are about a *record's*
-   * terms ("Each record displays its own access and reuse terms", in Licensing) and a FAQ answer ("Some
-   * research publications are access-controlled by their authors and can be requested"), which is a fact
-   * about publications rather than a tier that opens culturally sensitive material.
+   * The design's footers link six fragments into `about.html`, and `fillAbout` gives an id to the sections
+   * the design forgot them on. **Four of the six named nothing the served page draws, and here is where
+   * those four links come off.**
    *
-   * **SO THE ITEM IS WRONG AND THE PAGE IS NOT.** The archive holds no institutional-access tier; the honest
-   * served page therefore offers no control that promises one. The alternative — rewriting the fragment to
-   * `#faq` or `#terms`, which are the only ids near the subject — would be naming a section by a label it
-   * does not carry: a reader who pressed *"Request access"* would land on a privacy notice. That is the same
-   * fault as a dead fragment, one step later.
+   * `#access` WAS THE FIRST, AND IT WAS ALWAYS THIS CASE. Fourteen of the design's screens link
+   * `about.html#access` — the footer's own *"Institutional access"* under Research, a locked document's
+   * *"Request access"* on `/documents/`, and *"What the tier covers →"* on the researcher profile — and **the
+   * deliverable's `about.html` has never carried `id="access"` or any institutional-access section at all.**
+   * The page's only sentences about access are about a *record's* terms ("Each record displays its own access
+   * and reuse terms") and a FAQ answer ("Some research publications are access-controlled by their authors
+   * and can be requested"), which is a fact about publications rather than a tier that opens culturally
+   * sensitive material. **So the item is wrong and the page is not:** the archive holds no institutional-access
+   * tier, and the honest served page therefore offers no control that promises one.
    *
-   * IT IS HERE RATHER THAN IN A FILL because the addresses are written on fourteen different screens and in
-   * the deliverable's own footer, and this is the one function every one of them passes through — the same
-   * argument the `learn.ozituma.com` rewrite above makes for being here. **It is a link removal and not an
-   * address rewrite, and that is the honest difference:** the other five of the design's six `about.html`
-   * fragments name sections that exist, so `fillAbout` gives those sections the ids the design forgot; this
-   * one names nothing, so the link goes.
+   * `#terms`, `#privacy` AND `#licensing` JOINED IT THE DAY THE OWNER ASKED FOR THE BLOCK THEY NAMED TO GO.
+   * *"on the about page … before footer, delete this part they wrote these: Terms — Binding terms must be
+   * supplied by Ozi Ikoro Limited. Privacy — The complete data-controller notice must be supplied. Licensing
+   * — Each record displays its own access and reuse terms."* Those three headings were the whole of
+   * `<section class="wrap section" id="terms">`, the block between the contact section and the footer, and
+   * `fillAbout` now removes it — so the three ids the twenty-one links pointed into no longer exist:
+   *
+   *     #terms      13 screens   the footer's "Terms & privacy" / "Terms of use" item
+   *     #privacy     6 screens   the footer's "Privacy" item
+   *     #licensing   2 screens   the footer's "Licensing & reuse" item
+   *
+   * **NOTHING A READER NEEDS WENT WITH THEM, WHICH IS WHY THIS IS A LINK REMOVAL AND NOT SOMETHING LOST:**
+   * `/privacy/` serves Ozi Ikoro Limited's own data-controller notice in full, and the licensing and terms
+   * positions are stated on every record and again in the institution section of `/about/` itself.
+   *
+   * ── WHY A REWRITE IS NOT THE ALTERNATIVE ────────────────────────────────────────────────────────
+   *
+   * Pointing `#access` at `#faq` or `#terms`, which were once the only ids near the subject, would be naming
+   * a section by a label it does not carry: a reader who pressed *"Request access"* would land on a privacy
+   * notice. That is the same fault as a dead fragment, one step later. The same test answers the three
+   * removed here: no section of the served `/about/` is headed *Terms*, *Privacy* or *Licensing*, and the
+   * footer item is a *label* rather than a promise about where it goes — so the item goes rather than being
+   * sent to a heading that is not there.
+   *
+   * IT IS HERE RATHER THAN IN A FILL because the addresses are written on thirteen different screens and in
+   * the deliverable's own footer and in the four-column foot this file copies, and this is the one function
+   * every one of them passes through — the same argument the `learn.ozituma.com` rewrite above makes for
+   * being here. **It is a link removal and not an address rewrite, and that is the honest difference:**
+   * `fillAbout` gives an id to a section the page really draws; where the page draws nothing, the link goes.
    *
    * THE WHOLE ITEM GOES, NOT ONLY THE ANCHOR, where the link is a list item of its own footer column —
-   * removing the `<a>` alone would leave an empty `<li>` and a gap in the column. It runs LAST so that the
-   * bare `#access` a fill might write is caught too, after the rule above has made it absolute.
+   * removing the `<a>` alone would leave an empty `<li>` and a gap in the column. **AND A COLUMN LEFT WITH
+   * NOTHING IN IT GOES WITH ITS ITEMS**, because the deliverable's shorter footers carry a Terms column of
+   * only two items (`#terms` and `#privacy` on `/upload/`, `/researcher-profile/`, `/404/`, `/academy/` and
+   * `/archive-index/`; `#terms` and `#licensing` on `/publication/`), and stripping those would otherwise
+   * leave `<h4>Terms</h4>` standing over an empty `<ul>` — the gap this removal exists to avoid, one level
+   * up. The second rule matches only a column whose whole content is a heading and an empty list, so it
+   * cannot strip a column that still holds something.
+   *
+   * It runs LAST so that the bare fragments a fill might write are caught too, after the rule above has made
+   * them absolute and after `withSiteFooter` has injected the copy of the front page's own foot.
    */
   out = out.replace(
-    /<li>\s*<a\b[^>]*\bhref="\/about\/#access"[^>]*>[\s\S]*?<\/a>\s*<\/li>|<a\b[^>]*\bhref="\/about\/#access"[^>]*>[\s\S]*?<\/a>/g,
+    /<li>\s*<a\b[^>]*\bhref="\/about\/#(?:access|terms|privacy|licensing)"[^>]*>[\s\S]*?<\/a>\s*<\/li>|<a\b[^>]*\bhref="\/about\/#(?:access|terms|privacy|licensing)"[^>]*>[\s\S]*?<\/a>/g,
     ''
   );
+  out = out.replace(/<div>\s*<h4>[^<]*<\/h4>\s*<ul>\s*<\/ul>\s*<\/div>/g, '');
 
   return out;
 }

@@ -87,7 +87,17 @@ test('the design\'s sibling links are made absolute, and its transcript control 
   assert.match(out, /href="\/listen\/"/, 'listen.html still resolves to /<screen>/listen.html');
   assert.match(out, /href="\/article\/"/, 'the transcript control still points at a relative article.html');
   assert.match(out, /href="\/archive\/"/, 'the design\'s archive-index.html is not an address this site serves');
-  assert.match(out, /href="\/about\/#terms"/, 'the fragment is dropped, so the link lands at the top of the page');
+  /*
+   * AND THE FRAGMENT CASE ENDS IN A REMOVAL RATHER THAN IN A SERVED LINK, WHICH PROVES BOTH RULES RAN, IN
+   * ORDER. `about.html#terms` is made absolute to `/about/#terms` — the rule this test is about — and the
+   * removal rule then takes it off, because the owner deleted the `<section id="terms">` block it named.
+   * **The removal can only fire on the absolute address**: if the fragment rule had not run, the link would
+   * still be sitting here as `about.html#terms`. So this is the same claim as before, asserted on the
+   * outcome. (The message this replaced said "the fragment is dropped", which was never what happened —
+   * the fragment is preserved by design.)
+   */
+  assert.doesNotMatch(out, /#terms/, 'a link into the block the owner deleted survived the serve');
+  assert.doesNotMatch(out, /about\.html/, 'the design\'s about.html link was not made absolute before removal');
   assert.match(out, /href="\/styles\/main\.css"/, 'the stylesheet stays two levels up');
   assert.doesNotMatch(out, /href="[a-z0-9-]+\.html/, 'a relative sibling link survived');
   // Rooted, external and in-page addresses are not the deliverable's sibling grammar and are left alone.
@@ -289,38 +299,57 @@ test('no design screen names the retiring host once it has been served', () => {
   assert.deepEqual(after, [], `these screens still name the retiring host after the rewrite: ${after.join(', ')}`);
 });
 
-test('the one fragment that names a section no page draws comes off, whole item and all', () => {
+test('the four fragments that name a section no page draws come off, whole item and all', () => {
   /*
-   * ── THE DESIGN'S SIX `about.html` FRAGMENTS, AND WHY ONLY ONE IS REMOVED HERE ────────────────────
+   * ── THE DESIGN'S SIX `about.html` FRAGMENTS, AND WHICH OF THEM COME OFF HERE ────────────────────
    *
    * Fourteen of the deliverable's screens link `about.html#entrust`, `#privacy`, `#access`, `#partners`,
    * `#licensing` and `#contact`, and the deliverable's `about.html` carries three ids — `main`, `faq`,
-   * `terms`. **Five of the six name a section the page really draws** ("How a record earns its place",
-   * `<h2>Privacy</h2>`, `<h2>Licensing</h2>`, `<h3>Partnerships</h3>`, "Talk to Ozi Ikoro Limited"), so the
-   * missing thing is the id and `fillAbout` writes it — see the test in `design-fill.test.ts`.
+   * `terms`. **Two of the six name a section the page really draws** ("How a record earns its place" and
+   * `<h3>Partnerships</h3>`, with the contact section's "Talk to Ozi Ikoro Limited"), so the missing thing is
+   * the id and `fillAbout` writes it — see the test in `design-fill.test.ts`.
    *
-   * **`#access` is the exception and it is a different answer: the page draws nothing of the kind under any
-   * id.** The deliverable's `about.html` has no institutional-access section, and neither has the served
-   * page; its only sentences about access describe a RECORD's terms ("Each record displays its own access and
-   * reuse terms") and a publication's availability ("some research publications are access-controlled by
-   * their authors and can be requested"). **So the item is wrong and the page is not** — and a rewrite onto
-   * `#faq` or `#terms`, the only ids anywhere near the subject, would be naming a section by a label it does
-   * not carry: a reader pressing "Request access" would land on a privacy notice.
+   * **`#access` was the first of the four that name nothing, and it is a different answer: the page draws
+   * nothing of the kind under any id.** The deliverable's `about.html` has no institutional-access section,
+   * and neither has the served page; its only sentences about access describe a RECORD's terms and a
+   * publication's availability. **So the item is wrong and the page is not** — and a rewrite onto `#faq` or
+   * `#terms` would be naming a section by a label it does not carry: a reader pressing "Request access"
+   * would land on a privacy notice.
+   *
+   * ⚠️ **`#terms`, `#privacy` AND `#licensing` JOINED IT WHEN THE OWNER ASKED FOR THE BLOCK THEY NAMED TO BE
+   * DELETED.** *"on the about page … before footer, delete this part they wrote these: Terms — Binding terms
+   * must be supplied by Ozi Ikoro Limited. Privacy — The complete data-controller notice must be supplied.
+   * Licensing — Each record displays its own access and reuse terms."* Those three `<h2>`s were the whole of
+   * `<section id="terms">`, `fillAbout` removes it, and no section of the served page is headed Terms,
+   * Privacy or Licensing any more. **So all four links go — and the assertion that the Terms and Privacy
+   * items survive would now be an assertion of the fault.**
    *
    * THE WHOLE LIST ITEM GOES, which is asserted rather than assumed: leaving `<li></li>` behind would leave
-   * a gap in the footer column where the item used to be.
+   * a gap in the footer column where the item used to be. **AND A COLUMN LEFT WITH NOTHING IN IT GOES WITH
+   * ITS ITEMS**, because the deliverable's shorter footers carry a Terms column of only `#terms` and
+   * `#privacy` (or `#terms` and `#licensing`) — stripping those would leave `<h4>Terms</h4>` over an empty
+   * `<ul>`, which is the same gap one level up.
    */
-  const footer = '<html><head></head><body><footer><ul>'
+  const footer = '<html><head></head><body><footer><div class="grid-4">'
+    + '<div><h4>Research</h4><ul><li><a href="about.html#access">Institutional access</a></li>'
+    + '<li><a href="about.html#entrust">Entrusting material</a></li></ul></div>'
+    + '<div><h4>Terms</h4><ul>'
     + '<li><a href="about.html#terms">Terms of use</a></li>'
     + '<li><a href="about.html#privacy">Privacy</a></li>'
-    + '<li><a href="about.html#access">Institutional access</a></li>'
-    + '</ul></footer>'
+    + '<li><a href="about.html#licensing">Licensing &amp; reuse</a></li>'
+    + '</ul></div>'
+    + '</div></footer>'
     + '<a class="btn btn-quiet" href="about.html#access">Request access</a></body></html>';
   const out = designScreenLinks(footer);
   assert.doesNotMatch(out, /#access/, 'a link to a section no page draws survived the serve');
+  assert.doesNotMatch(out, /#terms/, 'a link into the block the owner deleted survived the serve');
+  assert.doesNotMatch(out, /#privacy/, 'a link into the block the owner deleted survived the serve');
+  assert.doesNotMatch(out, /#licensing/, 'a link into the block the owner deleted survived the serve');
   assert.doesNotMatch(out, /<li>\s*<\/li>/, 'the footer keeps an empty list item where the link was');
-  assert.match(out, /href="\/about\/#terms"/, 'the Terms item, which really exists, was removed with it');
-  assert.match(out, /href="\/about\/#privacy"/, 'the Privacy item was removed with it');
+  assert.doesNotMatch(out, /<ul>\s*<\/ul>/, 'an empty list was left where the removed items were');
+  assert.doesNotMatch(out, /<h4>Terms<\/h4>/, 'the Terms column survived with nothing under its heading');
+  // AND THE LINK THAT NAMES A SECTION THE PAGE REALLY DRAWS IS UNTOUCHED.
+  assert.match(out, /href="\/about\/#entrust"/, 'the Entrusting item, which really exists, was removed with them');
   // Idempotent, because the route calls this twice in a request.
   assert.equal(designScreenLinks(out), out);
 });
@@ -345,6 +374,35 @@ test('no design screen still writes an `about.html#access` link once it has been
 
   assert.ok(before > 0, 'no design screen links about.html#access — this test has stopped testing anything');
   assert.deepEqual(after, [], `these screens still write an #access link after the rewrite: ${after.join(', ')}`);
+});
+
+test('no design screen still writes a link into the block the owner deleted', () => {
+  /*
+   * THE SAME CLAIM AS THE TEST ABOVE, OVER THE REAL DELIVERABLE RATHER THAN A FIXTURE, and for the three
+   * fragments the owner's deletion took the target away from. Measured across the deliverable when this was
+   * written: `about.html#terms` thirteen times (twelve footers plus `about.html`'s own), `about.html#privacy`
+   * six, `about.html#licensing` twice — **twenty-one links on thirteen screens**, which is why a fixture
+   * would not have been enough.
+   *
+   * THE COUNT IS ASSERTED ON THE SOURCE SIDE, so the test cannot pass by there being nothing left to remove:
+   * if the deliverable ever stops writing these links the floor below fails and the reason is reported,
+   * rather than the whole thing going quietly vacuous. It is a floor and not an equality because a screen
+   * added to the deliverable may legitimately add more.
+   */
+  const screens = join(here, '..', '..', '..', 'apps', 'ozikoro', 'public', 'design', 'screens');
+  const files = readdirSync(screens).filter((f: string) => f.endsWith('.html'));
+
+  let before = 0;
+  const after: string[] = [];
+  for (const file of files) {
+    const raw = readFileSync(join(screens, file), 'utf8');
+    before += (raw.match(/href="about\.html#(?:terms|privacy|licensing)"/g) ?? []).length;
+    if (/href="\/about\/#(?:terms|privacy|licensing)"/.test(designScreenLinks(raw))) after.push(file);
+  }
+
+  assert.ok(before >= 21,
+    `the deliverable writes ${before} links into the deleted block, where 21 were measured — this test has stopped testing what it was written for`);
+  assert.deepEqual(after, [], `these screens still write a link into the deleted block after the rewrite: ${after.join(', ')}`);
 });
 
 /* ------------------------------------------------------------------------------------------------
@@ -485,8 +543,16 @@ test('the injected columns are resolved by the same rule as every other address 
   assert.match(out, /href="\/clan-towns\/">Clans and towns</, 'towns.html did not resolve to the register');
   assert.match(out, /href="https:\/\/academy\.ozikoro\.com\/">Learn Igbo</, 'the retired host did not resolve to the Academy');
   assert.match(out, /href="https:\/\/ozituma\.com\/"/, 'the dictionary is an address, not a screen, and was rewritten');
-  // The one footer item that names a section no page draws is removed, exactly as it is on the front page.
-  assert.doesNotMatch(out, /#access/, 'the footer kept a link to an institutional-access section that does not exist');
-  assert.match(out, /href="\/about\/#terms"/, 'a real fragment was removed with it');
+  /*
+   * THE FOOTER ITEMS THAT NAME A SECTION NO PAGE DRAWS ARE REMOVED, EXACTLY AS THEY ARE ON THE FRONT PAGE:
+   * `#access` never had a section at all, and `#terms`, `#privacy` and `#licensing` named the three-column
+   * block the owner asked to be deleted. **AND THE ONE THAT DOES NAME A SECTION STAYS** — `#entrust` — which
+   * is what stops this test passing because the whole Terms column was taken away.
+   */
+  for (const fragment of ['access', 'terms', 'privacy', 'licensing']) {
+    assert.doesNotMatch(out, new RegExp(`#${fragment}`),
+      `the footer kept a link to a section no page draws (#${fragment})`);
+  }
+  assert.match(out, /href="\/about\/#entrust"/, 'a real fragment was removed with them');
 });
 

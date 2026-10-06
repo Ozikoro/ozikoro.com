@@ -193,10 +193,33 @@ function noticeHtml(notice: ScreenNotice): string {
  *      hosts are the addresses `home.html`'s own platform bar prints — `https://ozituma.com/` and
  *      `https://learn.ozituma.com/` — and that host is retired, so the destination is the Academy itself,
  *      `https://academy.ozikoro.com/`.
- *   3. `Terms of Use` AND `Privacy Policy` GO TO `/about/#terms`, WHICH IS THE DESIGN'S OWN ANSWER. The
- *      deliverable's own footer has one link, "Terms & privacy", pointing at `about.html#terms`, and the
- *      section it lands on states plainly that binding terms and a data-controller notice must be supplied.
- *      That is the page for both labels; inventing a `/terms/` would be inventing a page.
+ *   3. `Terms of Use` AND `Privacy Policy` GO TO THE ADDRESSES THAT ACTUALLY CARRY THEM, BECAUSE THE ONE THEY
+ *      USED TO NAME HAS BEEN DELETED. The deliverable's own footer has one link, "Terms & privacy", pointing
+ *      at `about.html#terms`, and it used to land on the three-column block at the foot of `/about/` — the
+ *      block the owner asked to be removed by name (*"on the about page … before footer, delete this part
+ *      they wrote these: Terms — Binding terms must be supplied… Privacy — The complete data-controller
+ *      notice must be supplied… Licensing — Each record displays its own access and reuse terms."*).
+ *      `fillAbout` now deletes that section, so `/about/#terms` is a fragment with nothing behind it.
+ *
+ *      ⚠️ **THIS SCREEN IS THE ONE PLACE THOSE TWO LINKS SURVIVE, WHICH IS WHY THEY ARE SET HERE RATHER THAN
+ *      LEFT TO THE SERVE.** Every other link into the deleted block comes off the served screens in
+ *      `designScreenLinks`, the serve-time pass — and this screen is the only one that does not go through
+ *      it (see the note below on the platform bar). The anchors are inside a consent sentence, *"I agree to
+ *      the Terms of Use and Privacy Policy."*, so **removing them would not remove the fault, it would
+ *      leave a sentence with holes in it**; each label therefore takes the address that really holds what
+ *      its words say:
+ *
+ *        `Privacy Policy` → `/privacy/`, which serves Ozi Ikoro Limited's own data-controller notice in
+ *            full — the record imported from the owner's WordPress site, and the address the institution
+ *            section of `/about/` already points at
+ *        `Terms of Use`   → `/about/#institution`, the section of the about page that carries the
+ *            `<h3>Terms</h3>` statement of the terms position: *"Binding terms of use have not been supplied
+ *            by Ozi Ikoro Limited. What applies today is stated on each record…"*
+ *
+ *      Neither is a page invented for a label, and neither is a rewrite onto a heading the target does not
+ *      carry — the fault `design-paths.ts` records for `#access`, where the honest answer was to take the
+ *      link off entirely because the target drew nothing of the kind. These two targets draw exactly the
+ *      thing the labels name.
  *   4. THE THREE `onclick` CONTROLS KEEP THEIR HANDLER AND GAIN A REAL ADDRESS. `Create one` and `Sign in`
  *      call the screen's own `signup()`/`signin()` and `return false`, so with JavaScript they switch the
  *      form in place exactly as the design drew them. **Without it, `href="#"` scrolled to the top of the
@@ -228,9 +251,10 @@ const ACCOUNT_LINK_TARGETS: Record<string, string> = {
   Researchers: '/researchers/',
   Calendars: '/cultural-calendar/',
   About: '/about/',
-  // The deliverable's own "Terms & privacy" destination.
-  'Terms of Use': '/about/#terms',
-  'Privacy Policy': '/about/#terms',
+  // No longer the deliverable's "Terms & privacy" destination: the owner deleted the section it led to.
+  // Each label now takes the address that really carries its subject — see note 3 above.
+  'Terms of Use': '/about/#institution',
+  'Privacy Policy': '/privacy/',
   // Live controls with a fallback address for a reader whose browser runs no scripts.
   'Create one': '/join/',
   'Sign in': '/signin/',
