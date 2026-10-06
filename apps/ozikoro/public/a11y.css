@@ -730,3 +730,87 @@
   }
 }
 
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ * THE THIRTEEN MONTHS (ỌNWA) TABLE AT PHONE WIDTH — `/igbo-calendar/`, WCAG 2.1 AA 1.4.10 (Reflow).
+ *
+ * ▸ THIS BLOCK IS ONE CHANGE AND NOTHING ELSE IN THIS FILE IS ITS. The reader-header wordmark block
+ *   directly above is a different change by a different hand; if you are looking for that one, stop at
+ *   line 822. Nothing here re-declares a colour, a token or a header rule.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * WHAT WAS ACTUALLY WRONG, MEASURED IN CHROME AT 390 px BEFORE THIS BLOCK EXISTED:
+ *
+ *   document.scrollingElement   scrollWidth 390  ==  clientWidth 390   ← THE PAGE NEVER SCROLLED SIDEWAYS
+ *   div.sx-cal-table-wrap       scrollWidth 480  >   clientWidth 356   ← the only element over its box
+ *   table.sx-cal-months         width 480px   (showcase.css:725 `min-width:30rem`)
+ *   caption                     width 480px   → clipped mid-word at the scrollport's edge
+ *   td widths                   65 / 166 / 250  →  124px of "Gregorian equivalent" off-screen
+ *
+ * So the thing the owner saw was the TABLE, not the page. The wrapper is not missing its rule:
+ * `showcase.css:724` gives `.sx-cal-table-wrap { overflow-x: auto }`, that rule IS applied (measured
+ * `overflow-x: auto`, and it is the single reason `document.scrollingElement` never exceeded 390), and
+ * the wrapper really did scroll. What it did not do was let anything be READ without scrolling: 480px
+ * of table sat in a 356px scrollport, so the third column and — the part he named — the caption were cut
+ * off mid-word, and on iOS and Android the overlay scrollbar is invisible, so nothing on screen said the
+ * table could be moved at all.
+ *
+ * WHY THIS SHAPE, AND WHY IT IS THE DESIGN'S OWN TREATMENT RATHER THAN A NEW IDEA.
+ * The design already draws a mobile treatment for the calendar's tables, and it skipped exactly one:
+ * `showcase.css:764` `@media(max-width:40rem)` shrinks `.sx-cal-sample`'s padding and type and keeps its
+ * wrapper scrolling — `.sx-cal-sample-wrap{padding:1rem;overflow-x:auto}`, `.sx-cal-sample td{padding:.45rem;
+ * font-size:.8rem}` — but that block names `.sx-cal-months` nowhere, so the thirteen-month table kept its
+ * desktop `min-width:30rem` floor and its 1.2rem cell padding on a phone. This block is that same drawn
+ * treatment extended to the one table the design forgot, at the design's own 40rem breakpoint.
+ *
+ * RELEASING `min-width` IS THE PART THAT ACTUALLY FIXES IT, and it is why the fix is not merely "smaller
+ * type". The floor, not the glyph size, is what put 480px of table into a 356px phone. The table's own
+ * min-content at this scale is far narrower than the viewport, so with the floor released and the padding
+ * brought to the design's own mobile scale the three columns fit inside the scrollport and wrap within it:
+ * measured after, the wrapper's `scrollWidth` equals its `clientWidth` (356/356) and the columns are
+ * 41 / 123 / 192 = 356.
+ *
+ * ⚠️ THE TABLE'S SEMANTICS ARE UNTOUCHED, WHICH IS WHY THIS IS NOT A STACK-AND-LABEL REWRITE.
+ * No `display` is changed on `<table>`, `<caption>`, `<tr>`, `<th>` or `<td>`, so the table role, its
+ * three `<th scope="col">` headers and its caption all survive at every width. A stacking fix that turned
+ * these into blocks with `::before` labels would have dropped the table role in the accessibility tree —
+ * trading a visual fault for an accessibility one, in the accessibility sheet. Measured after the change:
+ * one `<table class="sx-cal-months">`, 3 `th[scope="col"]`, 13 `tbody tr`, caption present and read.
+ *
+ * ⚠️ IT CANNOT REACH THE DESKTOP, AND THAT WAS VERIFIED RATHER THAN ASSUMED. It is inside
+ * `@media(max-width:40rem)`, so at 1280px not one declaration matches, and the table measures exactly as
+ * it did before: wrapper 1166/1166, table 1166px, columns 157 / 402 / 607, caption 1166px, 0 overflowing.
+ *
+ * The wrapper keeps the design's `overflow-x:auto` as the safety net for the case this block cannot
+ * predict — a reader at 400% text zoom, or a viewport narrower than the table's min-content — so the
+ * fallback is still the wrapper scrolling, never the page.
+ */
+@media (max-width: 40rem) {
+  /* The design's own scroll container, made to move smoothly on iOS. */
+  .sx-cal-table-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* The desktop floor (showcase.css:725) is what makes the table wider than the phone. */
+  .sx-cal-months {
+    min-width: 0;
+  }
+
+  /* The design's own mobile scale, from its `.sx-cal-sample` rules at showcase.css:764. */
+  .sx-cal-months caption {
+    padding: 0.8rem 0.9rem;
+    font-size: 0.7rem;
+  }
+
+  .sx-cal-months th {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.68rem;
+  }
+
+  .sx-cal-months td {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.85rem;
+  }
+}
+
