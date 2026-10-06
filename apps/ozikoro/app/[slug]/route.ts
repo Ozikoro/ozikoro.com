@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb, type Db } from '@ozituma/db/client';
-import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, redirectFor, siteSeoFrom, mediaPath, mediaUrlResolver, resolveRecordSeo, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, redirectFor, siteSeoFrom, mediaPath, mediaUrlResolver, resolveRecordSeo, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, recordRead, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import { hasCapability } from '@/lib/access';
 
@@ -289,11 +289,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     }
   }
 
+  /*
+   * ── THE RECORD'S TAGS ARE READ HERE, FOR THE HEAD ALONE ──────────────────────────────────────────────
+   *
+   * `ozikoro_label` holds the 11,056 WordPress tags and `ozikoro_article_label` holds the 18,498 links
+   * between them and the records; an article carries a median of 15 of them. **The owner's requirement is
+   * that they reach a crawler and never a reader**, so the `tags` column below is passed to `seoHead` and
+   * to nothing else. It is deliberately NOT put on `article: RealArticle`, which is what `fillArticle`
+   * fills the reading page from — so there is no path from this column into the body, and no tag can be
+   * rendered as a chip, a cloud or a "Tagged:" row.
+   *
+   * `array_agg` returns NULL rather than an empty array for a record with no tags; PGlite hands a
+   * `text[]` back as a real array. Both are normalised at the call site, because a record with no tags
+   * must emit no tag at all rather than an empty one.
+   *
+   * (The prose is out here rather than inside the statement below because the statement is a template
+   * literal, and a backtick in a SQL comment would end it.)
+   */
   const row = await db.one<{
     id: number; title: string; body_html: string | null; topic: string | null; standfirst: string | null;
     author: string | null; published_at: Date | null; modified_at: Date | null;
     image: string | null; image_alt: string | null; image_credit: string | null;
-    image_licence: string | null; rights_note: string | null;
+    image_licence: string | null; rights_note: string | null; tags: string[] | null;
   }>(
     `select a.id, a.title, a.body_html, a.standfirst, t.name as topic,
             c.display_name as author, a.published_at, a.modified_at,
@@ -301,7 +318,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
             (select m.alt_text from ozikoro_media m where m.id = a.featured_media_id) as image_alt,
             (select coalesce(m.credit, m.creator) from ozikoro_media m where m.id = a.featured_media_id) as image_credit,
             (select m.licence from ozikoro_media m where m.id = a.featured_media_id) as image_licence,
-            (select m.rights_note from ozikoro_media m where m.id = a.featured_media_id) as rights_note
+            (select m.rights_note from ozikoro_media m where m.id = a.featured_media_id) as rights_note,
+            (select array_agg(l.name order by l.name)
+               from ozikoro_article_label al join ozikoro_label l on l.id = al.label_id
+              where al.article_id = a.id) as tags
        from ozikoro_article a
        left join ozikoro_topic t on t.id = a.topic_id
        left join ozikoro_contributor c on c.id = a.author_id
@@ -665,6 +685,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
             { name: article.title, path: `/${clean}/` },
           ],
           topics: row.topic ? [row.topic] : [],
+          /*
+           * THE RECORD'S TAGS ENTER THE HEAD HERE, AND THIS IS THE ONLY LINE THAT CARRIES THEM.
+           *
+           * `row.tags` is the array read by the query above; `seoHead` turns it into
+           * `<meta name="keywords" content="…">` and one `article:tag` per tag, and emits neither for a
+           * record that has none. **Nothing below this line renders a tag**, which is what makes the
+           * owner's "it will exist, but not visible when you read articles" true of the served document
+           * rather than merely intended.
+           */
+          keywords: Array.isArray(row.tags) ? row.tags.map(String) : [],
         },
         ['/design/styles/main.css', '/design/styles/showcase.css', '/a11y.css'],
         /*
@@ -718,6 +748,33 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   } catch (error) {
     console.error('article fill failed:', error);
     return new Response('Not found', { status: 404 });
+  }
+
+  /*
+   * ── THE READER'S READING HISTORY IS RECORDED WHERE THE READING HAPPENED ─────────────────────────────
+   *
+   * `Reading history` is one of the three modules the reader's dashboard has always drawn, and until
+   * migration `0060_ozikoro_library.sql` there was no table behind it — so the honest thing to serve was a
+   * label saying it was not built, which is what the owner found and reported.
+   *
+   * **A read is not an act the reader performs on the archive, so there is no button for it and there must
+   * not be one**: asking somebody to press "I read this" records a claim rather than a fact. The page load
+   * IS the fact. This runs for a SIGNED-IN reader only — nothing is recorded for a stranger, and nothing is
+   * recorded about one.
+   *
+   * ⚠️ **IT CANNOT COST THE READER THE PAGE.** The record is a by-product of serving an article, so a
+   * failure here is logged and swallowed: a database that cannot write a statistic must not turn a record
+   * into a 404. `recordRead` itself cannot fail on a record that is not there (see its `where exists`), so
+   * the only failures left are real ones — a closed pool, a revoked grant — and none of them is the
+   * reader's problem.
+   */
+  try {
+    const viewer = await getCurrentAccount().catch(() => null);
+    if (viewer) {
+      await recordRead(await getDb(), { accountId: viewer.account.id, articleId: Number(row.id) });
+    }
+  } catch (error) {
+    console.error('article: could not record the read', String(error).slice(0, 200));
   }
 
   return new Response(html, {

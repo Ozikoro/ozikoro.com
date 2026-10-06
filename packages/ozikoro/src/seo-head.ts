@@ -118,8 +118,24 @@ export type SeoRecord = {
   reference?: string | null;
   /** Breadcrumb, outermost first. The last item is the page itself. */
   trail?: { name: string; path: string }[];
-  /** Topic names, which become `about` and the keywords. */
+  /** Topic names, which become `about`. The series, which is one, and not the tags, which are many. */
   topics?: string[];
+  /**
+   * The record's own tags — the 11,056 WordPress tags, of which an article carries a median of 15.
+   *
+   * ── WHY THEY ARE HERE AND NOT IN THE PAGE ────────────────────────────────────────────────────────────
+   *
+   * The owner's instruction is exact: *"it will exist, but not visible when you read articles. it helps
+   * seo."* So a tag reaches a crawler and never reaches a reader. This field is the whole of the first
+   * half of that: it is read to emit `<meta name="keywords">` and one `article:tag` per tag, and it is
+   * **not** passed to `fillArticle` or to any other fill, so no tag can be rendered into the body.
+   *
+   * AN EMPTY LIST EMITS NOTHING, which is what keeps a record with no tags served byte-for-byte as it was
+   * before this field existed. **The export holds exactly twenty posts with no tag and all twenty are
+   * published**, so if this emitted an empty tag it would be serving twenty of the live records an empty
+   * `<meta name="keywords" content="">` — a tag about nothing, which is worse than no tag at all.
+   */
+  keywords?: string[];
   /** Suppress indexing — for a dashboard or a search page. */
   noindex?: boolean;
   /**
@@ -346,6 +362,15 @@ export function seoHead(
   if (record.updated) og.push(`<meta property="article:modified_time" content="${esc(record.updated)}">`);
   if (record.author) og.push(`<meta property="article:author" content="${esc(record.author)}">`);
   for (const t of record.topics ?? []) og.push(`<meta property="article:tag" content="${esc(t)}">`);
+  /*
+   * ── THE RECORD'S OWN TAGS, IN THE ONE PLACE OPEN GRAPH HAS FOR THEM ──────────────────────────────────
+   *
+   * `article:tag` is the Open Graph property for an article's tags, and the line above already uses it for
+   * the record's series — a category is what WordPress calls it, and this archive calls the same thing a
+   * topic. **Nothing above this comment is changed by the tags arriving**: the series keeps the tag it
+   * already had, and each of the record's own tags is appended after it. See `record.keywords`.
+   */
+  for (const t of record.keywords ?? []) og.push(`<meta property="article:tag" content="${esc(t)}">`);
 
   /*
    * THE HIGHWIRE TAGS, WHICH GOOGLE SCHOLAR READS AND NOTHING ELSE DOES.
@@ -387,10 +412,39 @@ export function seoHead(
     .map((href) => `<link rel="stylesheet" href="${esc(href)}">`)
     .join('\n');
 
+  /*
+   * ── THE RECORD'S TAGS, WHICH EXIST AND ARE NOT VISIBLE ───────────────────────────────────────────────
+   *
+   * The owner's instruction, in his own words: *"it will exist, but not visible when you read articles. it
+   * helps seo."* This is where they exist. `keywords` is the meta tag a crawler reads and a reader never
+   * sees, and it is the whole of the visible change to this head.
+   *
+   * ── THE ESCAPING IS THE POINT, NOT A PRECAUTION ──────────────────────────────────────────────────────
+   *
+   * The tag text is real WordPress tag text and it contains the characters that end an HTML attribute.
+   * **Measured in `data/ozikoro-wp/cms/tags.json`: the first entry's own name is `"Nkengas in London"`,
+   * quote marks included**, and tag names are full of apostrophes, ampersands and angle brackets besides.
+   * One unescaped `"` inside `content="…"` ends the attribute early and the rest of the tag becomes
+   * markup — so the join goes through `esc`, the same function every other attribute in this head goes
+   * through, and there is no second escaping rule for tags.
+   *
+   * ── AND IT IS ONE LINE, OR NO LINE AT ALL ────────────────────────────────────────────────────────────
+   *
+   * `keywordsTag` carries its own leading newline rather than sitting on a line of its own, because a
+   * record with no tags must be served **byte-for-byte** what it was served before this existed. A
+   * placeholder line would put a blank line in the head of the twenty published posts that have no tags,
+   * and that is a change nobody asked for.
+   */
+  const keywords = (record.keywords ?? [])
+    .map((tag) => String(tag).trim())
+    .filter((tag) => tag.length > 0);
+  const keywordsTag =
+    keywords.length > 0 ? `\n<meta name="keywords" content="${esc(keywords.join(', '))}">` : '';
+
   return `<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${esc(pageTitle)}</title>
-<meta name="description" content="${esc(description)}">
+<meta name="description" content="${esc(description)}">${keywordsTag}
 <link rel="canonical" href="${esc(url)}">
 ${robots}
 ${verify}

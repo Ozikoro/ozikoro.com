@@ -793,6 +793,35 @@ export async function restorePiece(
 async function findOrCreateLabel(db: Db, name: string): Promise<number> {
   const trimmed = name.trim().slice(0, 120);
   if (trimmed.length === 0) throw new MemberError('empty_label', 'A tag needs a name.');
+  /*
+   * ── THE REGISTER IS MATCHED BY NAME FIRST, BECAUSE A TAG'S WORDPRESS SLUG IS NOT `slugForTitle(NAME)` ──
+   *
+   * The 11,056 tags were imported with the slug WordPress gave them, and WordPress's slug is not always the
+   * slug this function would derive from the same name. **MEASURED against the live register: 126 of the
+   * 11,056 differ.**
+   *
+   *   `LP's`                          stored `lps`                         derives `lp-s`
+   *   `Sclater’s guenon conservation`  stored `sclaters-guenon-conservation` derives `sclater-s-guenon-conservation`
+   *   `Ímò Ḿmírí`                      stored `imo-%e1%b8%bfmiri`            derives `imo-mmiri`
+   *   `Eghaevbo N'Ogbe`                stored `eghaevbo-nogbe`              derives `eghaevbo-n-ogbe`
+   *
+   * **AND THE CONSEQUENCE IS NOT COSMETIC, WHICH IS WHY THIS IS A LOOKUP AND NOT A TIDINESS PASS.** For one
+   * of those 126, a lookup by derived slug alone finds nothing, so this function would MINT A SECOND LABEL
+   * for a tag that already existed — and `setPieceTerms` deletes every link the piece has before it re-adds
+   * them, so the first save of any article carrying that tag would move that article off the imported label
+   * and onto the duplicate. The original tag would keep its `/labels/<slug>/` address, its usage count and
+   * its search value, and quietly lose the article that was filed under it.
+   *
+   * The editor's Tags box is filled from `ozikoro_label.name` and submits those names back, so an unchanged
+   * tag arrives here as the exact name it was read from. Matching on the name — case-insensitively, as
+   * `ozikoro_label_name_idx` is built on `lower(name)` — is therefore the lookup that round-trips. The
+   * derived slug is still the fallback for a genuinely new tag, and remains how one is created.
+   */
+  const byName = await db.one<{ id: number }>(
+    `select id from ozikoro_label where lower(name) = lower($1) order by id limit 1`,
+    [trimmed]
+  );
+  if (byName) return Number(byName.id);
   const slug = slugForTitle(trimmed) || `label-${Date.now()}`;
   const existing = await db.one<{ id: number }>(`select id from ozikoro_label where slug = $1`, [slug]);
   if (existing) return Number(existing.id);
