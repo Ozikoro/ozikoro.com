@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import { CITATION_STYLES, getPublicationBySlug, humanSize } from '@ozikoro/platform';
+import { discussionHtml } from '@/lib/discussion';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,8 +44,15 @@ function authorLine(authors: { name: string; affiliation: string | null; orcid: 
     .join(' · ');
 }
 
-export default async function PublicationPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function PublicationPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { slug } = await params;
+  const query = await searchParams;
   const db = await getDb();
   const work = await getPublicationBySlug(db, slug);
   if (!work) notFound();
@@ -58,6 +66,34 @@ export default async function PublicationPage({ params }: { params: Promise<{ sl
 
   const year = work.publishedAt ? new Date(work.publishedAt).getUTCFullYear() : null;
   const completedReviews = work.reviews.filter((r) => r.completedAt !== null);
+
+  /*
+   * ── THE DISCUSSION BOX, ON THE OWNER'S THIRD KIND ────────────────────────────────────────────────
+   *
+   * One of his six was *"publications"*, and a published work is read at its own address through this page.
+   * The subject is `work.url` — the same string this page prints as the work's permanent address and puts in
+   * its canonical — so a comment is filed under the address the work really has.
+   *
+   * ⚠️ **`ozikoro_publication` HOLDS NO ROW TODAY, SO NOTHING ON THIS PAGE CAN BE PROVED BY FETCHING IT.**
+   * Measured: `/sitemap/publications` lists the index and nothing else, and the publication page itself
+   * 404s for every slug. The placement is wired and its own rendering is exercised by
+   * `apps/ozikoro/lib/discussion.test.ts`; what cannot be demonstrated is a live page, because **there is no
+   * publication to demonstrate it on and inventing one to have something to test would be fabricating a
+   * work.**
+   *
+   * `searchParams` is read for the two things the box carries in the address: the notice a POST redirects
+   * back with, and the flag that shows the two design shapes to a moderator.
+   */
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (typeof value === 'string') search.set(key, value);
+    else if (Array.isArray(value) && typeof value[0] === 'string') search.set(key, value[0]);
+  }
+  const discussion = await discussionHtml({
+    path: work.url,
+    kindLabel: 'this work',
+    search,
+  });
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -228,6 +264,21 @@ export default async function PublicationPage({ params }: { params: Promise<{ sl
             <Link className="btn" href="/publications">All research</Link>
           </p>
         </article>
+
+        {/*
+          ONE `dangerouslySetInnerHTML`, AND IT IS THE SAME BOX THE RECORD ROUTE AND THE THREE DESIGN
+          SCREENS GET. The alternative — a React component here and an HTML string there — is two renderings
+          of one box, and the drift between them would be the signed-in form missing a field on one of the
+          owner's six kinds of page. See `lib/discussion.ts` for that reasoning in full; the pattern of a
+          server-built HTML block dropped into a React page is already the archive's own (`app/privacy/`).
+
+          `discussion` is empty only when the address is not one the archive discusses on, which cannot
+          happen for a published work — but an empty string renders an empty div, which is what an absent box
+          should be.
+        */}
+        {discussion ? (
+          <div className="oz-discussion-mount" dangerouslySetInnerHTML={{ __html: discussion }} />
+        ) : null}
       </div>
     </>
   );

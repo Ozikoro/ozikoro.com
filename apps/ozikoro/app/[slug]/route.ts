@@ -23,9 +23,10 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb, type Db } from '@ozituma/db/client';
-import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, redirectFor, siteSeoFrom, mediaPath, mediaUrlResolver, resolveRecordSeo, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, recordRead, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, redirectFor, siteSeoFrom, mediaPath, mediaUrlResolver, resolveRecordSeo, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, recordRead, insertDiscussion, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import { hasCapability } from '@/lib/access';
+import { discussionHtml } from '@/lib/discussion';
 
 export const dynamic = 'force-dynamic';
 
@@ -307,12 +308,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
    * literal, and a backtick in a SQL comment would end it.)
    */
   const row = await db.one<{
-    id: number; title: string; body_html: string | null; topic: string | null; standfirst: string | null;
+    id: number; slug: string; title: string; body_html: string | null; topic: string | null;
+    standfirst: string | null;
     author: string | null; published_at: Date | null; modified_at: Date | null;
     image: string | null; image_alt: string | null; image_credit: string | null;
     image_licence: string | null; rights_note: string | null; tags: string[] | null;
   }>(
-    `select a.id, a.title, a.body_html, a.standfirst, t.name as topic,
+    `select a.id, a.slug, a.title, a.body_html, a.standfirst, t.name as topic,
             c.display_name as author, a.published_at, a.modified_at,
             (select m.storage_key from ozikoro_media m where m.id = a.featured_media_id) as image,
             (select m.alt_text from ozikoro_media m where m.id = a.featured_media_id) as image_alt,
@@ -775,6 +777,37 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     }
   } catch (error) {
     console.error('article: could not record the read', String(error).slice(0, 200));
+  }
+
+  /*
+   * ── THE DISCUSSION BOX, ON BOTH OF THE OWNER'S RECORD-SHAPED KINDS ──────────────────────────────────
+   *
+   * His list was *"articles, folklore stories, publications, cultural events, video pages and project
+   * pages"*, and **two of those six are this one route.** A folktale is not a separate design and not a
+   * separate address — the owner's own instruction was to read a folktale exactly as a history is read —
+   * and `/folklore/` links its stories straight at `/<slug>/`. **What distinguishes them is measured, not
+   * guessed: `ozikoro_topic.slug = 'folklores'`.** So one placement covers both, and it covers every
+   * published record because every record filed under every one of the archive's 14 topics is a history or
+   * a folktale and nothing else on his list.
+   *
+   * ⚠️ **THE SUBJECT IS BUILT FROM THE ROW THAT WAS JUST SERVED, NOT FROM THE ADDRESS BAR.** The stored slug
+   * is the thread key, so the percent-encoded record — the one whose WordPress slug carries `%c7%b9` — files
+   * its comments under exactly the address `resolveSubject` will find them by later. A path taken from the
+   * request would be the decoded spelling and would not match.
+   *
+   * AND IT CANNOT COST THE READER THE RECORD. The same rule the reading-history block above states: a box
+   * that will not draw is a missing box, not a 404 on 1,051 published histories.
+   */
+  try {
+    const block = await discussionHtml({
+      path: `/${row.slug}/`,
+      subject: { kind: 'record', articleId: Number(row.id), path: `/${row.slug}/` },
+      kindLabel: row.topic && row.topic.trim().toLowerCase() === 'folklores' ? 'this folktale' : 'this record',
+      search: new URL(request.url).searchParams,
+    });
+    html = insertDiscussion(html, block);
+  } catch (error) {
+    console.error('article: could not draw the discussion', String(error).slice(0, 200));
   }
 
   return new Response(html, {

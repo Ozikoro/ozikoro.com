@@ -61,6 +61,11 @@ import {
 import { sessionCookieOptions } from '@ozituma/db/accounts';
 import { getCurrentAccount } from '@/lib/session';
 import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
+/*
+ * The discussion box for the three screens that are discussion pages — `watch`, `projects` and
+ * `cultural-calendar`. It returns any other screen byte for byte unchanged; see its call site below.
+ */
+import { withDiscussion } from '@/lib/discussion';
 import {
   citationFor,
   fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
@@ -2412,6 +2417,26 @@ export async function GET(
    * that rewrote the same heading would discard the rest. Nothing runs after this.
    */
   html = await withDesignOverrides(html, name, new URL(request.url));
+
+  /*
+   * ── AND THE DISCUSSION BOX, WHICH IS THE LAST THING ON THE PAGE RATHER THAN THE LAST EDIT TO IT ─────
+   *
+   * THE OWNER'S REQUEST NAMED SIX KINDS OF PAGE, and **three of them are served by this route**: the
+   * middleware rewrites `/watch/`, `/projects/` and `/cultural-calendar/` to the `watch`, `projects` and
+   * `cultural-calendar` screens — measured on the served site, where `/watch/` and `/design-screen/watch`
+   * are byte-identical — so the screen IS the page and this is where its discussion has to be drawn.
+   *
+   * ⚠️ **IT RUNS AFTER THE OVERRIDES AND NOT BEFORE.** `withStoredDesignOverrides` rewrites text the design
+   * already carries; a comment box is not design text and must not be reachable by an override keyed on the
+   * page, so the box goes on after the last pass rather than into it. It is also the one line this route
+   * takes from the comments work: `withDiscussion` returns any screen it does not handle **byte for byte
+   * unchanged**, asserted in `apps/ozikoro/lib/discussion.test.ts`, so the other 49 screens are untouched.
+   *
+   * The full reasoning — why a comment is filed under a page address, why `pending` is the state the schema
+   * writes, and why the two example shapes are shown to nobody but a moderator — is in
+   * `packages/ozikoro/src/comments.ts` and in the header of `apps/ozikoro/lib/discussion.ts`.
+   */
+  html = await withDiscussion(html, name, new URL(request.url).searchParams);
 
   /*
    * THE CHOSEN WORKSPACE IS REMEMBERED HERE, AND ONLY FOR A DASHBOARD THAT WAS ACTUALLY SERVED.

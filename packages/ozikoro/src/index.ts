@@ -69,6 +69,16 @@ export * from './follows.ts';
  * was the only one of the three that had a table behind it until migration `0060`.
  */
 export * from './library.ts';
+/*
+ * READERS' COMMENTS, AND THE CHECK THAT STANDS BETWEEN WRITING ONE AND SHOWING IT.
+ *
+ * The owner asked for the comment box on six kinds of page — *"articles, folklore stories, publications,
+ * cultural events, video pages and project pages"* — and **only two of the six are records**, which is why
+ * the thread is a page address rather than an `article_id`. Nothing was copied from anywhere: the phrases in
+ * his description appear in no branch and no file, and the editor's own Discussion box said in words that
+ * the archive had no comment table. See `comments.ts` and migration `0061`.
+ */
+export * from './comments.ts';
 export * from './rights.ts';
 /*
  * THE SECOND MARK ON A RECORD, AND THE AGREEMENT THAT OPENS IT.

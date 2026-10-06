@@ -1,0 +1,336 @@
+/*
+ * comments.css — the discussion box's own sheet.
+ *
+ * WHY THIS FILE EXISTS AT ALL
+ *
+ * The design deliverable under `public/design/` is inviolable and byte-compared against the handover copy, so
+ * the comment box cannot be styled there. `/a11y.css` is the owner's accessibility sheet and this is not an
+ * accessibility fix. Everything else the archive serves is the design's own `main.css` and `showcase.css`,
+ * which draw no discussion because **the design has no discussion block on any of its 52 screens** — that was
+ * measured, and it is why the phrase "Sign in to join the discussion" appears in no file anywhere. So the box
+ * is the application's own surface and it carries its own sheet, which is the same arrangement
+ * `/watch-video.css` already has.
+ *
+ * ── IT IS WRITTEN AGAINST THE DESIGN'S TOKENS, NOT AGAINST ITS LAYOUT ───────────────────────────────
+ *
+ * `--s-3`, `--s-5`, `--rule`, `--rule-firm`, `--paper`, `--paper-raised`, `--text-muted`, `--gold` and the
+ * rest all come from the design's own `tokens.css`, which `main.css` imports and every page with a box
+ * already links. **No colour and no spacing is invented, and there is no invented fallback either** — a
+ * `var(--x, #hex)` here would silently paint a colour that is in the owner's palette nowhere, which is the
+ * fault this note exists to prevent. *(The first draft of this file used `--line` and `--muted`, neither of
+ * which exists in `tokens.css`, so both fell through to invented hex values; and it carried fallbacks for
+ * `--lh-snug` and `--lh-body` whose values were simply wrong — 1.2 against the design's 1.3, 1.6 against its
+ * 1.72. The names and the values are what this file is now checked against.)* The one colour that is not a
+ * token is named where it is used, and it is the archive's own.
+ *
+ * ── AND IT IS WRITTEN FOR A PHONE FIRST, BECAUSE THE OWNER SAID SO ──────────────────────────────────
+ *
+ *   "I haven't opened the pages to check how the box looks on desktop or phone yet."
+ *
+ * Three things were measured on the served page at 390 px and fixed here rather than guessed at:
+ *
+ *   1. the content sat directly in `<main>` instead of the design's `.wrap`, so it ran edge to edge — the
+ *      markup puts it in `.wrap` now and this sheet only supplies the reading measure;
+ *   2. an anchor jump to `#discussion` put the heading UNDER the sticky masthead, because
+ *      `showcase.css:656` makes `.masthead` (and `.sx-reader-header`) `position: sticky; top: 0` at
+ *      `max-width: 40rem` — `scroll-margin-top` clears it;
+ *   3. a full-width `.btn` did not centre its label, because the design's `.btn` is `display: inline-flex`
+ *      and `text-align` does nothing to a flex container — `justify-content` is the lever, which is what the
+ *      design's own `.sx-donate-submit { width: 100%; justify-content: center }` uses.
+ *
+ * Nothing here writes to `.masthead`, `.nav` or `.platform-bar`, so the masthead's own 640 px breakpoint and
+ * its mobile menu are untouched.
+ */
+
+/*
+ * THE SECTION IS A FULL-WIDTH BAND AND ITS CONTENT LINES UP WITH THE PAGE.
+ *
+ * `.wrap` (the design's own container) is in the markup, so this supplies only the vertical rhythm and the
+ * rule that separates the discussion from the record above it.
+ */
+.oz-discussion {
+  margin-top: var(--s-8);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--rule);
+  /*
+   * The anchor clears the sticky mobile header. `showcase.css` pins `.masthead` and `.sx-reader-header` at
+   * `top: 0` below 40rem; without this the box's own heading is what a reader lands on and the first thing
+   * they see is the masthead covering it.
+   */
+  scroll-margin-top: 5.5rem;
+}
+
+/* The reading measure. The container is the design's; the measure is this box's. */
+.oz-discussion-inner {
+  max-width: 46rem;
+}
+
+.oz-discussion-head h2 {
+  margin: var(--s-2) 0 var(--s-3);
+  font-size: clamp(1.35rem, 1.1rem + 1.2vw, 1.85rem);
+  line-height: var(--lh-snug);
+}
+
+.oz-discussion-note {
+  margin: 0 0 var(--s-4);
+  color: var(--text-muted);
+  font-size: var(--t-sm);
+  max-width: 60ch;
+}
+
+/* ── The signed-out half ───────────────────────────────────────────────────────────────────────── */
+
+.oz-discussion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-3);
+  margin: 0 0 var(--s-5);
+}
+
+.oz-discussion-actions .btn {
+  flex: 0 1 auto;
+  justify-content: center;
+}
+
+/* ── The signed-in form ────────────────────────────────────────────────────────────────────────── */
+
+.oz-comment-form {
+  display: block;
+  margin: 0 0 var(--s-6);
+  padding: var(--s-4);
+  border: 1px solid var(--rule-firm);
+  border-radius: var(--r-md);
+  background: var(--paper-raised);
+}
+
+.oz-comment-form .field {
+  display: block;
+  margin: 0 0 var(--s-3);
+}
+
+.oz-comment-form .label {
+  display: block;
+  margin-bottom: var(--s-2);
+  font-weight: 600;
+}
+
+.oz-comment-form textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-height: 7.5rem;
+  padding: var(--s-3);
+  border: 1px solid var(--rule-firm);
+  border-radius: var(--r-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  line-height: var(--lh-body);
+  resize: vertical;
+}
+
+.oz-comment-form textarea:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 1px;
+}
+
+/*
+ * THE TICK BOX AND ITS LABEL STAY ON ONE LINE AND STAY TAPPABLE.
+ *
+ * `align-items: flex-start` rather than `center`, because the label wraps to two lines on a narrow phone and
+ * a centred box then floats beside the middle of the sentence. The whole label is the hit target, which is
+ * the difference between a control a thumb can use and one it cannot.
+ */
+.oz-comment-flag {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-sm);
+  line-height: var(--lh-snug);
+  cursor: pointer;
+}
+
+.oz-comment-flag input {
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
+  margin: 0.1rem 0 0;
+}
+
+.oz-comment-post {
+  margin: 0;
+}
+
+.oz-comment-post .btn {
+  justify-content: center;
+}
+
+/* ── The notices a POST carries back ───────────────────────────────────────────────────────────── */
+
+.oz-comment-notice {
+  margin: 0 0 var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-left: 3px solid var(--gold);
+  background: var(--ochre-wash);
+  font-size: var(--t-sm);
+}
+
+.oz-comment-notice.is-error {
+  /*
+   * THE ONE COLOUR IN THIS FILE THAT IS NOT A DESIGN TOKEN, AND IT IS THE ARCHIVE'S OWN.
+   * `tokens.css` holds no error or danger colour — measured — and the account screen has painted a bad
+   * notice `#8a2b1f` since it was built (`apps/ozikoro/lib/account-screen.ts`). A second red invented here
+   * would be a second answer to a question the archive has already answered once.
+   */
+  border-left-color: #8a2b1f;
+  background: color-mix(in oklab, #8a2b1f 8%, transparent);
+}
+
+/* ── The comments themselves ───────────────────────────────────────────────────────────────────── */
+
+.oz-comments {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s-4);
+}
+
+.oz-comment {
+  margin: 0;
+  padding: var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-md);
+  background: var(--paper-raised);
+}
+
+/*
+ * A comment awaiting a check is visibly not yet an ordinary comment — a dashed edge rather than a solid one —
+ * and it is a state rather than a colour-only signal, because the words "Pending review" are printed in it.
+ */
+.oz-comment.is-pending {
+  border-style: dashed;
+  border-color: var(--gold);
+  background: var(--ochre-wash);
+}
+
+.oz-comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 0.6rem;
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-xs);
+  color: var(--text-muted);
+}
+
+.oz-comment-meta strong {
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
+.oz-state,
+.oz-flag,
+.oz-example-tag {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: var(--t-xs);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.oz-state {
+  color: var(--bronze);
+}
+
+.oz-comment-held {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-xs);
+  color: var(--text-muted);
+}
+
+.oz-comment-body {
+  overflow-wrap: anywhere;
+  line-height: var(--lh-body);
+}
+
+.oz-comment-body > p {
+  margin: 0 0 var(--s-3);
+}
+
+.oz-comment-body > p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── The empty state, which is what a reader meets before anything is approved ─────────────────── */
+
+.oz-comments-empty {
+  padding: var(--s-4);
+  border: 1px dashed var(--rule-firm);
+  border-radius: var(--r-md);
+}
+
+.oz-comments-empty p {
+  margin: 0 0 var(--s-2);
+}
+
+.oz-comments-empty p:last-child {
+  margin-bottom: 0;
+  color: var(--text-muted);
+  font-size: var(--t-sm);
+}
+
+/* ── The two design shapes, which only a moderator can ask to see ──────────────────────────────── */
+
+.oz-examples {
+  margin-top: var(--s-6);
+  padding: var(--s-4);
+  border: 2px dashed var(--gold);
+  border-radius: var(--r-md);
+}
+
+.oz-examples-title {
+  margin: 0 0 var(--s-4);
+  font-weight: 600;
+  font-size: var(--t-sm);
+  line-height: var(--lh-body);
+}
+
+.oz-example-tag {
+  /* The same archive error colour, for the same reason: the design holds no token for "not for readers". */
+  color: #8a2b1f;
+}
+
+/* ── The phone, named rather than hoped for ────────────────────────────────────────────────────── */
+
+@media (max-width: 40rem) {
+  .oz-discussion {
+    margin-top: var(--s-7);
+    padding-top: var(--s-4);
+  }
+
+  /*
+   * Two full-width buttons rather than two that wrap wherever the label happens to end, following the
+   * design's own `.sx-donate-submit`. `justify-content` and not `text-align`: `.btn` is `display: inline-flex`
+   * and its label is a flex item.
+   */
+  .oz-discussion-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .oz-discussion-actions .btn,
+  .oz-comment-post .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .oz-comment,
+  .oz-comment-form {
+    padding: var(--s-3);
+  }
+}

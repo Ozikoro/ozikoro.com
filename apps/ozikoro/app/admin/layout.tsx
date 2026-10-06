@@ -253,6 +253,22 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     { href: '/admin/media', label: 'Media register' },
     { href: '/admin/rights', label: 'Media rights' },
     { href: '/admin/claims', label: 'Claims' },
+    /*
+     * COMMENTS SITS WITH THE OTHER QUEUES, AND IT IS A SCREEN RATHER THAN A LINK TO ONE.
+     *
+     * This list's own rule is that *"an entry exists here because a screen exists at that address, not
+     * because the mock-up drew it"*, and the owner's design draws no comment queue — **it draws no discussion
+     * block anywhere, on any of its 52 screens.** The screen exists because he asked for comments that are
+     * *"checked before they appear"*, and a check with no queue is half a feature.
+     *
+     * ⚠️ **WHY IT IS NOT `/admin/reviews`.** That screen is a review queue and looks like the right home.
+     * It is gated on `edit_entity`, and a `moderator` — the one role the archive defines as *"Reports,
+     * moderation of users and content, and escalation"* — holds `moderate`, `read` and `review_reports` and
+     * **not** `edit_entity`. A comment queue inside it would be a queue the moderator cannot open. It is
+     * gated on `moderate` instead, which is the vocabulary's own word for the act, and placed here so that a
+     * person who reaches `/admin/` can find it.
+     */
+    { href: '/admin/comments', label: 'Comments' },
     { href: '/admin/users', label: 'Users' },
     { href: '/admin/audit', label: 'Audit trail' },
     /*
