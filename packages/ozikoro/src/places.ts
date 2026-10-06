@@ -620,6 +620,31 @@ export interface RegisterSelection {
   town?: string | null;
 }
 
+/**
+ * THE PEOPLES THE ARCHIVE OFFERS — ONE LIST, READ BY TWO PAGES.
+ *
+ * The long reasoning for every name below sits in `getRegisterCascade`'s own step 1, where this list was
+ * first written; **this constant is the same array, hoisted so a second page can read it rather than
+ * copy it.** The owner asked for one thing in two places — *"add the ethnicities to the ethnic groups
+ * listed, even if there's no article about them, it can be added later"* — and a second copy of the list
+ * is the way that becomes two different answers to the same request.
+ *
+ * WHO ELSE READS IT: `/archive/`'s rail, which is the page he was looking at when he asked. Its ethnic
+ * dimension cannot come from `clan.ethnic_group` (one published people, Igbo — measured) so the names
+ * come from here and the counts come from the archive's own records; see `fillArchiveIndex`.
+ *
+ * NOTHING ABOUT A PEOPLE IS STATED BUT ITS NAME. See step 1 for what was refused and why.
+ */
+export const REGISTER_PEOPLES: readonly string[] = [
+  // The design's seven, in the design's order. Not reordered, not renamed, not removed.
+  'Igbo', 'Ijaw', 'Efik', 'Ibibio', 'Idoma', 'Yoruba', 'Edo',
+  // The dictionary's registry at ozituma.com/languages, minus the four already above, in its order.
+  'Hausa', 'Urhobo', 'Igala', 'Akan', 'Fulani', 'Dagbani', 'Ewe', 'Fante', 'Ga-Dangme',
+  'Wolof', 'Mandinka',
+  // Named by the owner, and on neither list until now.
+  'Kanuri',
+];
+
 /** One level of the finder: what it offers, and — for a people or a division — how much it holds. */
 export interface FinderOption {
   /** The value the form submits and the address carries. */
@@ -802,15 +827,9 @@ export async function getRegisterCascade(
    * NOT added here: the owner asked for the page's list, they are not on it, and the loop below already
    * appends any people the register publishes, so each one appears by itself the day its entry is filed.
    */
-  const DESIGN_PEOPLES = [
-    // The design's seven, in the design's order. Not reordered, not renamed, not removed.
-    'Igbo', 'Ijaw', 'Efik', 'Ibibio', 'Idoma', 'Yoruba', 'Edo',
-    // The dictionary's registry at ozituma.com/languages, minus the four already above, in its order.
-    'Hausa', 'Urhobo', 'Igala', 'Akan', 'Fulani', 'Dagbani', 'Ewe', 'Fante', 'Ga-Dangme',
-    'Wolof', 'Mandinka',
-    // Named by the owner, and on neither list until now.
-    'Kanuri',
-  ];
+  // THE LIST ITSELF HAS MOVED TO THE TOP OF THIS MODULE — `REGISTER_PEOPLES` — so `/archive/` can read
+  // the same names instead of keeping a second copy of them. The reasoning for each name is above.
+  const DESIGN_PEOPLES: readonly string[] = REGISTER_PEOPLES;
   const counts = new Map(ethnicRows.map((r) => [String(r.ethnic_group), Number(r.n ?? 0)]));
   const ethnicGroups: FinderOption[] = DESIGN_PEOPLES.map((label) => ({
     value: label,
