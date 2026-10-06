@@ -353,6 +353,39 @@ const nextConfig: NextConfig = {
        * (`app/[slug]/pdf/route.ts`). A deeper `/a/b/c/pdf` is not this route and does not match here.
        */
       { source: '/:slug/pdf', headers: pdfHeaders },
+      /*
+       * ── AND THE ARCHIVE'S OWN PDFs, WHICH THE DOCUMENT VIEWER FRAMES ────────────────────────────
+       *
+       * THE FAULT, MEASURED BEFORE THIS RULE EXISTED. The owner asked for a document to open in the site
+       * *"just like research gates shows"*, and the design he pointed at (`screens/document-viewer.html`)
+       * frames the file in an `<object type="application/pdf">`. The archive's files are served from
+       * `/media/<key>`, and that response carried the strict policy:
+       *
+       *     GET /media/ozikoro/9085-SAMTDO-7v1.pdf
+       *       200  application/pdf  1,059,363 bytes  — a real PDF, and unusable in the frame
+       *       content-security-policy: … frame-ancestors 'none'; … object-src 'none'
+       *       x-frame-options: DENY
+       *
+       * **`object-src 'none'` forbids the browser's own PDF viewer — not the document, the instrument that
+       * shows it — and `frame-ancestors 'none'` with `X-Frame-Options: DENY` on top closes the frame as
+       * well.** The viewer would have rendered its chrome, its record card and its toolbar around an empty
+       * box: the same class of fault this file already records twice, a response that is correct in every
+       * respect and cannot be displayed. **A 200 is not a working page.**
+       *
+       * SO THE SAME `pdfHeaders` THE PUBLICATION ALREADY USES ARE APPLIED TO THE FILES THE VIEWER FRAMES.
+       * They are the same two derived headers, not a second policy — `object-src 'self'` and
+       * `frame-ancestors 'self'` with `X-Frame-Options: SAMEORIGIN`, which keep clickjacking protection and
+       * admit only this origin.
+       *
+       * IT IS ANCHORED TO `.pdf` AND NOT TO `/media/:path*`, AND THE ANCHOR IS THE POINT. `/media/` also
+       * serves the archive's 3,462 photographs, its video and its audio, and none of those is a document to
+       * be framed; a blanket rule would relax two directives for every image on the site to fix one route,
+       * which is the trade this file refuses everywhere else. Measured with Next's own `getPathMatch`:
+       * `/media/:path*.pdf` matches both real PDF keys — including
+       * `11237-Igbo Folk Idioms in Caribbean Phrase.pdf`, whose name contains spaces — and does NOT match
+       * `/media/ozikoro/1234-photo.jpg`.
+       */
+      { source: '/media/:path*.pdf', headers: pdfHeaders },
       {
         source: '/api/spotify/:path*',
         headers: [

@@ -82,6 +82,22 @@ const ROUTE = {
    * screen is served at four addresses by `lib/account-screen.ts`, and `/signin` is the one it opens on.
    */
   'account': '/signin',
+  /*
+   * ── `document-viewer` IS THE FIRST SCREEN SERVED BY A ROUTE OF ITS OWN RATHER THAN THE GENERIC ONE ────
+   *
+   * It left the middleware's `DESIGN_SCREENS` set because the screen could not be served honestly: the
+   * deliverable's viewer is one record's chrome around the demonstration PDF `research-download-demonstration.pdf`,
+   * with a placeholder reference (`OZ-P-2026-0041`), two invented authors and a "CC BY 4.0" licence the archive
+   * does not hold — and its `<object>` is refused outright by the site's own `object-src 'none'`. Measured on the
+   * served page, a reader got a fabricated citation and a Download button for a demonstration file, and no preview.
+   *
+   * `app/document-viewer/page.tsx` takes the record from its own address (`?doc=<slug>`) and frames the file the
+   * archive actually holds; with nothing named it says so and shows nothing. **The screen file is untouched and
+   * is still served for design work at `/design-screen/document-viewer`**, which is the same treatment the
+   * retired `academy` screen has. It is listed here rather than in `ABSENT` because it IS routed — by a page of
+   * its own, which is the one thing this map has to be able to say.
+   */
+  'document-viewer': '/document-viewer',
 };
 
 /** screen -> the route that renders it under a different name, with the reason. */

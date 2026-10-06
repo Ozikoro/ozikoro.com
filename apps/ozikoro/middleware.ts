@@ -91,19 +91,44 @@ const DESIGN_SCREENS = new Set<string>([
   "dashboard-teacher",
   "dashboard-workflow",
   /*
-   * THE DOCUMENT VIEWER, WHICH UPSTREAM ADDED AND THIS CHECKOUT DID NOT HAVE.
+   * ── "document-viewer" IS DELIBERATELY ABSENT, AND IT IS THE ONE SCREEN THE ARCHIVE COULD NOT FILL ────
    *
    * The owner: *"when one goes to the documents section, and clicked on any document, i expected it to show
    * the pdf in the site just like research gates shows. i have updated the original github on the document
    * view."* The file is `screens/document-viewer.html`, byte-identical to the upstream copy
-   * (`sha256 233cf170a759…`), and upstream's own `documents.html` links it as `document-viewer.html` — which
-   * the rewrite below turns into `/document-viewer/`.
+   * (`sha256 233cf170a759…`), and this set named it so that upstream's own `documents.html` link to it —
+   * `document-viewer.html` — resolved to `/document-viewer/`.
    *
-   * It is in this set rather than reached by an application route for the same reason every other delivered
-   * screen is: **the design is the specification, and a screen served by a second implementation is a screen
-   * that drifts from it.**
+   * ⚠️ **IT IS OUT OF THIS SET BECAUSE THE SCREEN IT DREW COULD NOT BE SERVED HONESTLY, AND THAT WAS MEASURED
+   * RATHER THAN ASSUMED.** The screen is one record's chrome around an `<object>` whose only address is the
+   * deliverable's own `../downloads/research-download-demonstration.pdf`, and whose record card is the design's
+   * placeholder: reference `OZ-P-2026-0041`, "Journal article", "CC BY 4.0", two invented authors. Two things
+   * follow, and both were verified on the served page:
+   *
+   *   1. **THE OBJECT CANNOT RENDER AT ALL.** Every HTML page is served with `object-src 'none'`, measured in
+   *      Chrome as *"Loading plugin data from … violates the following Content Security Policy directive:
+   *      \"object-src 'none'\""* — so the preview the owner asked for was never shown by this screen.
+   *   2. **THE ADDRESS IT NAMES DOES NOT RESOLVE, EVEN AS A DOWNLOAD.** `designScreenLinks` rewrites the
+   *      screen's `href`s to `/design/downloads/…`, and the `<object>`'s `data` is left as written, so a browser
+   *      resolves `../downloads/…` against `/document-viewer/` to `/downloads/research-download-demonstration.pdf`
+   *      — which does not exist. Measured: `GET /document-viewer/` carries the demonstration PDF's title and a
+   *      Download button that leads to a demonstration file, and a citation attributed to authors the archive
+   *      does not hold.
+   *
+   * **SO A READER MEETING THIS SCREEN MET A FABRICATED RECORD.** That is the brief's own prohibition — a
+   * demonstration must never be what a reader gets — and unlike `towns` and `account` it could not be fixed by
+   * filling the screen from the archive, because the screen has no place to say *which* record it is showing and
+   * the deliverable cannot be edited to add one.
+   *
+   * SO THE ADDRESS IS NOW AN APPLICATION ROUTE, `app/document-viewer/page.tsx`, WHICH TAKES THE RECORD FROM ITS
+   * OWN ADDRESS (`?doc=<slug>`) AND FRAMES THE FILE THE ARCHIVE ACTUALLY HOLDS — and which, when no document is
+   * named or the name resolves to nothing, says so and shows nothing rather than the demonstration. It is the
+   * same treatment `/towns/` and `/account/` already have: the name leaves this set and a real route answers.
+   *
+   * ⚠️ NOTHING IS DELETED, AND THE DESIGN IS STILL THE DELIVERABLE. `screens/document-viewer.html` is untouched
+   * and still served for design work at `/design-screen/document-viewer`, exactly as the retired `academy`
+   * screen is. `document-viewer` stays in `DESIGN_FILES` below, because it is a file the deliverable ships.
    */
-  "document-viewer",
   "documents",
   "donate",
   "folklore",
@@ -135,6 +160,28 @@ const DESIGN_SCREENS = new Set<string>([
    * those are real routes now, not screens.
    *
    * The screen still exists at /design/screens/towns.html and /design-screen/towns for reference.
+   *
+   * ⚠️ **AND FOUR MORE ROUTES ARE DEAD IN EXACTLY THE SAME WAY, MEASURED ON 7 OCTOBER 2026 AND RECORDED
+   * RATHER THAN REMOVED.**
+   *
+   *     app/watch/page.tsx              shadowed by  "watch"              in this set
+   *     app/projects/page.tsx           shadowed by  "projects"           in this set
+   *     app/cultural-calendar/page.tsx  shadowed by  "cultural-calendar"  in this set
+   *     app/folklore/page.tsx           shadowed by  "folklore"           in this set
+   *
+   * Each is a real Next route that **the branch below never lets through**, because the branch fires on any
+   * single-segment path whose name is in this set — `if (single && !single.includes('/'))`. Measured, not
+   * inferred: `GET /watch/` and `GET /design-screen/watch` are byte-identical (both sha1 `e29ff5c1dd9a`), and
+   * so are `/projects/`, `/cultural-calendar/`, `/folklore/` and `/publications/`.
+   *
+   * **THEY ARE LEFT ALONE ON PURPOSE, AND THEY ARE NOT DEAD BECAUSE NOBODY NOTICED.** This is the `towns`
+   * case again — a real route behind a screen of the same name — but unlike `towns` **nobody has asked for
+   * these four back, and removing a name from this set changes which IMPLEMENTATION serves a live public
+   * page.** The design screens are the owner's own design; a React page that draws the same subject is a
+   * second implementation, and serving it is a decision with its own measurement rather than a tidy-up.
+   *
+   * **SO IF YOU EDIT ONE OF THOSE FOUR FILES AND NOTHING CHANGES ON THE SITE, THIS IS WHY.** The way to bring
+   * one back is to take its name out of this set, exactly as `towns` and `account` were taken out.
    */
   "type-test",
   "upload",
@@ -167,8 +214,15 @@ const DESIGN_SCREENS = new Set<string>([
  * file the deliverable ships**, whether or not a route or a redirect has since replaced the page;
  * dropping the name when `/academy/` was retired would have made `/academy/academy.html` — the
  * two-segment spelling of a real screen's file name — stop being recognised as one.
+ *
+ * **`document-viewer` IS THE FOURTH NAME IN THAT POSITION, ADDED WHEN ITS ADDRESS BECAME A REAL ROUTE.**
+ * It left `DESIGN_SCREENS` above for the reason recorded there — the screen it drew could not be served
+ * honestly — and it is named here for exactly the reason `towns` and `account` are: **`/document-viewer.html`
+ * is a file the deliverable ships and a link upstream's own `documents.html` writes**, so it has to keep
+ * resolving to the page. Without this line that spelling would stop being recognised as a file name and would
+ * fall through to the attachment fallback.
  */
-const DESIGN_FILES = new Set<string>([...DESIGN_SCREENS, 'towns', 'account', 'academy']);
+const DESIGN_FILES = new Set<string>([...DESIGN_SCREENS, 'towns', 'account', 'academy', 'document-viewer']);
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

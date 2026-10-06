@@ -139,6 +139,71 @@ export default async function MediaPage({ params }: { params: Promise<{ slug: st
         <video className="section" controls preload="metadata" src={item.url} style={{ maxWidth: '100%' }} />
       ) : item.kind === 'audio' && item.url ? (
         <audio className="section" controls preload="metadata" src={item.url} />
+      ) : item.kind === 'document' && item.url ? (
+        /*
+         * ⚠️ A DOCUMENT HAD NO BRANCH AT ALL, SO EVERY PDF SAID IT COULD NOT BE SHOWN — AND OFFERED NOTHING.
+         *
+         * `image`, `video` and `audio` each had a branch; a `document` fell through to a plate reading *"This
+         * item is a document and is not shown inline."* **No viewer, no download link, no `<a href>` to the
+         * file anywhere on the page** — measured on `/documents/igbo-folk-idioms-in-caribbean-phrase/`, which
+         * is where the owner clicked expecting the document and found none. The file itself was serving the
+         * whole time: `/media/ozikoro/11237-Igbo Folk Idioms in Caribbean Phrase.pdf` answers `200`,
+         * `application/pdf`, 191,005 bytes.
+         *
+         * SO THE PLATE WAS TRUE AND USELESS. A reader who came to *read* a document was told it existed and
+         * then given no way to open it — which reads as a page that failed to load.
+         *
+         * ⚠️ AND THE `<object>` THAT REPLACED IT WAS BLOCKED BY THIS SITE'S OWN POLICY, MEASURED IN A BROWSER.
+         *
+         * `next.config.ts` serves every HTML page with `object-src 'none'`, which is correct — it is what stops
+         * a plugin being injected into a page. **But the browser's own PDF viewer is an `<object>`, so that
+         * directive does not forbid the document; it forbids the instrument that shows it.** Driven through
+         * Chrome's DevTools Protocol against the live page, the console carried exactly this, and the PDF was
+         * never even fetched (`Network.loadingFailed`, `blockedReason: "csp"`):
+         *
+         *     Loading plugin data from
+         *     'https://ozikoro.com/media/ozikoro/11236-Introduction_to_Igbo_Mythology_for_Kids_-_chinelo_anyadiegwu.pdf'
+         *     violates the following Content Security Policy directive: "object-src 'none'". The action has been blocked.
+         *
+         * The element collapsed to the height of its own fallback sentence — 1,168 × 64 px, measured — and a
+         * reader got a strip of grey text where the preview was meant to be. **That is the "live preview for
+         * documents" the owner reported as missing**, and a 200 on the PDF is not an answer to it.
+         *
+         * AN `<iframe>` IS THE SAME DOCUMENT THROUGH A DIRECTIVE THAT IS ALREADY OPEN. `frame-src 'self'` is in
+         * the policy, and `/media/…pdf` is served with `object-src 'self'`, `frame-ancestors 'self'` and
+         * `X-Frame-Options: SAMEORIGIN` (the `/media/:path*.pdf` rule in `next.config.ts`), so this origin is
+         * exactly the one frame the file admits. **Measured, not assumed: the PDF renders in the frame and the
+         * console carries no violation — so NO security header was relaxed to make this page work.**
+         *
+         * IT IS AN `<iframe>` RATHER THAN AN `<object>` WITH THE POLICY LOOSENED, and the order matters: a
+         * narrower policy is worth more than a nicer element, and `object-src 'self'` on every HTML page would
+         * admit plugins to all of them to fix one.
+         *
+         * A FRAME HAS NO FALLBACK CONTENT, SO THE SENTENCE MOVES BESIDE IT. A reader whose browser cannot draw
+         * a PDF in a frame is told so and pointed at the download, which serves the same bytes from this
+         * origin — so the page still cannot become a dead end. The button carries `download` so a reader who
+         * wants the file keeps it rather than navigating into it.
+         *
+         * ⚠️ AND IT DOES NOT LEAN ON THE `url` BEING NON-NULL. The guard is in the condition below, beside
+         * every other kind's, so a row with no file still reaches the plate and still says so honestly.
+         */
+        <div className="section">
+          <iframe
+            src={item.url}
+            title={item.altText ?? item.title ?? 'Document'}
+            style={{ width: '100%', height: '70vh', border: '1px solid rgba(0,0,0,.08)' }}
+          />
+          <p className="small muted">
+            If the document does not appear above, this browser cannot show a PDF inside the page. The
+            download button serves the same file.
+          </p>
+          <p className="small">
+            <a className="btn" href={item.url} download>
+              Download {KIND_LABEL[item.kind]?.toLowerCase() ?? 'file'}
+              {item.filesizeBytes ? ` (${humanBytes(item.filesizeBytes)})` : ''}
+            </a>
+          </p>
+        </div>
       ) : (
         <div className="plate section">This item is a {KIND_LABEL[item.kind]?.toLowerCase() ?? 'file'} and is not shown inline.</div>
       )}
