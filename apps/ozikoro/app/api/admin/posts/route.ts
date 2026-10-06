@@ -44,6 +44,7 @@ import {
   type PieceKind,
 } from '@ozikoro/platform';
 import { formBody, jsonError, redirectTo, requireCapability, sameOrigin } from '@/lib/access';
+import { bulkIdsFrom, bulkNotice, bulkWriteFor } from '@/lib/admin-posts-bulk';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -224,6 +225,60 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
 
+    /*
+     * THE ONE ACTION THAT NAMES MANY RECORDS AND NO SINGLE PIECE, AND WHY IT IS HANDLED FIRST.
+     *
+     * `bulk` is what the list table's "Move to Trash" / "Return to draft" / "Restore" dropdown posts: a list
+     * of ids in one field (`ids=5206,5204`) and **no `id` at all**. Every action after this block writes
+     * exactly one record, which is why the guard that follows it can require an `id`.
+     *
+     * IT USED TO COME AFTER THAT GUARD, AND THAT MADE IT UNREACHABLE. The guard answered every bulk action
+     * with *"That form did not name a piece, so nothing was written."* — measured in a browser: two rows
+     * ticked, "Move to Trash" chosen, Apply pressed, that error, and both rows still in the list with
+     * Trash (0). The order below is the fix: this block runs, returns its own redirect, and never reaches
+     * the per-record guard.
+     */
+    if (action === 'bulk') {
+      const where = returnTo.startsWith('/admin/') ? returnTo : listPath(kind);
+      const ids = bulkIdsFrom(String(form.get('ids') ?? ''));
+      const bulkAction = bulkWriteFor(text('bulkAction', 20));
+      /*
+       * THE VALUE IS VALIDATED BEFORE THE LOOP, WHICH IS NOT PEDANTRY. It used to be three literal
+       * comparisons inside the loop, so a value matching none of them ran the loop zero times and was then
+       * answered with a success notice — *"0 moved to the trash."* over a request that did nothing.
+       */
+      if (bulkAction === null) {
+        return redirectTo(where, { error: 'That is not a bulk action this list offers, so nothing was changed.' });
+      }
+      if (ids.length === 0) {
+        return redirectTo(where, { error: 'No rows were ticked, so nothing was changed.' });
+      }
+      let changed = 0;
+      for (const rowId of ids) {
+        if (bulkAction === 'trash') {
+          await trashPiece(db, { id: rowId, kind, actorId, note: 'Bulk action from the list table.' });
+          changed += 1;
+        } else if (bulkAction === 'restore') {
+          await restorePiece(db, { id: rowId, kind, actorId });
+          changed += 1;
+        } else {
+          await unpublishPiece(db, {
+            id: rowId, kind, actorId, capabilities: guard.capabilities,
+            note: 'Bulk action from the list table.',
+          });
+          changed += 1;
+        }
+      }
+      return redirectTo(where, { saved: bulkNotice(bulkAction, changed) });
+    }
+
+    /*
+     * EVERY ACTION BELOW WRITES ONE RECORD, SO THE FORM MUST NAME IT.
+     *
+     * This is the guard that used to catch `bulk` as well; `bulk` is answered above and returns, so what
+     * reaches here is only an action whose record is named by `id`, and an absent id — or one of zero or
+     * less, which is what a form that failed to render its hidden field sends — is a malformed form.
+     */
     if (id === null || id <= 0) {
       return redirectTo(listPath(kind), { error: 'That form did not name a piece, so nothing was written.' });
     }
@@ -249,10 +304,25 @@ export async function POST(request: Request): Promise<Response> {
       });
       await applyMetaBoxes(id);
       const kept = `Kept revision ${result.revisionId} of what it said before. ${result.wordCount.toLocaleString('en-GB')} words.`;
+      /*
+       * WHAT `sanitised` DOES AND DOES NOT MEAN, BECAUSE THE OLD SENTENCE CLAIMED MORE THAN IT KNEW.
+       *
+       * It is set when the stored body differs in any byte from the submitted one — which includes the
+       * sanitiser dropping `class`, `style` and `id` from a WordPress body, and includes it re-serialising
+       * attributes on the way through. It does NOT mean a script, a frame or an event handler was found.
+       *
+       * Measured on this cluster: a save whose body was 9,762 bytes and came back 9,846 — the 84 bytes of
+       * text that were typed, and nothing else — was reported as *"Some markup a reader must not be shown was
+       * removed: script and style elements, embedded frames and inline event handlers are not stored."* That
+       * is a specific claim about a specific removal, and it was false. The sentence below says what the
+       * sanitiser is and what it therefore did, and claims nothing it cannot see.
+       */
       return redirectTo(editPath(kind, id), {
         saved: result.sanitised
-          ? `Draft saved. Some markup a reader must not be shown was removed: script and style elements, embedded frames and inline event handlers are not stored. ${kept}`
-          : `Draft saved. ${kept}`,
+          ? `Draft saved. The body was written through the archive's sanitiser, which stores no inline styles, ` +
+            `classes or ids and no script, frame or event-handler markup — so a body carrying any of those is ` +
+            `not stored byte for byte as it was typed. ${kept}`
+          : `Draft saved, byte for byte as it was written. ${kept}`,
       });
     }
 
@@ -349,51 +419,6 @@ export async function POST(request: Request): Promise<Response> {
       await applyMetaBoxes(id);
       return redirectTo(returnTo.startsWith('/admin/') ? returnTo : listPath(kind), {
         saved: `Saved. Now at /${result.slug}/ and ${result.status}.`,
-      });
-    }
-
-    if (action === 'bulk') {
-      const ids = String(form.get('ids') ?? '')
-        .split(',')
-        .map((v) => Number.parseInt(v.trim(), 10))
-        .filter((n) => Number.isInteger(n) && n > 0);
-      const bulkAction = text('bulkAction', 20);
-      if (ids.length === 0) {
-        return redirectTo(returnTo.startsWith('/admin/') ? returnTo : listPath(kind), {
-          error: 'No rows were ticked, so nothing was changed.',
-        });
-      }
-      /*
-       * THREE BULK ACTIONS, AND PUBLISHING IS NOT ONE OF THEM.
-       *
-       * WordPress's bulk list offers "Edit" and "Move to Trash". Publishing from a table — with no body on
-       * the screen and possibly no title — is the one act this archive will not do from a checkbox, and
-       * `quickEditPiece` refuses the same transition for the same reason. Restore is offered because the
-       * trash's own link is the only other way back and doing it row by row across a bin is not work.
-       */
-      let changed = 0;
-      for (const rowId of ids) {
-        if (bulkAction === 'trash') {
-          await trashPiece(db, { id: rowId, kind, actorId, note: 'Bulk action from the list table.' });
-          changed += 1;
-        } else if (bulkAction === 'restore') {
-          await restorePiece(db, { id: rowId, kind, actorId });
-          changed += 1;
-        } else if (bulkAction === 'draft') {
-          await unpublishPiece(db, {
-            id: rowId, kind, actorId, capabilities: guard.capabilities,
-            note: 'Bulk action from the list table.',
-          });
-          changed += 1;
-        }
-      }
-      return redirectTo(returnTo.startsWith('/admin/') ? returnTo : listPath(kind), {
-        saved:
-          bulkAction === 'restore'
-            ? `${changed} restored.`
-            : bulkAction === 'draft'
-              ? `${changed} returned to draft.`
-              : `${changed} moved to the trash.`,
       });
     }
 

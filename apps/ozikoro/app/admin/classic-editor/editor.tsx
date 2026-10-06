@@ -53,6 +53,14 @@
  * times; a control that says why it cannot is not.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  TOOLBAR_ROW_1,
+  TOOLBAR_ROW_2,
+  documentToSubmit,
+  switchEditorView,
+  type ToolbarControl,
+} from '@/lib/classic-editor';
+import { bodyLostBeforeSave, visualBoxDocument } from '@/lib/classic-editor-content';
 
 export type PieceKind = 'post' | 'page';
 
@@ -161,6 +169,29 @@ export function ClassicEditor(props: ClassicEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const hiddenBodyRef = useRef<HTMLTextAreaElement>(null);
 
+  /*
+   * THE ONE THING REACT MUST NOT DO TO THE CONTENT BOX, AND HOW THAT IS ENFORCED.
+   *
+   * `#content` is a contenteditable the browser owns while a person types into it. The first version of this
+   * screen gave it `dangerouslySetInnerHTML={{ __html: piece?.bodyHtml ?? '' }}` and set state from its
+   * `onInput` — and **on a NEW piece, where that string is empty, React wrote the empty string back over the
+   * box on the re-render the input handler caused.** Measured in a browser: one keystroke, or one paste,
+   * emptied the box; the mutation observer confirmed the same node was emptied rather than replaced. The
+   * body field then submitted `''` and the screen reported "Draft created" over an empty record.
+   *
+   * So React is given no children and no `dangerouslySetInnerHTML` for this node at all, and the document
+   * is written into it **once, when the box appears**, from the effect below. React has nothing to reconcile
+   * on the way in, so a re-render cannot touch it — which is also why a toolbar command, an undo and a
+   * keystroke all survive a state update now.
+   *
+   * `pendingVisualHtml` is what keeps the TWO TABS ONE DOCUMENT. The box is a different element every time
+   * the Visual tab is shown, so it has to be handed the document on the way back; `switchTo` puts the
+   * in-progress document here before it flips the tab, and the effect prefers it to the stored body. Without
+   * it, leaving the Text tab would show the reader the body as it was saved and quietly drop their edits.
+   */
+  const pendingVisualHtml = useRef<string | null>(null);
+  /** Set when a submit was refused because the content box had lost what was typed into it. */
+  const [lostBody, setLostBody] = useState(false);
   const [title, setTitle] = useState(piece?.title ?? '');
   const [slug, setSlug] = useState(piece?.slugIsPlaceholder ? '' : (piece?.slug ?? ''));
   const [standfirst, setStandfirst] = useState(piece?.standfirst ?? '');
@@ -195,10 +226,14 @@ export function ClassicEditor(props: ClassicEditorProps) {
   const previewSlug = slug.trim() || (title.trim() ? titleToSlug(title) : '');
   const permalink = previewSlug.length > 0 ? `${siteOrigin.replace(/\/$/, '')}/${previewSlug}/` : null;
 
-  /** The document being edited, whichever tab is showing. */
+  /**
+   * The document being edited, whichever tab is showing.
+   *
+   * `documentToSubmit` answers with the showing tab's document, so the form can never post the mirror —
+   * the docstring on it says what that failure looks like.
+   */
   function currentHtml(): string {
-    if (visual) return editorRef.current?.innerHTML ?? mirror;
-    return mirror;
+    return documentToSubmit(visual ? 'visual' : 'text', editorRef.current?.innerHTML ?? mirror, mirror);
   }
 
   /** Everything that is a change to the document sets the dirty flag, which the unload guard reads. */
@@ -230,18 +265,41 @@ export function ClassicEditor(props: ClassicEditorProps) {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
-  /** Switch between the Visual and Text views of the same document, as `switchEditors` does. */
+  /*
+   * WRITE THE DOCUMENT INTO THE CONTENT BOX ONCE, WHEN THE BOX APPEARS — AND NEVER AGAIN.
+   *
+   * This effect is the whole of React's involvement with the contenteditable's contents. It runs when the
+   * Visual tab is shown (including the first render) and not when the document changes, because the box is
+   * destroyed and re-created by the tab switch and `dangerouslySetInnerHTML` used to be what refilled it —
+   * the same prop that emptied it on every keystroke. `visual` is therefore the only dependency on purpose:
+   * **adding `mirror` here would put the clobber back**, writing the last-known document over the box a
+   * millisecond after each character was typed.
+   *
+   * The document it writes comes from `switchTo` when the reader is coming back from the Text tab, and from
+   * the record the screen was rendered with on first load. Those are the only two ways the box is ever
+   * populated, which is what makes the tabs one document rather than two.
+   */
+  useEffect(() => {
+    if (!visual) return;
+    const box = editorRef.current;
+    if (!box) return;
+    box.innerHTML = visualBoxDocument(pendingVisualHtml.current, piece?.bodyHtml ?? '');
+    pendingVisualHtml.current = null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see the note above: `mirror` must NOT be here.
+  }, [visual]);
+
+  /**
+   * Switch between the Visual and Text views of the same document, as `switchEditors` does.
+   *
+   * The box the Visual tab draws is a NEW element each time, so the document is handed to it through
+   * `pendingVisualHtml` and written by the seeding effect below — not here, where `editorRef.current` is
+   * still null because React has not committed the new box yet.
+   */
   function switchTo(next: 'visual' | 'text') {
-    const html = syncBody();
-    if (next === 'text') {
-      setMirror(html);
-      setVisual(false);
-    } else {
-      setMirror(html);
-      setVisual(true);
-      // The contenteditable is uncontrolled, so the new document is written into it directly.
-      if (editorRef.current) editorRef.current.innerHTML = html;
-    }
+    const { view, html } = switchEditorView(next, syncBody());
+    setMirror(html);
+    if (view === 'visual') pendingVisualHtml.current = html;
+    setVisual(view === 'visual');
   }
 
   /** The selection, as text, inside the editor. Empty when the Text tab is showing. */
@@ -271,11 +329,13 @@ export function ClassicEditor(props: ClassicEditorProps) {
     setWords(countWords(currentHtml()));
   }
 
-  /** Strikethrough, which the archive spells `<s>` and `execCommand` spells `<strike>`. */
-  function strikethrough() {
-    wrapSelection('<s>', '</s>');
-  }
-
+  /**
+   * Put two strings around the selection.
+   *
+   * `execCommand` is used for the commands whose output the archive's allowlist accepts; this is used for
+   * the two it gets wrong — strikethrough, which the browser spells `<strike>` and the archive spells
+   * `<s>`, and code, which no browser command writes at all.
+   */
   function wrapSelection(open: string, close: string) {
     if (!visual) return;
     const selection = window.getSelection();
@@ -293,27 +353,70 @@ export function ClassicEditor(props: ClassicEditorProps) {
     setWords(countWords(currentHtml()));
   }
 
-  /** The link button, which is WordPress's link dialog boiled down to the one thing it asks for. */
-  function insertLink() {
+  /**
+   * One toolbar entry as markup.
+   *
+   * A `separator` is the rule WordPress draws between groups; an `unavailable` entry is a real disabled
+   * button whose tooltip carries its reason; anything else is a button that runs its entry. **Nothing
+   * here can be a button with no behaviour**, because the list it reads from will not hold one.
+   */
+  function renderControl(control: ToolbarControl) {
+    if (control.kind === 'separator') return <span key={control.id} className="mce-separator" />;
+    if (control.kind === 'unavailable') {
+      return (
+        <button key={control.id} type="button" className="mce-btn" disabled title={`${control.title} — ${control.why}.`}>
+          {control.label}
+        </button>
+      );
+    }
+    return (
+      <button
+        key={control.id}
+        type="button"
+        className="mce-btn"
+        onClick={() => runControl(control)}
+        title={control.title}
+      >
+        <i className={control.labelClass ?? 'mce-ico-plain'}>{control.label}</i>
+      </button>
+    );
+  }
+
+  /** The link control, once the address has been asked for. */
+  function insertLinkAt(url: string) {
     if (!visual) return;
-    const url = window.prompt('Enter the address this text should link to:', 'https://');
-    if (!url) return;
-    const trimmed = url.trim();
-    if (trimmed.length === 0) return;
     const selected = selectionHtml();
-    wrapSelection(`<a href="${trimmed.replace(/"/g, '&quot;')}">`, '</a>');
+    wrapSelection(`<a href="${url.replace(/"/g, '&quot;')}">`, '</a>');
     if (selected.length === 0) {
       // With nothing selected the anchor is empty; put the address in it so the control is not a no-op.
       const html = currentHtml();
       if (html.includes('></a>') && editorRef.current) {
-        editorRef.current.innerHTML = html.replace('></a>', `>${trimmed}</a>`);
+        editorRef.current.innerHTML = html.replace('></a>', `>${url}</a>`);
       }
     }
   }
 
-  /** A horizontal rule, which the archive's allowlist keeps. */
-  function insertRule() {
-    command('insertHorizontalRule');
+  /**
+   * Run one toolbar entry, from the list in `@/lib/classic-editor`.
+   *
+   * The three kinds are the whole of the toolbar's behaviour, so this is the only place a button's click
+   * turns into an edit: a `command` goes to the browser (asking first if the entry carries a question), a
+   * `wrap` inserts the two strings the archive keeps, and an `unavailable` entry never reaches here
+   * because it is drawn disabled.
+   */
+  function runControl(control: ToolbarControl) {
+    if (control.kind === 'command') {
+      if (control.prompt) {
+        const answer = window.prompt(control.prompt.message, control.prompt.initial);
+        const url = (answer ?? '').trim();
+        if (url.length === 0) return;
+        insertLinkAt(url);
+        return;
+      }
+      command(control.command, control.value);
+      return;
+    }
+    if (control.kind === 'wrap') wrapSelection(control.open, control.close);
   }
 
   /** Insert an image from the archive's own media register, at the cursor. */
@@ -345,8 +448,29 @@ export function ClassicEditor(props: ClassicEditorProps) {
         id="post"
         method="post"
         action="/api/admin/posts"
-        onSubmit={() => {
-          syncBody();
+        onSubmit={(event) => {
+          const submitting = syncBody();
+          /*
+           * A SAVE THAT WOULD WRITE NOTHING IS REFUSED HERE, IN FRONT OF THE READER.
+           *
+           * The measured fault was not only that the box lost its text: the save then posted an empty
+           * `bodyHtml` and the screen said "Draft created", which is a success message over a record with
+           * nothing in it — the one failure this archive must never produce. The seeding effect above is
+           * what stops the box losing text; this is the guard for the day something else does, and it is
+           * deliberately the loud kind: the submit is cancelled and the reader is told, rather than a
+           * plausible-looking confirmation being printed over an empty draft.
+           *
+           * The condition is narrow on purpose. An empty body is a legitimate thing to save — WordPress
+           * saves an untitled, empty draft — so the refusal is only for the case that cannot be
+           * legitimate: the box is empty while the last document React saw typed into it was not.
+           */
+          if (bodyLostBeforeSave(submitting, mirror, visual)) {
+            event.preventDefault();
+            setLostBody(true);
+            setDirty(false);
+            return;
+          }
+          setLostBody(false);
           setDirty(false);
         }}
       >
@@ -354,6 +478,23 @@ export function ClassicEditor(props: ClassicEditorProps) {
         {piece ? <input type="hidden" name="id" value={piece.id} /> : null}
         {/* The document, submitted whichever tab is showing. Written on submit by `syncBody`. */}
         <textarea ref={hiddenBodyRef} name="bodyHtml" defaultValue={piece?.bodyHtml ?? ''} hidden readOnly />
+
+        {/*
+          THE REFUSAL IS SHOWN, NOT SWALLOWED. A cancelled submit with no explanation reads as a broken
+          button, so the reason is drawn where the reader is looking, in the archive's own notice shape.
+        */}
+        {lostBody ? (
+          <div className="notice notice--error" role="alert">
+            <div>
+              <p className="notice__title">Nothing has been saved</p>
+              <p className="notice__body">
+                The content box is empty and the last document written into it was not, so saving now would
+                replace the body with nothing. Type or paste it again, or switch to the <strong>Text</strong>{' '}
+                tab and check the HTML there — then save. Nothing you had before this screen was changed.
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         <div id="titlediv">
           <div id="titlewrap">
@@ -508,67 +649,20 @@ export function ClassicEditor(props: ClassicEditorProps) {
                   </button>
                 </div>
 
-                {/* Row one. Every button is a real command or a stated refusal; see the file header. */}
-                <div className="mce-toolbar" data-row="1" role="toolbar" aria-label="Formatting">
-                  <button type="button" className="mce-btn" onClick={() => command('bold')} title="Bold" aria-label="Bold">
-                    <i>B</i>
-                  </button>
-                  <button type="button" className="mce-btn" onClick={() => command('italic')} title="Italic" aria-label="Italic">
-                    <i className="mce-ico-em">I</i>
-                  </button>
-                  <button
-                    type="button"
-                    className="mce-btn"
-                    onClick={strikethrough}
-                    title="Strikethrough — writes <s>, because <strike> is not markup the archive keeps"
-                    aria-label="Strikethrough"
-                  >
-                    <i className="mce-ico-s">S</i>
-                  </button>
-                  <span className="mce-separator" />
-                  <button type="button" className="mce-btn" onClick={() => command('insertUnorderedList')} title="Bulleted list">
-                    • List
-                  </button>
-                  <button type="button" className="mce-btn" onClick={() => command('insertOrderedList')} title="Numbered list">
-                    1. List
-                  </button>
-                  <button type="button" className="mce-btn" onClick={() => command('formatBlock', 'BLOCKQUOTE')} title="Blockquote">
-                    ❝
-                  </button>
-                  <span className="mce-separator" />
-                  <button
-                    type="button"
-                    className="mce-btn"
-                    disabled
-                    title="Align — this archive's sanitiser drops every presentational attribute (style, class, id) on purpose, so an alignment set here would not survive the save. See the note under the content box."
-                  >
-                    ⇤
-                  </button>
-                  <button type="button" className="mce-btn" disabled title="Align — see the note under the content box: the archive stores no presentational attribute.">
-                    ↔
-                  </button>
-                  <button type="button" className="mce-btn" disabled title="Align — see the note under the content box: the archive stores no presentational attribute.">
-                    ⇥
-                  </button>
-                  <span className="mce-separator" />
-                  <button type="button" className="mce-btn" onClick={insertLink} title="Insert/edit link">
-                    🔗
-                  </button>
-                  <button type="button" className="mce-btn" onClick={() => command('unlink')} title="Remove link">
-                    ⛓︎̸
-                  </button>
-                  <button
-                    type="button"
-                    className="mce-btn"
-                    disabled
-                    title="Insert Read More tag — this archive renders a record whole and has no excerpt splitter; the sanitiser removes every HTML comment, so <!--more--> would not survive the save."
-                  >
-                    More
-                  </button>
-                </div>
+                {/*
+                  ROW ONE, RENDERED FROM THE LIST IN `@/lib/classic-editor`.
 
-                {/* Row two, which the Toolbar Toggle reveals. TinyMCE's `wp_adv`. */}
-                <div className="mce-toolbar" data-row="2" role="toolbar" aria-label="More formatting" hidden={!secondRow}>
+                  Every entry there is a `command`, a `wrap` or an `unavailable` with its reason, and the
+                  type will not accept an entry that says nothing — so a button that is drawn here is a
+                  button that does something, or one that is visibly disabled and says why. The test in
+                  `lib/classic-editor.test.ts` is what holds the list to the archive's allowlist.
+                */}
+                <div className="mce-toolbar" data-row="1" role="toolbar" aria-label="Formatting">
+                  {/*
+                    THE FORMAT MENU, WHICH WORDPRESS PUTS AT THE HEAD OF ROW ONE (`formatselect` is the
+                    first entry in its `mce_buttons`). "Preformatted" writes `<pre>`, and the archive's
+                    sanitiser now keeps it — see the note on `ALLOWED_TAGS` in `packages/ozikoro/src/content.ts`.
+                  */}
                   <select
                     aria-label="Format"
                     defaultValue=""
@@ -585,26 +679,22 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     <option value="H4">Heading 4</option>
                     <option value="PRE">Preformatted</option>
                   </select>
-                  <button type="button" className="mce-btn" onClick={() => command('underline')} title="Underline">
-                    <u>U</u>
-                  </button>
-                  <button type="button" className="mce-btn" onClick={insertRule} title="Horizontal line">
-                    —
-                  </button>
-                  <button type="button" className="mce-btn" onClick={() => command('removeFormat')} title="Clear formatting">
-                    ✕ Format
-                  </button>
-                  <span className="mce-separator" />
-                  <button type="button" className="mce-btn" onClick={() => command('undo')} title="Undo">
-                    ↶
-                  </button>
-                  <button type="button" className="mce-btn" onClick={() => command('redo')} title="Redo">
-                    ↷
-                  </button>
+                  {TOOLBAR_ROW_1.map((control) => renderControl(control))}
+                </div>
+
+                {/* Row two, which the Toolbar Toggle reveals. TinyMCE's `wp_adv`. */}
+                <div className="mce-toolbar" data-row="2" role="toolbar" aria-label="More formatting" hidden={!secondRow}>
+                  {TOOLBAR_ROW_2.map((control) => renderControl(control))}
                 </div>
 
                 <div id="wp-content-editor-container">
                   {visual ? (
+                    /*
+                     * NO `children` AND NO `dangerouslySetInnerHTML`, DELIBERATELY. React must not own this
+                     * node's contents: it is a contenteditable the browser and the reader own, and the
+                     * document is written into it once by the seeding effect above. See the note on
+                     * `pendingVisualHtml` for what the prop did when it was here.
+                     */
                     <div
                       ref={editorRef}
                       id="content"
@@ -628,7 +718,6 @@ export function ClassicEditor(props: ClassicEditorProps) {
                         fontSize: '14px',
                         lineHeight: 1.7,
                       }}
-                      dangerouslySetInnerHTML={{ __html: piece?.bodyHtml ?? '' }}
                     />
                   ) : (
                     <textarea
@@ -651,48 +740,36 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     Last edited:{' '}
                     {piece?.modifiedAt ? formatDate(piece.modifiedAt) : piece ? formatDate(piece.publishedAt) : 'not saved yet'}
                   </span>
+                  {/*
+                    WHAT THE TEXT TAB HOLDS, SAID ACCURATELY.
+                    
+                    It used to say the box held "the HTML the archive stores, verbatim", and that is not
+                    true: the document reaches the box by being parsed, so a stored `&quot;` or `&#8220;`
+                    shows as the character it names and the line endings are normalised. Measured on record
+                    5207 — the column holds 10,745 bytes with 165 `&quot;` tokens, and the box holds the same
+                    document at 9,846 bytes. **It is stable, and nothing is lost** (three consecutive saves of
+                    it produced byte-identical stored bodies), but a screen that says "verbatim" over a
+                    re-serialised document is the kind of claim this archive has had to withdraw before.
+                  */}
                   <span>
                     {visual
                       ? 'Visual — the toolbar writes the same HTML the Text tab shows'
-                      : 'Text — the HTML the archive stores, verbatim'}
+                      : 'Text — the document as HTML, parsed by the browser, so a stored entity shows as the character it names. A save writes this box.'}
                   </span>
                 </div>
               </div>
 
               {/*
-                THE THREE CONTROLS THAT CANNOT WORK, SAID WHERE THEY ARE RATHER THAN IN A COMMENT.
-                A reader who wonders why the align buttons and the Read More button do nothing finds the
-                answer on the screen, in the place they were looking.
+                THE CONTROLS THAT CANNOT WORK ARE DRAWN DISABLED, AND THE REASON IS IN EACH ONE'S `title`.
+
+                They used to be explained by a meta box headed "What this editor cannot do, and why",
+                which put a paragraph about inline styles and HTML comments in front of every editor.
+                That is the archive's own reasoning, not the screen's content, and it has been taken off
+                the page: a disabled control says it is unavailable, and hovering it says why. Those are
+                the alignment buttons (the sanitiser drops `style`, `class` and `id` from every saved
+                body) and Insert Read More (this archive renders a record whole, and every HTML comment
+                is removed). Neither is a control that pretends to work.
               */}
-              <div className="postbox" style={{ marginTop: '12px' }}>
-                <div className="postbox-header">
-                  <h2>What this editor cannot do, and why</h2>
-                </div>
-                <div className="inside">
-                  <ul style={{ margin: 0, paddingLeft: '1.1rem' }}>
-                    <li>
-                      <strong>Alignment is not offered.</strong> The archive&rsquo;s sanitiser drops{' '}
-                      <span className="mono">style</span>, <span className="mono">class</span> and{' '}
-                      <span className="mono">id</span> from every saved body — that rule exists because 1,629
-                      inline styles arrived from the old page builder and a saved width fights the design&rsquo;s
-                      reading measure. An alignment set here would be removed on save, so the buttons say so
-                      instead of appearing to work.
-                    </li>
-                    <li>
-                      <strong>There is no Read More tag.</strong> This archive renders a record whole; there is no
-                      excerpt splitter, and HTML comments are removed by the sanitiser before anything else.
-                    </li>
-                    <li>
-                      <strong>The permitted markup is:</strong> headings <span className="mono">h2</span> to{' '}
-                      <span className="mono">h6</span>, paragraphs, <span className="mono">strong</span>,{' '}
-                      <span className="mono">em</span>, <span className="mono">s</span>,{' '}
-                      <span className="mono">u</span>, lists, blockquotes, figures with captions, images, tables,
-                      links, and audio or video you are entitled to publish. Anything else is removed and the
-                      save notice tells you it happened rather than reporting a clean save.
-                    </li>
-                  </ul>
-                </div>
-              </div>
 
               {showPreview ? (
                 <div className="postbox" id="preview" style={{ marginTop: '12px' }}>
@@ -1191,6 +1268,14 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     <p className="wphelp">
                       Every save copies what the piece said before into a revision and records the account that
                       made the change, so nothing here is overwritten silently.
+                    </p>
+                    {/*
+                      THE WAY TO THE OTHER HALF OF THE RECORD. The editor writes what the piece SAYS; the
+                      archive's own screen — clan, period, source type and citations — writes what it is
+                      ABOUT, and it lives at `<id>/record` so that this address is the Classic Editor.
+                    */}
+                    <p className="wphelp" style={{ marginBottom: 0 }}>
+                      <a href={`/admin/archive/${piece.id}/record`}>Clan, period and sources</a>
                     </p>
                   </div>
                 </div>
