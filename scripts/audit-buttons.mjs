@@ -137,6 +137,7 @@ function stripComments(src) {
 const findings = [];
 let buttons = 0;
 let links = 0;
+let fields = 0;
 let disabledHonestly = 0;
 
 for (const file of files(ROOT)) {
@@ -171,6 +172,64 @@ for (const file of files(ROOT)) {
     }
   }
 
+  // ── FIELDS OUTSIDE ANY FORM ────────────────────────────────────────────────────────────────────
+  /*
+   * ⚠️ **THIS CHECK EXISTS BECAUSE ITS ABSENCE LET A REAL DEFECT THROUGH, AND THE OWNER HAD ALREADY
+   * TOLD US WHAT TO LOOK FOR.**
+   *
+   * The first version of this script looked only for `<button>` and `<a>`. **The rebuilt Design
+   * Studio's Profile tab then rendered four `<input>`s and a `<textarea>` with NO `<form>` and NO
+   * button at all** — fields that look editable, that a person can type into, and that nothing can
+   * ever save. *The audit reported ✅ on that page, because an input is not a button.*
+   *
+   * **An input that cannot be submitted is the same fault as a button that cannot act**, and it is
+   * worse in one way: it invites a person to do work that is then thrown away.
+   *
+   * ⚠️ **THE EXEMPTIONS ARE NAMED RATHER THAN LEFT TO A REGEX TO GUESS.** *A search box that navigates
+   * on `onChange`, a filter that posts by `form` attribute, and a file input inside a form are all
+   * fine; a file input with no form is not.* A field is counted as wired when it is inside a `<form>`
+   * — the form is what carries the action — or when it declares `form=` naming one, or when it has a
+   * handler, or when it is `type="hidden"` (a value carried by other means).
+   */
+  for (const t of tags(src, 'input')) {
+    fields += 1;
+    const attrs = t.text;
+    const line = src.slice(0, t.index).split('\n').length;
+    const type = /type\s*=\s*["']([^"']*)["']/.exec(attrs)?.[1] ?? 'text';
+    if (type === 'hidden') continue;
+    if (inForm(t.index)) continue;
+    if (/\bform\s*=/.test(attrs)) continue;
+    if (/onChange\s*=/.test(attrs)) continue;
+    findings.push({
+      kind: 'FIELD OUTSIDE A FORM',
+      file: rel,
+      line,
+      what: `type=${type} — cannot be saved by anything`,
+    });
+  }
+  for (const t of tags(src, 'textarea')) {
+    fields += 1;
+    if (!inForm(t.index) && !/\bform\s*=/.test(t.text) && !/onChange\s*=/.test(t.text)) {
+      findings.push({
+        kind: 'FIELD OUTSIDE A FORM',
+        file: rel,
+        line: src.slice(0, t.index).split('\n').length,
+        what: 'textarea — cannot be saved by anything',
+      });
+    }
+  }
+  for (const t of tags(src, 'select')) {
+    fields += 1;
+    if (!inForm(t.index) && !/\bform\s*=/.test(t.text) && !/onChange\s*=/.test(t.text)) {
+      findings.push({
+        kind: 'FIELD OUTSIDE A FORM',
+        file: rel,
+        line: src.slice(0, t.index).split('\n').length,
+        what: 'select — cannot be saved by anything',
+      });
+    }
+  }
+
   // ── LINKS ──────────────────────────────────────────────────────────────────────────────────────
   for (const t of tags(src, 'a')) {
     links += 1;
@@ -190,7 +249,10 @@ for (const file of files(ROOT)) {
 }
 
 console.log(`audited ${files(ROOT).length} files under ${ROOT}`);
-console.log(`  ${buttons} <button>  ·  ${links} <a>  ·  ${disabledHonestly} button(s) disabled with a reason`);
+console.log(
+  `  ${buttons} <button>  ·  ${links} <a>  ·  ${fields} field(s)  ·  ` +
+    `${disabledHonestly} button(s) disabled with a reason`
+);
 console.log('');
 
 if (findings.length === 0) {
