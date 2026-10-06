@@ -657,6 +657,16 @@ mkdir -p "$TARGET" "$TARGET/.next"
 # run produced `public/public/` and left `/design/styles/main.css` missing — which the guard below now catches
 # rather than starting a server that renders unstyled.
 rm -rf "$TARGET/public" "$TARGET/.next/static"
+# AND THE TWO FILES THAT USED TO BE SERVED FROM THE PUBLIC ROOT BY A ROUTE.
+#
+# `rm -rf "$TARGET/public"` already removes them, so this looks redundant — and it is not, for the reason the
+# paragraph above gives in the other direction. **A FILE IN `public/` IS SERVED BEFORE THE ROUTER**, so a
+# copy of `favicon.ico` left behind by any earlier mechanism shadows `app/favicon.ico/route.ts` and the site
+# answers with the old icon while the source no longer holds one. Measured on this checkout: an artifact
+# directory written before the route existed kept both files, and the route could not be reached at all.
+# Removing them by name is cheap, cannot delete anything the source holds — the source holds neither — and it
+# is the one place where "the destination is not the source" has to be said out loud.
+rm -f "$TARGET/public/favicon.ico" "$TARGET/public/favicon.png"
 cp -R "$APP/public" "$TARGET/public"
 cp -R "$BUILD_OUT/static" "$TARGET/.next/static"
 

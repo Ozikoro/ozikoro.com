@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 import { headers } from 'next/headers';
-import { renderModeSwitcher } from '@ozikoro/platform';
+import { FAVICON_LINKS, renderModeSwitcher } from '@ozikoro/platform';
 import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
 import './globals.css';
 
@@ -168,9 +168,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           the icon comes from. `/apple-touch-icon.png` stays a file: an iOS home-screen icon is a different
           picture at a different size, and this setting does not pretend to replace it.
         */}
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="shortcut icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        {FAVICON_LINKS.map((link) => (
+          <link key={link.rel} rel={link.rel} href={link.href} sizes={link.sizes} />
+        ))}
         {/*
           Accessibility corrections, linked LAST so the design's own tokens cannot override them.
           See the file for what it corrects, the measurement that found it, and why that value.
