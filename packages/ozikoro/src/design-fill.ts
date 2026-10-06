@@ -5702,36 +5702,16 @@ export function fillCulturalEvent(html: string): string {
 }
 
 /**
- * Make each month of the year grid open and close.
+ * REMOVED (round 368): the year-grid builder that used to be replaced here.
  *
- * WHAT THE DESIGN DOES, AND WHAT WAS MISSING
- *
- * `renderYear()` builds twelve `<article>` cards into the element the design gives the year grid, one card per
- * Gregorian month, each holding a `<h3>` with the month's name and a `<div>` of day cells. The owner asked for
- * a full-year calendar *"which you can easily click and it will expand"*, and **the grid is already where a
- * year's worth of the cycle lives** — so rather than write a second year view, each card becomes a native
- * `<details>` element. That brings the expansion, the keyboard behaviour and the open and closed state with
- * it; none of the three needs script of its own.
- *
- * WHY THE BUILDER IS REPLACED RATHER THAN WRAPPED AFTERWARDS
- *
- * The obvious approach is to leave `renderYear()` alone and wrap its output in a second pass. `renderYear()` is
- * written as ONE LINE though, and five attempts to splice a call into that line all put it in the wrong place:
- * after the function's closing brace it runs before the grid exists, before the `for`'s brace it runs once per
- * month, and a miscounted brace does not parse at all. **Every one of those left the served page's markup
- * perfectly correct**, so only running the script or parsing it could tell — which the test now does.
- *
- * So the builder is reconstructed, exactly as the design wrote it — same anchor, same `Intl` format, same card,
- * same day span with `data-market` — with the card append wrapped. **The reckoning is untouched:** `marketDay`,
- * the anchor and the four-day cycle are the design's, and this function only changes what the card is made of.
- *
- * WHY IT IS IDEMPOTENT AND WHY IT REFUSES RATHER THAN GUESSES
- *
- * The route reads the design's file per request, so a second pass must not replace the builder again. And if
- * the builder is not where this extension expects it, the function throws rather than returning a script that
- * half works — the route catches that, serves the design's own script, and logs which screen it was.
+ * ⚠️ **THIS WAS A CONSTANT HOLDING A READABLE COPY OF THE DESIGN'S OWN `renderYear()`, AND THE COPY WRAPPED EACH
+ * MONTH IN `<details class="sx-cal-year-card">`.** Substituting it for the design's builder was the whole of the
+ * fault recorded on `extendMarketDaysScript` below: the wrapper moved the month's `<div>` out of the `<article>`
+ * the design's stylesheet expects it to be a direct child of, so `.sx-year-grid article>div` stopped matching and
+ * the seven-column day grid became 31 full-width blocks. **The design's own builder — twelve `<article>` cards,
+ * each an `<h3>` and a `<div>` of `data-market` day spans — is served untouched, and this constant went with the
+ * substitution.** It is recorded rather than deleted so the next reader knows it was here and why it is not.
  */
-const YEAR_BUILDER = '  function renderYear(){if(!yearInput||!yearGrid)return;const year=Math.min(2100,Math.max(1900,Number(yearInput.value)||today.getFullYear()));yearInput.value=year;yearGrid.innerHTML="";for(let month=0;month<12;month++){const card=document.createElement("article"),name=new Intl.DateTimeFormat("en-NG",{month:"long"}).format(new Date(year,month,1)),count=new Date(year,month+1,0).getDate();card.innerHTML=`<h3>${name}</h3><div>${Array.from({length:count},(_,i)=>{const d=new Date(year,month,i+1);return `<span data-market="${marketDay(d)}"><b>${i+1}</b><small>${marketDay(d)}</small></span>`}).join("")}</div>`;yearGrid.appendChild(card)}}';
 
 /**
  * The month grid on `/cultural-calendar/` carries the Igbo market day on every date, and this is the code that
@@ -5817,48 +5797,12 @@ const MARKET_CELL_FILLER = [
   '  /* The Igbo market day on every date the fill drew. */',
 ].join('\n');
 
-const YEAR_BUILDER_REPLACEMENT = [
-  '  function renderYear(){ if(!yearInput||!yearGrid) return;',
-  '    const year = Math.min(2100, Math.max(1900, Number(yearInput.value) || today.getFullYear()));',
-  '    yearInput.value = year;',
-  '    yearGrid.innerHTML = "";',
-  '    for (let month = 0; month < 12; month += 1) {',
-  '      const card = document.createElement("article");',
-  '      const name = new Intl.DateTimeFormat("en-NG", {month:"long"}).format(new Date(year, month, 1));',
-  '      const count = new Date(year, month + 1, 0).getDate();',
-  '      const days = Array.from({length: count}, (_, i) => {',
-  '        const d = new Date(year, month, i + 1);',
-  '        return `<span data-market="${marketDay(d)}"><b>${i + 1}</b><small>${marketDay(d)}</small></span>`;',
-  '      }).join("");',
-  /* The card's own two elements are built before they are moved, so nothing is read from an innerHTML. */
-  '      card.innerHTML = `<h3>${name}</h3><div>${days}</div>`;',
-  /*
-   * THE MONTH, AS A NATIVE DISCLOSURE. Open, the card shows the month's day-by-day cycle; closed, it is the
-   * month's name. **The summary is the month's own `<h3>`, moved rather than copied**, so the heading the
-   * design drew is still a heading in the document outline and is still the thing a reader activates.
-   */
-  '      const panel = document.createElement("details");',
-  '      panel.className = "sx-cal-year-card";',
-  '      const head = document.createElement("summary");',
-  '      head.innerHTML = card.querySelector("h3").innerHTML;',
-  '      const body = document.createElement("div");',
-  '      body.innerHTML = card.querySelector("div").innerHTML;',
-  '      panel.appendChild(head);',
-  '      panel.appendChild(body);',
-  '      card.innerHTML = "";',
-  '      card.appendChild(panel);',
-  '      yearGrid.appendChild(card);',
-  '    }',
-  '  }',
-].join('\n');
-
 export function extendMarketDaysScript(script: string): string {
   /*
-   * IDEMPOTENT, BECAUSE THE ROUTE READS THE FILE PER REQUEST. Without this the second request would replace the
-   * readable builder with itself and the third would leave two copies of it. The marker is the call the
-   * readable builder already has.
+   * IDEMPOTENT, BECAUSE THE ROUTE READS THE FILE PER REQUEST. Without this the second request would splice a
+   * second copy of the filler in. The marker is the class the spliced line itself writes.
    */
-  if (script.includes('sx-cal-year-card') || script.includes(MARKET_CELL_MARKER)) return script;
+  if (script.includes(MARKET_CELL_MARKER)) return script;
   /*
    * ================================================================================================
    * THE MARKET DAY THE FILL'S OWN CELLS ARE WAITING FOR
@@ -5885,26 +5829,45 @@ export function extendMarketDaysScript(script: string): string {
     script = script.replace(MARKET_DAY_DECLARATION, () => `${MARKET_DAY_DECLARATION}\n${MARKET_CELL_FILLER}`);
   }
   /*
-   * THE ANCHOR IS THE YEAR GRID BUILDER, FOUND BY ITS OWN DECLARATION RATHER THAN BY A LINE NUMBER.
+   * ================================================================================================
+   * AND THE YEAR GRID IS THE DESIGN'S OWN, WHICH THIS PASS USED TO REPLACE (round 368)
+   * ================================================================================================
    *
-   * The pattern includes the two spaces and the `year` in `renderYear` so that it cannot match the four-day
-   * month view's `function render(){` — **a prefix match would have replaced the wrong builder**, which is the
-   * same class of fault as every other one this file records. Two builders exist on this screen and the day
-   * grid is the one a reader would notice going missing.
+   * ⚠️ **THIS FUNCTION USED TO SWAP THE DESIGN'S `renderYear()` FOR A COPY OF ITSELF THAT WRAPPED EACH MONTH IN
+   * `<details class="sx-cal-year-card">`, AND THE WRAPPER BROKE THE DESIGN'S OWN LAYOUT.** It is removed rather
+   * than tidied, because the damage was in the wrapper's SHAPE and not in the class's name.
+   *
+   * The design's stylesheet draws the year grid with child combinators:
+   *
+   *   `.sx-year-grid article>div{display:grid;grid-template-columns:repeat(7,1fr);gap:.2rem}`
+   *   `.sx-year-grid h3{color:var(--emerald-deep)}`
+   *
+   * — the month's day list must be a DIRECT child of the month's `<article>`, and the `<h3>` must still be an
+   * `<h3>`. The replacement moved both inside a `<details>`, so **neither rule matched any more.** Measured in
+   * headless Chrome at 1280 px, on the first month of the grid:
+   *
+   *   design (`file://`)    ARTICLE > H3 + DIV   h3 #062e22   div display:grid, 7 columns, 44.3 px each
+   *   served (`/igbo-calendar/`)  ARTICLE > DETAILS > SUMMARY + DIV   h3 NOT AN H3   div display:block, no
+   *                          columns, the 31 day spans stacked full width
+   *
+   * **So the twelve "expandable months" were not an addition to the design's year panel: they were the design's
+   * year panel replaced by an unstyled one**, and `sx-cal-year-card` has no rule in any stylesheet in this
+   * repository — the class the previous round removed from the served HTML was still being created in every
+   * browser, which is why `curl` reported 0 and a reader saw 12.
+   *
+   * ⚠️ **WHAT IS NOT CLAIMED HERE: that the per-month disclosure was unwanted.** The owner did ask for a
+   * clickable month, and he already has one — the design draws the whole year grid inside
+   * `<details class="sx-year-section">` with a `<summary>`, and that control is native, keyboard-operable and
+   * untouched. What was added on top of it cost the design's own grid its layout, and **a page that does not
+   * look like the demo is the fault the owner has reported four times.** The design's builder is therefore
+   * served exactly as the design wrote it: same `article`, same `<h3>`, same `data-market` day spans, same
+   * `Intl` month name. Nothing is appended to the year panel and nothing is taken from it.
+   *
+   * The anchor check that used to stand here went with the splice. It existed to place the replacement safely
+   * and to refuse on a file it could not read; with nothing to place, a file it cannot read is a file it leaves
+   * alone, which is the state this function now returns for every file it is given.
    */
-  if (!script.includes('data-year-grid')) return script;
-  if (!script.includes(YEAR_BUILDER)) {
-    throw new Error('market-days.js: the year grid builder was not found, so the months cannot be made expandable');
-  }
-  if (script.split(YEAR_BUILDER).length !== 2) {
-    throw new Error('market-days.js: the year grid builder appears more than once, so the month wrapper cannot be placed safely');
-  }
-  /*
-   * THE FOUR-DAY RECKONING IS COPY, NOT A SECOND IMPLEMENTATION. All twelve day cells are still produced by the
-   * design's own `marketDay()`, and the calendar's anchor is still the design's two constants — this extension
-   * does not know the cycle, it only changes the shape of the card the cycle is drawn into.
-   */
-  return script.replace(YEAR_BUILDER, () => YEAR_BUILDER_REPLACEMENT);
+  return script;
 }
 
 /**
@@ -6138,9 +6101,13 @@ export function fillIgboCalendar(html: string, state: { basis: string } = { basi
    * its own machinery, which is the same class of sentence this function removes elsewhere ("Before
    * production:", "This prototype", "the supplied helper"). It went with the cards.
    *
-   * AND NOTHING REPLACES IT. `extendMarketDaysScript` still makes each month of the year grid an expandable
-   * `<details class="sx-cal-year-card">` at run time, so the class is still the script's own; what is gone is
-   * the fill writing that markup into the design's HTML.
+   * AND NOTHING REPLACES IT — AND NOTHING PUTS IT BACK AT RUN TIME EITHER (round 368).
+   * `extendMarketDaysScript` used to make each month of the year grid an expandable
+   * `<details class="sx-cal-year-card">` in the browser, which read as "the class is the script's own" and was
+   * the same fault one layer down: **the served HTML had no card while a reader's browser built twelve**, and
+   * the wrapper took the design's own seven-column day grid out of the `<article>` its stylesheet selects on.
+   * That substitution is removed; see `extendMarketDaysScript`. The year grid is now the design's own in the
+   * served HTML, in the browser and in the source.
    */
 
   /*

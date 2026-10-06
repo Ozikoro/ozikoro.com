@@ -1068,9 +1068,13 @@ test('the Igbo calendar keeps every part of the design, and no account is added 
  *   * **THE ROUTE'S OWN SHELL.** `fillMasthead` and the platform bar add `masthead-account`, `nav-account`,
  *     `grid-4`, `small` and `muted` to every screen site-wide, deliberately. They are not this fill's and are
  *     not asserted against here; the test reads `fillIgboCalendar`'s own output.
- *   * **RUN-TIME MARKUP.** `extendMarketDaysScript` builds `<details class="sx-cal-year-card">` in the browser,
- *     so that class is the script's own and legitimately absent from the served HTML. **This test is about the
- *     markup the server sends**, which is why a class that only exists at run time is not a failure here.
+ *   * **RUN-TIME MARKUP, WHICH USED TO BE LISTED HERE AS ACCEPTABLE AND IS NOT ANY MORE (round 368).** This
+ *     test reads the markup the server sends, and it used to say that `extendMarketDaysScript` building
+ *     `<details class="sx-cal-year-card">` in the browser was "the script's own and legitimately absent from the
+ *     served HTML". **That was the blind spot, and the fault lived in it:** `curl` reported 0 of the class while
+ *     a reader's browser built 12, and the wrapper took the month's day grid out of the `<article>` the design's
+ *     stylesheet selects on. **The extension no longer adds any class**, and the assertion that it does not is
+ *     in the `renderYear` test above. A class the extension added in future would fail there rather than here.
  */
 test('the served calendar draws no class the design does not draw, and duplicates none of them', () => {
   const design = screen('igbo-calendar');
@@ -1133,6 +1137,144 @@ test('the served calendar draws no class the design does not draw, and duplicate
   // The specific element the third report measured, asserted by name.
   assert.ok(!out.includes('sx-cal-year-card'), 'the year-card markup the design does not draw is back in the served HTML');
   assert.ok(!out.includes('<noscript'), 'the fill is writing a <noscript> block into the design again');
+});
+
+/*
+ * ================================================================================================
+ * THE OWNER'S FOURTH REPORT: ELEVEN OF THE DESIGN'S OWN SECTIONS WERE NOT ON THE SERVED PAGE.
+ * ================================================================================================
+ *
+ * ⚠️ **EVERY TEST ABOVE PASSES WHILE THE PAGE IS MISSING ELEVEN OF THE DESIGN'S SECTIONS, WHICH IS WHY THIS ONE
+ * EXISTS.** The class-token test above asserts the served page draws no class the design does not — **a page
+ * that has LOST content satisfies that perfectly**, and one did: `sx-cal-knowledge`, `sx-cal-units`,
+ * `sx-cal-table-wrap`, `sx-cal-months`, `sx-cal-directions`, `sx-cal-sample-wrap`, `sx-cal-sample`,
+ * `sx-cal-months-meanings`, `sx-cal-meanings`, `sx-cal-fest` and `sx-cal-sources` were all absent, along with
+ * two of the seven `eyebrow` elements, while every "nothing invented" assertion stayed green.
+ *
+ * **SO THIS TEST ASSERTS THE OTHER DIRECTION: NOTHING THE DESIGN DRAWS HAS GONE.** It compares the design's
+ * `<main>` with the served `<main>`, token by token, in the direction that catches a deletion — and it names the
+ * eleven sections, because a report should say which section came back rather than only that the count moved.
+ *
+ * WHY `<main>` RATHER THAN THE WHOLE DOCUMENT. The route replaces the head with generated SEO metadata and
+ * `designScreenLinks` makes the design's addresses absolute, so the head and the menu legitimately differ. The
+ * `<main>` element is the page the design drew.
+ */
+test('every class token in the design’s calendar is on the served page, and none of its eleven sections is missing', () => {
+  const design = screen('igbo-calendar');
+  const out = igbo();
+  const mainOf = (html: string): string => {
+    const match = /<main\b[^>]*>([\s\S]*?)<\/main>/.exec(html);
+    assert.ok(match, 'the screen has no <main> element');
+    return match![1]!;
+  };
+  const designMain = mainOf(design);
+  const servedMain = mainOf(out);
+
+  /** Every class token in a fragment, with the number of times it is used. */
+  const classTokens = (html: string): Map<string, number> => {
+    const counts = new Map<string, number>();
+    for (const match of html.matchAll(/class="([^"]*)"/g)) {
+      for (const token of match[1]!.split(/\s+/)) {
+        if (token) counts.set(token, (counts.get(token) ?? 0) + 1);
+      }
+    }
+    return counts;
+  };
+
+  const inDesign = classTokens(designMain);
+  const served = classTokens(servedMain);
+  assert.ok(inDesign.size > 20, 'the design’s <main> carried almost no classes, so this test would prove nothing');
+
+  /*
+   * ⚠️ EVERY TOKEN THE DESIGN DRAWS IN `<main>` IS ON THE SERVED PAGE, AT LEAST AS MANY TIMES.
+   *
+   * **THE ONE TOKEN THE FILL REMOVES IS NOT IN `<main>` AND IS ASSERTED SEPARATELY BELOW.** The design's
+   * page-level banner, `<p class="example-flag">Design demonstration — the market-day basis shown here requires
+   * community verification before publication.</p>`, sits between the skip link and the masthead; it is a
+   * statement about the deliverable rather than about the calendar, so `clearExampleMaterial` removes it. Every
+   * token that IS inside `<main>` must survive.
+   */
+  const missing = [...inDesign.entries()]
+    .filter(([token, count]) => (served.get(token) ?? 0) < count)
+    .map(([token, count]) => `${token} (design ${count} → served ${served.get(token) ?? 0})`);
+  assert.deepEqual(missing, [], `the served page has lost class(es) the design draws: ${missing.join(', ')}`);
+
+  /*
+   * AND THE DELIBERATE EXCEPTION IS PROVED RATHER THAN ASSERTED IN PROSE: the banner is in the design, outside
+   * `<main>`, and gone from the served page. **If a future round removes something else and calls it the
+   * banner, that removal is not covered here** — this test names the banner's own sentence, so only it is
+   * excused.
+   */
+  assert.ok(
+    design.includes('<p class="example-flag">Design demonstration'),
+    'the design no longer draws the example-flag banner this test excuses'
+  );
+  assert.ok(!out.includes('class="example-flag"'), 'the demonstration banner is back on the served page');
+
+  /*
+   * ── AND THE ELEVEN SECTIONS THE FOURTH REPORT NAMED, ASSERTED ONE BY ONE ─────────────────────────
+   *
+   * `wrap sx-cal-knowledge` is the design's own nesting — the knowledge section is `<section class="wrap
+   * sx-cal-knowledge">` — so the token that identifies it is `sx-cal-knowledge` and `wrap` is asserted by count
+   * rather than by shape, because five design elements carry it.
+   */
+  const SECTIONS: [string, number][] = [
+    ['sx-cal-knowledge', 1],
+    ['sx-cal-units', 1],
+    ['sx-cal-table-wrap', 1],
+    ['sx-cal-months', 1],
+    ['sx-cal-directions', 1],
+    ['sx-cal-sample-wrap', 1],
+    ['sx-cal-sample', 1],
+    ['sx-cal-months-meanings', 1],
+    ['sx-cal-meanings', 1],
+    ['sx-cal-fest', 1],
+    ['sx-cal-sources', 1],
+  ];
+  for (const [token, count] of SECTIONS) {
+    assert.equal(inDesign.get(token), count, `the design no longer draws ${token}, so this assertion is stale`);
+    assert.equal(
+      served.get(token) ?? 0,
+      count,
+      `${token}: the design draws ${count}, the served page draws ${served.get(token) ?? 0} — the section is missing`
+    );
+  }
+  // `wrap` is the design's own shared container, drawn three times in `<main>`, and every one must still be there.
+  assert.equal(inDesign.get('wrap'), 3, 'the design no longer draws three .wrap containers in <main>');
+  assert.equal(served.get('wrap'), 3, `the served page draws ${served.get('wrap') ?? 0} .wrap containers, the design draws 3`);
+  assert.equal(inDesign.get('eyebrow'), 7, 'the design no longer draws seven eyebrows');
+  assert.equal(served.get('eyebrow'), 7, `the served page draws ${served.get('eyebrow') ?? 0} eyebrows, the design draws 7`);
+
+  /*
+   * ── AND BY SENTENCE, NOT ONLY BY CLASS, BECAUSE A CLASS IS A NAME ANYBODY CAN REUSE ─────────────
+   *
+   * These are the design's own words inside the sections that went missing. A rewrite that kept the classes and
+   * emptied the sections passes the counts above and fails here.
+   */
+  for (const sentence of [
+    'Nri-Igbo reckoning',
+    'The thirteen months (Ọnwa) and their Gregorian equivalents',
+    'Days and directions',
+    'An example of a month: Ọnwa Mbụ',
+    'Festivals of the year',
+    'Not universal, not synchronised.',
+    'The traditional time keepers in Igboland are the priests or Dibia.',
+  ]) {
+    assert.ok(designMain.includes(sentence), `the design no longer carries ${JSON.stringify(sentence)}, so this assertion is stale`);
+    assert.ok(servedMain.includes(sentence), `the served page has lost the design’s own sentence: ${JSON.stringify(sentence)}`);
+  }
+
+  /*
+   * ── AND THE THREE THINGS THE PREVIOUS ROUND REMOVED ARE STILL ZERO ───────────────────────────────
+   *
+   * These are asserted here as well as above, because the cheapest way to "restore the design" is to put them
+   * back — and every one of them is content the design does not draw.
+   */
+  assert.equal(servedMain.includes('sx-cal-year-card') ? 1 : 0, 0, 'the twelve year cards are back');
+  assert.equal(out.includes('<noscript') ? 1 : 0, 0, 'a <noscript> block is back');
+  assert.equal(out.includes('drawn by this page') ? 1 : 0, 0, 'the fill’s own prose is back');
+  // And the count the fourth report measured, kept as a number so a regression names it.
+  assert.ok(servedMain.length > 0 && designMain.length > 0);
 });
 
 test('the account’s sections are gone, and no appendix has returned in their place', () => {
@@ -1680,7 +1822,7 @@ test('no markdown syntax reaches the served page as literal text', () => {
   }
 });
 
-test('the year grid’s months are made expandable, and the reckoning is untouched', () => {
+test('the year grid is served as the design built it, and the reckoning is untouched', () => {
   const base = readFileSync(SCRIPT, 'utf8');
   const once = extendMarketDaysScript(base);
   const twice = extendMarketDaysScript(once);
@@ -1688,69 +1830,85 @@ test('the year grid’s months are made expandable, and the reckoning is untouch
   /*
    * IT PARSES, WHICH IS THE FAILURE THIS TEST EXISTS FOR.
    *
-   * The extension rebuilds a one-line function that contains template literals with `${…}` in them, and the
-   * first four attempts at splicing it produced scripts that did not parse or that called the wrapper from
-   * OUTSIDE `renderYear`. **Neither was visible in the page's markup: the HTML was correct and the whole
-   * script was dead**, which is the fault this whole file exists to remove. So the result is parsed here, with
-   * the same parser the browser uses, rather than read.
+   * A previous version of this extension rebuilt a one-line function that contains template literals with
+   * `${…}` in them, and the first four attempts at splicing it produced scripts that did not parse or that
+   * called the wrapper from OUTSIDE `renderYear`. **Neither was visible in the page's markup: the HTML was
+   * correct and the whole script was dead**, which is the fault this whole file exists to remove. So the result
+   * is parsed here, with the same parser the browser uses, rather than read.
    */
   assert.doesNotThrow(() => new Function(once), 'the extended script does not parse');
-  // Idempotent: the route reads the file per request, so a second pass must not replace the builder again.
+  /*
+   * IDEMPOTENT, BECAUSE THE ROUTE READS THE FILE PER REQUEST. The only splice left is the market-day cell filler,
+   * and this is what stops a second request putting a second copy of it in.
+   */
   assert.equal(once, twice, 'the extension is not idempotent');
   assert.equal((once.match(/function renderYear\(\)/g) ?? []).length, 1, 'the year builder was duplicated');
 
   /*
-   * THE FIVE-DAY RECKONING IS THE DESIGN'S, AND SO ARE THE FOUR-DAY GRID AND THE MONTH VIEW.
+   * ⚠️ THE DESIGN'S OWN YEAR BUILDER SURVIVES VERBATIM, WHICH IS THE WHOLE OF ROUND 368.
    *
-   * Every line of the design's file must still be present in the extended copy — as a line of its own, or as
-   * the PREFIX of the one line the extension replaces. **A test that only counted lines would pass on a
-   * version that had dropped the four-day month grid**, which is the fault `fillCulturalCalendar` records for
-   * a container-level edit, so both directions are checked: the design's lines survive, and the functions the
-   * design's own four-day work lives in are each still declared exactly once.
+   * `extendMarketDaysScript` used to swap `renderYear()` for a copy that wrapped each month in
+   * `<details class="sx-cal-year-card">`. **`curl` reported 0 of that class on the served page and a browser
+   * built 12**, and the wrapper moved the month's `<div>` out of the `<article>` that
+   * `.sx-year-grid article>div{display:grid;grid-template-columns:repeat(7,1fr)}` selects on — so the design's
+   * seven-column day grid rendered as 31 full-width blocks. These assertions read the SERVED SCRIPT, because
+   * that is the layer the fault was invisible in the HTML of.
+   */
+  const originalBuilder = base.split('\n').find((line) => line.includes('function renderYear(){'));
+  assert.ok(originalBuilder, 'the design’s year builder was not found in the design script');
+  assert.ok(once.includes(originalBuilder!), 'the design’s own renderYear() is not in the served script');
+  assert.ok(!once.includes('sx-cal-year-card'), 'the year-card wrapper the design does not draw is back in the served script');
+  assert.ok(!once.includes('createElement("details")'), 'the extension is rewriting the year grid into disclosures again');
+  assert.ok(!once.includes('createElement("summary")'), 'the extension is rewriting the year grid into disclosures again');
+  /*
+   * AND IT IS THE DESIGN'S FILE THAT IS SERVED, NOT A REBUILD THAT HAPPENS TO LOOK LIKE IT. The design's builder
+   * writes its card as an `<article>` whose children are an `<h3>` and a `<div>`, and every day span carries
+   * `data-market` — all three are properties of the design's own line, asserted here so that a future rewrite
+   * cannot pass by reproducing the class names while changing the shape.
+   */
+  assert.match(once, /const card=document\.createElement\("article"\)/);
+  assert.match(once, /card\.innerHTML=`<h3>\$\{name\}<\/h3><div>\$\{Array\.from\(\{length:count\}/);
+  assert.match(once, /data-market="\$\{marketDay\(d\)\}"/);
+  assert.equal((once.match(/function render\(\)\{/g) ?? []).length, 1, 'the month view builder was rewritten');
+  assert.equal((once.match(/function renderUpcoming\(\)/g) ?? []).length, 1);
+
+  /*
+   * EVERY LINE OF THE DESIGN'S FILE SURVIVES, AND NOW WITHOUT EXCEPTION.
+   *
+   * This loop used to skip `function renderYear(){` because that line was REPLACED. **With the substitution gone
+   * there is no line the extension may drop**, so the exception is removed rather than left as a hole: a future
+   * pass that removes a line from the design's script fails here, whatever it does with the line it puts back.
    */
   const extended = new Set(once.split('\n'));
   for (const line of base.split('\n')) {
-    /*
-     * THE BUILDER ITSELF IS THE ONE LINE THAT MAY BE GONE, AND IT IS NAMED RATHER THAN ALLOWED FOR.
-     *
-     * Every other line has to survive verbatim, or as the prefix of the one line that was extended. The year
-     * builder is the sole exception — it is REPLACED — so it is listed here explicitly, and the assertions
-     * below prove the replacement happened rather than the line merely going missing.
-     */
-    if (line.includes('function renderYear(){')) continue;
     const bare = line.replace(/\n$/, '');
     const kept = extended.has(line) || [...extended].some((l) => l.startsWith(bare) && l.length > line.length);
     assert.ok(kept, `the extension dropped a line the design wrote: ${line.slice(0, 60)}`);
   }
-  // The minified builder is gone and a readable one stands in its place, with the card and the day span intact.
-  assert.ok(!once.includes('function renderYear(){if(!yearInput'), 'the minified builder is still there');
-  assert.match(once, /card\.innerHTML = `<h3>\$\{name\}<\/h3><div>\$\{days\}<\/div>`;/);
-  assert.equal((once.match(/function render\(\)\{/g) ?? []).length, 1, 'the month view builder was rewritten');
-  assert.equal((once.match(/function renderUpcoming\(\)/g) ?? []).length, 1);
+  /*
+   * AND THE ONE LINE IT DOES EXTEND IS EXTENDED BY APPENDING, NOT BY REWRITING. The market-day filler is spliced
+   * after the design's own `marketDay` declaration, so the design's declaration is still the prefix of that line
+   * and is still the only declaration of the cycle. The declaration is read out of the design's own file rather
+   * than typed here, because a typed copy is the second reckoning this test exists to prevent.
+   */
+  const designMarketDay = base.split('\n').find((line) => line.trimStart().startsWith('const marketDay = date =>'));
+  assert.ok(designMarketDay, 'the design’s marketDay declaration was not found in the design script');
+  const servedMarketDay = [...extended].find((line) => line.trimStart().startsWith('const marketDay = date =>'));
+  assert.ok(servedMarketDay, 'the design’s marketDay declaration is not in the served script');
+  assert.ok(servedMarketDay!.startsWith(designMarketDay!), 'the design’s marketDay declaration was rewritten rather than extended');
+
   /*
    * THE RECKONING IS THE DESIGN'S OWN FUNCTION, CALLED AND NOT REIMPLEMENTED.
    *
    * `marketDay` is declared once and is still the design's arrow function with its own two constants, and the
-   * day cells the rebuilt year builder emits still ask it for the day. **A second implementation of the
-   * four-day cycle in this extension would be a second reckoning of one cycle**, and this assertion is what
-   * stops one being added quietly.
+   * day cells the year builder emits still ask it for the day. **A second implementation of the four-day cycle
+   * in this extension would be a second reckoning of one cycle**, and this assertion is what stops one being
+   * added quietly.
    */
   assert.equal((once.match(/const marketDay = /g) ?? []).length, 1);
   assert.match(once, /const marketDay = date => \{ const utc = Date\.UTC\(date\.getFullYear\(\), date\.getMonth\(\), date\.getDate\(\)\); const delta = Math\.round\(\(utc-anchor\)\/86400000\); return days\[\(\(anchorIndex\+delta\)%4\+4\)%4\]; \};/);
   assert.match(once, /const anchor = Date\.UTC\(2026, 0, 1\);/);
-  assert.match(once, /data-market="\$\{marketDay\(d\)\}"/);
-
-  /*
-   * AND EACH MONTH IS A NATIVE DISCLOSURE, WITH THE MONTH'S OWN HEADING AS ITS SUMMARY.
-   *
-   * `<details>`/`<summary>` is operable by keyboard and by assistive technology with no script of its own, so
-   * the control the owner asked for is a property of the element rather than of a handler. The heading is
-   * MOVED into the summary rather than copied, so the month name is in the document outline once.
-   */
-  assert.match(once, /const panel = document\.createElement\("details"\);/);
-  assert.match(once, /head\.innerHTML = card\.querySelector\("h3"\)\.innerHTML;/);
-  assert.match(once, /panel\.className = "sx-cal-year-card";/);
-  // The year control's own change listener survives, and the grid is still built on load.
+  // The year control's own change listener survives, and the grid is still built on load by the design's builder.
   assert.match(once, /yearInput\?\.addEventListener\("change",renderYear\);renderYear\(\);/);
   // The design's own file on disk is unchanged: the extension is a transform in memory.
   assert.equal(readFileSync(SCRIPT, 'utf8'), base);
