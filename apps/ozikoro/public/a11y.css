@@ -431,3 +431,208 @@
   }
 }
 
+/*
+ * ── THE ACCOUNT CONTROL, PLACED BESIDE THE MENU INSTEAD OF INSIDE IT ────────────────────────────────
+ *
+ * The owner, twice: *"when i signed in and went to the front page, it scattered the menu."* and then
+ * *"again, you have not fixed the menu to be exactly as it should fixed. again, go to the original github
+ * design, see the original menu, and fix this shit"*. **He was right both times, and the second report is
+ * the evidence that the first fix was the wrong shape.**
+ *
+ * WHAT WAS PAINTED, MEASURED
+ *
+ * The design's menu is seven items and the served masthead carried eight, because the account control was
+ * written `<li class="nav-account">` and spliced in after the About `<li>` — inside the design's own `<ul>`.
+ * Then the design's own rules laid that `<ul>` out:
+ *
+ *   main.css:101   .nav ul { display: flex; gap: var(--s-5); flex-wrap: wrap }
+ *   main.css:405   .nav ul { gap: var(--s-4); font-size: var(--t-sm) }        /* narrower breakpoint */
+ *   showcase.css:658
+ *                  .masthead .nav ul { display: grid !important; grid-template-columns: 1fr 1fr; gap: 0 }
+ *                  .masthead .nav li { border-bottom: 1px solid color-mix(in oklab, var(--gold) 18%, transparent) }
+ *
+ * **Seven items fit that wrapping flex row and the eighth wrapped to a second line** — which is what "it
+ * scattered the menu" describes — and at 40rem **every `<li>` in the two-column grid is given a bottom
+ * border**, so the account control was drawn as a menu item. **And `nav-account` had no rule anywhere**, so
+ * nothing distinguished it: it *was* one more menu item, because that is exactly what it was emitted as.
+ *
+ * WHAT IS DIFFERENT NOW, AND WHY IT CANNOT HAPPEN AGAIN
+ *
+ * `fillMasthead` writes the control as a `div.masthead-account` **outside the `<ul>`**, a sibling of the
+ * `<nav>` inside the header's own `.wrap` — which `main.css:97` already sets to
+ * `display: flex; align-items: center; justify-content: space-between` for the `.wordmark` and the `<nav>`.
+ * The design's `<ul>` is served byte-identical, so `.nav ul`'s flex row holds **seven** items and has no
+ * eighth item to wrap; and because the box is not inside `nav.nav`, `showcase.css:658`'s `.masthead .nav li`
+ * border cannot reach it. **That is a structural guarantee rather than a width that happens to fit**, which
+ * is what the earlier "My Account is narrower than Sign in / Sign up" mitigation relied on and why the
+ * complaint survived it.
+ *
+ * Three things this has to do, and where each is done:
+ *
+ *   1. it does not wrap the menu, at any width          here — the flex row, and the 40rem grid
+ *   2. it does not take the menu item's border          by construction: it is not a `.nav li`. At 40rem it
+ *                                                       takes a filled chip instead of the row border, so
+ *                                                       the difference is visible and not merely true
+ *   3. it still reads as the way into the account       the label carries the design's own `.nav a` type
+ *                                                       and colour, and at 40rem it becomes the most
+ *                                                       button-like thing in the bar — **a control that is
+ *                                                       separate and unclickable-looking is a different
+ *                                                       fault from one that scatters**
+ *
+ * ⚠️ THIS SHEET IS THE ONLY ONE EDITED. `apps/ozikoro/public/design/` is inviolable and byte-compared
+ * against the deliverable, and this sheet loads after both of the design's — which is where a rule that
+ * corrects the design rather than contradicting it belongs. It is the same placement `main.css:97` already
+ * gives a third child of `.wrap`.
+ */
+
+/*
+ * 1. THE FLEX ROW, AT DESKTOP WIDTHS.
+ *
+ * The box is the third child of `.masthead > .wrap`, beside the `.wordmark` and the `<nav>`. `align-items`
+ * is inherited as `center` from `main.css:97`; `flex-wrap` comes from there too, so if a narrow desktop ever
+ * runs out of room **the account control wraps onto a line of its own and the seven-item menu keeps its
+ * own** — the failure mode is the control moving, never the menu scattering.
+ */
+.masthead-account {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: var(--s-2) var(--s-4);
+}
+
+/*
+ * 2. THE LABEL READS AS THE DESIGN'S OWN NAV ITEM, BECAUSE IT IS THE SAME KIND OF THING.
+ *
+ * The metrics are `.nav a`'s from `main.css:102` — 500 weight, `--s-1` block padding, a 2px transparent
+ * underline — with `--on-night` in place of `--ink`, for the reason the masthead note above already gives:
+ * `showcase.css:27` sets the masthead's own nav links to the night bar's foreground, and this control is in
+ * that bar. Hover and focus use the design's `--gold-bright` / `--gold`, which is `showcase.css:28`'s own
+ * treatment of a masthead link rather than a new colour.
+ */
+.masthead-account > .nav-account {
+  display: inline-flex;
+  align-items: center;
+  padding-block: var(--s-1);
+  color: var(--on-night);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: inherit;
+  white-space: nowrap;
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.masthead-account > .nav-account:hover,
+.masthead-account > .nav-account:focus-visible {
+  color: var(--gold-bright);
+  border-bottom-color: var(--gold);
+}
+
+/*
+ * 3. THE WORKSPACE SWITCH, WHEN THE VIEWER HAS ONE, SITS BESIDE THE ACCOUNT LINK IN THE SAME BOX.
+ *
+ * It is a `<details>` carrying the existing `.nav-modes-item` rule above, which was written for `nav.nav`
+ * and now finds it here instead. The summary takes the metrics of the link beside it; `--on-night` is right
+ * for this bar for the same reason. **`padding` is repeated rather than inherited because `line-height:
+ * inherit` on `a` and on `summary` resolves against different parents.**
+ */
+.masthead .nav .nav-modes-item .sx-role-switch > summary,
+.masthead-account .nav-modes-item .sx-role-switch > summary {
+  padding: var(--s-1) 0;
+  color: var(--on-night);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+/*
+ * 4. THE 40REM BREAKPOINT, WHERE THE DESIGN TURNS THE MASTHEAD'S `.wrap` INTO A TWO-COLUMN GRID.
+ *
+ *   showcase.css:656  .masthead>.wrap, .sx-reader-header>.wrap {
+ *                       display: grid !important;
+ *                       grid-template-columns: minmax(0,1fr) auto;
+ *                       gap: .75rem; align-items: center; padding-block: .75rem }
+ *
+ * `mobile-nav.js:26` injects the hamburger as a child of that `.wrap`, immediately before `nav.nav`, and
+ * `showcase.css:658` hides the real menu behind it — so the row's second column is the menu button's, and
+ * the account control must not take it. **It therefore takes the grid's own first row**, in that second
+ * column beside the wordmark, and the button follows it in the natural flow rather than being pushed onto a
+ * line of its own: measured at 390 px, the header stays two rows and the menu button stays in the top-right
+ * corner where a reader looks for it.
+ *
+ * `display: contents` is what lets the injected button take part in this grid **without touching
+ * `mobile-nav.js`, which is part of the deliverable**. This application has no reason to edit the design's
+ * script, and a control the web platform already understands should not be hidden by a wrapper this round
+ * introduced.
+ *
+ * AND IT TAKES A CHIP INSTEAD OF THE MENU ITEM'S BORDER. `showcase.css:658` gives every `.nav li` a bottom
+ * border; this box is not a `.nav li` and cannot receive it, and the rule below is what makes that visible
+ * rather than merely true — a filled gold button, in the design's own `--gold` and `--ink-strong`, which
+ * reads as the way into the account and as nothing else in that row.
+ */
+@media (max-width: 40rem) {
+  .masthead > .wrap > .masthead-account {
+    display: contents;
+  }
+
+  /*
+   * `grid-column: 2` beside the wordmark, which `showcase.css:656` puts in column 1. The mobile datebar and
+   * the menu button keep the rows they had, and `nav.nav` keeps its own `grid-column: 1/-1`.
+   *
+   * ⚠️ IT TAKES ITS OWN ROW ON A PHONE, AND THAT IS ACCEPTED RATHER THAN HIDDEN. Measured at 390 px: the
+   * wordmark is 220 px and the injected menu button 44 px, so 124 px of the 390 is left — **not enough for a
+   * legible "Sign in / Sign up"**, and the three things that could be done about it are each worse than the
+   * row. Shrinking the label below the design's own type size fails the third requirement (it must still read
+   * as the way in); moving the button breaks `mobile-nav.js`, which injects it before the `<nav>` and is part
+   * of the deliverable; and hiding the control would leave the way into an account inside a menu a stranger
+   * has no reason to open. **Three rows and a visible control is the honest arrangement**, and it is the
+   * header only — the menu itself stays the design's two-column grid.
+   *
+   * The chip is drawn rather than filled, which is both quieter than a gold block beside a gold hamburger and
+   * smaller: `--gold-bright` on the masthead's near-black is 9.8:1, and the border is the design's own
+   * `--gold`, the same tone the menu button beside it uses for its own outline (`showcase.css:657`).
+   */
+  .masthead-account > .nav-account {
+    grid-column: 2;
+    justify-self: end;
+    align-self: center;
+    padding: 0.45rem 0.6rem;
+    border: 1px solid var(--gold);
+    border-radius: var(--r-sm);
+    background: transparent;
+    color: var(--gold-bright);
+    font-size: var(--t-sm);
+    font-weight: 600;
+  }
+
+  /*
+   * The hover is the design's own inversion of the same pair, so the control is visibly the one thing in the
+   * bar that answers a pointer.
+   */
+  .masthead-account > .nav-account:hover,
+  .masthead-account > .nav-account:focus-visible {
+    background: var(--gold);
+    color: var(--ink-strong);
+    border-color: var(--gold-bright);
+  }
+
+  /*
+   * The switch, when there is one, takes the same cell. It is `display: contents`'s other child, so it is a
+   * grid item here — and one account control per row is the point, so the box holds either the plain link or
+   * the switch and never both competing for the same cell.
+   */
+  .masthead-account .nav-modes-item {
+    grid-column: 2;
+    justify-self: end;
+    align-self: center;
+  }
+
+  .masthead-account .nav-modes-item .sx-role-switch > summary {
+    display: inline-flex;
+    padding: 0.5rem 0.7rem;
+    color: var(--gold-bright);
+    font-size: var(--t-sm);
+    font-weight: 600;
+  }
+}
+

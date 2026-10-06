@@ -2859,17 +2859,98 @@ export function extractReferences(body: string): string[] {
 
 
 /**
- * THE MASTHEAD'S LAST ITEM, WHICH IS ABOUT THE READER RATHER THAN THE ARCHIVE.
+ * THE MARKER ON THE APPLICATION'S OWN ACCOUNT AREA, AND WHY IT IS A CLASS RATHER THAN NOTHING.
  *
- * The design's menu ends with `My Ozikoro`, pointing at `dashboard-reader.html` — **a link that goes to a
- * dashboard whether or not anybody is signed in, and therefore lands a stranger on a page addressed to a
- * person they are not.** The owner asked for it to say what the reader can actually do, and to sit last,
- * after About:
+ * `a11y.css` has to place this box in the masthead's flex row and again in its 40rem grid, and a rule that
+ * has to tell the box it belongs to from a screen where there is no box at all needs a name to match. It is
+ * a hook for this application's stylesheet and never a style of its own: **no rule in `public/design/`
+ * knows the name**, and none is added there, because that directory is inviolable.
+ */
+const MASTHEAD_ACCOUNT_CLASS = 'masthead-account';
+
+/**
+ * The one control in the masthead, in whichever of its two states.
  *
- *   signed in       My account        -> the dashboard
- *   not signed in   Sign in / Sign up -> the way in
+ * `nav-account` is kept as the class because `fillModeSwitcher` in `dashboard-modes.ts` already matches it to
+ * stand the workspace switch in this control's place, and because `dashboard-modes.test.ts` asserts that the
+ * switch takes the account control rather than sitting beside it. **What changed is the element around it** —
+ * a `div` in the masthead's own `.wrap`, where a `<li>` used to sit in the design's menu.
  *
- * WHY THIS IS REWRITTEN AT SERVE TIME RATHER THAN EDITED INTO THE DESIGN
+ * The address is absolute on purpose: the control lives in the masthead of fifty-two screens served from
+ * addresses at every depth, and a relative `/signin` is the one form that is right from all of them.
+ */
+function accountAnchor(viewer: { signedIn: boolean }): string {
+  const href = viewer.signedIn ? '/dashboard-reader' : '/signin';
+  const label = viewer.signedIn ? 'My account' : 'Sign in / Sign up';
+  return `<a class="nav-account" href="${href}">${label}</a>`;
+}
+
+/**
+ * THE ACCOUNT CONTROL, WHICH IS NOT A MENU ITEM.
+ *
+ * ── THE FAULT, MEASURED RATHER THAN REASONED ABOUT ────────────────────────────────────────────────
+ *
+ * The owner, reporting it for the second time: *"again, you have not fixed the menu to be exactly as it
+ * should fixed. again, go to the original github design, see the original menu, and fix this shit"*. He was
+ * right. The design's menu is **seven** items:
+ *
+ *     home.html:33   <nav class="nav" aria-label="Primary"><ul>
+ *                      Histories · Folklores · Watch · Archive · Researchers · Calendars · About
+ *                    </ul></nav>
+ *
+ * and the served masthead carried **eight**, because the account control was written as
+ * `<li class="nav-account">` and spliced in after the About `<li>` — *inside the design's own `<ul>`*.
+ *
+ * Two rules in the design's own stylesheets then acted on that eighth item, and both are correct for the
+ * `<ul>` they were written for:
+ *
+ *     main.css:101      .nav ul { display: flex; gap: var(--s-5); flex-wrap: wrap }
+ *     main.css:405      .nav ul { gap: var(--s-4); font-size: var(--t-sm) }
+ *     showcase.css:658  .masthead .nav ul { display: grid !important; grid-template-columns: 1fr 1fr }
+ *                       .masthead .nav li { border-bottom: 1px solid the gold at 18% }
+ * **Seven items fit that wrapping flex row; the eighth wrapped to a second line — which is what "it scattered
+ * the menu" describes.** And at 40rem the design turns the same `<ul>` into a two-column grid in which **every
+ * `<li>` is given a bottom border**, so a control that is not a menu item was drawn as one.
+ *
+ * The earlier mitigation shortened the label — `dashboard-modes.ts` records the reasoning, *"at 1280 px that
+ * is the row `main.css`'s `nav ul` wraps. `My Account` is narrower than `Sign in / Sign up`"* — and the
+ * owner's complaint survived it. **That is the evidence that shortening the text was the wrong shape: it
+ * changed how wide the eighth item was, and the fault was that it was the eighth item at all.**
+ *
+ * ── THE SHAPE OF THE FIX, AND WHY THIS ONE ────────────────────────────────────────────────────────
+ *
+ * The control is moved **out of the `<ul>` and out of the menu's flex row entirely**, and made a sibling of
+ * the `<nav>` inside the header's own `.wrap` — the design's `main.css:97`
+ * (`.masthead .wrap { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap }`),
+ * which already holds the `.wordmark` and the `<nav>` and can hold a third child. The two candidates and why
+ * not the other:
+ *
+ *   sibling of the `<ul>`, inside `<nav>`   `.nav a[aria-current]`, `.nav a:hover` and — the one that
+ *                                           matters — `.masthead .nav a { display: block; padding: .85rem;
+ *                                           border: 0 !important }` all still match it, because they are
+ *                                           descendant selectors on `.nav` rather than on the `<ul>`. It would
+ *                                           be OUT of the row and still INSIDE the menu's styling, which is
+ *                                           the same confusion in a smaller box.
+ *   sibling of the `<nav>`, in `.wrap`      `showcase.css:658`'s `.masthead .nav li` border never matches it,
+ *                                           `.nav ul`'s flex never lays it out, and the design's menu comes
+ *                                           out of this function byte-identical. Chosen.
+ *
+ * ── AND IT IS PLACED LAST IN THE LOGICAL ORDER ───────────────────────────────────────────────────
+ *
+ * For a screen reader and for the tab order the control sits **after** the seven menu items, which is where
+ * the owner asked for it — only outside the list rather than as its eighth member.
+ *
+ * ── WHAT WAS ALSO WRONG, WHICH THE OLD FALLBACK HID ──────────────────────────────────────────────
+ *
+ * The previous implementation ended with a fallback that appended the item to the first `<ul>` in the
+ * document when the menu's own `<ul>` could not be found. **Measured on the served `/watch/`: that `<ul>` is
+ * the first column of the SITE FOOTER**, so the account control has been rendered as an entry in "Browse the
+ * archive" on every screen drawn with `sx-reader-header` — article, folklore, folklore-reader, listen, watch
+ * and watch-video. Nothing in the design or in the site said so, because it looks like a footer link. The
+ * three placements below are the three header shapes the deliverable actually draws, and a screen with none
+ * of them gets **no control rather than an arbitrary one**.
+ *
+ * ── WHY THIS IS REWRITTEN AT SERVE TIME RATHER THAN EDITED INTO THE DESIGN ────────────────────────
  *
  * The menu is in all 52 screens. **Editing it would mean editing the design**, which is the one thing that
  * must not happen to it — and the two states cannot both be stored in a static file anyway, because which
@@ -2877,19 +2958,59 @@ export function extractReferences(body: string): string[] {
  */
 export function fillMasthead(html: string, viewer: { signedIn: boolean }): string {
   /*
-   * THE EXISTING ITEM IS REMOVED WHEREVER IT SITS, AND ONE ITEM IS ADDED AFTER ABOUT.
+   * THE DESIGN'S OWN `My Ozikoro` ITEM GOES, AND THE MATCH IS BOUNDED TO THE MENU.
    *
-   * Matching the anchor by its href rather than by its label, because the label differs between screens.
-   * **A menu item that is moved by matching its text moves only on the screens whose text happens to match.**
+   * The design's menu ends with an item pointing at `dashboard-reader.html` — **a link that goes to a
+   * dashboard whether or not anybody is signed in, and therefore lands a stranger on a page addressed to a
+   * person they are not.** The account control below is what replaces it.
+   *
+   * The old match was page-wide, which also removed the reader-dashboard link out of `account.html`'s and
+   * `ledger.html`'s body copy. Every path this function can then place a control on runs through a `<nav>`
+   * shell, so running the match inside one leaves prose alone and still takes the menu item.
    */
-  let out = html.replace(/<li>\s*<a[^>]*href="[^"]*dashboard-reader[^"]*"[^>]*>[\s\S]*?<\/a>\s*<\/li>/gi, '');
+  let out = html.replace(
+    /(<nav(?![^>]*\bclass=)[^>]*>)([\s\S]*?)(<\/nav>)/gi,
+    (_all, open: string, body: string, close: string) =>
+      `${open}${body.replace(/<li>\s*<a[^>]*href="[^"]*dashboard-reader[^"]*"[^>]*>[\s\S]*?<\/a>\s*<\/li>/gi, '')}${close}`
+  );
 
-  const item = viewer.signedIn
-    ? '<li class="nav-account"><a href="/dashboard-reader">My account</a></li>'
-    : '<li class="nav-account"><a href="/signin">Sign in / Sign up</a></li>';
+  const account = `<div class="${MASTHEAD_ACCOUNT_CLASS}">${accountAnchor(viewer)}</div>`;
 
-  // After the About item, which is where the owner asked for it.
-  out = out.replace(/(<li>\s*<a[^>]*href="[^"]*about[^"]*"[^>]*>[\s\S]*?<\/a>\s*<\/li>)/i, `$1${item}`);
+  /*
+   * ONE. THE PRIMARY MENU — 31 screens, and the one the owner was looking at.
+   *
+   * The control goes immediately after `</nav>`, inside the masthead's `.wrap`, so the design's `<ul>` is
+   * returned exactly as it arrived.
+   */
+  const primary = /<nav class="nav"[^>]*>[\s\S]*?<\/nav>/i.exec(out);
+  if (primary) {
+    out = out.slice(0, primary.index + primary[0].length) + account + out.slice(primary.index + primary[0].length);
+  } else {
+    /*
+     * TWO. THE READER HEADER — the seven screens drawn with `sx-reader-header`, whose navigation is a set of
+     * bare anchors with no `<ul>`. `showcase.css:657` sets `.sx-reader-header .wrap` to the same flex row the
+     * masthead's `.wrap` is, so the same placement works: after the `<nav>`, inside the `.wrap`.
+     */
+    const reader = /(<header class="sx-reader-header">\s*<div class="wrap">)([\s\S]*?)(<\/div>)/i.exec(out);
+    if (reader) {
+      out = out.replace(reader[0], `${reader[1]}${reader[2]}${account}${reader[3]}`);
+    } else {
+      /*
+       * THREE. THE MASTHEAD'S WRAP WITH NO `nav.nav` IN IT — `account.html`, which the deliverable draws
+       * with `<nav class="nav">` and no `aria-label`. The control is placed immediately before the `.wrap`
+       * closes.
+       *
+       * ⚠️ THE `[^<]` IS NOT COSMETIC. The wordmark and the nav are the only children of this `.wrap`, so the
+       * first `</div>` after it is the one that closes it — and `[^<]*` states that: it will only match a
+       * close tag with nothing but whitespace before it, rather than reaching past a nested element to a
+       * `</div>` further down the document.
+       */
+      const mastheadWrap = /(<header class="masthead">\s*<div class="wrap">[\s\S]*?)(<[^<]*<\/div>)/i.exec(out);
+      if (mastheadWrap) {
+        out = out.replace(mastheadWrap[0], `${mastheadWrap[1]}${account}${mastheadWrap[2]}`);
+      }
+    }
+  }
 
   /*
    * THE ROLE SWITCH GOES, BECAUSE IT TELLS THE READER SOMETHING UNTRUE.
@@ -2915,15 +3036,6 @@ export function fillMasthead(html: string, viewer: { signedIn: boolean }): strin
    */
   out = out.replace(/<details class="sx-role-switch">[\s\S]*?<\/details>/i, '');
 
-  /*
-   * IF ABOUT IS NOT IN THE MENU, THE ITEM GOES AT THE END RATHER THAN NOWHERE.
-   *
-   * A screen whose menu omits About would otherwise lose the way in entirely — and **a way in that exists on
-   * fifty screens and not two is worse than one that is consistently last.**
-   */
-  if (!out.includes('nav-account')) {
-    out = out.replace(/(<nav class="nav"[^>]*>[\s\S]*?<ul>)([\s\S]*?)(<\/ul>)/i, `$1$2${item}$3`);
-  }
   return out;
 }
 

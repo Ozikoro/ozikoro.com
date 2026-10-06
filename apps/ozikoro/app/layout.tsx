@@ -139,41 +139,36 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <link rel="stylesheet" href="/design/styles/main.css" />
         <link rel="stylesheet" href="/design/styles/showcase.css" />
         {/*
-          THE DESIGN'S OWN ICON, SERVED RATHER THAN DRAWN.
+          THE SITE'S OWN ICON, LINKED AT THE ADDRESS THE BROWSER ASKS FOR ANYWAY.
 
-          `/favicon.ico` answered 404 on every page of this site — the browser asks for it unprompted, so it
-          was the one console 404 a reader could see, and no page linked it because none declared one.
+          `/favicon.ico` answered 404 on every page of this site once — the browser asks for it unprompted,
+          so it was the one console 404 a reader could see, and no page linked it because none declared one.
+          The design ships an icon and it had simply never been copied into `public/`; it was copied byte for
+          byte, and it turned out to be **the Lovable logo** — the tool the design screens were drawn in — so
+          a visitor's tab showed the build tool's brand. The owner reported it in his own words: *"why is the
+          favicon of the website showing the loveable logo instead of ozikoro.com logo?"* The archive's own
+          mark already existed (`data/media/ozikoro-wp/486-cropped-Ozi-Ikoro-Icon-Yellow-1.png`, the same
+          gold sun the masthead draws) and the files here were made from it. Nothing is drawn or recoloured
+          by this application.
 
-          **The design ships a favicon and it had simply never been copied into `public/`.** It sits at
-          `design/calm-comfort-construct/public/favicon.ico` — in the deliverable's PUBLIC ROOT, outside
-          `design/`, which is why it was missed: every other design asset is under `public/design/`. The file
-          at `apps/ozikoro/public/favicon.ico` is that file byte for byte, so nothing here is drawn or
-          approximated. The apple-touch icon points at the same file, because there is one icon in the
-          deliverable and inventing a second would be inventing artwork.
+          ── AND IT IS NOW AN OWNER-EDITABLE SETTING, WHICH CHANGED WHERE IT IS READ ─────────────────────
 
-          ⚠️ **BUT THE DESIGN'S FAVICON IS NOT OZIKORO'S MARK, AND THIS FILE USED TO SERVE IT ANYWAY.**
-          `design/calm-comfort-construct/public/favicon.ico` holds a single 256×256 PNG of the **Lovable**
-          logo — the tool the design screens were drawn in — and the paragraph that used to sit here argued
-          for copying it byte for byte, on the grounds that drawing a second icon *"would be inventing
-          artwork"*. **The owner reported the result in his own words: "why is the favicon of the website
-          showing the loveable logo instead of ozikoro.com logo?"** *A visitor's browser tab showed the
-          build tool's brand rather than the archive's.*
+          These links name `/favicon.ico`, and **that address is served by `app/favicon.ico/route.ts`** from
+          a row in `site_setting` — so the icon is the owner's, set on `/admin/design/`, rather than three
+          files baked into the image. The two static files that used to answer this path
+          (`public/favicon.ico`, `public/favicon.png`) were removed in the same change, because **a file in
+          `public/` is served before the router and would shadow the route silently** — a setting that saves
+          and changes nothing is the fault this repository keeps paying for.
 
-          **AND THE PREMISE WAS FALSE. Nothing had to be invented, because Ozikoro's own mark already
-          exists and the archive already serves it:** `/media/ozikoro/486-cropped-Ozi-Ikoro-Icon-Yellow-1.png`
-          — the same gold sun the masthead draws, 512×512, 15,175 bytes, held in this repository at
-          `data/media/ozikoro-wp/`. **The three files below are that image at the sizes a platform asks for,
-          and nothing in them is drawn, recoloured or composed by this application.**
-
-          *The ICO carries five PNG entries — 16, 32, 48, 64 and 256 — because one size is a compromise:
-          a 16 px tab icon and a 256 px taskbar icon are different problems, and an ICO can answer both.
-          `/favicon.png` is a 32×32 copy for browsers that prefer a PNG with an explicit type, and
-          `/apple-touch-icon.png` is 180×180, which is what iOS asks for and what an ICO cannot provide.
-          The PNG links come first so a modern browser takes the one it can size best; the ICO stays for
-          the ones that ask for `/favicon.ico` unprompted, which no markup can prevent.*
+          THE TAGS STAY, AND THE REASON IS REACH RATHER THAN TIDINESS. **This layout does not run for the
+          design screens or the articles** — measured, `GET /` is `public/design/screens/home.html` rewritten
+          with zero `/_next/` references — so the route, not this layout, is what carries the icon to all
+          1,104 of them: a browser asks for `/favicon.ico` by itself when a document declares no icon. These
+          tags name the same address, so the React routes and the design pipeline cannot disagree about where
+          the icon comes from. `/apple-touch-icon.png` stays a file: an iOS home-screen icon is a different
+          picture at a different size, and this setting does not pretend to replace it.
         */}
-        <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
-        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <link rel="icon" href="/favicon.ico" />
         <link rel="shortcut icon" href="/favicon.ico" />
         <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         {/*
@@ -270,35 +265,38 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                   <Link href="/about">About</Link>
                 </li>
                 {/*
-                  THE SWITCH STANDS WHERE THE ACCOUNT ITEM STANDS, WHICH IS ONE ITEM AND NOT TWO.
+                  THE ACCOUNT CONTROL IS NOT IN THIS LIST, AND THAT IS THE WHOLE OF THIS FIX.
 
-                  It used to be added *beside* the account link, so a signed-in reader with an elevated
-                  workspace got eight items where a signed-out one got seven — and the eighth was a
-                  `details` whose summary named the person and the role and ran to several hundred pixels.
-                  That is what wrapped the bar. The owner's instruction is the fix for both halves:
-                  *"the thing was showing 'Signed in as Idenze Ezeme · Owner' when 'My Account' was enough."*
+                  It used to be the eighth `<li>` in the `<ul>` above — `nav-account` when the reader had no
+                  elevated workspace and `nav-modes-item` when they had one. The design's menu is SEVEN items,
+                  and `main.css:101` lays them out as a wrapping flex row with a `--s-5` gap: seven fit and the
+                  eighth wrapped to a second line, which is what the owner reported twice as the menu being
+                  "scattered". At 40rem `showcase.css:658` makes the same `<ul>` a two-column grid and gives
+                  **every `<li>` a bottom border**, so the account control was drawn as a menu item as well.
 
-                  So the control is the account item now, its summary reads `My Account`, and the link to
-                  the reader's own workspace is the first entry inside the panel it opens — the room the
-                  signed-in bar takes is the room the signed-in bar took before the switch existed, and
-                  nothing was removed to get there. **A plain reader, who sees no switch at all, keeps the
-                  plain account link exactly as it was.**
+                  So it is a sibling of the `<nav>` now, inside `.masthead > .wrap` — which `main.css:97`
+                  already sets to `display: flex; justify-content: space-between` for the `.wordmark` and the
+                  `<nav>` — and it matches the shape `fillMasthead` writes for the fifty-two design screens.
+                  `a11y.css` places it in that row and in the 40rem grid. **The seven items above are
+                  untouched, and this element cannot move them.**
+
+                  The owner's other instruction is kept: the wording is `My account`, and the panel's summary
+                  no longer names him — *"the thing was showing 'Signed in as Idenze Ezeme · Owner' when 'My
+                  Account' was enough."* The switch's own wording is `renderModeSwitcher`'s.
                 */}
-                {modeSwitch.length > 0 ? (
-                  <li className="nav-modes-item" dangerouslySetInnerHTML={{ __html: modeSwitch }} />
-                ) : (
-                  <li className="nav-account">
-                    {workspace.signedIn ? (
-                      <Link href={workspace.primaryHref}>
-                        {workspace.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace'}
-                      </Link>
-                    ) : (
-                      <Link href="/signin">Sign in / Sign up</Link>
-                    )}
-                  </li>
-                )}
               </ul>
             </nav>
+            <div className="masthead-account">
+              {modeSwitch.length > 0 ? (
+                <div className="nav-modes-item" dangerouslySetInnerHTML={{ __html: modeSwitch }} />
+              ) : workspace.signedIn ? (
+                <Link className="nav-account" href={workspace.primaryHref}>
+                  {workspace.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace'}
+                </Link>
+              ) : (
+                <Link className="nav-account" href="/signin">Sign in / Sign up</Link>
+              )}
+            </div>
           </div>
         </header>
 

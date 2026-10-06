@@ -224,16 +224,45 @@ test('the fallback workspace is the first open one, so a link always resolves', 
   assert.equal(primaryDashboardHref(rememberedDashboardMode('workflow', EDITOR), EDITOR), '/dashboard-workflow?mode=workflow');
 });
 
-test('the switch names the person, the role, the current workspace, and only reachable addresses', () => {
+test('the switch reads My Account, says where you are inside it, and offers only reachable addresses', () => {
   const modes = dashboardModesFor(OWNER);
   const markup = renderModeSwitcher(
-    { signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner', modes, currentMode: 'editor', adminHref: '/admin/' },
+    {
+      signedIn: true,
+      name: 'Idenze Ezeme',
+      roleLabel: 'Owner',
+      modes,
+      currentMode: 'editor',
+      adminHref: '/admin/',
+      accountHref: '/dashboard-editor?mode=editor',
+      accountLabel: 'My workspace',
+    },
     'rail'
   );
-  assert.match(markup, /Signed in as <b>Idenze Ezeme<\/b> · Owner/, 'the control must name the person');
-  assert.match(markup, /you are viewing the <b>Editorial desk<\/b>/, 'the summary must say which mode, unopened');
+  /*
+   * THE OWNER OVERRULED THE OLD ASSERTION AND THIS IS THE NEW ONE.
+   *
+   * This test used to require `Signed in as <b>Idenze Ezeme</b> · Owner` in the summary — *"the control must
+   * name the person"*. The owner then said: *"the thing was showing 'Signed in as Idenze Ezeme · Owner' when
+   * 'My Account' was enough."* **So the summary is two words, and the name and the role must not be in this
+   * control at all** — which is the half a test that only looked for `My Account` would let through. They
+   * are not deleted from the application: `/workspace/` prints *Signed in as* and *Role* from the session
+   * and `/account/` prints the display name, and `viewer.name`/`viewer.roleLabel` are still resolved and
+   * still passed in for those screens.
+   */
+  assert.match(markup, /<summary>My Account<\/summary>/, 'the summary must read My Account');
+  assert.doesNotMatch(markup, /Signed in as/, 'the control must no longer say who is signed in');
+  assert.doesNotMatch(markup, /Idenze Ezeme/, 'the name belongs on the workspace screen, not in the menu');
+  assert.doesNotMatch(markup, /· Owner/, 'the role belongs on the workspace screen, not in the menu');
+  // The fact the summary used to carry is inside the panel, where opening the control finds it.
+  assert.match(markup, /You are viewing the <b>Editorial desk<\/b> workspace/);
   assert.match(markup, /href="\/dashboard-editor\?mode=editor" aria-current="page"/);
   assert.match(markup, /href="\/admin\/"/, 'the back office must be one click from every dashboard');
+  assert.match(
+    markup,
+    /<a class="sx-mode-account" href="\/dashboard-editor\?mode=editor">My workspace<\/a>/,
+    'the account link moves inside the panel rather than disappearing with the long summary'
+  );
   assert.doesNotMatch(markup, /href="#"/, 'a placeholder left in the control is the fault this replaces');
   // Every workspace this owner may open is offered, and the label is the workspace's own name.
   for (const mode of modes) assert.match(markup, new RegExp(`href="${dashboardModeHref(mode).replace(/[/?=]/g, '\\$&')}"`));
@@ -269,7 +298,17 @@ test('the switch is spliced into all three of the deliverable\'s shapes', () => 
   assert.match(fillModeSwitcher(plain, page), /<main id="main" class="wrap sx-section">\n<details/);
   const inNav = fillModeSwitcher(masthead, page);
   assert.match(inNav, /<li class="nav-modes-item">/);
-  assert.match(inNav, /My workspace<\/a><\/li>/, 'a masthead link to a workspace must not still say My account');
+  /*
+   * ONE ITEM, NOT TWO. The switch used to be inserted before the account item, so a signed-in reader with an
+   * elevated workspace got one more menu item than a signed-out one and the bar wrapped. It takes that
+   * item's place now — and the link it held is inside the panel, so nothing was dropped to save the room.
+   */
+  assert.doesNotMatch(inNav, /<li class="nav-account">/, 'the switch must take the account item, not sit beside it');
+  assert.match(
+    inNav,
+    /<a class="sx-mode-account" href="\/dashboard-admin\?mode=admin">My workspace<\/a>/,
+    'a masthead link to a workspace must not still say My account, and must not be dropped'
+  );
   // The design's own links inside the page are untouched: this function adds, it does not rewrite.
   assert.match(inRail, /<a href="#">Content<\/a>/);
 });
@@ -342,6 +381,158 @@ test('every real dashboard composes: the design\'s switch goes, and this one tak
     }
   }
   assert.equal(withDesignSwitch, 9, 'the deliverable no longer puts its own switch on nine dashboards');
+});
+
+/**
+ * THE MENU THE OWNER ASKED ABOUT, ASSERTED AGAINST THE DESIGN RATHER THAN AGAINST A FIXTURE.
+ *
+ * This test exists because the fault was reported TWICE and survived the first fix. That fix shortened the
+ * eighth item's label — `dashboard-modes.ts` records the reasoning, *"at 1280 px that is the row
+ * `main.css`'s `nav ul` wraps. `My Account` is narrower than `Sign in / Sign up`"* — and **the owner's
+ * complaint survived it, which is the evidence that the fault was never the item's width.** It was that the
+ * item was inside the menu at all.
+ *
+ * So the assertion is structural and it is made against the deliverable's own files: **the `<ul>` that comes
+ * out of `fillMasthead` is the `<ul>` that went in, item for item.** A fixture would agree with this file
+ * about a shape the real screens do not have, which is the mistake `readdirSync(SCREENS)` is already used
+ * above to avoid.
+ *
+ * And the page-wide half of the old behaviour is asserted too: the previous match removed every
+ * `dashboard-reader` link in the document, which reached `account.html`'s and `ledger.html`'s body copy, and
+ * its fallback appended the control to the first `<ul>` in the file — **measured on the served `/watch/`,
+ * that is the first column of the site footer.** Both are gone, and both are cheap to check.
+ */
+test('the account control is outside the design\'s menu, on every screen that has one', () => {
+  const listItems = (html: string): string[] =>
+    (html.match(/<li>[\s\S]*?<\/li>/gi) ?? []).map((li) => li.replace(/\s+/g, ' ').trim());
+
+  const menu = /<nav class="nav"[^>]*>[\s\S]*?<\/nav>/i;
+  let placed = 0;
+  let inFooter = 0;
+
+  for (const file of readdirSync(SCREENS).filter((f) => f.endsWith('.html'))) {
+    const raw = readFileSync(join(SCREENS, file), 'utf8');
+    const before = menu.exec(raw)?.[0] ?? '';
+
+    for (const signedIn of [false, true]) {
+      const served = fillMasthead(raw, { signedIn });
+      const after = menu.exec(served)?.[0] ?? '';
+
+      assert.equal(after, before, `${file} (signedIn: ${signedIn}) changed the design's own menu`);
+      assert.deepEqual(
+        listItems(after),
+        listItems(before),
+        `${file} (signedIn: ${signedIn}) changed the design's menu items`
+      );
+      assert.doesNotMatch(
+        after,
+        /<li[^>]*class="[^"]*nav-account/,
+        `${file} (signedIn: ${signedIn}) still writes the account control as a menu item`
+      );
+      // Inside `<nav>`, but after its `</ul>` — last in the logical order, and out of the menu's flex row.
+      assert.doesNotMatch(
+        after,
+        /<\/ul>[\s\S]*<li[^>]*class="[^"]*nav-account/,
+        `${file} (signedIn: ${signedIn}) puts the account control back into the menu`
+      );
+      if (served.includes('class="masthead-account"')) placed += 1;
+      // The old fallback wrote it into the FOOTER. A footer claim is not a masthead control.
+      inFooter += (served.match(/<footer[\s\S]*?nav-account/g) ?? []).length;
+    }
+  }
+
+  assert.ok(placed > 0, 'no screen received an account control at all');
+  assert.equal(inFooter, 0, 'an account control is being written into the footer');
+});
+
+test('the account control is the design\'s last item, outside the list, in both states', () => {
+  const raw = readFileSync(join(SCREENS, 'home.html'), 'utf8');
+
+  /*
+   * THE MISSING STEP THE OWNER ASKED FOR, IN ONE LINE: the menu's `<ul>` closes with seven items and nothing
+   * else, and the account control follows the `</nav>` as a child of the masthead's own `.wrap`. The `\s*`
+   * is the design's own indentation — asserting on the absence of whitespace would be asserting on the
+   * deliverable's formatting, which is not what changed.
+   */
+  const signedOut = fillMasthead(raw, { signedIn: false });
+  assert.match(
+    signedOut,
+    /<\/ul>\s*<\/nav><div class="masthead-account"><a class="nav-account" href="\/signin">Sign in \/ Sign up<\/a><\/div>/,
+    'the signed-out control must be outside the design\'s menu'
+  );
+
+  const signedIn = fillMasthead(raw, { signedIn: true });
+  assert.match(
+    signedIn,
+    /<\/ul>\s*<\/nav><div class="masthead-account"><a class="nav-account" href="\/dashboard-reader">My account<\/a><\/div>/,
+    'the signed-in control must be outside the design\'s menu'
+  );
+
+  // The design's own `My Ozikoro` item is gone from the menu, so nothing in the list points at a dashboard.
+  assert.doesNotMatch(signedIn, /<li><a href="[^"]*dashboard-reader[^"]*">/);
+
+  /*
+   * AND THE READER HEADER, WHICH IS THE SECOND SHAPE. `mobile-nav.js` and `showcase.css:657` treat its
+   * `.wrap` as the same row, so the control goes in the same place — after its `<nav>`, inside the `.wrap`.
+   */
+  const watch = fillMasthead(readFileSync(join(SCREENS, 'watch.html'), 'utf8'), { signedIn: false });
+  assert.match(
+    watch,
+    /<\/nav><div class="masthead-account"><a class="nav-account" href="\/signin">Sign in \/ Sign up<\/a><\/div><\/div><\/header>/
+  );
+  assert.doesNotMatch(watch, /site-foot[\s\S]*nav-account/, 'the reader header\'s control landed in the footer');
+});
+
+/**
+ * THE OTHER CONTROL IN THE BOX, AND THE ONE WAY THIS FIX COULD HAVE EATEN SOMETHING.
+ *
+ * `fillModeSwitcher` used to REPLACE the account `<li>` with the switch, on the recorded reasoning that the
+ * signed-in bar must not take more room than the signed-out one. That reasoning was about the menu's flex
+ * row, and **the account control is not in that row any more** — so the switch now goes into the same
+ * `div.masthead-account` and sits BESIDE the link instead of taking its place.
+ *
+ * ⚠️ THE FAULT THIS TEST EXISTS TO CATCH IS SILENT AND ASYMMETRIC. If the switch replaced the box's contents
+ * rather than adding to them, then **an editor or the owner — the only people who see a switch at all —
+ * would lose the link to their own account, while every ordinary reader kept it.** The one account that
+ * could report it is the one whose bar is hardest to compare against anybody else's.
+ */
+test('the workspace switch composes with the account control, and does not take its place', () => {
+  const served = fillMasthead(readFileSync(join(SCREENS, 'home.html'), 'utf8'), { signedIn: true });
+  const page = {
+    viewer: {
+      signedIn: true, name: 'Idenze Ezeme', roleLabel: 'Owner',
+      modes: dashboardModesFor(OWNER), currentMode: 'admin', adminHref: '/admin/',
+    },
+    primaryHref: '/dashboard-admin?mode=admin',
+    allowedScreens: new Set(DASHBOARD_MODES.map((m) => m.screen)),
+  };
+
+  const out = fillModeSwitcher(served, page);
+
+  // Both controls, and the switch is inside the box rather than loose in the masthead.
+  assert.match(out, /<div class="masthead-account">[\s\S]*class="nav-account"[\s\S]*class="nav-modes-item"[\s\S]*?<\/div>/);
+
+  // The link is re-pointed at the workspace actually chosen, and relabelled to match where it goes.
+  assert.match(out, /<a class="nav-account" href="\/dashboard-admin\?mode=admin">My workspace<\/a>/);
+  assert.doesNotMatch(out, /href="\/dashboard-reader">My account<\/a>/, 'the link still points at the reader workspace');
+
+  // And the design's menu is STILL untouched by the second pass, which is the whole point of the round.
+  const menu = (html: string) => /<nav class="nav"[^>]*>[\s\S]*?<\/nav>/i.exec(html)?.[0] ?? '';
+  assert.equal(menu(out), menu(served));
+  assert.doesNotMatch(menu(out), /nav-modes-item/, 'the switch was put back into the design\'s menu');
+
+  /*
+   * A READER WITH NO ELEVATED WORKSPACE GETS NO SWITCH AND KEEPS THE PLAIN LINK, which is `renderModeSwitcher`'s
+   * own first rule and the reason this function returns early. Asserted here because the box is now shared:
+   * a change that always wrote the box would give a plain reader a control with nothing in it.
+   */
+  const reader = fillModeSwitcher(served, {
+    viewer: { signedIn: true, name: 'Nnamdi Reader', roleLabel: 'Reader', modes: dashboardModesFor(READER), currentMode: 'reader', adminHref: null },
+    primaryHref: '/dashboard-reader?mode=reader',
+    allowedScreens: new Set(dashboardModesFor(READER).map((m) => m.screen)),
+  });
+  assert.doesNotMatch(reader, /sx-mode-switch/, 'a plain reader was offered a switch they must not see');
+  assert.match(reader, /<a class="nav-account" href="\/dashboard-reader\?mode=reader">My account<\/a>/);
 });
 
 test('roles are described from what the account holds, and the floor is the reader', () => {

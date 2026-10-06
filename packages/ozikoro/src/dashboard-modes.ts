@@ -359,9 +359,9 @@ export function primaryDashboardHref(
 /** Everything the switch needs to state the truth about one viewer. */
 export type ModeSwitcherViewer = {
   signedIn: boolean;
-  /** The person's name. The requirement is that the control names them, not only their role. */
+  /** The person's name. Held for the workspace and account screens, not printed in this control. */
   name: string | null;
-  /** The roles they hold, as prose: `Owner`, `Editor, Moderator`, `Reader`. */
+  /** The roles they hold, as prose: `Owner`, `Editor, Moderator`, `Reader`. Held for the same reason. */
   roleLabel: string | null;
   /** Every workspace they may open. */
   modes: DashboardMode[];
@@ -369,6 +369,17 @@ export type ModeSwitcherViewer = {
   currentMode: string | null;
   /** The back office, offered only to an account that may enter it. */
   adminHref: string | null;
+  /**
+   * The viewer's own workspace, and what to call it. Optional, because the control is also rendered from
+   * places that have no session to resolve one — when it is absent no account entry is drawn.
+   *
+   * It is here rather than left to each caller because **in the masthead this control IS the account
+   * item**: the owner asked for `My Account` in place of his name and role, so the link that name used to
+   * label has to live inside the control that replaced it, or it would have been dropped rather than moved.
+   */
+  accountHref?: string | null;
+  /** What that link says. `My workspace` when it leads somewhere other than the account. */
+  accountLabel?: string;
 };
 
 /**
@@ -435,9 +446,27 @@ export type ModeSwitcherVariant =
  * **That is the whole mechanism** — this project has already paid for a control that returned 200 and went
  * somewhere else, and a control built out of anchors and a disclosure element cannot do that.
  *
- * THE SUMMARY CARRIES THE CURRENT WORKSPACE, because a closed `<details>` shows only its summary. A control
- * whose statement of where you are is hidden until you open it would repeat the original fault in a
- * quieter way.
+ * THE SUMMARY IS `My Account`, AND THE OWNER IS WHY.
+ *
+ * It used to read *"Signed in as Idenze Ezeme · Owner — you are viewing the Administration workspace"*. His
+ * words: *"the thing was showing 'Signed in as Idenze Ezeme · Owner' when 'My Account' was enough."*
+ *
+ * Two things follow and both matter:
+ *
+ *   1. IN THE MASTHEAD THIS CONTROL STANDS WHERE THE ACCOUNT ITEM STOOD. A summary several hundred pixels
+ *      wide is a menu item that wraps `main.css`'s `nav ul` onto a second line; `My Account` is two words
+ *      and occupies less room than the `Sign in / Sign up` it replaces. **The account link does not
+ *      disappear when the longer label does — it moves inside the panel this control opens**, because the
+ *      owner said the control need not carry the name, not that the way to his own workspace was surplus.
+ *   2. THE NAME AND THE ROLE MOVE TO WHERE THEY BELONG, WHICH IS NOT A MENU. They are still resolved and
+ *      still passed in — `/workspace/` prints *Signed in as* and *Role* from the session, and `/account/`
+ *      prints the display name — so the facts are on the screens a person opens to read them rather than
+ *      in the navigation of every page they read.
+ *
+ * THE CURRENT WORKSPACE MOVED INTO THE PANEL, AND IT IS STILL NAMED RATHER THAN IMPLIED: `aria-current` is
+ * on the open workspace's own link and the link itself says *you are here*. **A closed summary that said
+ * where you are was truthful and unreadable; a summary that says `My Account` and a panel that marks the
+ * workspace you are in is the same fact where a reader can reach it.**
  */
 export function renderModeSwitcher(viewer: ModeSwitcherViewer, variant: ModeSwitcherVariant = 'rail'): string {
   if (!viewer.signedIn) return '';
@@ -448,22 +477,34 @@ export function renderModeSwitcher(viewer: ModeSwitcherViewer, variant: ModeSwit
    */
   if (!hasElevatedDashboardModes(viewer.modes)) return '';
 
-  const who = esc(viewer.name?.trim() || 'your account');
-  const role = esc(viewer.roleLabel?.trim() || 'Reader');
   const current = viewer.currentMode ? dashboardModeForSlug(viewer.currentMode) : undefined;
 
-  const summary =
-    `Signed in as <b>${who}</b> · ${role}` + (current ? ` — you are viewing the <b>${esc(current.label)}</b>` : '');
+  /*
+   * THE PANEL OPENS BY SAYING WHERE YOU ARE, WHICH IS WHAT THE SUMMARY USED TO DO. A reader who has just
+   * opened the control is asking one of two questions — *where am I* or *where can I go* — and this answers
+   * the first before the list answers the second.
+   */
+  const here = current
+    ? `<p class="small" style="margin:0 0 var(--s-2)">You are viewing the <b>${esc(current.label)}</b> workspace.</p>`
+    : '';
 
   const links = viewer.modes
     .map((mode) => {
-      const here = current?.mode === mode.mode;
+      const isHere = current?.mode === mode.mode;
       return (
-        `<a href="${esc(dashboardModeHref(mode))}"${here ? ' aria-current="page"' : ''}>` +
-        `${esc(mode.label)}${here ? ' — you are here' : ''}</a>`
+        `<a href="${esc(dashboardModeHref(mode))}"${isHere ? ' aria-current="page"' : ''}>` +
+        `${esc(mode.label)}${isHere ? ' — you are here' : ''}</a>`
       );
     })
     .join('\n      ');
+
+  /*
+   * THE ACCOUNT LINK, WHICH IS THE ITEM THE SUMMARY REPLACED. Drawn only when a caller supplied one, so a
+   * caller with no session to resolve keeps the control it had.
+   */
+  const account = viewer.accountHref
+    ? `\n      <a class="sx-mode-account" href="${esc(viewer.accountHref)}">${esc(viewer.accountLabel?.trim() || 'My Account')}</a>`
+    : '';
 
   const admin =
     viewer.adminHref && variant === 'nav'
@@ -478,12 +519,16 @@ export function renderModeSwitcher(viewer: ModeSwitcherViewer, variant: ModeSwit
    * stylesheets. So one class fits both places, and no stylesheet under `public/design/` is added to or
    * changed. `nav-modes` is carried alongside for the application's own layout to key off, and
    * `sx-mode-switch` distinguishes this control from the one the design shipped and `fillMasthead` removes.
+   *
+   * ⚠️ THE SUMMARY ITSELF IS NOT DECORATED HERE, because a `<details>` whose summary is inline `display`
+   * ignores the panel's flow — `a11y.css` gives the masthead copy the metrics of the links beside it and
+   * anchors the panel out of flow. See the note there for the measurement.
    */
   const list = `<details class="sx-role-switch sx-mode-switch${variant === 'nav' ? ' nav-modes' : ''}">
-    <summary>${summary}</summary>
+    <summary>My Account</summary>
     <div>
-      <p class="small" style="margin:0 0 var(--s-2)">This chooses which workspace you are shown. It does not change your roles.</p>
-      ${links}${admin}
+      ${here}<p class="small" style="margin:0 0 var(--s-2)">This chooses which workspace you are shown. It does not change your roles.</p>
+      ${links}${account}${admin}
     </div>
   </details>`;
 
@@ -525,9 +570,17 @@ export type ModeSwitcherPage = {
  *   five dashboards      have no rail at all (`account`, `moderation`, `review`, `states`, `workflow`);
  *                        they are a `<main class="wrap sx-section">` and a back link, so the switch goes at
  *                        the head of that main, where a reader arriving from a workspace looks first
- *   the other screens    carry the public masthead, `nav.nav`, and the switch becomes an item in it beside
- *                        `My account` — which is what makes it reachable from anywhere on the site rather
- *                        than only from a dashboard
+ *   the other screens    carry the public masthead, `nav.nav`, and the switch takes the place of the
+ *                        `My account` / `Sign in / Sign up` item — which is what makes it reachable from
+ *                        anywhere on the site rather than only from a dashboard
+ *
+ * ⚠️ **IN THE MASTHEAD IT REPLACES THE ACCOUNT ITEM RATHER THAN SITTING BESIDE IT, AND THAT IS THE FIX FOR
+ * THE MENU THAT WRAPPED.** A signed-in reader with an elevated workspace used to get two items where a
+ * signed-out one gets one, and the first of the two was a `details` several hundred pixels wide: measured
+ * at 1280 px that is the row `main.css`'s `nav ul` wraps. `My Account` is narrower than `Sign in / Sign up`,
+ * so with the switch in the same slot **the signed-in bar has exactly the items, and less width, than the
+ * signed-out one.** The account link is not lost — it is the first entry inside the panel, and
+ * `accountHref`/`accountLabel` are how it gets there.
  *
  * THE TWO LINKS THAT ALREADY POINT AT A WORKSPACE ARE RECONCILED FIRST.
  *
@@ -547,14 +600,22 @@ export function fillModeSwitcher(html: string, page: ModeSwitcherPage): string {
 
   if (page.viewer.signedIn) {
     /*
-     * THE MASTHEAD'S ACCOUNT ITEM FOLLOWS THE CHOSEN WORKSPACE. The label is changed only when the
+     * THE MASTHEAD'S ACCOUNT CONTROL FOLLOWS THE CHOSEN WORKSPACE. The label is changed only when the
      * destination is no longer the account, because "My account" over a link to the editorial desk is the
      * same small untruth this round exists to remove — and "My workspace" is what the link actually is.
+     *
+     * ⚠️ IT IS AN ANCHOR NOW AND NOT A `<li>`, AND THE MATCH IS THE ANCHOR ALONE. `fillMasthead` places this
+     * control in the masthead's own `.wrap` as a sibling of the `<nav>` rather than inside the design's menu
+     * — see the note there for the measured fault that made it so — and its element is `<a class="nav-account">`
+     * with no `<li>` around it. **A match that still expected the `<li>` would silently stop re-pointing the
+     * link the moment the shape changed**, which is the failure mode this whole round is about, so the
+     * assertion that covers it lives in `dashboard-modes.test.ts` rather than only here.
      */
     const wantsWorkspace = !page.primaryHref.startsWith('/dashboard-reader');
+    const label = wantsWorkspace ? 'My workspace' : 'My account';
     out = out.replace(
-      /<li class="nav-account"><a href="[^"]*">My account<\/a><\/li>/,
-      `<li class="nav-account"><a href="${esc(page.primaryHref)}">${wantsWorkspace ? 'My workspace' : 'My account'}</a></li>`
+      /<a class="nav-account" href="[^"]*">My account<\/a>/,
+      `<a class="nav-account" href="${esc(page.primaryHref)}">${label}</a>`
     );
   }
 
@@ -588,9 +649,40 @@ export function fillModeSwitcher(html: string, page: ModeSwitcherPage): string {
     return out.replace(/(<main id="main" class="wrap sx-section">)/, (_all, tag: string) => `${tag}\n${rail}`);
   }
 
-  const item = `<li class="nav-modes-item">${renderModeSwitcher(page.viewer, 'nav')}</li>`;
+  const item = `<li class="nav-modes-item">${renderModeSwitcher(
+    {
+      ...page.viewer,
+      accountHref: page.primaryHref,
+      accountLabel: page.primaryHref.startsWith('/dashboard-reader') ? 'My account' : 'My workspace',
+    },
+    'nav'
+  )}</li>`;
+  /*
+   * THE SWITCH STANDS BESIDE THE ACCOUNT CONTROL, INSIDE THE SAME BOX.
+   *
+   * ⚠️ THIS USED TO REPLACE THE CONTROL, AND THAT IS NOW THE WRONG SHAPE FOR A REASON THAT IS NOT COSMETIC.
+   * The switch is itself a `<li>` and it was written to take the account `<li>`'s place inside the design's
+   * `<ul>` — *"the signed-in state must not exceed the room the signed-out one takes"*. That reasoning was
+   * about the menu's flex row, and **the account control is not in that row any more**: `fillMasthead` puts it
+   * in `div.masthead-account`, a sibling of the `<nav>`. So the switch belongs in that same box, where it
+   * costs the design's seven-item menu nothing, and **it must not take the box's only other child with it** —
+   * replacing the anchor outright would leave a signed-in reader with a workspace switch and no way to their
+   * own account.
+   *
+   * The account link is still inside the panel the switch opens, so nothing is lost either way; what changes
+   * is that the link is now also where it always was.
+   */
+  const box = /<div class="masthead-account">([\s\S]*?)<\/div>/;
+  if (box.test(out)) {
+    return out.replace(box, `<div class="masthead-account">$1${item}</div>`);
+  }
+  /*
+   * AND A SCREEN THAT HAS NO ACCOUNT BOX AT ALL KEEPS THE OLD PLACEMENT. `fillModeSwitcher` is reachable on
+   * markup `fillMasthead` has not written — the React masthead passes its own, and the dashboards have no
+   * `.wrap` for the box to go in — so the menu's own `<ul>` is still the fallback it always was.
+   */
   if (/<li class="nav-account">/.test(out)) {
-    return out.replace(/(<li class="nav-account">)/, `${item}$1`);
+    return out.replace(/<li class="nav-account">[\s\S]*?<\/li>/, item);
   }
   return out.replace(/(<nav class="nav"[^>]*>\s*<ul>)/, (_all, tag: string) => `${tag}\n${item}`);
 }
