@@ -51,7 +51,10 @@ export default async function Page({
 
       <Card title={`${shown.length} account${shown.length === 1 ? '' : 's'}`}>
         <form method="get" action="/admin/users" style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.8rem', flexWrap: 'wrap' }}>
+          {/* A placeholder is not an accessible name, so the field gets a label bound to it. */}
+          <label className="visually-hidden" htmlFor="users-q">Search accounts by name, email or role</label>
           <input
+            id="users-q"
             type="text"
             name="q"
             defaultValue={params.q ?? ''}

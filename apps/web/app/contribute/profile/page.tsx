@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getCurrentAccount } from '@/lib/session';
 import { Head } from '../ui';
 
@@ -13,7 +14,14 @@ const ROLE: Record<string, string> = {
 
 export default async function Page() {
   const current = await getCurrentAccount();
-  const account = current!.account;
+  /*
+   * The layout redirects a signed-out visitor too, but Next renders a layout and its page
+   * CONCURRENTLY, so this page still runs for them. Asserting the session away with `current!` made
+   * every signed-out request throw a TypeError server-side before the redirect won. Guarding here
+   * means the redirect is the only thing that happens.
+   */
+  if (!current) redirect('/signin?error=Sign+in+to+contribute.');
+  const account = current.account;
 
   return (
     <>

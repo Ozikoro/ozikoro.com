@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import { accountDashboard } from '@ozituma/db/dashboard';
 import { getCurrentAccount } from '@/lib/session';
@@ -74,10 +75,17 @@ export default async function Page({
 }) {
   const params = await searchParams;
   const current = await getCurrentAccount();
+  /*
+   * The layout redirects a signed-out visitor too, but Next renders a layout and its page
+   * CONCURRENTLY, so this page still runs for them. Asserting the session away with `current!` made
+   * every signed-out request throw a TypeError server-side before the redirect won. Guarding here
+   * means the redirect is the only thing that happens.
+   */
+  if (!current) redirect('/signin?error=Sign+in+to+contribute.');
   const db = await getDb();
-  const data = await accountDashboard(db, current!.account.id);
+  const data = await accountDashboard(db, current.account.id);
 
-  const name = current!.account.displayName ?? current!.account.email;
+  const name = current.account.displayName ?? current.account.email;
   const first = name.split(/[\s@]/)[0]!;
   const accepted = data.contributions.approved + data.contributions.merged;
   const pending = data.contributions.pending;
@@ -146,7 +154,7 @@ export default async function Page({
 
       <div className="grid grid--aside u-mt">
         <div>
-          {current!.canReview ? (
+          {current.canReview ? (
             <section className="panel" aria-labelledby="queue-h">
               <div className="panel__head">
                 <h2 className="panel__title" id="queue-h">Waiting on you as editor</h2>

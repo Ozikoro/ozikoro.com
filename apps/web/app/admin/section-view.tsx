@@ -46,6 +46,19 @@ export async function SectionView({
 
   const readonly = section === 'recordings' || section === 'submissions';
 
+  /*
+   * Whether the public page this row links to actually exists.
+   *
+   * The clan registry lists hidden clans as well as published ones — the count in the heading says
+   * so — but `/clans/[slug]` looks the clan up with `and c.published`, so "Open" on a hidden clan was
+   * a link to a 404. Six clans on this database are hidden and every one of them was affected.
+   *
+   * Scoped to clans deliberately: the word, name and proverb pages resolve whatever the entry's
+   * status, so a draft there has a real page and must keep its link.
+   */
+  const publiclyReachable = (row: { status: string }) =>
+    section === 'clans' ? row.status === 'published' : true;
+
   return (
     <>
       <Head title={meta.label}>
@@ -84,7 +97,11 @@ export async function SectionView({
                     </td>
                     <td className="wphelp">{row.status}</td>
                     <td>
-                      <Link className="wpbtn wpbtn-quiet wpbtn-mini" href={row.url}>Open</Link>
+                      {publiclyReachable(row) ? (
+                        <Link className="wpbtn wpbtn-quiet wpbtn-mini" href={row.url}>Open</Link>
+                      ) : (
+                        <span className="wphelp">not public</span>
+                      )}
                     </td>
                     <td>
                       {readonly ? (

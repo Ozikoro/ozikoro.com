@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
 import { listSuggestions } from '@ozituma/db/contributions';
 import { getCurrentAccount } from '@/lib/session';
@@ -15,8 +16,15 @@ const STATUS: Record<string, { label: string; className: string }> = {
 
 export default async function Page() {
   const current = await getCurrentAccount();
+  /*
+   * The layout redirects a signed-out visitor too, but Next renders a layout and its page
+   * CONCURRENTLY, so this page still runs for them. Asserting the session away with `current!` made
+   * every signed-out request throw a TypeError server-side before the redirect won. Guarding here
+   * means the redirect is the only thing that happens.
+   */
+  if (!current) redirect('/signin?error=Sign+in+to+contribute.');
   const db = await getDb();
-  const mine = await listSuggestions(db, { submittedBy: current!.account.id, limit: 100 });
+  const mine = await listSuggestions(db, { submittedBy: current.account.id, limit: 100 });
 
   return (
     <>

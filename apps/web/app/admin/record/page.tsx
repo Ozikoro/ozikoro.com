@@ -206,7 +206,10 @@ export default async function AdminPage({
         >
           <input type="hidden" name="action" value="content.search" />
           <input type="hidden" name="back" value="/admin" />
+          {/* A placeholder is not an accessible name, so the field gets a label bound to it. */}
+          <label className="visually-hidden" htmlFor="record-query">Search the record</label>
           <input
+            id="record-query"
             name="query"
             defaultValue={searchTerm}
             placeholder="A word, a name, a clan, a proverb…"

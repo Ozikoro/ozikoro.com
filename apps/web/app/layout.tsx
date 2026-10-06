@@ -105,13 +105,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    */
   const current = await getCurrentAccount();
   /*
-   * The admin has its own bar and its own menu, so it does not get the site's. Nesting the website
-   * inside the admin shell is what made the admin look wrong; the path arrives as a header because
-   * a layout cannot ask for it. See middleware.ts.
+   * Both dashboards have their own chrome — a dark sidenav and, for the admin, a top bar — so
+   * neither gets the site's. Nesting the website inside the admin shell is what made the admin look
+   * wrong; the path arrives as a header because a layout cannot ask for it. See middleware.ts.
+   *
+   * `/contribute` is here for the same reason and is the brief's §3 stated as a constraint: *"The
+   * dashboards must NOT show the public header or footer. They have their own chrome... This
+   * separation is deliberate and must be preserved."* It read as the website wrapped around a
+   * dashboard — the public masthead and the whole public footer above and below the contributor's
+   * dark sidenav — which is the "looking just like the website" the owner asked to be rid of when
+   * `/account` was moved in here. The admin never had it; this makes the two siblings.
    */
   const requestHeaders = await headers();
   const pathname = requestHeaders.get('x-pathname') ?? '';
-  const bareChrome = pathname.startsWith('/admin');
+  const bareChrome = pathname.startsWith('/admin') || pathname.startsWith('/contribute');
   const db = await getDb();
 
   /*

@@ -57,6 +57,27 @@ export interface AdminAccountRow {
   avatarUrl: string | null;
 }
 
+/**
+ * A timestamp column as an ISO string, whichever driver answered.
+ *
+ * WHY THIS IS A COERCION AND NOT A CAST. `timestamptz` is parsed into a JavaScript `Date` by both
+ * drivers this project uses — PGlite locally and `pg` in production — so `row.created_at` is not a
+ * string, whatever the interface above it claims. Two callers take the first ten characters of these
+ * fields to show a day, so a `Date` reached them as `String(date).slice(0, 10)` — which renders
+ * **"Sat Oct 03"** rather than a date — and `last_login_at` reached the edit-user screen as a `Date`
+ * with no coercion at all, where `.slice` is not a function and the whole page threw.
+ *
+ * The assertion that used to be here (`as string | null`) was the actual fault: it told the compiler
+ * what it wanted to hear, so `typecheck` passed while the page 500'd. Normalising at the boundary
+ * means the type is true rather than asserted.
+ */
+function isoTimestamp(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value.toISOString();
+  const text = String(value).trim();
+  return text.length > 0 ? text : null;
+}
+
 /** Every account, with how much each has contributed, for the admin table. */
 export async function listAccountsForAdmin(db: Db): Promise<AdminAccountRow[]> {
   const rows = await db.rows<Record<string, unknown>>(
@@ -72,8 +93,8 @@ export async function listAccountsForAdmin(db: Db): Promise<AdminAccountRow[]> {
     displayName: (row.display_name as string | null) ?? null,
     role: String(row.role) as AccountRole,
     status: String(row.status),
-    createdAt: String(row.created_at),
-    lastLoginAt: (row.last_login_at as string | null) ?? null,
+    createdAt: isoTimestamp(row.created_at) ?? '',
+    lastLoginAt: isoTimestamp(row.last_login_at),
     contributions: Number(row.contributions ?? 0),
     avatarUrl: (row.avatar_url as string | null) ?? null,
   }));
