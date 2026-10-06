@@ -109,13 +109,24 @@ PATHS=(
 )
 
 echo "==> collecting tracked files"
+# ⚠️ FROM HEAD, NOT FROM THE INDEX — AND THAT IS THE FIX FOR TONIGHT'S SECOND FAILED DEPLOY.
+#
+# This was `git ls-files`, which reads `.git/index` — a file EIGHT AGENTS WRITE TO CONCURRENTLY, and
+# which several have reset today. **The index held 1,636 entries while HEAD's tree held 1,640: the four
+# it lacked were `library.ts`, migration 0060 and the two `/library` routes, all committed and all
+# imported by code that WAS shipped.** So the deploy sent a page importing a module it did not send, and
+# the build failed with `Module not found` — exactly as it had for `form-sync.tsx` six hours earlier.
+#
+# `git ls-tree -r HEAD` reads the COMMIT. What is committed is what deploys; the index is a scratch pad
+# that eight agents share, and a deploy must not depend on its state.
+
 # ⚠️ NO `mapfile` — this runs on macOS, whose `/bin/bash` is 3.2, where `mapfile` does not exist.
 # A read loop with a NUL delimiter is portable and survives spaces in a path, which a `for` over a
 # command substitution would not.
 FILES=()
 while IFS= read -r -d '' f; do
   FILES+=("$f")
-done < <(git ls-files -z -- "${PATHS[@]}")
+done < <(git ls-tree -r -z --name-only HEAD -- "${PATHS[@]}")
 echo "    tracked: ${#FILES[@]}"
 
 # Apply the exclusions in bash rather than in rsync syntax, so the same list is used here and in the
