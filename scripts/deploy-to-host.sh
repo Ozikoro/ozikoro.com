@@ -318,14 +318,18 @@ REMOTE
 # "docker: command not found" — while writing the file. The deploy then installed nothing at all:
 # 873 files uploaded, the container never rebuilt, and the town and dashboard fixes never landed.
 # The values the parent must supply are placeholders now, and they are substituted here.
-sed -i \
-  -e "s|__BUCKET__|$BUCKET|g" \
-  -e "s|__REMOTE_DIR__|$REMOTE_DIR|g" \
-  -e "s|__AWS_REGION__|$AWS_REGION|g" \
-  -e "s|__COMPOSE__|$COMPOSE|g" \
-  -e "s|__DO_BUILD__|$DO_BUILD|g" \
-  -e "s|__INSTANCE_ID__|$INSTANCE_ID|g" \
-  /tmp/deploy-remote.sh
+#
+# ⚠️ NO BACKSLASH LINE-CONTINUATIONS. The first version of this was `sed -i \` with six continued
+# lines, and it died with `sed: -e: No such file or directory` — sed read the `-e` as a FILENAME,
+# the remote script kept its placeholders, and THE INSTALL NEVER RAN. **That was the second
+# consecutive deploy that uploaded 873 files and installed none of them**, and both times the local
+# output looked like success. One `sed` per placeholder, each on one line, cannot be miscontinued.
+sed -i "s|__BUCKET__|$BUCKET|g" /tmp/deploy-remote.sh
+sed -i "s|__REMOTE_DIR__|$REMOTE_DIR|g" /tmp/deploy-remote.sh
+sed -i "s|__AWS_REGION__|$AWS_REGION|g" /tmp/deploy-remote.sh
+sed -i "s|__COMPOSE__|$COMPOSE|g" /tmp/deploy-remote.sh
+sed -i "s|__DO_BUILD__|$DO_BUILD|g" /tmp/deploy-remote.sh
+sed -i "s|__INSTANCE_ID__|$INSTANCE_ID|g" /tmp/deploy-remote.sh
 # --- and prove nothing unexpanded survived ---
 if grep -qE '__[A-Z_]+__' /tmp/deploy-remote.sh; then
   echo "!! a placeholder survived substitution:" >&2
