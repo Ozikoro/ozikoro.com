@@ -47,6 +47,13 @@ export * from './members.ts';
 export * from './roles.ts';
 export * from './users.ts';
 export * from './editorial.ts';
+/*
+ * Writing a post or a page from nothing: the create / save-draft / publish path the Classic Editor
+ * screen drives. A module of its own rather than more of `editorial.ts`, because that one edits records
+ * the WordPress import made and refuses a page by construction, while this one creates both kinds and
+ * knows which is which. See its header for the three differences and the one decision.
+ */
+export * from './authoring.ts';
 export * from './trash.ts';
 export * from './entity-graph.ts';
 export * from './audit.ts';
@@ -119,6 +126,18 @@ export * from './transcript-page.ts';
  * link costs nothing but is still a publication and is therefore audited.
  */
 export * from './external-audio.ts';
+/*
+ * THE PER-RECORD SEO OVERRIDE: the title and meta description an editor writes for ONE record.
+ *
+ * A module of its own rather than more of `seo.ts`, because they answer different questions. `seo.ts` is the
+ * SITE's statement to a crawler — the sitemap, the canonical origin, what is indexable — and it is read by a
+ * build check that compares its list against the routes. This is one editor's decision about one record's
+ * search result: it is written from a screen, it is read by the single route that serves that record, and an
+ * absent row means the record's own words. See the header of `seo-records.ts` for what is stored and what is
+ * deliberately not — the canonical, the social card, the redirect table and the sitemap are all named there
+ * as things this is not.
+ */
+export * from './seo-records.ts';
 export * from './mp3.ts';
 /*
  * THE IGBO PRONUNCIATION PIPELINE, in the order the owner described it:
