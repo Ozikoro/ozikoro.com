@@ -1,0 +1,242 @@
+/*
+ * The Administration Design Studio — the owner's own stylesheet, scoped.
+ *
+ * SOURCE: `ozikoro-design-studio-dashboard.html`, sent by the owner on 2026-10-06:
+ *   "replace the admin design we have with the one in this html … copy the exact design
+ *    here as it is far better than what you have as admin dashboard"
+ *
+ * ⚠️ EVERY VALUE BELOW IS THE DESIGNER'S, UNCHANGED. What was done mechanically is one
+ * thing: **every selector is prefixed with `.ozstudio`.** That is not a stylistic choice —
+ * measured before writing it, **17 of the design's class names are generic enough to
+ * collide with the public archive** (`.card`, `.btn`, `.field`, `.grid`, `.table`,
+ * `.badge`, `.tabs`, `.tab`, `.main`, `.page`, `.top`, `.rail`, `.nav`, `.mark`,
+ * `.eyebrow`, `.notice`, `.toast`, `.token`, `.upload`, `.profile`, `.hidden`), and the
+ * archive's own `showcase.css` and `globals.css` define several of those for real pages.
+ * Unscoped, this sheet would have restyled ozikoro.com's public screens.
+ *
+ * ⚠️ SO THE PALETTE IS SCOPED TOO, AND THAT MATTERS MORE THAN THE CLASSES. This design
+ * carries its own `--paper:#f7f2e8`, `--ink:#24231f`, `--accent:#d5a746`, `--night:#171914`
+ * while the design deliverable's are different values under the same names. Scoped, the
+ * design's `:root` becomes `.ozstudio`, so the studio wears the owner's palette and the
+ * public archive keeps the handover's.
+ *
+ * Generated from the attachment; do not hand-edit the generated block below without also
+ * changing the source, or the two will drift the way every duplicated list in this
+ * repository has.
+ */
+
+.ozstudio{
+  --paper:#f7f2e8;--surface:#fffdf8;--surface2:#eee7d9;--ink:#24231f;--muted:#777268;
+  --night:#171914;--night2:#22241e;--gold:#d5a746;--gold2:#b98528;--brown:#795d38;
+  --green:#58745b;--blue:#596f92;--red:#a3473f;--line:#ded5c6;--shadow:0 16px 40px rgba(32,28,19,.09);
+  --serif:Georgia,"Times New Roman",serif;--sans:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.ozstudio *{box-sizing:border-box}
+.ozstudio{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans)}
+.ozstudio button,.ozstudio input,.ozstudio textarea,.ozstudio select{font:inherit}
+.ozstudio button{cursor:pointer}
+.ozstudio .app{min-height:100vh;display:flex}
+.ozstudio .rail{width:260px;background:var(--night);color:#eee9dc;position:fixed;inset:0 auto 0 0;overflow:auto;padding:24px 16px;z-index:10}
+.ozstudio .brand{display:flex;gap:12px;align-items:center;padding:4px 10px 22px;border-bottom:1px solid #373930}
+.ozstudio .mark{width:36px;height:36px;border-radius:50%;background:radial-gradient(circle at 50% 50%,#ffe8a4 0 22%,transparent 23%),conic-gradient(from 0deg,#c18d2e 0 12%,transparent 12% 25%,#c18d2e 25% 37%,transparent 37% 50%,#c18d2e 50% 62%,transparent 62% 75%,#c18d2e 75% 87%,transparent 87%);border:1px solid #d5a746;box-shadow:0 0 0 5px rgba(213,167,70,.07)}
+.ozstudio .brand b{font:700 24px var(--serif);color:#e2b74e}
+.ozstudio .brand small{display:block;color:#96958a;margin-top:2px;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+.ozstudio .nav-title{font-size:10px;color:#7e8178;letter-spacing:.13em;text-transform:uppercase;margin:25px 10px 8px}
+.ozstudio .nav a{display:flex;align-items:center;gap:10px;color:#d7d4ca;text-decoration:none;padding:9px 10px;border-radius:8px;font-size:13px;margin:2px 0}
+.ozstudio .nav a:hover{background:#252820}
+.ozstudio .nav a.active{background:#2a2b24;color:#e3b64c;border-left:3px solid #d5a746;padding-left:7px}
+.ozstudio .nav .ico{width:18px;text-align:center;color:#a9aa9e}
+.ozstudio .main{margin-left:260px;width:calc(100% - 260px);min-width:900px}
+.ozstudio .top{height:70px;background:rgba(255,253,248,.94);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 30px;position:sticky;top:0;z-index:8}
+.ozstudio .eyebrow{font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+.ozstudio .top h1{font:600 20px var(--serif);margin:2px 0 0}
+.ozstudio .account{display:flex;align-items:center;gap:10px}
+.ozstudio .avatar{width:34px;height:34px;border-radius:50%;background:#b99968;display:grid;place-items:center;color:white;font-weight:700;font-size:12px;overflow:hidden}
+.ozstudio .avatar img{width:100%;height:100%;object-fit:cover}
+.ozstudio .page{padding:30px 34px 60px;max-width:1540px;margin:auto}
+.ozstudio .title-row{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:20px}
+.ozstudio .title-row h2{font:600 34px var(--serif);margin:3px 0 0}
+.ozstudio .actions{display:flex;gap:8px}
+.ozstudio .btn{border:1px solid #cfc5b4;background:var(--surface);border-radius:7px;padding:9px 13px;color:var(--ink);font-size:12px}
+.ozstudio .btn.primary{background:#2b3027;color:#fff;border-color:#2b3027}
+.ozstudio .btn.gold{background:var(--gold);border-color:var(--gold);color:#241e11;font-weight:700}
+.ozstudio .btn.danger{color:#913d36;border-color:#d9b2ae}
+.ozstudio .btn.small{padding:6px 9px;font-size:11px}
+.ozstudio .btn:disabled{opacity:.45;cursor:not-allowed}
+.ozstudio .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);overflow:auto;margin-bottom:18px}
+.ozstudio .tab{border:0;background:transparent;padding:11px 14px;color:var(--muted);font-size:12px;white-space:nowrap;border-bottom:3px solid transparent}
+.ozstudio .tab.active{color:var(--ink);font-weight:700;border-color:var(--gold)}
+.ozstudio .grid{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}
+.ozstudio .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px rgba(30,25,18,.035);overflow:hidden}
+.ozstudio .card-head{padding:14px 17px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.ozstudio .card-head h3{margin:0;font-size:13px}
+.ozstudio .card-head span{font-size:11px;color:var(--muted)}
+.ozstudio .card-body{padding:17px}
+.ozstudio .hint{font-size:11px;line-height:1.55;color:var(--muted)}
+.ozstudio .label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#6d675c;margin:0 0 6px}
+.ozstudio .field{width:100%;border:1px solid #cfc6b8;background:#fffefb;border-radius:6px;padding:10px 11px;color:var(--ink);outline:none}
+.ozstudio .field:focus{border-color:#9c7b3c;box-shadow:0 0 0 3px rgba(156,123,60,.1)}
+.ozstudio textarea.field{resize:vertical;min-height:90px}
+.ozstudio .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ozstudio .stack>*+*{margin-top:12px}
+.ozstudio .divider{height:1px;background:var(--line);margin:17px 0}
+.ozstudio .badge{display:inline-flex;align-items:center;gap:5px;padding:4px 7px;border-radius:20px;font-size:10px;background:#eee8dd;color:#6d665a}
+.ozstudio .badge.gold{background:#f5e7bd;color:#765519}
+.ozstudio .badge.green{background:#e3eee5;color:#4d6750}
+.ozstudio .badge.red{background:#f4e0dd;color:#8f4039}
+.ozstudio .swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ozstudio .swatch{border:1px solid var(--line);border-radius:8px;padding:8px;background:#fff}
+.ozstudio .swatch i{display:block;height:42px;border-radius:6px;margin-bottom:7px}
+.ozstudio .swatch b{font:600 11px ui-monospace,monospace;display:block}
+.ozstudio .swatch small{color:var(--muted);font-size:9px}
+.ozstudio .token{border-top:1px solid var(--line);padding:13px 0;display:grid;grid-template-columns:38px 1fr auto;gap:10px;align-items:center}
+.ozstudio .token:first-child{border-top:0}
+.ozstudio .dot{width:34px;height:34px;border-radius:7px;border:1px solid rgba(0,0,0,.08)}
+.ozstudio .token b{font:11px ui-monospace,monospace}
+.ozstudio .token small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.ozstudio .token input[type=color]{width:34px;height:34px;padding:0;border:0;background:none}
+.ozstudio .token-actions{display:flex;gap:5px;align-items:center}
+.ozstudio .layout-editor{display:grid;grid-template-columns:220px minmax(450px,1fr) 310px;gap:14px}
+.ozstudio .panel{background:var(--surface);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.ozstudio .panel h4{margin:0;padding:12px 13px;border-bottom:1px solid var(--line);font-size:12px}
+.ozstudio .list{padding:8px}
+.ozstudio .list button{width:100%;border:0;background:transparent;text-align:left;padding:10px;border-radius:7px;color:var(--ink);font-size:11px}
+.ozstudio .list button:hover,.ozstudio .list button.sel{background:#eee7da}
+.ozstudio .list button.sel{font-weight:700}
+.ozstudio .preview-wrap{background:#ddd6c8;padding:20px;border-radius:9px;min-height:720px}
+.ozstudio .browser{background:#fff;border-radius:8px;box-shadow:var(--shadow);overflow:hidden;border:1px solid #cfc7ba}
+.ozstudio .browserbar{height:34px;background:#ede8df;display:flex;align-items:center;gap:6px;padding:0 11px}
+.ozstudio .bubble{width:7px;height:7px;border-radius:50%;background:#b6aea1}
+.ozstudio .address{height:20px;background:#fff;border-radius:10px;flex:1;margin-left:7px;font-size:9px;color:#999;display:flex;align-items:center;padding:0 9px}
+.ozstudio .site-preview{min-height:680px;background:var(--paper)}
+.ozstudio .site-head{padding:18px 28px;border-bottom:1px solid #ded5c6;display:flex;align-items:center;justify-content:space-between}
+.ozstudio .site-logo{font:700 27px var(--serif);color:var(--gold2)}
+.ozstudio .site-menu{display:flex;gap:14px;font-size:9px;color:#625d55}
+.ozstudio .hero{padding:55px 48px 42px;background:linear-gradient(135deg,#f6edd9,#fffdf8);border-bottom:1px solid #ded5c6}
+.ozstudio .hero .kicker{font-size:9px;text-transform:uppercase;letter-spacing:.13em;color:#8a6a2d}
+.ozstudio .hero h1{font:600 39px var(--serif);max-width:650px;line-height:1.05;margin:10px 0}
+.ozstudio .hero p{max-width:610px;color:#6b655b;font-size:12px;line-height:1.7}
+.ozstudio .hero .fake-btn{display:inline-block;background:#262a22;color:#fff;padding:9px 13px;border-radius:5px;font-size:10px;margin-top:8px}
+.ozstudio .preview-section{padding:28px 48px}
+.ozstudio .preview-section h3{font:600 23px var(--serif);margin:0 0 15px}
+.ozstudio .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ozstudio .mini-card{border:1px solid #ded5c6;background:#fff;border-radius:6px;padding:13px}
+.ozstudio .mini-img{height:75px;border-radius:5px;background:linear-gradient(135deg,#b8893c,#e8d3a4);margin-bottom:9px}
+.ozstudio .mini-card b{font:600 13px var(--serif)}
+.ozstudio .mini-card p{font-size:9px;color:#777;line-height:1.5}
+.ozstudio .inspector .card-body{padding:14px}
+.ozstudio .control{margin-bottom:13px}
+.ozstudio .control-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ozstudio .control-row .field{max-width:170px}
+.ozstudio .toggle{width:36px;height:20px;background:#c6c0b4;border-radius:20px;padding:2px;border:0}
+.ozstudio .toggle i{display:block;width:16px;height:16px;background:#fff;border-radius:50%;transition:.2s}
+.ozstudio .toggle.on{background:#5b755d}
+.ozstudio .toggle.on i{transform:translateX(16px)}
+.ozstudio .range{width:100%}
+.ozstudio .widgets{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.ozstudio .widget{border:1px solid var(--line);border-radius:7px;padding:10px;background:#fff}
+.ozstudio .widget-top{display:flex;justify-content:space-between;align-items:center}
+.ozstudio .widget b{font-size:11px}
+.ozstudio .widget small{color:var(--muted);font-size:9px;display:block;margin-top:5px}
+.ozstudio .drag{color:#9c9589;letter-spacing:-2px}
+.ozstudio .media-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.ozstudio .media-card{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.ozstudio .media-thumb{height:105px;background:#e5dccb;display:grid;place-items:center;overflow:hidden}
+.ozstudio .media-thumb img{width:100%;height:100%;object-fit:cover}
+.ozstudio .media-meta{padding:9px}
+.ozstudio .media-meta b{font-size:10px;display:block}
+.ozstudio .media-meta small{font-size:9px;color:var(--muted)}
+.ozstudio .upload{border:1px dashed #bfb5a5;border-radius:8px;padding:25px;text-align:center;background:#faf7f0}
+.ozstudio .upload strong{display:block;font-size:12px;margin-bottom:4px}
+.ozstudio .profile{display:grid;grid-template-columns:250px 1fr;gap:18px}
+.ozstudio .profile-card{text-align:center;padding:25px}
+.ozstudio .profile-pic{width:110px;height:110px;border-radius:50%;background:#d6c09a;margin:0 auto 13px;overflow:hidden;display:grid;place-items:center;font-size:30px;color:#fff}
+.ozstudio .profile-pic img{width:100%;height:100%;object-fit:cover}
+.ozstudio .profile h3{font:600 21px var(--serif);margin:4px 0}
+.ozstudio .profile-card p{font-size:10px;color:var(--muted)}
+.ozstudio .editor-shell{background:#f0f0f1;padding:14px;border-radius:8px}
+.ozstudio .wpbar{background:#fff;border:1px solid #c9c9c9;padding:9px 12px;display:flex;justify-content:space-between;align-items:center}
+.ozstudio .wpbar b{font-size:12px}
+.ozstudio .editor-layout{display:grid;grid-template-columns:1fr 250px;gap:14px;margin-top:12px}
+.ozstudio .editor-main,.ozstudio .meta-box{background:#fff;border:1px solid #c9c9c9}
+.ozstudio .editor-main{padding:12px}
+.ozstudio .editor-title{width:100%;font-size:27px;border:0;outline:0;padding:10px 6px 14px;font-weight:500}
+.ozstudio .toolbar{border:1px solid #c7c7c7;background:#f7f7f7;display:flex;flex-wrap:wrap;gap:2px;padding:4px}
+.ozstudio .tool{border:1px solid transparent;background:#f7f7f7;min-width:29px;height:29px;font-size:12px;color:#333}
+.ozstudio .tool:hover,.ozstudio .tool.active{background:#e5e5e5;border-color:#ccc}
+.ozstudio .editor-area{min-height:390px;border:1px solid #c7c7c7;border-top:0;padding:17px;font:16px Georgia,serif;line-height:1.75;outline:0}
+.ozstudio .editor-area h2{font-size:24px}
+.ozstudio .editor-tabs{display:flex;gap:4px;margin:8px 0}
+.ozstudio .editor-tabs button{border:1px solid #c8c8c8;background:#e7e7e7;padding:6px 9px;font-size:10px}
+.ozstudio .editor-tabs .active{background:#fff;border-bottom-color:#fff}
+.ozstudio .meta-box{margin-bottom:10px}
+.ozstudio .meta-head{padding:10px;border-bottom:1px solid #ddd;font-size:11px;font-weight:700;background:#fafafa}
+.ozstudio .meta-body{padding:11px}
+.ozstudio .meta-body label{display:block;font-size:9px;color:#666;margin:8px 0 4px}
+.ozstudio .check{display:flex;gap:7px;align-items:center;font-size:10px;margin:6px 0}
+.ozstudio .publish{background:#f5f5f5;border-top:1px solid #ddd;padding:9px;display:flex;justify-content:flex-end;gap:6px}
+.ozstudio .notice{padding:11px 13px;border-radius:7px;background:#e9f0e9;border:1px solid #cadacb;color:#4f6652;font-size:11px;margin-bottom:15px}
+.ozstudio .notice b{display:block;margin-bottom:2px}
+.ozstudio .table{width:100%;border-collapse:collapse;font-size:10px}
+.ozstudio .table th,.ozstudio .table td{padding:10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.ozstudio .table th{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:#faf7f0}
+.ozstudio .status{font-size:9px;border-radius:20px;padding:4px 7px;background:#eee8dd;display:inline-block}
+@media(max-width:1100px){
+  .ozstudio .layout-editor{grid-template-columns:180px 1fr}
+  .ozstudio .inspector{grid-column:1/-1}
+  .ozstudio .main{min-width:0}
+  .ozstudio .media-grid{grid-template-columns:repeat(3,1fr)}
+}
+.ozstudio .hidden{display:none!important}
+.ozstudio .toast{position:fixed;right:22px;bottom:22px;background:#222;color:#fff;padding:11px 15px;border-radius:7px;font-size:11px;box-shadow:var(--shadow);opacity:0;transform:translateY(8px);pointer-events:none;transition:.25s;z-index:30}
+.ozstudio .toast.show{opacity:1;transform:none}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════════
+   FOUR ADDITIONS THE DESIGNER'S SHEET DID NOT CARRY, EACH BECAUSE SOMETHING REAL NEEDS IT.
+
+   Everything above this line is the owner's, scoped and otherwise untouched. These four are not a
+   redesign of any part of it; they are the three elements the mock-up had no equivalent for, plus
+   the one width it does not handle. ⚠️ **A DEPARTURE ADDED SILENTLY IS A DEPARTURE THE NEXT READER
+   WILL NOT KNOW ABOUT, so each says why it exists.**
+   ═══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* 1 · THE SKIP LINK. The design is a mock-up and has no keyboard path past the rail; the archive is
+   a public site and needs one. It sits off-screen until focused, then lands on the studio's own
+   paper so it is readable against the night rail behind it. */
+.ozstudio .skip{position:absolute;left:-9999px;top:0;z-index:40;background:var(--surface);color:var(--ink);
+  border:1px solid var(--line);border-radius:0 0 8px 0;padding:10px 14px;font-size:12px;text-decoration:none}
+.ozstudio .skip:focus{left:0}
+
+/* 2 · THE RAIL FOOT. The mock-up wrote this one link as an inline style on a <div>; it is a class
+   here so the rule lives in the stylesheet rather than in the markup, which is how every other rule
+   in this file works. The values are the mock-up's own. */
+.ozstudio .rail-foot{margin-top:22px;border-top:1px solid #373930;padding-top:14px}
+.ozstudio .rail-foot a{display:block;color:#c8c5bb;text-decoration:none;padding:8px 10px;font-size:11px}
+.ozstudio .rail-foot a:hover{background:#252820;border-radius:8px}
+
+/* 3 · THE AVATAR'S INITIALS. The design draws `.avatar` with the owner's `IE` in it. This keeps the
+   designer's sizing and adds only what two letters need: a slightly smaller type size than the
+   sample's 12px, because a two-letter pair at 12px in a 34px circle reads as cramped. */
+.ozstudio .avatar{font-size:11px;letter-spacing:.02em}
+
+/* 4 · ⚠️ THE ONE REAL GAP: NOTHING BELOW 1100 PX. The designer's sheet fixes the rail at 260px and
+   gives `.main` `min-width:900px` with no narrow rule at all, so on a phone the rail stays and the
+   work is cut off — **and the rail is the ONLY menu, which is the failure this codebase has already
+   written down once: "a rail that is the only menu and is `display:none` on a phone is fifteen
+   unreachable screens."** The rail is not hidden here; it becomes a wrapped block above the work, so
+   every section stays reachable and the desktop drawing is untouched. Above 900px nothing in this
+   file's earlier rules is overridden. */
+@media(max-width:900px){
+  .ozstudio .app{display:block}
+  .ozstudio .rail{position:static;width:auto;inset:auto;padding:18px 16px}
+  .ozstudio .main{margin-left:0;width:100%;min-width:0}
+  .ozstudio .nav{display:flex;flex-wrap:wrap;gap:4px}
+  .ozstudio .nav a{margin:0;border-left:3px solid transparent}
+  .ozstudio .nav a.active{border-left-color:var(--gold)}
+  .ozstudio .nav-title{margin:18px 10px 8px}
+  .ozstudio .page{padding:20px 16px 48px}
+  .ozstudio .top{height:auto;flex-wrap:wrap;gap:12px;padding:14px 16px}
+  .ozstudio .grid,.ozstudio .row,.ozstudio .profile,.ozstudio .layout-editor{grid-template-columns:1fr}
+  .ozstudio .swatches{grid-template-columns:repeat(2,1fr)}
+  .ozstudio .media-grid{grid-template-columns:repeat(2,1fr)}
+}
