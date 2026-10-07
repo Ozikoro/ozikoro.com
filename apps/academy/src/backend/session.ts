@@ -132,6 +132,40 @@ export async function resolveSession(token: string | undefined | null): Promise<
   return toSessionAccount(row);
 }
 
+/**
+ * Close every session on the account EXCEPT the one named by `keepToken`.
+ *
+ * WHY THIS EXISTS, AND WHY IT IS NOT `revokeAllSessions`
+ *
+ * `writePassword` in the canonical `packages/db/src/passwords.ts` closes every session when a password is
+ * replaced, **because the reason a password is being replaced is usually that somebody else has it** — and a
+ * change that leaves their session alive has not changed anything that matters. The one session that must
+ * survive is the one doing the changing: signing somebody out of the page where they just succeeded reads as
+ * a failure rather than as a precaution. A caller with no keeper to name (`keepToken` absent) closes them
+ * all, which is the safe direction.
+ */
+export async function revokeOtherSessions(
+  accountId: number,
+  keepToken: string | null | undefined,
+  /**
+   * The statement runner, defaulted to the real one so no caller has to pass it.
+   *
+   * It is a parameter for the same reason `PasswordStore` in `./passwords.ts` is: **the refusal that matters
+   * in `changeOwnPassword` has to be provable without a Postgres server**, and the refusal is only half
+   * proved if the revocation it guards reaches for a connection the test cannot give it. `./db.ts`
+   * satisfies this shape structurally.
+   */
+  store: { query(sql: string, params?: unknown[]): Promise<{ rowCount: number }> } = { query }
+): Promise<number> {
+  const result = await store.query(
+    `update auth_session set revoked_at = now()
+      where account_id = $1 and revoked_at is null and token_hash <> $2`,
+    // No keeper: no stored digest can equal the empty string, so this closes every open session.
+    [accountId, keepToken ? hashSessionToken(keepToken) : '']
+  );
+  return result.rowCount;
+}
+
 export async function revokeSession(token: string | undefined | null): Promise<boolean> {
   if (!token) return false;
   const result = await query(

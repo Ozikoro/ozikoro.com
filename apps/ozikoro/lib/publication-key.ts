@@ -14,6 +14,15 @@
  *   * a change to the layout produces a different key, because `PUBLICATION_RENDERER_VERSION` is bumped in
  *     the same commit as the layout change;
  *   * the same record at the same revision produces the same key, so the document is built once.
+ *
+ * ── `magazine-2`: FIGURES ARE FOUND IN THE OBJECT STORE, SO EACH DOCUMENT IS REBUILT ONCE ─────────────
+ *
+ * Bumped when `apps/ozikoro/lib/publication.ts` stopped reading figure bytes from the local filesystem and
+ * started reading them through `getStorage()`. **The same record now renders a different document** — the
+ * one with its pictures in it — so a key that did not move would keep serving a file produced by the old
+ * rule. The bump costs one re-render per record, once, on the first click after this deploys, and nothing
+ * is lost: a pictureless render was never stored (the guard in `publication-cache.ts` refuses it), so what
+ * is invalidated is a *complete* render, which the new rule reproduces.
  */
 import { createHash } from 'node:crypto';
 
@@ -24,7 +33,7 @@ import { createHash } from 'node:crypto';
  * same commit as any change to that drawing**, or every cached file keeps serving the old design and
  * nothing on the site looks wrong.
  */
-export const PUBLICATION_RENDERER_VERSION = 'magazine-1';
+export const PUBLICATION_RENDERER_VERSION = 'magazine-2';
 
 /** The one directory cached publications live in. Mirrors `ozikoro/episodes/` for the spoken records. */
 export const PUBLICATION_KEY_PREFIX = 'ozikoro/publications/';

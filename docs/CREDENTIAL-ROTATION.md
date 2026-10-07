@@ -351,12 +351,36 @@ that will be off rather than broken, which is the intended behaviour but should 
 than a surprise."* **So expect to rotate the SMTP password (§4.2) and to skip Resend (§4.4) unless
 that grep contradicts it.**
 
-> ⚠️ **`AGENTS.md` lists `OZITUMA_ZOHO_KEY` among the disclosed values. That name appears NOWHERE in
-> the code or in any `.env.example` — only in that table.** The mail module reads
-> `OZITUMA_SMTP_HOST`, `OZITUMA_SMTP_PORT`, `OZITUMA_SMTP_USER`, `OZITUMA_SMTP_PASSWORD` and
-> `OZITUMA_SMTP_ALLOW_PLAINTEXT` (`packages/core/src/mail.ts`). **Treat `OZITUMA_ZOHO_KEY` as a stale
-> name in the incident table**, not as a live variable — but if the grep above shows it on the host,
-> rotate it as a `secret` step (§8) because nothing reads it and nothing can prove it.
+> ⚠️ **`OZITUMA_ZOHO_KEY` IS A STALE NAME AND `AGENTS.md` HAS NOW BEEN CORRECTED.** It appeared nowhere in
+> the code or in any `.env.example` — only in that incident table, which read as though it were a live mail
+> credential. The mail module reads `OZITUMA_SMTP_HOST`, `OZITUMA_SMTP_PORT`, `OZITUMA_SMTP_USER`,
+> `OZITUMA_SMTP_PASSWORD`, `OZITUMA_SMTP_SECURE`, `OZITUMA_SMTP_ALLOW_PLAINTEXT` and `OZITUMA_EHLO_NAME`
+> (`packages/core/src/mail.ts`); `RESEND_API_KEY` is also read, and the archive's host holds no value for it.
+
+### 4.0.1 `OZITUMA_ZOHO_KEY`: what it is, and the only disposal that is available
+
+**Measured on 2026-10-07, re-read this round rather than inherited:**
+
+| | |
+|---|---|
+| where it is | `/opt/ozituma/.env` on the host |
+| where it is NOT | **no container's environment** — it is named by no service in any compose file, so it is never passed to an application |
+| who reads it | **nothing.** Zero reads across `packages/`, `apps/`, `scripts/`, `docker/`, `.env.example` and the docs — the only mention is the incident table |
+| why it cannot be rotated | **a rotation needs an issuer, and nothing establishes who issued it or what it opens.** It was disclosed on 2026-10-05 by the `.env` dump. Rotating a credential you cannot identify is not possible; leaving it in place leaves a disclosed value in a credential store |
+
+**SO THE DISPOSITION IS DELETION, NOT ROTATION, AND IT IS THE OWNER'S TO DO** — `/opt/ozituma/.env` is his,
+and no agent here may edit it:
+
+```bash
+# ON THE HOST, after backing the file up and confirming the name is present:
+grep -n '^OZITUMA_ZOHO_KEY=' /opt/ozituma/.env     # prints the NAME and its line number; do not print the value
+# then delete that one line, and re-check that every container's environment is unchanged:
+docker compose --env-file /opt/ozituma/.env config --environment | grep -c OZITUMA_ZOHO_KEY   # expect 0
+```
+
+**Nothing breaks when it is deleted, and that is the measurement rather than an expectation**: no service in
+any compose file names it and no source file reads it, so no container's environment changes. **Deleting a
+credential that nothing can identify is strictly safer than keeping one that was already disclosed.**
 
 ### 4.1 What issued it, and where the new one is created
 

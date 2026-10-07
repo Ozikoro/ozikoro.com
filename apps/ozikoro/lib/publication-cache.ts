@@ -40,14 +40,21 @@
  *
  * ── AND A RENDER THAT IS MISSING ITS FIGURES IS NOT KEPT ────────────────────────────────────────────
  *
- * **In production the container has no media on its filesystem**, and that is measured rather than
- * suspected: `https://ozikoro.com/animal-totems-…/pdf` serves **18 pages carrying 2 image objects** where
- * this checkout renders **33 pages carrying 26** for the same record. Serving that is the state the site is
- * already in; **keeping it would make it permanent**, because the key is the record's revision. So an
- * incomplete render is served and not stored, the numbers are logged with a greppable prefix, and the cache
- * therefore does not hit at all on a host that cannot reach its own media. That is the honest outcome: a
- * cache that never hits is a missing optimisation, and a cache that freezes a document with twenty-four
- * absent photographs is a defect.
+ * **The container had no media on its filesystem**, and that was measured rather than suspected:
+ * `https://ozikoro.com/animal-totems-…/pdf` served **18 pages carrying 2 image objects** where this checkout
+ * rendered **33 pages carrying 26** for the same record. Serving that was the state the site was in;
+ * **keeping it would have made it permanent**, because the key is the record's revision. So an incomplete
+ * render is served and not stored, the numbers are logged with a greppable prefix, and the cache simply did
+ * not hit on a host that could not reach its own media. That is the honest outcome: a cache that never hits
+ * is a missing optimisation, and a cache that freezes a document with twenty-four absent photographs is a
+ * defect.
+ *
+ * **THE FAULT ITSELF IS FIXED** — `apps/ozikoro/lib/publication.ts` reads figure bytes through
+ * `getStorage()` now, so the container finds its pictures in the bucket and a complete render is stored. **The
+ * guard is kept exactly as it was**, and it is not vestigial: a figure is still dropped when the object is in
+ * neither store (a WebP with no `sips` on the host is the measured case), and the whole point of this file is
+ * that such a render is served and never kept. Deleting the guard because the common cause went away would
+ * re-open the failure the moment a new cause appeared.
  *
  * ── AND IT CANNOT COST A READER THE DOCUMENT ────────────────────────────────────────────────────────
  *

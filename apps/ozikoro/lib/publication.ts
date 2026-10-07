@@ -11,13 +11,14 @@
  * from the database and none is assumed to exist** — the schema is inspected rather than imagined, and a record
  * with no subtitle, no biography or no image simply has no subtitle, no biography or no image.
  */
-import { readFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { basename, dirname, join } from 'node:path';
 import { getDb } from '@ozituma/db/client';
+import { getStorage } from '@ozituma/db/storage';
 import {
-  ArticlePdf, citationForSource, decodePng, isJpeg, isPng, jpegSize,
-  type ArticleLogo, type Block, type FontSet, type Raster, type SourceRow,
+  ArticlePdf, citationForSource, decodePng, isJpeg, isPng, jpegSize, mediaUrlResolver,
+  type ArticleLogo, type Block, type FontSet, type MediaUrlResolver, type Raster, type SourceRow,
 } from '@ozikoro/platform';
 
 /**
@@ -84,6 +85,31 @@ const MEDIA_ROOT = findRoot();
  */
 const CONVERT_CACHE = join(process.cwd(), '.data', 'publication-images');
 
+/**
+ * THE NAMESPACE EVERY FIGURE'S KEY CARRIES, AND THE ONE PLACE IT IS SPELLED.
+ *
+ * `MEDIA_KEY_PATTERN` in `packages/ozikoro/src/media-key.ts` admits exactly `ozikoro/<wp attachment id>-<file>`,
+ * so the key a figure is stored under is the stored name this file already resolves, with this prefix in
+ * front of it.
+ */
+const STORAGE_PREFIX = 'ozikoro/';
+
+/**
+ * PERCENT-ENCODING IS HOW A KEY IS WRITTEN INTO A URL, AND THE DISK AND THE BUCKET HOLD THE DECODED NAME.
+ *
+ * `mediaPath` (`packages/ozikoro/src/design-fill.ts`) builds `/media/<key>` with `encodeURIComponent` per
+ * segment, so a body holding `/media/ozikoro/foo%20bar.jpg` names a file called `foo bar.jpg`. Joining the
+ * encoded form onto the media root — or asking the object store for it — 404s on the records with the most
+ * descriptive names, which is a fault this lookup has always had and never had a reason to reach.
+ */
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 /** Every stored media name, read once. **3438 entries, and one `readdir` rather than one per figure.** */
 let mediaIndexCache: string[] | null = null;
 function mediaIndex(): string[] {
@@ -96,36 +122,87 @@ function mediaIndex(): string[] {
   return mediaIndexCache;
 }
 
-/** The stored name a reference points at, whether it arrives as a key, a URL path or a bare filename. */
-function storedName(key: string): string | null {
-  const cleaned = key.replace(/^ozikoro\//, '').replace(/[?#].*$/, '');
+/**
+ * The stored name a reference points at, whether it arrives as a key, a URL path or a bare filename.
+ *
+ * ── THE FOUR LAYERS, AND WHY THE CONTAINER NEEDED THE THIRD ONE ──────────────────────────────────────
+ *
+ *   1. **the local media directory** — exact name, then the directory's own index, then the attachment
+ *      prefix (`11234-ute-king.webp` for `ute-king.webp`). This is the development path and **it is
+ *      unchanged: every reference that resolved on this machine before resolves to the same name now**, so
+ *      nothing that relied on the filesystem was traded away for the container.
+ *   2. **the archive's own URL map** — `mediaUrlResolver`, the same map `rewriteBodyImages` puts in front of
+ *      a reader on the article page. **This is the layer the container lives on.** In production the media
+ *      directory does not exist at all (`.dockerignore` excludes `data/media` and no volume is mounted), so
+ *      layer 1 answers with nothing and there is no directory to `readdir` — which is why every figure
+ *      whose body still quotes the old site's address was dropped, **silently, because a reference that
+ *      cannot be resolved and a record that has no figure render the same page.** The map is a database
+ *      query, not a directory listing, so it answers inside the container.
+ *   3. **the bare last segment** — a body the importer already rewrote holds `/media/ozikoro/<id>-<file>`,
+ *      which names the stored object exactly; the object store is the thing that decides whether it is
+ *      there. Returning the tail lets `imageOf` ask it rather than assuming the answer is no.
+ *
+ * Returning `null` is still possible and still means "no figure", but it is now reserved for a reference
+ * with no last path segment at all — a malformed address rather than an unreachable file.
+ */
+function storedName(reference: string, resolveImage: MediaUrlResolver | null): string | null {
+  const decoded = safeDecode(reference);
+  const cleaned = decoded.replace(/^ozikoro\//, '').replace(/[?#].*$/, '');
   const tail = cleaned.includes('/') ? (cleaned.split('/').pop() as string) : cleaned;
   if (!tail) return null;
+
+  // 1 · the local media directory, exactly as before.
   if (existsSync(join(MEDIA_ROOT, tail))) return tail;
   const index = mediaIndex();
   if (index.includes(tail)) return tail;
   // The attachment prefix is an id and a hyphen: `11234-ute-king.webp` for `ute-king.webp`.
   const suffixed = index.find((name) => name.endsWith(`-${tail}`));
-  return suffixed ?? null;
+  if (suffixed) return suffixed;
+
+  // 2 · the archive's own mapping from the address a body quotes to the key this archive serves.
+  const mapped = resolveImage?.(reference) ?? resolveImage?.(decoded);
+  if (mapped) {
+    const key = safeDecode(mapped.replace(/^\/media\//, ''));
+    const name = key.includes('/') ? (key.split('/').pop() as string) : key;
+    if (name) return name;
+  }
+
+  // 3 · the last segment, for the object store to accept or refuse.
+  return tail;
 }
 
-function toJpeg(path: string, name: string): Buffer | null {
+/**
+ * A RASTER THE WRITER CAN EMBED, FROM WHATEVER FORMAT THE FILE IS IN.
+ *
+ * `-s format jpeg` and a quality of 88. **High enough that a printed page shows no artefacts and low enough
+ * that a five-image publication is not fifty megabytes.** This path is only reached for formats the writer
+ * cannot embed itself — WebP — and it needs `sips`, which exists on macOS and **not on the Linux host the
+ * archive deploys to.** There, a WebP figure is still left out; PNG does not depend on this at all.
+ *
+ * THE SOURCE IS NOW EITHER A PATH OR A BUFFER, AND THAT IS THE POINT OF THE ARGUMENT. A figure found in the
+ * media directory has a path; **a figure found in the object store has only bytes, because there is no file
+ * on this machine to point `sips` at.** So bytes are written to a scratch file inside the conversion cache,
+ * converted, and the scratch file is removed — the same `sips` call either way, so a figure is converted
+ * identically whether it came off the disk or out of the bucket.
+ */
+function toJpeg(name: string, source: { path: string } | { data: Buffer }): Buffer | null {
   const cached = join(CONVERT_CACHE, `${name.replace(/[\/]/g, '_')}.jpg`);
   if (existsSync(cached)) {
     const cachedData: Buffer = readFileSync(cached);
     return isJpeg(cachedData) ? cachedData : null;
   }
+  let scratch: string | null = null;
   try {
     mkdirSync(CONVERT_CACHE, { recursive: true });
-    /*
-     * `-s format jpeg` and a quality of 88.
-     *
-     * **High enough that a printed page shows no artefacts and low enough that a five-image publication is
-     * not fifty megabytes.** This path is only reached for formats the writer cannot embed itself — WebP —
-     * and it needs `sips`, which exists on macOS and **not on the Linux host the archive deploys to.**
-     * There, a WebP figure is still left out; PNG no longer depends on this at all.
-     */
-    const r = spawnSync('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '88', path, '--out', cached], {
+    let input: string;
+    if ('path' in source) {
+      input = source.path;
+    } else {
+      scratch = join(CONVERT_CACHE, `${name.replace(/[\/]/g, '_')}.src`);
+      writeFileSync(scratch, source.data);
+      input = scratch;
+    }
+    const r = spawnSync('sips', ['-s', 'format', 'jpeg', '-s', 'formatOptions', '88', input, '--out', cached], {
       stdio: 'ignore',
     });
     if (r.status !== 0 || !existsSync(cached)) return null;
@@ -133,6 +210,14 @@ function toJpeg(path: string, name: string): Buffer | null {
     return isJpeg(cachedData) ? cachedData : null;
   } catch {
     return null;
+  } finally {
+    if (scratch) {
+      try {
+        unlinkSync(scratch);
+      } catch {
+        // Already gone is a success for a delete.
+      }
+    }
   }
 }
 
@@ -170,23 +255,81 @@ function toJpeg(path: string, name: string): Buffer | null {
  * **The callback is threaded rather than held in a module variable** on purpose — two builds can interleave
  * across the database awaits in `buildPublication`, and a shared counter would attribute one record's drops
  * to another.
+ *
+ * ── AND THE BYTES ARE NOT READ FROM THE FILESYSTEM ALONE ANY MORE ─────────────────────────────────────
+ *
+ * **This function used to fail in production on every figure, and it was the last reader-facing fault in
+ * this file.** `existsSync`/`readFileSync` against `MEDIA_ROOT` are the only two things it asked, and in the
+ * container there is no media root: `.dockerignore` excludes `data/media`, the image copies no `.data`, and
+ * the service mounts no volume for it. So every lookup returned `null`, every figure was dropped, and the
+ * route served a valid, beautifully typeset document with twenty-four of its twenty-five photographs
+ * absent — which is why `x-ozikoro-publication` read `built` on every request rather than `cache`.
+ *
+ * **The archive's media is in the object store, and `getStorage()` is the interface to it** — the same one
+ * `apps/ozikoro/app/media/[...key]/route.ts` serves `/media/<key>` from, and the same shape
+ * `scripts/import-inbody-images.ts` already uses for the in-body images. So a figure is read from the media
+ * directory **when it is there** — the development path, kept first so local rendering does not pay a
+ * network round trip and so every agent working on this tree sees exactly what they saw before — and
+ * otherwise from storage. A store that is unconfigured, unreachable or refusing the key is a **named drop**
+ * rather than a silent one, and the drop still reaches `onDrop`, so a partial render is still never cached.
  */
-function imageOf(reference: string | null | undefined, onDrop?: (reference: string) => void): Raster | null {
+async function imageOf(
+  reference: string | null | undefined,
+  lookup: { resolve: MediaUrlResolver | null; onDrop?: (reference: string) => void }
+): Promise<Raster | null> {
   const drop = (reason: string): null => {
     console.error(`publication: dropped figure — ${reason}`);
-    if (reference) onDrop?.(reference);
+    /*
+     * REPORTED WHENEVER A REFERENCE WAS GIVEN, INCLUDING AN EMPTY ONE. `if (reference)` here would swallow the
+     * empty address the check below exists to catch, and an uncounted drop is a partial render the cache is
+     * then willing to keep.
+     */
+    if (reference !== null && reference !== undefined) lookup.onDrop?.(reference);
     return null;
   };
-  if (!reference) return null;
-  const name = storedName(reference);
+  if (reference === null || reference === undefined) return null;
+  /*
+   * AN EMPTY ADDRESS IS A LOST FIGURE, AND IT USED TO BE AN UNCOUNTED ONE.
+   *
+   * `toBlocks` strips `/media/` before calling this, so `<img src="/media/">` — or any `src` that reduces to
+   * nothing — arrived as `''`. The guard at the top of this function then returned `null` **without calling
+   * `onDrop`**, and `figureReferences` counted the `<figure>` it sits in. So the record reported
+   * `referenced 1, placed 0, dropped 0`, and `publication-cache.ts` — whose whole test is `dropped > 0` —
+   * would have KEPT a document with a photograph missing, which is the one thing that guard exists to
+   * prevent. **A record with no featured image is a different thing and must still produce no drop**, which
+   * is why absence is `null`/`undefined` and only a present-but-empty address is a fault.
+   */
+  if (reference.trim().length === 0) {
+    return drop('an empty image address names no file');
+  }
+  const name = storedName(reference, lookup.resolve);
   if (!name) {
     return drop(`no stored file matches ${reference}`);
   }
   const path = join(MEDIA_ROOT, name);
-  if (!existsSync(path)) {
-    return drop(`${name} is not in the media root`);
+  let data: Buffer;
+  let localPath: string | null = null;
+  if (existsSync(path)) {
+    data = readFileSync(path);
+    localPath = path;
+  } else {
+    /*
+     * THE CONTAINER'S PATH. The key is spelled here rather than derived from the reference, because
+     * `storedName` has already reduced the reference to the object's own file name and `MEDIA_KEY_PATTERN`
+     * fixes everything before it.
+     */
+    const key = `${STORAGE_PREFIX}${name}`;
+    let held: { body: Buffer } | null = null;
+    try {
+      held = await getStorage().get(key);
+    } catch (error) {
+      return drop(`${key} could not be read from object storage: ${String(error).slice(0, 200)}`);
+    }
+    if (!held) {
+      return drop(`${name} is in neither the media root (${MEDIA_ROOT}) nor the object store (${key})`);
+    }
+    data = held.body;
   }
-  const data: Buffer = readFileSync(path);
   if (isPng(data)) {
     try {
       const png = decodePng(data);
@@ -201,7 +344,7 @@ function imageOf(reference: string | null | undefined, onDrop?: (reference: stri
     }
   }
   if (!isJpeg(data)) {
-    const converted = toJpeg(path, name);
+    const converted = toJpeg(name, localPath ? { path: localPath } : { data });
     if (!converted) {
       return drop(
         `${name} is neither JPEG nor PNG and could not be converted. ` +
@@ -345,8 +488,16 @@ const clean = (s: string) =>
  * `onDrop` is called with the reference of every figure whose file could not be read — see `imageOf`. It is
  * optional so the existing callers and tests are unchanged, and it is the signal `publication-cache.ts`
  * uses to refuse to KEEP a pictureless render.
+ *
+ * **ASYNC, BECAUSE A FIGURE CAN NOW COME OUT OF THE OBJECT STORE.** `getStorage().get()` is a promise, so the
+ * one function that asks for a picture has to be awaited. The alternative — a synchronous read that only
+ * knows about the filesystem — is the fault this file just had.
  */
-export function toBlocks(html: string, onDrop?: (reference: string) => void): Block[] {
+export async function toBlocks(
+  html: string,
+  onDrop?: (reference: string) => void,
+  resolveImage: MediaUrlResolver | null = null
+): Promise<Block[]> {
   /*
    * THE REFERENCES ARE TAKEN OUT OF THE BODY, BECAUSE THE LAYOUT PRINTS THEM ITSELF.
    *
@@ -374,7 +525,10 @@ export function toBlocks(html: string, onDrop?: (reference: string) => void): Bl
       const fig = m[3];
       const img = /<img[^>]*src="([^"]+)"[^>]*>/i.exec(fig);
       if (img) {
-        const picture = imageOf((img[1] as string).replace(/^\/media\//, ''), onDrop);
+        const picture = await imageOf((img[1] as string).replace(/^\/media\//, ''), {
+          resolve: resolveImage,
+          onDrop,
+        });
         const caption = clean(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/i.exec(fig)?.[1] ?? '') || null;
         if (picture) blocks.push({ kind: 'image', ...picture, caption, credit: null });
       }
@@ -478,9 +632,12 @@ export type PublicationResult = {
    * of `<figure>` blocks that name an `<img>`, so a host that cannot reach its media produces
    * `placed < referenced` and says so rather than producing an authoritative-looking pictureless document.
    *
-   * This is a MEASUREMENT of the live archive, not a hypothetical: in production there is no media on the
-   * container's filesystem, and `https://ozikoro.com/animal-totems-…/pdf` serves 18 pages carrying 2 image
-   * objects where this checkout renders 33 pages carrying 26. See `diagnostics().images`.
+   * This was a MEASUREMENT of the live archive rather than a hypothetical: in production there was no media
+   * on the container's filesystem, and `https://ozikoro.com/animal-totems-…/pdf` served **18 pages carrying 2
+   * image objects** where this checkout rendered 33 pages carrying 26. **That is fixed** — the figure bytes
+   * are read through `getStorage()` now — and the count is kept because it is still the only thing that can
+   * see a drop at all: a lost figure and a record with no figure render the same page. A render that drops
+   * one is served and not cached; see `publication-cache.ts`. See `diagnostics().images`.
    */
   figures: { referenced: number; placed: number; dropped: number };
 };
@@ -532,7 +689,17 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
    */
   const droppedFigures: string[] = [];
   const noteDrop = (reference: string) => { droppedFigures.push(reference); };
-  const featuredImage = imageOf(a.featured_key, noteDrop);
+
+  /*
+   * THE ARCHIVE'S OWN ADDRESS MAP, READ ONCE AND SHARED BY THE COVER AND THE BODY.
+   *
+   * `mediaUrlResolver` is the same mapping the article page resolves its images through, so **the figure a
+   * reader sees on the page and the figure printed in the document are now found by one rule rather than
+   * two.** It is a database query rather than a directory listing, which is the whole reason the container
+   * can use it and `readdirSync(MEDIA_ROOT)` never could.
+   */
+  const resolveImage = await mediaUrlResolver(db);
+  const featuredImage = await imageOf(a.featured_key, { resolve: resolveImage, onDrop: noteDrop });
 
   /*
    * THE ARTICLE'S OWN SOURCE RECORDS, WHICH ARE WHAT THE REFERENCES PAGE IS FOR.
@@ -574,7 +741,7 @@ export async function buildPublication(slug: string): Promise<PublicationResult 
     updated: fmt(a.updated_at),
     readingMinutes: Math.max(1, Math.round(words / 220)),
     featured: featuredImage ? { ...featuredImage, caption: a.featured_caption } : null,
-    blocks: toBlocks(body, noteDrop),
+    blocks: await toBlocks(body, noteDrop, resolveImage),
     references,
     referencesFromSources: fromSources.length > 0,
     tags: [],

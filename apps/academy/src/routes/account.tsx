@@ -3,7 +3,7 @@ import { useState } from "react";
 import { AcademyShell } from "@/components/academy-shell";
 import { Button } from "@/components/ui/button";
 import { OzikoroMark } from "@/components/ozikoro-mark";
-import { currentUser, signIn, signOut, signUp } from "@/backend/functions";
+import { changePassword, currentUser, signIn, signOut, signUp } from "@/backend/functions";
 
 export const Route = createFileRoute("/account")({
   head: () => ({
@@ -37,6 +37,14 @@ function AccountPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // The change-password form. Its own state rather than the sign-in form's, because the two are on
+  // different screens of this page and a shared busy flag would disable both at once.
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwMessage, setPwMessage] = useState<{ ok: boolean; text: string } | null>(null);
+
   // Already signed in: there is nothing to do on this page, so it sends them to their learning
   // rather than showing a second sign-in form.
   if (account) {
@@ -55,9 +63,105 @@ function AccountPage() {
             <Button className="w-full" size="lg" onClick={() => navigate({ to: "/my-learning" })}>
               Go to My Learning
             </Button>
+
+            {/*
+              CHANGE YOUR OWN PASSWORD.
+
+              THE CURRENT PASSWORD IS REQUIRED, AND THAT IS NOT A CONVENIENCE FIELD. The session proves that
+              a browser signed in at some point; the current password is the only thing that proves this
+              person is the account holder. A form that swapped the password without asking for the old one
+              would turn a borrowed session into a permanent takeover, so the input is `required` here AND
+              the server refuses without it — the browser attribute is a courtesy, not the check.
+            */}
+            <form
+              className="mt-6 text-left"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                setPwMessage(null);
+                setPwBusy(true);
+                try {
+                  const result = await changePassword({
+                    data: { currentPassword, newPassword, confirmPassword },
+                  });
+                  if (!result.ok) {
+                    setPwMessage({ ok: false, text: result.message });
+                    return;
+                  }
+                  setPwMessage({
+                    ok: true,
+                    text: "Your password is changed. Every other device that was signed in has been signed out.",
+                  });
+                  setCurrentPassword("");
+                  setNewPassword("");
+                  setConfirmPassword("");
+                } catch {
+                  setPwMessage({ ok: false, text: "Something went wrong. Please try again." });
+                } finally {
+                  setPwBusy(false);
+                }
+              }}
+            >
+              <h2 className="text-lg font-semibold">Change your password</h2>
+              <label>
+                Current password
+                <input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  placeholder="••••••••"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+              </label>
+              <label>
+                New password
+                <input
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </label>
+              <label>
+                New password again
+                <input
+                  type="password"
+                  required
+                  autoComplete="new-password"
+                  placeholder="••••••••"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </label>
+              <p className="text-xs text-muted-foreground">
+                At least {MIN_PASSWORD_LENGTH} characters. Changing it signs out every other device.
+              </p>
+
+              {/* role="alert" so a screen reader announces the answer rather than leaving the learner on a
+                  form that silently did nothing. */}
+              {pwMessage && (
+                <p
+                  role="alert"
+                  className={
+                    pwMessage.ok
+                      ? "text-sm font-semibold text-primary"
+                      : "text-sm font-semibold text-destructive"
+                  }
+                >
+                  {pwMessage.text}
+                </p>
+              )}
+
+              <Button className="w-full" size="lg" type="submit" disabled={pwBusy}>
+                {pwBusy ? "Please wait…" : "Change password"}
+              </Button>
+            </form>
+
             <Button
               variant="ghost"
-              className="mt-2 w-full"
+              className="mt-4 w-full"
               type="button"
               onClick={async () => {
                 await signOut();

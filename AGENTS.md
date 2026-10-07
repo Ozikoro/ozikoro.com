@@ -492,7 +492,9 @@ treated as disclosed:
 | `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | read, overwrite and delete every object in the media bucket |
 | `POSTGRES_PASSWORD`, `DATABASE_URL` | the whole archive and account table — every hash, session and audit row — read and write |
 | `GITHUB_TOKEN` | push access to the repository |
-| `OZITUMA_ZOHO_KEY`, `OZITUMA_SMTP_*`, `RESEND_API_KEY` | send mail as the domain — which is how an account is taken over |
+| `OZITUMA_SMTP_*` | send mail as the domain — which is how an account is taken over. **These are the ones the archive actually uses** (Zoho SMTP, `hello@ozikoro.com`) |
+| `RESEND_API_KEY` | the same, *if* a value exists. It is not in the host's `.env`, so on the host the name carries nothing — see the row below |
+| `OZITUMA_ZOHO_KEY` | ⚠️ **NOT A LIVE CREDENTIAL, AND THIS TABLE USED TO CLAIM IT WAS.** Measured 2026-10-07: it is in `/opt/ozituma/.env`, in **no container**, and read by **nothing** in `packages/core/src/mail.ts` or anywhere else in the repository. It was disclosed on 2026-10-05 and nothing can prove what it opens, so it cannot be rotated at an issuer — **the only safe disposal is to DELETE it from `/opt/ozituma/.env`, which is the owner's to do.** See `docs/CREDENTIAL-ROTATION.md` §4.0 |
 | `PAYSTACK_*`, `NOWPAYMENTS_*` | move money, if live |
 | `CPANEL_PASSWORD` (this checkout's `.env.local`) | full control of the legacy WordPress host |
 

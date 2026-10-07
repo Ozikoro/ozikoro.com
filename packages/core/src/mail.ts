@@ -10,19 +10,44 @@
  *
  * `sendMail` speaks Resend, it speaks SMTP, and it speaks Amazon SES. SMTP is what a mailbox
  * provider gives you (Zoho, cPanel, Fastmail, Google) and SES is what the project's own AWS
- * account gives you; Resend is what this project actually holds a working key for, on a domain it
- * has verified. Between them they cover every way this site is likely to send anything, and a
+ * account gives you; Resend is a third, and this project does hold a working key for it on a
+ * verified domain. Between them they cover every way this site is likely to send anything, and a
  * change of provider is an environment variable rather than a code change. Resend and SES are
  * HTTP, SMTP is written against Node's own `net`, `tls` and `crypto` — there is no dependency here
  * to keep patched, which is the same reason passwords use `scrypt`.
  *
  * THE ORDER IS RESEND, THEN SMTP, THEN SES, AND IT IS DELIBERATE
  *
- * Resend first because a live key on a verified domain is the one transport known to deliver;
- * `mailStatus()` reports the same order, so what the CLI prints is what would actually be used.
- * SMTP second because it is the one an operator has deliberately configured for this site, whereas
- * the AWS variables sit on the box for the media bucket and would otherwise be picked up by
- * accident. **A transport that is merely present is not the same as one that is intended.**
+ * Resend first because a live key on a verified domain is a transport known to deliver, and a site
+ * that has configured one means it; `mailStatus()` reports the same order, so what the CLI prints
+ * is what would actually be used. SMTP second because it is the one an operator has deliberately
+ * configured for this site, whereas the AWS variables sit on the box for the media bucket and
+ * would otherwise be picked up by accident. **A transport that is merely present is not the same as
+ * one that is intended.**
+ *
+ * ── WHICH TRANSPORT EACH SITE ACTUALLY USES, MEASURED RATHER THAN ASSUMED ────────────────────────────
+ *
+ * **ozikoro.com sends by Zoho SMTP, and that is now the archive's stated provider.** Measured from inside
+ * the production container on 2026-10-07: `smtp.zoho.com:465`, implicit TLS, sender `hello@ozikoro.com`,
+ * `235 Authentication Successful`, `250 Sender … OK`, `250 Recipient … OK`, `250 Message received`, 776 ms
+ * end to end. The four `OZITUMA_SMTP_*` names plus `OZIKORO_MAIL_FROM` are its whole configuration.
+ *
+ * **Resend is supported and NOT configured on that host.** The project holds a working 36-character key on
+ * a domain with DKIM and SPF verified — but it lives in `apps/ozikoro/.env.local`, which `.dockerignore`
+ * excludes from the image, and the host's `/opt/ozituma/.env` does not hold `RESEND_API_KEY` at all
+ * (`docs/OZIKORO-CUTOVER.md` §5.8). So `resendConfig()` returns null there and the message goes by SMTP —
+ * which is correct, and which used to happen **without saying so** because the compose file passed
+ * `RESEND_API_KEY: ${RESEND_API_KEY:-}`, turning "unset" into the empty string.
+ *
+ * ── AND "A NAME IN `printenv` THAT LOOKS CONFIGURED AND IS NOT" IS NOW NAMED RATHER THAN SILENT ──────
+ *
+ * `env()` below treats a blank value as unset, and it is right to: a variable that exists and carries
+ * nothing is not a configuration. **But the difference between "this name is absent" and "this name is
+ * present and empty" is the difference between a decision and a mistake, and the code could not tell them
+ * apart.** `${RESEND_API_KEY:-}` in a compose file produces the second while looking like the first, so the
+ * transport fell through to SMTP in silence and `mailStatus()` reported SMTP as though that had always been
+ * the plan. `blankMailNames()` and the warning `mailStatus()` now emits are that distinction written down:
+ * **the names are the report, never the values.**
  *
  * WHY IT DOES NOT THROW WHEN UNCONFIGURED
  *
@@ -220,6 +245,65 @@ function resendConfig(): ResendConfig | null {
 }
 
 /**
+ * EVERY MAIL NAME THIS MODULE KNOWS, SO AN EMPTY ONE CAN BE NAMED.
+ *
+ * These are the names the four configuration functions below read. The list is a report — `check-mail.sh`
+ * and an operator print it — and it never carries a value.
+ */
+const MAIL_NAMES = [
+  'RESEND_API_KEY',
+  'RESEND_FROM',
+  'OZIKORO_MAIL_FROM',
+  'OZITUMA_MAIL_FROM',
+  'OZITUMA_SMTP_HOST',
+  'OZITUMA_SMTP_PORT',
+  'OZITUMA_SMTP_USER',
+  'OZITUMA_SMTP_PASSWORD',
+  'OZITUMA_SMTP_SECURE',
+  'OZITUMA_SMTP_ALLOW_PLAINTEXT',
+  'OZITUMA_EHLO_NAME',
+  'AWS_REGION',
+  'AWS_DEFAULT_REGION',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_SECRET_ACCESS_KEY',
+] as const;
+
+/**
+ * The mail names that are PRESENT and carry nothing — which is a different fact from being absent.
+ *
+ * **This exists because of a fault rather than in case of one.** `docker-compose.ozikoro.yml` passed
+ * `RESEND_API_KEY: ${RESEND_API_KEY:-}`, so the container's `printenv` showed a name that looked configured
+ * and was not; `env()` correctly treats a blank value as unset, the transport fell through to SMTP, and
+ * nothing anywhere said so. The compose line is deleted, and this is the guard against the next one: **a
+ * name that exists and is empty is reported by name, never by value.**
+ */
+export function blankMailNames(): string[] {
+  return MAIL_NAMES.filter((name) => {
+    const value = process.env[name];
+    return value !== undefined && value.trim().length === 0;
+  });
+}
+
+/**
+ * Say it once per process, at warn level, with a greppable prefix.
+ *
+ * **Once**, because a warning on every call would be noise an operator learns to skip — and this is called
+ * from the recovery route and from the admin screens.
+ */
+let blankNamesReported = false;
+function warnAboutBlankMailNames(): void {
+  if (blankNamesReported) return;
+  blankNamesReported = true;
+  const blank = blankMailNames();
+  if (blank.length === 0) return;
+  console.warn(
+    `[mail] these names are set in this environment and carry no value: ${blank.join(', ')}. ` +
+      'An empty variable is not a configuration — `${NAME:-}` in a compose file turns "unset" into the ' +
+      'empty string, and the transport then falls through in silence. Set a value or stop naming it.'
+  );
+}
+
+/**
  * Which transport, if any, would carry a message right now.
  *
  * THE ORDER IS THE ORDER THE MESSAGE WOULD TAKE: Resend, then SMTP, then SES.
@@ -231,6 +315,7 @@ function resendConfig(): ResendConfig | null {
  * a status that named a transport the send path would not choose would be worse than none.
  */
 export function mailStatus(): MailStatus {
+  warnAboutBlankMailNames();
   const resend = resendConfig();
   if (resend) {
     return { configured: true, transport: 'resend', from: resend.from, reason: null };
@@ -259,12 +344,16 @@ export function mailStatus(): MailStatus {
         'scripts/check-mail.sh lists what Resend has verified.',
     };
   }
+  const blank = blankMailNames();
   return {
     configured: false,
     transport: null,
     from: fromAddress(),
     reason:
-      'No mail transport. Set RESEND_API_KEY for Resend (preferred), or OZITUMA_SMTP_HOST, ' +
+      (blank.length > 0
+        ? `These names are set here and carry no value: ${blank.join(', ')}. `
+        : '') +
+      'No mail transport. Set RESEND_API_KEY for Resend, or OZITUMA_SMTP_HOST, ' +
       'OZITUMA_SMTP_PORT, OZITUMA_SMTP_USER and OZITUMA_SMTP_PASSWORD for a mailbox, or AWS_REGION, ' +
       'AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY for Amazon SES.',
   };

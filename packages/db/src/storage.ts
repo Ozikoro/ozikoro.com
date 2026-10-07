@@ -432,6 +432,22 @@ export function resetStorage(): void {
   singleton = null;
 }
 
+/**
+ * Test seam: install a driver directly, or `null` to go back to the environment.
+ *
+ * WHY THIS EXISTS RATHER THAN ONLY `resetStorage()`
+ *
+ * The publication builder reads figure bytes through `getStorage()`, and the fault it was fixed for only
+ * happens in an environment where the local media root does not exist and the object store does — **which is
+ * the container and is not this checkout.** `resetStorage()` can only re-derive a driver from the
+ * environment, so a test of that branch would need a bucket, credentials and a network. Installing a
+ * `Storage` the test owns is what makes "a figure that is in neither the media root nor a local file is
+ * still placed" a unit test rather than a deploy.
+ */
+export function setStorageForTest(storage: Storage | null): void {
+  singleton = storage;
+}
+
 export function localStorageRoot(): string {
   return LOCAL_MEDIA_ROOT;
 }

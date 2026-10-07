@@ -280,12 +280,17 @@ export class ArticlePdf {
        * claim.**
        *
        * This exists because of a fault measured on the live site rather than imagined: the production
-       * container has no media on its filesystem (`.dockerignore` excludes `data/media`, the image copies
-       * no `.data`, and the service mounts no volume), so `imageOf` finds nothing and
-       * `https://ozikoro.com/animal-totems-…/pdf` serves **18 pages with 2 image objects** where the same
-       * record renders **33 pages with 26** from this checkout. The document is valid, the layout is right,
-       * and twenty-four of its twenty-five photographs are simply absent — the one failure that looks like
+       * container had no media on its filesystem (`.dockerignore` excludes `data/media`, the image copies
+       * no `.data`, and the service mounts no volume), so `imageOf` found nothing and
+       * `https://ozikoro.com/animal-totems-…/pdf` served **18 pages with 2 image objects** where the same
+       * record renders **33 pages with 26** from this checkout. The document was valid, the layout was right,
+       * and twenty-four of its twenty-five photographs were simply absent — the one failure that looks like
        * success, and the reason the publication cache refuses to store a render that is missing figures.
+       *
+       * **That fault is fixed** — `apps/ozikoro/lib/publication.ts` reads the bytes through `getStorage()`
+       * now, so a figure is found in the bucket — and this count is what still catches one that is not
+       * (a WebP on a host with no `sips` is the measured case). The guard is unchanged: missing figures are
+       * never cached.
        *
        * The names are the writer's own keys, so a caller can separate the brand mark (`ozikoro-icon-…`)
        * from the record's figures without a second rule about what a figure is.

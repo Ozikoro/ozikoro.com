@@ -40,6 +40,10 @@ function usage(code: number): never {
 
   Mail is preferred in this order and the first one configured is the one used:
     Resend (RESEND_API_KEY) > SMTP (OZITUMA_SMTP_HOST) > Amazon SES (AWS_REGION and its keys)
+ *
+ * **On the archive's host the second one is what carries the message** — the four `OZITUMA_SMTP_*` names and
+ * `OZIKORO_MAIL_FROM` are the whole configuration there, and `RESEND_API_KEY` is not in `/opt/ozituma/.env`
+ * at all. A mail variable that is present and empty is reported by name rather than passed over in silence.
 `);
   process.exit(code);
 }

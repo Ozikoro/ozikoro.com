@@ -298,9 +298,34 @@ services:
       # "No From address" and the operator sees a working form that sends nothing.
       OZIKORO_MAIL_FROM: ${OZIKORO_MAIL_FROM:-}
       OZITUMA_MAIL_FROM: ${OZITUMA_MAIL_FROM:-}
-      # Resend is the preferred transport — `mail.ts` tries it before SMTP. Also in the app-dir
-      # `.env.local` and therefore also unreachable on the host until it is named here.
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # 🔴 `RESEND_API_KEY` WAS NAMED HERE AS `${RESEND_API_KEY:-}` AND IS DELETED, BECAUSE THAT LINE WAS
+      # THE TRAP RATHER THAN THE CONFIGURATION.
+      #
+      # `${RESEND_API_KEY:-}` does not leave the variable unset when the operator has not set it — it sets
+      # it to the **empty string**, so the container's `printenv` showed a name that looked configured and
+      # was not. `packages/core/src/mail.ts` read it with `process.env.RESEND_API_KEY?.trim()`, got `''`,
+      # treated it as absent (`env()` treats a blank value as unset, correctly) and fell through to SMTP —
+      # **which is the right transport and happened silently**, so nothing distinguished "Resend is
+      # configured" from "Resend is a name with nothing behind it".
+      #
+      # Measured on 2026-10-07: this project DOES hold a working 36-character Resend key on a verified
+      # domain — in `apps/ozikoro/.env.local`, which `.dockerignore` excludes from the image and which the
+      # deploy never ships. **The host's `.env` does not hold `RESEND_API_KEY` at all** (`OZIKORO-CUTOVER.md`
+      # §5.8, re-read this round), so the line above could only ever produce the empty string.
+      #
+      # SO THE ARCHIVE'S PROVIDER IS **ZOHO SMTP** — `smtp.zoho.com:465`, implicit TLS, `hello@ozikoro.com`,
+      # measured from inside the production container: `235 Authentication Successful`, `250 Message
+      # received`, 776 ms. The four `OZITUMA_SMTP_*` names above and this service's sender are the whole
+      # configuration, and `mailStatus()` reports `smtp` — which is what actually carries a message.
+      #
+      # ⚠️ **IF THE OWNER WANTS RESEND INSTEAD, IT IS TWO EDITS AND NEITHER IS IN THIS REPOSITORY**: put
+      # `RESEND_API_KEY` in the host's `/opt/ozituma/.env`, and re-add this line. The key itself is in
+      # `apps/ozikoro/.env.local` and is never printed or committed. **Until that is done, naming the
+      # variable here would restore exactly the fault this comment removes**, which is why it is gone
+      # rather than left empty. `docker/docker-compose.ozikoro.yml` and `docker-compose.prod.yml` do not
+      # travel to the host (`scripts/deploy-to-host.sh` excludes `docker/`), so the host's own compose
+      # carries the same line and needs the same one-line deletion — **by the owner, not by an agent**, per
+      # the rule that the host's compose and `/opt/ozituma/.env` are his.
       OZITUMA_EHLO_NAME: ${OZITUMA_EHLO_NAME:-}
     # Named for the same reason the dictionary and the courses name it: it is the port Caddy
     # proxies to, and a reader should not have to derive it from the Dockerfile. `expose` is

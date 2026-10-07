@@ -9,7 +9,7 @@
  */
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader, setResponseHeader } from "@tanstack/start-server-core";
-import { AccountError } from "./passwords.ts";
+import { AccountError, changeOwnPassword } from "./passwords.ts";
 import { authenticateAccount, registerAccount, type Account } from "./accounts.ts";
 import {
   SESSION_COOKIE,
@@ -197,6 +197,83 @@ export const signOut = createServerFn({ method: "POST" }).handler(
     return { ok: true, data: null };
   }
 );
+
+/**
+ * ── A CEILING ON GUESSING THE CURRENT PASSWORD ───────────────────────────────────────────────────────
+ *
+ * The change-password form is the one place a signed-in caller can ask "is this the current password?" and
+ * be told the answer, which makes it an oracle: **a borrowed session plus an unmetered form is a way to
+ * brute-force the password of the account it was borrowed from, and then keep the account.** Ten attempts in
+ * five minutes is more than an honest typist reaches and less than a guesser can use.
+ *
+ * The window lives in THIS PROCESS'S MEMORY, so with several instances behind a load balancer each instance
+ * allows the full quota and the real ceiling is multiplied. **That is stated rather than left to be
+ * discovered**, and it is the same trade `apps/ozikoro/lib/rate-limit.ts` makes for the same reason: the
+ * alternative is a shared store or a database round trip on every attempt. If the Academy later runs several
+ * instances and the ceiling matters, the fix is one table with a per-key counter — not a bigger window.
+ */
+const attempts = new Map<string, { count: number; resetAt: number }>();
+
+/** Ceiling on tracked keys, so the map cannot grow without bound. */
+const MAX_ATTEMPT_KEYS = 5_000;
+
+function tooManyAttempts(key: string, limit = 10, windowSeconds = 300): boolean {
+  const now = Date.now();
+  const window = attempts.get(key);
+  if (!window || window.resetAt <= now) {
+    if (attempts.size >= MAX_ATTEMPT_KEYS) attempts.clear();
+    attempts.set(key, { count: 1, resetAt: now + windowSeconds * 1000 });
+    return false;
+  }
+  window.count += 1;
+  return window.count > limit;
+}
+
+/**
+ * CHANGE THE PASSWORD OF THE ACCOUNT YOU ARE ALREADY SIGNED IN AS.
+ *
+ * THE CURRENT PASSWORD IS REQUIRED, AND THAT IS THE WHOLE POINT. The session proves that *a* browser signed
+ * in at some point; the current password is the only thing that proves *this person* is the account holder.
+ * A form that swapped the password without the old one would turn a borrowed session into a permanent
+ * takeover — see the long note on `changeOwnPassword`.
+ *
+ * `changeOwnPassword` throws `AccountError('wrong_password')` and `failure()` already turns that into a
+ * code the page can render, so the refusal is the library's sentence rather than one invented here.
+ */
+export const changePassword = createServerFn({ method: "POST" })
+  .validator(
+    (input: { currentPassword: string; newPassword: string; confirmPassword: string }) => input
+  )
+  .handler(async ({ data }): Promise<ActionResult<null>> => {
+    try {
+      const account = await requireAccount();
+
+      if (tooManyAttempts(`change-password:${account.id}`)) {
+        return {
+          ok: false,
+          code: "rate_limited",
+          message: "Too many attempts. Wait a few minutes and try again.",
+        };
+      }
+
+      // Checked here rather than in the library because it is a property of this form, not of the password:
+      // `changeOwnPassword` never sees the second field.
+      if (data.newPassword !== data.confirmPassword) {
+        return { ok: false, code: "mismatch", message: "The two new passwords are not the same." };
+      }
+
+      await changeOwnPassword(account.id, data.currentPassword, data.newPassword, {
+        userAgent: getRequestHeader("user-agent") ?? null,
+        ipAddress: getRequestHeader("x-forwarded-for") ?? getRequestHeader("x-real-ip") ?? null,
+        // The session doing the changing is the one that survives; every OTHER session is closed.
+        keepSessionToken: sessionToken() ?? null,
+      });
+
+      return { ok: true, data: null };
+    } catch (error) {
+      return failure(error);
+    }
+  });
 
 // ---------------------------------------------------------------------------
 // Learning

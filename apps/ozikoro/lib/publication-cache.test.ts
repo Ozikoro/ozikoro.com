@@ -28,7 +28,7 @@ const REVISION = '2025-05-07T00:00:00.000Z';
 
 test('the key is a fixed, content-addressed name', () => {
   const key = publicationCacheKey({ id: 670, slug: 'aya-adesuwa-the-ubulu-uku-bini-war', revision: REVISION });
-  assert.equal(key, `${PUBLICATION_KEY_PREFIX}670-cfd9eb44cecc.pdf`);
+  assert.equal(key, `${PUBLICATION_KEY_PREFIX}670-c0986a8017d3.pdf`);
 });
 
 test('the key is stable for one record at one revision', () => {
@@ -65,15 +65,19 @@ test('the key names the renderer, so a layout change is a new document', () => {
   assert.match(key, /^ozikoro\/publications\/1-[0-9a-f]{12}\.pdf$/);
   // The version is part of the hash's input, so a different version is a different digest. The value is
   // asserted here so that bumping it is a deliberate edit to a test as well as to the constant.
-  assert.equal(PUBLICATION_RENDERER_VERSION, 'magazine-1');
+  //
+  // `magazine-2` because `publication.ts` began reading figure bytes through `getStorage()`: the same record
+  // renders a different document now — the one with its pictures in it — so every key has to move or the
+  // old, pictureless file keeps being served under the new rule.
+  assert.equal(PUBLICATION_RENDERER_VERSION, 'magazine-2');
 });
 
 /*
  * THE FIGURE COUNT, WHICH IS WHAT STOPS THE CACHE FREEZING A DOCUMENT WITH NO PICTURES.
  *
- * In production the container cannot see its media, so every figure is dropped and the route still returns
- * a valid A4 document. `publicationFor` refuses to store such a render — see the long note there — and the
- * decision turns entirely on this count. **It is counted from the record's markup, not from the render**,
+ * A render can still lose a figure — a WebP without `sips`, a key in neither the media root nor the object
+ * store — and the route still returns a valid A4 document when it does. `publicationFor` refuses to store
+ * such a render — see the long note there — and the decision turns entirely on this count. **It is counted from the record's markup, not from the render**,
  * because the render is the thing that is wrong: a block-count would report zero figures for a record with
  * twenty-four of them.
  */
