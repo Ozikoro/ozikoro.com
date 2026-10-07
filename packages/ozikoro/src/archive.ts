@@ -13,6 +13,9 @@
  */
 import type { Db } from '@ozituma/db/client';
 import { prepareArchiveHtml, summarise, readingMinutes, citationFor } from './content.ts';
+import { REGISTER_PEOPLES } from './places.ts';
+import { MemberError } from './members.ts';
+import { slugForTitle } from './authoring.ts';
 
 /**
  * Top-level paths the site itself owns.
@@ -187,6 +190,70 @@ export const PLACE_ENTITY_KINDS_SQL = `(${PLACE_ENTITY_KINDS.map((k) => `'${k}'`
 export const PLACE_NAMES_SQL = `(select string_agg(distinct e.name, ', ' order by e.name)
             from ozikoro_article_entity ae join ozikoro_entity e on e.id = ae.entity_id
            where ae.article_id = a.id and e.kind in ${PLACE_ENTITY_KINDS_SQL})`;
+
+/**
+ * ── WHICH PEOPLE A RECORD IS COUNTED UNDER, FOR THE INTERLEAVED DEFAULT LISTING ──────────────────
+ *
+ * ⚠️ **MEASURED, AND THIS IS THE FAULT THE OWNER REPORTED AS "ONLY IGBO IS SHOWING".** `/archive/`
+ * defaulted to strict recency, and strict recency on this database is an unbroken run: **the first
+ * 48 published records all name the Igbo**, because the most recent publication batch (2026-09-29)
+ * is fourteen Ika and Ukwuani clan histories. A reader who opens `/archive/` sees two full screens
+ * of Igbo records and concludes the archive holds nothing about anybody else — while 191 of the
+ * 1,051 records name one of the other eighteen peoples, from page 3 onwards where nobody looks.
+ *
+ * **The filter was never the fault.** `?group=Edo` returns 84 records and `?group=Ijaw` 73, both
+ * measured on the served page. What was wrong is the ORDER the unfiltered listing was drawn in.
+ *
+ * The key is the ordinal of the FIRST people in `REGISTER_PEOPLES` whose own mention predicate the
+ * record satisfies, or `0` when it names none of them. **It is the same predicate `listWhere` runs
+ * for `peopleNames`**, spelled for one name — the tsquery over `search_vector` plus the record's
+ * own label — so the bucket a record lands in is a people its `?group=` filter would genuinely
+ * return it for. A record is therefore never filed under a people it does not name; it is only
+ * *ordered* by one it does.
+ *
+ * `PLACE_NAMES_SQL`'s list lives in this module and the peoples' lives in `places.ts`, and that is
+ * the same split as `PLACE_ENTITY_KINDS`/`PLACE_ENTITY_KINDS_SQL`: the query vocabulary is here,
+ * spelled once, and the names come from the one module that owns them.
+ */
+export const PEOPLE_KEY_SQL = `coalesce((
+        select v.ord from (values ${REGISTER_PEOPLES.map((name, index) => `('${name.replace(/'/g, "''")}', ${index + 1})`).join(', ')}) as v(name, ord)
+         where a.search_vector @@ websearch_to_tsquery('english', v.name)
+            or exists (
+              select 1 from ozikoro_article_label al
+                join ozikoro_label l on l.id = al.label_id
+               where al.article_id = a.id and lower(l.name) = lower(v.name)
+            )
+         order by v.ord limit 1
+      ), 0)`;
+
+/**
+ * Interleave a listing across the peoples, one record from each before any people's second.
+ *
+ * `inner` is a complete `select … from ozikoro_article a … <where>` that already carries this
+ * record's own columns and **must also select `PEOPLE_KEY_SQL as people_key`**. The wrapper ranks
+ * each record inside its own people by recency and orders by that rank, so the first screen of
+ * `/archive/` holds one record from every people the archive has written about instead of the
+ * newest batch of one people's histories.
+ *
+ * Two properties are load-bearing and both were chosen rather than inherited:
+ *
+ *   * **IT DEGENERATES TO RECENCY WHEN THE LISTING NAMES ONE PEOPLE.** A filtered listing — every
+ *     record under `?group=Edo`, or a clan, or a place — has one non-zero bucket, so rank and
+ *     recency are the same order and a filtered page is exactly what it was. The interleave only
+ *     changes an answer that spans several peoples.
+ *   * **IT IS A WINDOW, NOT A CURATED LIST.** Nothing is chosen, promoted, featured or filed. Every
+ *     record keeps its own people, its own date and its own address; only the order they are drawn
+ *     in is different, so this cannot put a people into a record that does not name them.
+ */
+export function interleavedListing(inner: string): string {
+  return `select * from (
+      select q0.*, row_number() over (
+               partition by q0.people_key order by q0.published_at desc nulls last, q0.id desc
+             ) as people_rank
+        from (${inner}) q0
+    ) q
+    order by q.people_rank, (q.people_key = 0), q.published_at desc nulls last, q.id desc`;
+}
 
 /**
  * The columns every article listing needs, joined once.
@@ -413,8 +480,13 @@ export interface ListOptions {
   authorSlug?: string | null;
   limit?: number;
   offset?: number;
-  /** Newest first by default; alphabetical is used by the A–Z index. */
-  order?: 'recent' | 'title';
+  /**
+   * `recent` — newest first, which is what every filtered view wants and what the A–Z index
+   * overrides with `title`. `peoples` — the interleaved order `interleavedListing` builds, which is
+   * what the UNFILTERED index uses so that one people's newest batch cannot fill the front page.
+   * See `PEOPLE_KEY_SQL` for the measurement that made it the default there.
+   */
+  order?: 'recent' | 'title' | 'peoples';
 
   // -------------------------------------------------------------------------
   // The archive's filter rail (design brief §3.1)
@@ -937,11 +1009,24 @@ export async function listArticles(db: Db, options: ListOptions = {}): Promise<A
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
   const offset = Math.max(options.offset ?? 0, 0);
   params.push(limit, offset);
+  const tail = `limit $${params.length - 1} offset $${params.length}`;
+
+  if (options.order === 'peoples') {
+    /*
+     * The people's own ordinal is selected on the INSIDE, where `a` is in scope; the window function
+     * that ranks each record inside its bucket is applied by `interleavedListing`, also on the
+     * inside. The two orderings therefore come from one expression rather than from a second
+     * statement of "which people does this record name" written beside the first.
+     */
+    const inner = `${ARTICLE_SELECT.replace('select a.id, a.slug', `select ${PEOPLE_KEY_SQL} as people_key, a.id, a.slug`)} ${clause}`;
+    const rows = await db.rows<Record<string, unknown>>(`${interleavedListing(inner)} ${tail}`, params);
+    return rows.map((row) => rowToSummary(row));
+  }
 
   const order = options.order === 'title' ? 'a.title asc' : 'a.published_at desc nulls last, a.id desc';
 
   const rows = await db.rows<Record<string, unknown>>(
-    `${ARTICLE_SELECT} ${clause} order by ${order} limit $${params.length - 1} offset $${params.length}`,
+    `${ARTICLE_SELECT} ${clause} order by ${order} ${tail}`,
     params
   );
   return rows.map((row) => rowToSummary(row));
@@ -1072,6 +1157,462 @@ export async function getLabelBySlug(db: Db, slug: string): Promise<{ slug: stri
     [slugVariants(slug)]
   );
   return row ? { slug: String(row.slug), name: String(row.name) } : null;
+}
+
+// ---------------------------------------------------------------------------
+// The taxonomy register: the fourteen categories and the 11,057 tags
+// ---------------------------------------------------------------------------
+
+/*
+ * ── WHY THE WRITES FOR THE TWO TAXONOMY SCREENS LIVE IN THE ARCHIVE MODULE ───────────────────────
+ *
+ * The owner: *"on the admin that shows categories … why can't one edit the categories like it is on
+ * wordpress? same as tags? i could edit the posts, even their permalinks, and even do quick edit, so i
+ * should be able to do same for categories and tags."*
+ *
+ * Both screens were read-only prose that said editing was not offered. The reads they needed were
+ * already here (`listTopics`, `listLabels`), and a taxonomy term **is** an archive fact: a category is
+ * `ozikoro_article.topic_id` and a tag is `ozikoro_article_label`. So the writes go beside the reads
+ * rather than into a second module that would have to restate which table is which.
+ *
+ * ── WHAT A DELETE MEANS, AND WHY THE ANSWER IS A REFUSAL ──────────────────────────────────────────
+ *
+ * ⚠️ **BOTH FOREIGN KEYS ARE `on delete set null` / `on delete cascade`, SO A RAW DELETE WOULD SUCCEED
+ * AND SILENTLY MOVE RECORDS.** Deleting a category would set `ozikoro_article.topic_id` to null on
+ * every record filed under it — they would reappear as "Uncategorized" and nothing would say so.
+ * Deleting a tag would cascade its `ozikoro_article_label` rows away — every record carrying it would
+ * quietly stop carrying it, and `/labels/<slug>/` would 404 for anybody who had it bookmarked.
+ *
+ * So **a term that anything is filed under is refused, with the number and what to do instead.** That
+ * is the honest direction: this archive's rule everywhere else is that nothing is silently moved, and
+ * a delete that empties a category into "Uncategorized" is a silent move of every record in it. An
+ * unused term deletes cleanly, which is the case a new term created by mistake is in.
+ *
+ * ── AND A SLUG IS AN ADDRESS ─────────────────────────────────────────────────────────────────────
+ *
+ * `/topics/<slug>/` and `/labels/<slug>/` are served addresses, and 27 of the archive's addresses
+ * carry Igbo letters. There is no redirect store on this database, so a slug edit does not keep the
+ * old address working — **and both screens say so, in the form, before the field.** The notice after a
+ * rename names the old address and the new one rather than leaving the reader to discover it.
+ */
+
+/** One category, with everything the Categories screen shows and edits. */
+export interface TopicRecord {
+  id: number;
+  slug: string;
+  name: string;
+  description: string | null;
+  parentId: number | null;
+  position: number;
+  /** Articles of any status and either kind filed under it — the number a delete is refused on. */
+  articleCount: number;
+}
+
+/** One tag, with everything the Tags screen shows and edits. */
+export interface LabelRecord {
+  id: number;
+  slug: string;
+  name: string;
+  /** Articles carrying it — the number a delete is refused on. */
+  articleCount: number;
+}
+
+/**
+ * One audit row, in `editorial.ts`'s shape.
+ *
+ * Written by hand rather than imported because that one is private to its module, exactly as
+ * `authoring.ts` records the same decision. What matters is the rule, not the helper: **every write
+ * below records who did it, what it said before and what it says after**, so a category renamed from
+ * a form can be read back rather than guessed at.
+ */
+async function auditTaxonomy(
+  db: Db,
+  event: {
+    entityType: 'ozikoro_topic' | 'ozikoro_label';
+    entityId: number;
+    action: string;
+    before?: unknown;
+    after?: unknown;
+    actorId: number;
+    note?: string | null;
+  }
+): Promise<void> {
+  try {
+    await db.query(
+      `insert into ozikoro_audit (entity_type, entity_id, action, before, after, actor_id, note)
+       values ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7)`,
+      [
+        event.entityType, event.entityId, event.action,
+        event.before === undefined ? null : JSON.stringify(event.before),
+        event.after === undefined ? null : JSON.stringify(event.after),
+        event.actorId, event.note ?? null,
+      ]
+    );
+  } catch (error) {
+    console.error('[ozikoro/archive] could not record audit event:', String(error).slice(0, 160));
+  }
+}
+
+/** Every category, with the count a delete is refused on. The write screens' own read. */
+export async function listTopicsForAdmin(db: Db): Promise<TopicRecord[]> {
+  const rows = await db.rows<Record<string, unknown>>(
+    `select t.id, t.slug, t.name, t.description, t.parent_id, t.position,
+            (select count(*)::int from ozikoro_article a where a.topic_id = t.id) as article_count
+       from ozikoro_topic t
+      order by t.position, t.name`
+  );
+  return rows.map((r) => ({
+    id: Number(r.id),
+    slug: String(r.slug),
+    name: String(r.name),
+    description: r.description === null || r.description === undefined ? null : String(r.description),
+    parentId: r.parent_id === null || r.parent_id === undefined ? null : Number(r.parent_id),
+    position: Number(r.position ?? 0),
+    articleCount: Number(r.article_count ?? 0),
+  }));
+}
+
+/** One page of the tag register, with the search and the ordering the screen asks for. */
+export async function listLabelsForAdmin(
+  db: Db,
+  options: {
+    search?: string | null;
+    orderBy?: 'name' | 'slug' | 'count';
+    order?: 'asc' | 'desc';
+    limit?: number;
+    offset?: number;
+  } = {}
+): Promise<{ rows: LabelRecord[]; total: number }> {
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 200);
+  const offset = Math.max(options.offset ?? 0, 0);
+  const params: unknown[] = [];
+  let where = '';
+  if (options.search) {
+    params.push(`%${options.search}%`);
+    where = `where (l.name ilike $${params.length} or l.slug ilike $${params.length})`;
+  }
+  /*
+   * THE ORDERING IS A CLOSED LIST, NOT A COLUMN NAME FROM THE QUERY STRING. `orderBy` is compared
+   * against three literals and anything else is `count`, so an address cannot reach an `order by`
+   * this function did not write — the same rule the row-action values are held to.
+   */
+  const direction = options.order === 'desc' ? 'desc' : 'asc';
+  const orderBy =
+    options.orderBy === 'name'
+      ? `l.name ${direction}`
+      : options.orderBy === 'slug'
+        ? `l.slug ${direction}`
+        : `article_count ${direction === 'desc' ? 'desc' : 'asc'}, l.name asc`;
+  const total = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_label l ${where}`, params);
+  const rows = await db.rows<Record<string, unknown>>(
+    `select l.id, l.slug, l.name,
+            (select count(*)::int from ozikoro_article_label al where al.label_id = l.id) as article_count
+       from ozikoro_label l ${where}
+      order by ${orderBy}
+      limit $${params.length + 1} offset $${params.length + 2}`,
+    [...params, limit, offset]
+  );
+  return {
+    rows: rows.map((r) => ({
+      id: Number(r.id),
+      slug: String(r.slug),
+      name: String(r.name),
+      articleCount: Number(r.article_count ?? 0),
+    })),
+    total: Number(total?.n ?? 0),
+  };
+}
+
+/**
+ * A slug for a term, confined to what an address can carry.
+ *
+ * `slugForTitle` is imported rather than re-derived: the archive's addresses are the ones that
+ * function already produces, and a second spelling would eventually make two addresses out of one
+ * name. An empty result is refused by the callers rather than defaulted, because `''` is not a slug
+ * and a term whose address is the root of its route is a term nobody can link to.
+ */
+function termSlug(raw: string | null | undefined, name: string): string {
+  return slugForTitle((raw ?? '').trim() || name);
+}
+
+/** Is this slug already another term's? `exceptId` is the term being edited. */
+async function topicSlugTaken(db: Db, slug: string, exceptId: number | null): Promise<boolean> {
+  const row = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_topic where slug = $1 and ($2::bigint is null or id <> $2::bigint)`,
+    [slug, exceptId]
+  );
+  return Number(row?.n ?? 0) > 0;
+}
+
+async function labelSlugTaken(db: Db, slug: string, exceptId: number | null): Promise<boolean> {
+  const row = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_label where slug = $1 and ($2::bigint is null or id <> $2::bigint)`,
+    [slug, exceptId]
+  );
+  return Number(row?.n ?? 0) > 0;
+}
+
+/** What every category write returns, so a screen can say what the term now is. */
+export interface TaxonomyWriteResult {
+  id: number;
+  name: string;
+  slug: string;
+  /** Set when an edit moved the term's address, so the notice can name both. */
+  previousSlug?: string;
+}
+
+/** Add a category. WordPress's "Add New Category" form, in one function. */
+export async function createTopic(
+  db: Db,
+  input: { name: string; slug?: string | null; description?: string | null; parentId?: number | null; actorId: number }
+): Promise<TaxonomyWriteResult> {
+  const name = input.name.trim().slice(0, 200);
+  if (name.length === 0) throw new MemberError('topic_name_required', 'A category needs a name.');
+  const slug = termSlug(input.slug, name);
+  if (slug.length === 0) throw new MemberError('topic_slug_required', 'That name has no letters or digits a web address can carry, so a slug is needed.');
+  if (await topicSlugTaken(db, slug, null)) {
+    throw new MemberError('topic_slug_taken', `The address /topics/${slug}/ is already another category's.`);
+  }
+  const parentId = input.parentId ?? null;
+  if (parentId !== null) {
+    const parent = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_topic where id = $1`, [parentId]);
+    if (Number(parent?.n ?? 0) === 0) throw new MemberError('no_topic', 'That parent category does not exist.');
+  }
+  const next = await db.one<{ n: number }>(`select coalesce(max(position), 0) + 1 as n from ozikoro_topic`);
+  const created = await db.one<{ id: number }>(
+    `insert into ozikoro_topic (slug, name, description, parent_id, position)
+     values ($1, $2, $3, $4, $5) returning id`,
+    [slug, name, (input.description ?? '').trim() || null, parentId, Number(next?.n ?? 1)]
+  );
+  const id = Number(created?.id);
+  await auditTaxonomy(db, {
+    entityType: 'ozikoro_topic', entityId: id, action: 'create_topic',
+    after: { name, slug, parentId },
+    actorId: input.actorId,
+    note: `Category “${name}” added at /topics/${slug}/.`,
+  });
+  return { id, name, slug };
+}
+
+/**
+ * Rename a category, re-slug it, re-describe it, or move it under another.
+ *
+ * ⚠️ **A SLUG CHANGE MOVES `/topics/<slug>/` AND THERE IS NO REDIRECT STORE ON THIS DATABASE.** The
+ * screen says so before the field and the result carries `previousSlug` so the notice can name both
+ * addresses. This is the honest answer rather than a silent one: the alternative — keeping the old
+ * address working — needs a redirect table this archive does not have, and inventing one here would
+ * be a second addressing scheme nobody has reviewed.
+ */
+export async function updateTopic(
+  db: Db,
+  input: {
+    id: number; name: string; slug?: string | null; description?: string | null;
+    parentId?: number | null; actorId: number;
+  }
+): Promise<TaxonomyWriteResult> {
+  const before = await db.one<Record<string, unknown>>(
+    `select id, slug, name, description, parent_id from ozikoro_topic where id = $1`,
+    [input.id]
+  );
+  if (!before) throw new MemberError('no_topic', 'That category does not exist.');
+
+  const name = input.name.trim().slice(0, 200);
+  if (name.length === 0) throw new MemberError('topic_name_required', 'A category needs a name.');
+  const slug = termSlug(input.slug, name);
+  if (slug.length === 0) throw new MemberError('topic_slug_required', 'That name has no letters or digits a web address can carry, so a slug is needed.');
+  if (await topicSlugTaken(db, slug, input.id)) {
+    throw new MemberError('topic_slug_taken', `The address /topics/${slug}/ is already another category's.`);
+  }
+
+  const parentId = input.parentId ?? null;
+  if (parentId !== null) {
+    if (parentId === input.id) throw new MemberError('topic_self_parent', 'A category cannot be its own parent.');
+    /*
+     * A CYCLE IS REFUSED RATHER THAN ALLOWED, AND IT IS WALKED RATHER THAN ASSUMED AWAY. Nothing reads
+     * `parent_id` on the public site today, so a cycle would not break a page — but it would make the
+     * column unreadable for whoever writes the reader that finally does, and a form is where that is
+     * cheap to prevent. The walk goes UP from the chosen parent: if this category is one of its
+     * ancestors, the move would close a loop.
+     */
+    const loop = await db.one<{ n: number }>(
+      `with recursive up as (
+         select id, parent_id from ozikoro_topic where id = $1
+         union all
+         select t.id, t.parent_id from ozikoro_topic t join up on t.id = up.parent_id
+       )
+       select count(*)::int as n from up where id = $2`,
+      [parentId, input.id]
+    );
+    if (Number(loop?.n ?? 0) > 0) {
+      throw new MemberError('topic_parent_cycle', 'That parent is inside this category, so the move would make a loop.');
+    }
+  }
+
+  const description = (input.description ?? '').trim() || null;
+  await db.query(
+    `update ozikoro_topic set name = $2, slug = $3, description = $4, parent_id = $5 where id = $1`,
+    [input.id, name, slug, description, parentId]
+  );
+  await auditTaxonomy(db, {
+    entityType: 'ozikoro_topic', entityId: input.id, action: 'update_topic',
+    before: { name: String(before.name), slug: String(before.slug), description: before.description ?? null, parentId: before.parent_id ?? null },
+    after: { name, slug, description, parentId },
+    actorId: input.actorId,
+    note:
+      slug === String(before.slug)
+        ? `Category “${name}” saved.`
+        : `Category renamed from /topics/${String(before.slug)}/ to /topics/${slug}/. The old address no longer resolves.`,
+  });
+  return { id: input.id, name, slug, previousSlug: slug === String(before.slug) ? undefined : String(before.slug) };
+}
+
+/**
+ * Delete a category — and refuse while any record is filed under it.
+ *
+ * See the block comment above the writes: `ozikoro_article.topic_id` is `on delete set null`, so the
+ * deletion itself would succeed and silently move every record in the category to "Uncategorized".
+ * The count is over **every** article, not only published ones, because a draft filed under a
+ * category is a record whose filing a delete would take away just the same.
+ */
+export async function deleteTopic(db: Db, input: { id: number; actorId: number }): Promise<{ name: string; slug: string }> {
+  const before = await db.one<Record<string, unknown>>(
+    `select id, slug, name from ozikoro_topic where id = $1`,
+    [input.id]
+  );
+  if (!before) throw new MemberError('no_topic', 'That category does not exist.');
+  const filed = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_article where topic_id = $1`, [input.id]);
+  const count = Number(filed?.n ?? 0);
+  if (count > 0) {
+    throw new MemberError(
+      'topic_in_use',
+      `“${String(before.name)}” is the category on ${count.toLocaleString('en-GB')} record${count === 1 ? '' : 's'}, ` +
+        `so it was not deleted. Deleting it would move ${count === 1 ? 'that record' : 'those records'} to Uncategorized ` +
+        `without saying so — the one thing this archive will not do silently. Move ` +
+        `${count === 1 ? 'the record' : 'the records'} to another category first, or rename this one.`
+    );
+  }
+  await db.query(`delete from ozikoro_topic where id = $1`, [input.id]);
+  await auditTaxonomy(db, {
+    entityType: 'ozikoro_topic', entityId: input.id, action: 'delete_topic',
+    before: { name: String(before.name), slug: String(before.slug) },
+    actorId: input.actorId,
+    note: `Category “${String(before.name)}” deleted. Nothing was filed under it.`,
+  });
+  return { name: String(before.name), slug: String(before.slug) };
+}
+
+/**
+ * Add a tag.
+ *
+ * ── THE NAME IS MATCHED CASE-INSENSITIVELY BEFORE ANYTHING IS CREATED ────────────────────────────
+ *
+ * `findOrCreateLabel` in `authoring.ts` established this and measured why it matters — **126 of the
+ * 11,056 imported tags have a slug WordPress chose that `slugForTitle` would not derive** (`LP's` is
+ * stored as `lps` but derives `lp-s`), so a lookup by derived slug alone would mint a second tag for
+ * one that already existed and move every article carrying it. The same rule is applied here for the
+ * same reason, and WordPress's own refusal is the wording: *a term with that name already exists.*
+ */
+export async function createLabel(
+  db: Db,
+  input: { name: string; slug?: string | null; actorId: number }
+): Promise<TaxonomyWriteResult> {
+  const name = input.name.trim().slice(0, 120);
+  if (name.length === 0) throw new MemberError('label_name_required', 'A tag needs a name.');
+  const byName = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_label where lower(name) = lower($1)`, [name]);
+  if (Number(byName?.n ?? 0) > 0) {
+    throw new MemberError('label_name_taken', `A tag called “${name}” is already in the register. Edit that one instead.`);
+  }
+  const slug = termSlug(input.slug, name);
+  if (slug.length === 0) throw new MemberError('label_slug_required', 'That name has no letters or digits a web address can carry, so a slug is needed.');
+  if (await labelSlugTaken(db, slug, null)) {
+    throw new MemberError('label_slug_taken', `The address /labels/${slug}/ is already another tag's.`);
+  }
+  const created = await db.one<{ id: number }>(
+    `insert into ozikoro_label (slug, name) values ($1, $2) returning id`,
+    [slug, name]
+  );
+  const id = Number(created?.id);
+  await auditTaxonomy(db, {
+    entityType: 'ozikoro_label', entityId: id, action: 'create_label',
+    after: { name, slug },
+    actorId: input.actorId,
+    note: `Tag “${name}” added at /labels/${slug}/.`,
+  });
+  return { id, name, slug };
+}
+
+/**
+ * Rename a tag or re-slug it.
+ *
+ * ⚠️ **`/labels/<slug>/` IS A LIVE ADDRESS AND RENAMING THE SLUG MOVES IT.** Stated on the form and in
+ * the notice, for the reason given above the categories' writes: there is no redirect store here.
+ */
+export async function updateLabel(
+  db: Db,
+  input: { id: number; name: string; slug?: string | null; actorId: number }
+): Promise<TaxonomyWriteResult> {
+  const before = await db.one<Record<string, unknown>>(`select id, slug, name from ozikoro_label where id = $1`, [input.id]);
+  if (!before) throw new MemberError('no_label', 'That tag does not exist.');
+  const name = input.name.trim().slice(0, 120);
+  if (name.length === 0) throw new MemberError('label_name_required', 'A tag needs a name.');
+  const clash = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_label where lower(name) = lower($1) and id <> $2`,
+    [name, input.id]
+  );
+  if (Number(clash?.n ?? 0) > 0) {
+    throw new MemberError('label_name_taken', `Another tag is already called “${name}”.`);
+  }
+  const slug = termSlug(input.slug, name);
+  if (slug.length === 0) throw new MemberError('label_slug_required', 'That name has no letters or digits a web address can carry, so a slug is needed.');
+  if (await labelSlugTaken(db, slug, input.id)) {
+    throw new MemberError('label_slug_taken', `The address /labels/${slug}/ is already another tag's.`);
+  }
+  await db.query(`update ozikoro_label set name = $2, slug = $3 where id = $1`, [input.id, name, slug]);
+  await auditTaxonomy(db, {
+    entityType: 'ozikoro_label', entityId: input.id, action: 'update_label',
+    before: { name: String(before.name), slug: String(before.slug) },
+    after: { name, slug },
+    actorId: input.actorId,
+    note:
+      slug === String(before.slug)
+        ? `Tag “${name}” saved.`
+        : `Tag renamed from /labels/${String(before.slug)}/ to /labels/${slug}/. The old address no longer resolves.`,
+  });
+  return { id: input.id, name, slug, previousSlug: slug === String(before.slug) ? undefined : String(before.slug) };
+}
+
+/**
+ * Delete a tag — and refuse while any record carries it.
+ *
+ * A tag is not a filing in the way a category is: deleting one would not orphan a record, it would
+ * only take a word off it. But `ozikoro_article_label` cascades, so the deletion would silently
+ * unlink every record carrying the tag and retire a `/labels/<slug>/` address that a search engine
+ * has indexed — and nothing would say so. The count is over every article, drafts included.
+ */
+export async function deleteLabel(db: Db, input: { id: number; actorId: number }): Promise<{ name: string; slug: string }> {
+  const before = await db.one<Record<string, unknown>>(`select id, slug, name from ozikoro_label where id = $1`, [input.id]);
+  if (!before) throw new MemberError('no_label', 'That tag does not exist.');
+  const used = await db.one<{ n: number }>(
+    `select count(*)::int as n from ozikoro_article_label where label_id = $1`,
+    [input.id]
+  );
+  const count = Number(used?.n ?? 0);
+  if (count > 0) {
+    throw new MemberError(
+      'label_in_use',
+      `“${String(before.name)}” is on ${count.toLocaleString('en-GB')} record${count === 1 ? '' : 's'}, so it was not deleted. ` +
+        `Deleting it would take the tag off ${count === 1 ? 'that record' : 'those records'} and retire /labels/${String(before.slug)}/ ` +
+        `without saying so. Remove it from ${count === 1 ? 'the record' : 'the records'} first, or rename it.`
+    );
+  }
+  await db.query(`delete from ozikoro_label where id = $1`, [input.id]);
+  await auditTaxonomy(db, {
+    entityType: 'ozikoro_label', entityId: input.id, action: 'delete_label',
+    before: { name: String(before.name), slug: String(before.slug) },
+    actorId: input.actorId,
+    note: `Tag “${String(before.name)}” deleted. No record carried it.`,
+  });
+  return { name: String(before.name), slug: String(before.slug) };
 }
 
 /** Related reading: the same topic or an overlapping label, excluding the article itself. */

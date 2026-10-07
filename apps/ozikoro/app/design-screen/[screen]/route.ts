@@ -109,6 +109,10 @@ import {
   listWhere,
   countArticles,
   getArchiveFacets,
+  // The peoples-ordered listing, so the design's card and `listArticles` draw the same order from one
+  // definition rather than two that drift. See `PEOPLE_KEY_SQL`.
+  PEOPLE_KEY_SQL,
+  interleavedListing,
   // The register's own list of peoples — the same list `/clan-towns/` offers, hoisted to one constant so a
   // second page reads it rather than keeping a copy.
   REGISTER_PEOPLES,
@@ -343,22 +347,41 @@ async function realEntries(options: ListOptions & { limit?: number; offset?: num
   const limit = Math.min(Math.max(options.limit ?? 24, 1), 100);
   const offset = Math.max(options.offset ?? 0, 0);
   params.push(limit, offset);
-  const rows = await db.rows<{
-    slug: string; title: string; standfirst: string | null;
-    place: string | null; period: string | null; source: string | null; attached: number;
-  }>(
-    `select a.slug, a.title, a.standfirst,
+  const tail = `limit $${params.length - 1} offset $${params.length}`;
+  const columns = `a.slug, a.title, a.standfirst,
             ${PLACE_NAMES_SQL} as place,
             a.period_label as period,
             a.source_type  as source,
-            (select count(*)::int from ozikoro_article_source s where s.article_id = a.id) as attached
-       from ozikoro_article a
+            (select count(*)::int from ozikoro_article_source s where s.article_id = a.id) as attached`;
+  const from = `from ozikoro_article a
        left join ozikoro_topic t on t.id = a.topic_id
-      ${clause}
+      ${clause}`;
+  /*
+   * ⚠️ **THE INTERLEAVED ORDER IS `archive.ts`'S, NOT A SECOND ONE WRITTEN BESIDE THE CARD.** The
+   * peoples' own key (`PEOPLE_KEY_SQL`) and the wrapper that ranks a record inside its people
+   * (`interleavedListing`) both live in the archive module, so the page the reader sees and
+   * `listArticles` cannot disagree about which record comes first. This query only supplies its own
+   * two extra columns — the place chip and the attached-source count — which is why it is not
+   * `listArticles` itself.
+   */
+  const query =
+    options.order === 'peoples'
+      ? /*
+         * `a.id` AND `a.published_at` ARE SELECTED BECAUSE THE RANKING READS THEM. `interleavedListing`
+         * ranks each record inside its people by `published_at` and breaks ties by `id`, and those must be
+         * columns of the inner `select` for the window to see them — measured: without them the fill threw
+         * `column q0.published_at does not exist` and the route served the DESIGN'S OWN DEMONSTRATION
+         * FIGURES (`Igbo 184 · Ijaw 11`), which is the failure this file's catch-all produces and the
+         * reason the error is worth naming here rather than leaving to be rediscovered.
+         */
+        `${interleavedListing(`select ${columns}, a.id, a.published_at, ${PEOPLE_KEY_SQL} as people_key ${from}`)} ${tail}`
+      : `select ${columns} ${from}
       order by ${options.order === 'title' ? 'a.title asc' : 'a.published_at desc nulls last, a.id desc'}
-      limit $${params.length - 1} offset $${params.length}`,
-    params
-  );
+      ${tail}`;
+  const rows = await db.rows<{
+    slug: string; title: string; standfirst: string | null;
+    place: string | null; period: string | null; source: string | null; attached: number;
+  }>(query, params);
   return rows.map((r) => ({
     title: r.title,
     href: `/${r.slug}/`,
@@ -1135,8 +1158,33 @@ export async function GET(
            * does nothing" fault, said about the second box rather than the first.
            */
           topic: url.searchParams.getAll('topic').map((value) => value.trim()).filter((value) => value.length > 0),
-          sort: one('sort') === 'title' ? 'title' : null,
+          /*
+           * ⚠️ **THE DEFAULT IS `peoples`, AND IT IS ONLY THE DEFAULT WHEN THE READER HAS NARROWED
+           * NOTHING.** Measured on this database: strict recency put forty-eight consecutive Igbo records
+           * at the top of `/archive/` — every one of the 2026-09-23…09-29 batch — so the index read as an
+           * Igbo-only archive while 191 of its 1,051 records name another people. The interleaved order in
+           * `archive.ts` draws one record from each people the archive has written about. **A narrowed
+           * listing keeps `recent`**, because a reader who has ticked `Edo` or typed a search wants that
+           * selection in date order, and the interleave degenerates to exactly that anyway when one people
+           * is selected — which is why the two can be the same rule rather than two.
+           */
+          sort:
+            one('sort') === 'title'
+              ? 'title'
+              : one('sort') === 'recent'
+                ? 'recent'
+                : one('sort') === 'peoples'
+                  ? 'peoples'
+                  : null,
         };
+
+        const narrowed =
+          selection.topic.length > 0 ||
+          groups.length > 0 ||
+          selection.clan.length > 0 ||
+          selection.place !== null ||
+          selection.q !== null ||
+          completeness !== null;
 
         const listing: ListOptions = {
           topicSlugs: selection.topic.length > 0 ? selection.topic : null,
@@ -1145,7 +1193,7 @@ export async function GET(
           place: selection.place,
           search: selection.q,
           completeness,
-          order: selection.sort === 'title' ? 'title' : 'recent',
+          order: selection.sort ?? (narrowed ? 'recent' : 'peoples'),
         };
 
         /*

@@ -29,10 +29,12 @@ import { getDb } from '@ozituma/db/client';
 import {
   countPieces,
   getPieceForEditor,
+  listLabelsForAdmin,
   listMediaChoices,
   listPieces,
   listTagCloud,
   listTopics,
+  listTopicsForAdmin,
   listWriters,
   sanitiseArchiveHtml,
   SITE_ORIGIN,
@@ -45,6 +47,7 @@ import { Notices } from '../ui';
 import { ClassicEditor, type EditorMedia, type EditorPiece } from './editor';
 import { ListTable } from './list-table';
 import { RailMenu, type RailGroup } from './rail-menu';
+import { CategoriesTable, TagsTable } from './taxonomy-tables';
 
 const PAGE_SIZE = 20;
 
@@ -166,6 +169,13 @@ export interface ListSearchParams {
   saved?: string;
   error?: string;
   info?: string;
+  /**
+   * The clicked column header on the Categories and Tags screens. The value is validated against a
+   * closed list before it reaches any query — see `listLabelsForAdmin` in `archive.ts`, which compares
+   * it against three literals rather than interpolating it.
+   */
+  orderby?: string;
+  order?: string;
 }
 
 /**
@@ -358,64 +368,118 @@ export async function EditorScreen({
 /**
  * The Categories screen: the fourteen series the migration carried across from WordPress.
  *
- * IT IS A LIST, NOT AN EDITOR, AND THAT IS SAID ON THE SCREEN. WordPress's Categories screen adds,
- * renames and deletes categories; here the fourteen are the archive's narrative spine, they arrived with
- * the import, and every published record references one. Renaming one is a decision about the whole
- * archive rather than about a post, and this archive has no screen for it — so this screen reports the
- * taxonomy, its sizes and where a piece is filed, and does not offer a control that would rewrite
- * fourteen years of filing from a form.
+ * ── IT USED TO BE A LIST THAT SAID, IN WORDS, THAT IT WOULD NOT LET YOU CHANGE ANYTHING ───────────
+ *
+ *   *"Adding a series, renaming one or removing one is not offered here. The series are how every
+ *   published record is filed … so a change to one is a decision about the whole collection rather than
+ *   a field on a form."*
+ *
+ * **The owner's answer is the brief:** *"on the admin that shows categories … why can't one edit the
+ * categories like it is on wordpress? … i could edit the posts, even their permalinks, and even do
+ * quick edit, so i should be able to do same for categories and tags."* He is right, and the paragraph
+ * above was this screen explaining a missing feature back to the person who asked for it.
+ *
+ * So this is WordPress's `edit-tags.php`: **Add New Category** (Name, Slug, Parent, Description) above
+ * a table of every category with row actions Edit · Quick Edit · Delete, a checkbox per row, a bulk
+ * Delete, and sortable columns. The writes go to `/api/admin/taxonomy` and every one of them is
+ * audited; a delete is refused while any record is filed under the category, which is the one thing
+ * this archive will not do silently — the FK is `on delete set null`, so a delete would move every
+ * record in it to "Uncategorized" and say nothing.
  */
 export async function CategoriesScreen({ params }: { params: ListSearchParams }) {
   await requireCapabilityOrRedirect('edit_entity', '/admin/posts/categories');
   const db = await getDb();
-  const topics = await listTopics(db);
+  const topics = await listTopicsForAdmin(db);
   const total = topics.reduce((sum, t) => sum + t.articleCount, 0);
+
+  /*
+   * THE ORDERING IS APPLIED HERE BECAUSE ALL FOURTEEN ROWS ARE ALREADY READ. Fourteen is not a page,
+   * so there is nothing to gain from ordering the query and a second statement to keep in step with
+   * this one. The three keys are the three sortable columns, and anything else falls back to the
+   * register's own order rather than being refused — a header cannot send a value that is not one of
+   * the three, so an unknown one is a typed address, and falling back is what the archive's rail does
+   * with a facet it does not know.
+   */
+  const orderBy = params.orderby === 'name' || params.orderby === 'slug' || params.orderby === 'count' ? params.orderby : 'position';
+  const order: 'asc' | 'desc' = params.order === 'desc' ? 'desc' : 'asc';
+  const sorted = [...topics].sort((a, b) => {
+    const direction = order === 'desc' ? -1 : 1;
+    if (orderBy === 'name') return direction * a.name.localeCompare(b.name);
+    if (orderBy === 'slug') return direction * a.slug.localeCompare(b.slug);
+    if (orderBy === 'count') return direction * (a.articleCount - b.articleCount) || a.name.localeCompare(b.name);
+    return direction * (a.position - b.position) || a.name.localeCompare(b.name);
+  });
 
   return (
     <div className="wpadmin">
       <ClassicRail kind="post" active="/admin/posts/categories" />
       <SectionHeader title="Categories" kind="post" active="/admin/posts/categories" />
       <Notices saved={params.saved} error={params.error} info={params.info} />
+
+      {/*
+        THE ADD NEW CATEGORY FORM, WHICH IS WORDPRESS'S OWN SET: Name, Slug, Parent, Description.
+        WordPress puts it in the LEFT COLUMN as a postbox; the shape is kept even though this screen has
+        no second column, so the two screens read the same way.
+      */}
+      <div className="postbox">
+        <h2 className="hndle">Add New Category</h2>
+        <div className="inside">
+          <form method="post" action="/api/admin/taxonomy">
+            <input type="hidden" name="screen" value="category" />
+            <input type="hidden" name="action" value="create-topic" />
+            <input type="hidden" name="returnTo" value="/admin/posts/categories" />
+            <div className="quick-edit-grid">
+              <div>
+                <label htmlFor="new-cat-name">Name</label>
+                <input id="new-cat-name" name="name" type="text" required maxLength={200} />
+                <p className="wphelp">The name as a reader sees it. It is required.</p>
+              </div>
+              <div>
+                <label htmlFor="new-cat-slug">Slug</label>
+                <input id="new-cat-slug" name="slug" type="text" maxLength={200} />
+                <p className="wphelp">Left empty, the address is derived from the name. The page will be at /topics/&lt;slug&gt;/.</p>
+              </div>
+              <div>
+                <label htmlFor="new-cat-parent">Parent</label>
+                <select id="new-cat-parent" name="parentId" defaultValue="">
+                  <option value="">None</option>
+                  {topics.map((topic) => (
+                    <option key={topic.id} value={String(topic.id)}>
+                      {topic.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="wphelp">
+                  Recorded on the category. The archive&rsquo;s rail lists the fourteen categories flat, so a parent is not
+                  drawn on the public site yet.
+                </p>
+              </div>
+              <div>
+                <label htmlFor="new-cat-description">Description</label>
+                <textarea id="new-cat-description" name="description" rows={3} />
+              </div>
+            </div>
+            <p style={{ marginTop: '10px' }}>
+              <button type="submit" className="button button-primary">
+                Add New Category
+              </button>
+            </p>
+          </form>
+        </div>
+      </div>
+
       <div className="postbox">
         <div className="inside">
           <p className="wphelp" style={{ marginTop: 0 }}>
             These are the archive&rsquo;s series — the fourteen categories WordPress held, carried across by the
-            migration and referenced by {total.toLocaleString('en-GB')} published record
-            {total === 1 ? '' : 's'}. A record carries <strong>one</strong> series; the picker is on the editing
-            screen, in the Categories box.
+            migration. A record carries <strong>one</strong> series, and {total.toLocaleString('en-GB')} filings are
+            recorded against them. A category holding nothing counts 0 and stays on the list.
           </p>
-          <table className="wp-list-table">
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Slug</th>
-                <th scope="col">Records</th>
-                <th scope="col">Address</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topics.map((topic) => (
-                <tr key={topic.id}>
-                  <td>
-                    <strong>{topic.name}</strong>
-                    {topic.description ? <div className="wphelp">{topic.description}</div> : null}
-                  </td>
-                  <td className="mono">{topic.slug}</td>
-                  <td>{topic.articleCount.toLocaleString('en-GB')}</td>
-                  <td>
-                    <a href={`/topics/${topic.slug}/`} target="_blank" rel="noopener noreferrer">
-                      /topics/{topic.slug}/
-                    </a>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <CategoriesTable rows={sorted} returnTo="/admin/posts/categories" orderBy={orderBy} order={order} />
           <p className="wphelp">
-            Adding a series, renaming one or removing one is not offered here. The series are how every published
-            record is filed and how a reader browses the archive, so a change to one is a decision about the whole
-            collection rather than a field on a form — the same reason the archive states its prohibitions where a
-            reader can find them.
+            <strong>Deleting a category that any record is filed under is refused</strong>, with the number of records,
+            and nothing moves. A category whose slug you change moves its <span className="mono">/topics/&lt;slug&gt;/</span>{' '}
+            address — the old one stops resolving, because this archive keeps no redirects.
           </p>
         </div>
       </div>
@@ -423,41 +487,104 @@ export async function CategoriesScreen({ params }: { params: ListSearchParams })
   );
 }
 
+/** How many tags one screen of the register holds. WordPress's default is 20; this list is denser. */
+const TAG_PAGE_SIZE = 50;
+
 /**
- * The Tags screen: a search over the register, with what each tag holds.
+ * The Tags screen: a searchable, pageable, editable register of all 11,057 tags.
  *
- * WHY THERE IS NO TAG EDITOR ON IT. The register holds 11,056 labels, most of them names of places, people
- * and towns carried across from WordPress and used to find the archive in search. Renaming one renames the
- * address `/labels/<slug>/` that a search engine has indexed and a reader may have saved — so this screen
- * reports the register, and the Tags box on a piece is where a tag is applied or created.
+ * ── WHAT IT WAS, AND WHAT IT IS ───────────────────────────────────────────────────────────────────
+ *
+ * It was a search over the two hundred MOST USED tags and a paragraph explaining that renaming one
+ * "renames the address `/labels/<slug>/` that a search engine has indexed". That reasoning is sound and
+ * is why the slug note is still on the form — **but it is an argument for warning somebody, not for
+ * denying them the control**, which is what the owner said back: *"same as tags? … i should be able to
+ * do same for categories and tags."*
+ *
+ * So the register is now paged over every row rather than the top two hundred, each row carries Edit ·
+ * Quick Edit · Delete, and the Add New Tag form adds one. **Deleting a tag any record carries is
+ * refused with the count** — `ozikoro_article_label` cascades, so a delete would silently take the tag
+ * off every record that had it and retire an indexed address.
+ *
+ * ⚠️ **THERE IS NO DESCRIPTION FIELD, AND THAT IS THE SCHEMA RATHER THAN AN OMISSION.** WordPress's tags
+ * screen has one; `ozikoro_label` has `id, wp_term_id, slug, name, usage_count, created_at` and no
+ * description column. A box that wrote nowhere would be the dead control this screen was reported for.
  */
 export async function TagsScreen({ params }: { params: ListSearchParams }) {
   await requireCapabilityOrRedirect('edit_entity', '/admin/posts/tags');
   const db = await getDb();
   const search = (params.s ?? '').trim();
-  const labels = await listTagCloud(db, 200);
-  const filtered = search
-    ? labels.filter((l) => l.name.toLowerCase().includes(search.toLowerCase()))
-    : labels;
-  const total = await db.one<{ n: number }>(`select count(*)::int as n from ozikoro_label`);
+  const orderBy = params.orderby === 'name' || params.orderby === 'slug' ? params.orderby : 'count';
+  const order: 'asc' | 'desc' = params.order === 'desc' ? 'desc' : params.orderby === 'count' ? 'desc' : 'asc';
+  const page = Math.max(1, Number.parseInt(params.page ?? '1', 10) || 1);
+
+  const { rows, total } = await listLabelsForAdmin(db, {
+    search: search || null,
+    orderBy,
+    order,
+    limit: TAG_PAGE_SIZE,
+    offset: (page - 1) * TAG_PAGE_SIZE,
+  });
+
+  const query = new URLSearchParams();
+  if (search) query.set('s', search);
+  if (params.orderby) query.set('orderby', orderBy);
+  if (params.order) query.set('order', order);
+  if (page > 1) query.set('page', String(page));
+  const returnTo = query.toString().length > 0 ? `/admin/posts/tags?${query.toString()}` : '/admin/posts/tags';
 
   return (
     <div className="wpadmin">
       <ClassicRail kind="post" active="/admin/posts/tags" />
       <SectionHeader title="Tags" kind="post" active="/admin/posts/tags" />
       <Notices saved={params.saved} error={params.error} info={params.info} />
+
+      <div className="postbox">
+        <h2 className="hndle">Add New Tag</h2>
+        <div className="inside">
+          <form method="post" action="/api/admin/taxonomy">
+            <input type="hidden" name="screen" value="tag" />
+            <input type="hidden" name="action" value="create-label" />
+            <input type="hidden" name="returnTo" value={returnTo} />
+            <div className="quick-edit-grid">
+              <div>
+                <label htmlFor="new-tag-name">Name</label>
+                <input id="new-tag-name" name="name" type="text" required maxLength={120} />
+                <p className="wphelp">A name already in the register is refused rather than duplicated — edit that tag instead.</p>
+              </div>
+              <div>
+                <label htmlFor="new-tag-slug">Slug</label>
+                <input id="new-tag-slug" name="slug" type="text" maxLength={120} />
+                <p className="wphelp">Left empty, the address is derived from the name. The tag page will be at /labels/&lt;slug&gt;/.</p>
+              </div>
+            </div>
+            <p style={{ marginTop: '10px' }}>
+              <button type="submit" className="button button-primary">
+                Add New Tag
+              </button>
+            </p>
+          </form>
+        </div>
+      </div>
+
       <div className="postbox">
         <div className="inside">
           <p className="wphelp" style={{ marginTop: 0 }}>
-            The register holds <strong>{Number(total?.n ?? 0).toLocaleString('en-GB')}</strong> tags, and the two
-            hundred most used are listed here. A tag is applied or created from the Tags box on a piece: typing a
-            name that already exists reuses that tag, and a name that is new is added to the register.
+            The register holds <strong>{total.toLocaleString('en-GB')}</strong> tag
+            {total === 1 ? '' : 's'}
+            {search ? <> matching “{search}”</> : null}. One page shows {TAG_PAGE_SIZE}.
           </p>
+          {/*
+            THE SEARCH CARRIES THE ORDERING THROUGH, so searching does not silently re-sort the list the
+            reader just sorted — the same rule the archive's rail follows with its own controls.
+          */}
           <form method="get" action="/admin/posts/tags" className="tablenav">
+            {params.orderby ? <input type="hidden" name="orderby" value={orderBy} /> : null}
+            {params.order ? <input type="hidden" name="order" value={order} /> : null}
             <label className="screen-reader-text" htmlFor="tag-search">
               Search tags
             </label>
-            <input id="tag-search" type="search" name="s" defaultValue={search} placeholder="Search the tags listed here" />
+            <input id="tag-search" type="search" name="s" defaultValue={search} placeholder="Search the whole register" />
             <button type="submit" className="button">
               Search
             </button>
@@ -467,35 +594,24 @@ export async function TagsScreen({ params }: { params: ListSearchParams }) {
               </a>
             ) : null}
           </form>
-          {filtered.length === 0 ? (
-            <p className="empty-state">No tag in the two hundred most used matches “{search}”.</p>
+
+          {rows.length === 0 ? (
+            <p className="empty-state">
+              {search
+                ? `No tag in the register matches “${search}”.`
+                : 'The register is empty. “Add New Tag” is the way to add the first one.'}
+            </p>
           ) : (
-            <table className="wp-list-table">
-              <thead>
-                <tr>
-                  <th scope="col">Tag</th>
-                  <th scope="col">Used by</th>
-                  <th scope="col">Address</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((label) => (
-                  <tr key={label.slug}>
-                    <td>
-                      <strong>{label.name}</strong>
-                    </td>
-                    <td>
-                      {label.articleCount.toLocaleString('en-GB')} record{label.articleCount === 1 ? '' : 's'}
-                    </td>
-                    <td>
-                      <a href={`/labels/${label.slug}/`} target="_blank" rel="noopener noreferrer">
-                        /labels/{label.slug}/
-                      </a>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <TagsTable
+              rows={rows}
+              returnTo={returnTo}
+              search={search}
+              orderBy={orderBy}
+              order={order}
+              page={page}
+              pageSize={TAG_PAGE_SIZE}
+              total={total}
+            />
           )}
         </div>
       </div>

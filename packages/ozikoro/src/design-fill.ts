@@ -153,7 +153,13 @@ export interface ArchiveRailSelection {
    * `packages/ozikoro/src/archive.ts` for the one predicate both the count and the listing run.
    */
   topic: string[];
-  sort: 'title' | null;
+  /**
+   * `peoples` — one record from every people, then each people's second. The index's default, and the
+   * answer to the owner's *"only Igbo is showing"*; see `PEOPLE_KEY_SQL` in `archive.ts`.
+   * `recent` and `title` are the two the design itself offered and behave as they always have.
+   * `null` means the reader has not chosen, which the serving route reads as `peoples`.
+   */
+  sort: 'title' | 'recent' | 'peoples' | null;
 }
 
 /** The rail's parameters, in one list, so the form and the link builder cannot disagree. */
@@ -423,15 +429,32 @@ export function fillArchiveIndex(html: string, opts: {
    * The rest is drawn only when there IS a rest. A "view more" that reveals nothing is the dead control
    * in miniature, and with the register at four names or fewer there is nothing to reveal.
    */
+  /*
+   * ⚠️ **THE COLLAPSE OPENS WHEN THE READER'S OWN CHOICE IS INSIDE IT. MEASURED: IT DID NOT.**
+   *
+   * `?group=Edo` was fetched from the served page and the `<details>` came back **closed**, with
+   * `<input … value="Edo" checked>` inside it. So a reader who ticked Edo — which is the only way to
+   * reach fifteen of the nineteen peoples — arrived at a page whose rail showed Igbo 860 above a listing
+   * of eighty-four Edo records, with the tick that caused it hidden behind a summary reading "View all 19
+   * ethnic groups". The control worked and could not be seen to have worked, which on this page reads
+   * exactly like the fault the owner reported: *"only Igbo is showing."*
+   *
+   * `open` is added only when a CHECKED option is in the collapsed slice, so the collapse still starts
+   * closed for the nineteen-peoples default and a reader who has chosen nothing is not shown a wall of
+   * names. The hidden checkboxes submit either way — that property is unchanged and is why collapsing
+   * was safe in the first place.
+   */
+  const collapsed = peopleLabels.slice(ETHNIC_SHOWN);
+  const anyCollapsedChecked = opts.peoples.slice(ETHNIC_SHOWN).some((p) => check(p.label));
   const peopleRows =
     peopleLabels.length <= ETHNIC_SHOWN
       ? [...peopleLabels, peopleNote]
       : [
           ...peopleLabels.slice(0, ETHNIC_SHOWN),
-          `<details style="margin-top:var(--s-2)">\n        ` +
+          `<details style="margin-top:var(--s-2)"${anyCollapsedChecked ? ' open' : ''}>\n        ` +
             `<summary class="small" style="cursor:pointer">View all ${railCount(peopleLabels.length)} ` +
             `ethnic groups</summary>\n        ` +
-            `${peopleLabels.slice(ETHNIC_SHOWN).join('\n        ')}\n        ${peopleNote}\n      </details>`,
+            `${collapsed.join('\n        ')}\n        ${peopleNote}\n      </details>`,
         ];
   out = railFieldset(out, 'Ethnic group', peopleRows.join('\n        '));
 
@@ -597,10 +620,18 @@ export function fillArchiveIndex(html: string, opts: {
   );
 
   /*
-   * ---- 8. the sort control, which offered four orderings and implemented none ---------------------
+   * ---- 8. the sort control ------------------------------------------------------------------------
    *
-   * Kept as a control, because two of the four are things this archive can actually do; the other two are
-   * dropped rather than left offering a result they cannot produce. The form carries the selection.
+   * ⚠️ **THREE ORDERINGS, AND THE FIRST ONE IS THE ANSWER TO "ONLY IGBO IS SHOWING".** Measured on this
+   * archive: strict recency put **forty-eight consecutive Igbo records** — the whole of the 2026-09-23…
+   * 09-29 publication batch — at the top of `/archive/`, so a reader saw two full screens of one people
+   * and concluded the other eighteen had nothing. `peoples` is the interleaved order
+   * `interleavedListing` builds in `archive.ts`: one record from each people the archive has written
+   * about, then each people's second, and so on. Selected when the reader has not chosen an ordering,
+   * which is what makes the front page representative without changing what any filter returns.
+   *
+   * `recent` and `title` are unchanged and remain reachable, so the interleave is a default and not a
+   * replacement — a reader who wants the newest records first still gets them by choosing it.
    */
   out = out.replace(
     /<form method="get" action="\/archive\/" class="row">[\s\S]*?<\/form>/,
@@ -608,8 +639,9 @@ export function fillArchiveIndex(html: string, opts: {
       archiveRailHidden(selection, ['sort']) +
       `\n          <label class="small muted" for="sort">Sort</label>\n` +
       `          <select id="sort" name="sort" style="width:auto">\n` +
-      `            <option value="recent"${selection.sort === 'title' ? '' : ' selected'}>Most recently published</option>\n` +
-      `            <option value="title"${selection.sort === 'title' ? ' selected' : ''}>Title A–Z</option>\n` +
+      `            <option value="peoples"${selection.sort === 'recent' || selection.sort === 'title' ? '' : ' selected'}>One from every people, then most recent</option>\n` +
+      `            <option value="recent"${selection.sort === 'recent' ? ' selected' : ''}>Most recently published</option>\n` +
+      `            <option value="title"${selection.sort === 'title' ? ' selected' : ''}>Title A&ndash;Z</option>\n` +
       `          </select>\n          <button class="btn btn-quiet btn-sm" type="submit">Go</button>\n        </form>`
   );
 
