@@ -82,6 +82,20 @@ RUN npm -w @ozikoro/site run build
 # One stage so the two targets cannot drift in what they ship alongside their app.
 # ---------------------------------------------------------------------------
 FROM base AS runtime-base
+# ⚠️ `curl` IS HERE BECAUSE THE IMAGE-IMPORTER SCRIPT SHELLS OUT TO IT — AND IT WAS FIRST PUT IN THE
+# WRONG STAGE, WHICH IS WHY THIS COMMENT EXISTS.
+#
+# `scripts/import-inbody-images.ts:172` does `spawn('curl', args)`. **It was added to the `backup-tools`
+# stage instead of this one** — *`backup-tools` is a `postgres:16-alpine` image for `pg_dump`, a SEPARATE
+# image that the ozikoro container never comes from* — **so the deploy shipped the change, the image was
+# rebuilt, the file on the host said `curl`, and the running container still answered `curl: not found`.**
+# *That is a fault that survived being fixed, measured and redeployed, and the lesson is that a Dockerfile
+# edit must name the STAGE it lands in.*
+#
+# ⚠️ **`runtime-base` IS THE RIGHT STAGE: `FROM runtime-base AS ozikoro` AND `... AS web` both inherit it, so
+# one line serves both applications.** *`node:24-alpine` ships busybox `wget` and no `curl`, which is what
+# let the import die with a bare `Node.js v24.21.0` and an argument dump instead of a missing-binary error.*
+RUN apk add --no-cache curl
 
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -236,4 +250,4 @@ FROM postgres:16-alpine AS backup-tools
 # **Measured: 1,389 images were imported across four runs — 803, then 221, then 368, each stopping at the
 # same kind of URL — and `ozikoro_media` went from 3,443 rows with bytes to 4,832.** *The runs before
 # `curl` was installed each ended early; the one after it completed its pass with zero errors.*
-RUN apk add --no-cache age aws-cli curl
+RUN apk add --no-cache age aws-cli
