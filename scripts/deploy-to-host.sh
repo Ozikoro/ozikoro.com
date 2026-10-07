@@ -326,6 +326,67 @@ cp -a apps/ozikoro/public/design/. "/opt/ozituma/backups/design-$TS/" 2>/dev/nul
 echo "    design backed up: $(find /opt/ozituma/backups/design-$TS -type f | wc -l) files"
 
 echo "==> host: install"
+# ⚠️ PRUNE FIRST, THEN COPY — AND THE MISSING PRUNE IS THE ROOT CAUSE OF EVERY FAILED DEPLOY TONIGHT.
+#
+# THE MEASUREMENT THAT FOUND IT:
+#
+#     the install was exactly:   cp -a /tmp/din/. .
+#     a prune step:              NONE — no rm, no find -delete, no rsync --delete
+#     the host's tree:           988 files
+#     the last manifest:         913 files
+#     the host's own git HEAD:   7ae4808 — NOT ANY REVISION DEPLOYED TONIGHT
+#
+# **So the host's source tree is a UNION of every deploy ever made to it, plus files from a checkout
+# older than anything shipped today.** *`cp -a` overwrites what the manifest names and leaves everything
+# else exactly where it was.*
+#
+# ⚠️ AND THAT EXPLAINS BOTH SHAPES OF THE SAME FAILURE, WHICH LOOKED LIKE TWO DIFFERENT BUGS ALL NIGHT:
+#
+#   1 · A FILE THE COMMIT DOES NOT HAVE, ON THE HOST, IMPORTING SOMETHING THE COMMIT DOES NOT SHIP.
+#       *The host's `media/upload/route.ts` imported `@ozikoro/platform/media-bytes` — a later
+#       working-tree state installed by an earlier run — while the manifest being deployed came from a
+#       commit that did not yet contain `media-bytes.ts`.* **The build failed with `Module not found`,
+#       and HEAD was innocent: nothing in it imported that module at all.**
+#
+#   2 · A FILE THE COMMIT DOES SHIP, ABSENT ON THE HOST, BECAUSE `git ls-files` READ A STALE INDEX.
+#       *That was the `form-sync.tsx` and `library.ts` failure, fixed by enumerating `git ls-tree HEAD`.*
+#
+# **Both are "the host is not the commit". Fixing the enumeration fixed one direction; this fixes the
+# other, and it is the half that was still open.**
+#
+# ⚠️ WHAT IT DELETES AND WHAT IT MUST NEVER TOUCH. It prunes ONLY inside the directories the manifest
+# populates — and it compares against the manifest itself, so a file the deploy is about to write is never
+# removed. **`docker/`, `.env`, `.data/`, `backups/`, `node_modules/`, `.next*`, `certs/` and `.git/` are
+# NOT in the manifest and are NOT pruned** — *they are the host's own state, and a deploy that removed the
+# compose file or the credential store would take the site down rather than update it.*
+#
+# ⚠️ AND IT READS THE FILE LIST FROM THE MANIFEST RATHER THAN FROM A PATH LIST, so it can only ever delete
+# what the deploy itself considers its own to write.
+if [ -f /tmp/dm.txt ]; then
+  # The manifest's first field is the sha256, the rest of the line is the path.
+  awk '{ $1=""; sub(/^ /, ""); print }' /tmp/dm.txt | sort > /tmp/din-keep.txt
+  PRUNED=0
+  # Only the top-level directories the manifest actually writes into, so a stray path in the manifest
+  # cannot lead the prune outside them.
+  for dir in apps packages scripts docs data; do
+    [ -d "$dir" ] || continue
+    while IFS= read -r f; do
+      case "$f" in
+        "$dir"/*) ;;
+        *) continue ;;
+      esac
+      # Never remove the directories themselves, and never a path the manifest is about to write.
+      [ -f "$f" ] || continue
+      if ! grep -qxF "$f" /tmp/din-keep.txt; then
+        rm -f "$f"
+        PRUNED=$((PRUNED + 1))
+      fi
+    done < <(find "$dir" -type f -not -path '*/node_modules/*' -not -path '*/.next*' 2>/dev/null)
+  done
+  echo "    pruned $PRUNED file(s) this deployment does not ship"
+  # And the same check the build branch makes, so a prune that did nothing is visible rather than assumed.
+  echo "    the tree now holds $(find apps packages scripts docs data -type f -not -path '*/node_modules/*' -not -path '*/.next*' 2>/dev/null | wc -l) file(s); the manifest names $(wc -l < /tmp/din-keep.txt)"
+fi
 cp -a /tmp/din/. .
 echo "    design files now: $(find apps/ozikoro/public/design -type f | wc -l)"
 echo "    screens now:      $(ls apps/ozikoro/public/design/screens/*.html 2>/dev/null | wc -l)"
