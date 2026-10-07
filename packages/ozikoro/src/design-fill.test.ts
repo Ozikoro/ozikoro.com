@@ -4241,3 +4241,204 @@ test('the archive rail draws every category the archive files under, with the nu
   // The design file is the deliverable and is read, never written.
   assert.equal(readFileSync(join(SCREENS, 'archive-index.html'), 'utf8'), html, 'the design file is byte-identical after the fill');
 });
+
+/* ------------------------------------------------------------------------------------------------
+ * THE ETHNIC RAIL: FEW SHOWING, AND A REAL CONTROL TO REVEAL THE REST
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * The owner: *"the ethnic groups can come later, but just few showing, with one needing to click to view
+ * more."*
+ *
+ * What is asserted, and why each is the property that matters rather than a detail of the markup:
+ *
+ *   1. **A few are drawn, and they are the first few in the register's own order** — so the rail shows the
+ *      peoples a reader is most likely to want, not an arbitrary four.
+ *   2. **The control is the browser's own `<details>`/`<summary>`**, which is keyboard-reachable and needs
+ *      no script. A `<button>` with no handler would satisfy a regex here and do nothing in a browser, so
+ *      the assertion is on the element that *is* the behaviour, not on the words beside it.
+ *   3. **Every people is still drawn, each with its own count** — collapsing hides nothing from the form
+ *      and loses no number.
+ *   4. **The checkboxes a reader ticked stay ticked inside the collapse.** `check()` runs over the whole
+ *      list, so a people chosen before the rail was collapsed and re-rendered is still the reader's choice.
+ *   5. **A short register grows no control at all.** A "view more" that reveals nothing is the dead
+ *      control in miniature.
+ *
+ * The count of nineteen is the live register's own (`/archive/` draws 19 peoples, measured), and the
+ * transform is in memory — the design file is byte-identical afterwards and asserted so below.
+ */
+test('the ethnic rail shows a few peoples and offers a working control that reveals the rest', () => {
+  const html = readFileSync(join(SCREENS, 'archive-index.html'), 'utf8');
+  const peoples = [
+    'Igbo', 'Ijaw', 'Efik', 'Ibibio', 'Idoma', 'Yoruba', 'Edo', 'Hausa', 'Nupe', 'Tiv',
+    'Urhobo', 'Isoko', 'Esan', 'Ogoni', 'Ekoi', 'Bini', 'Igala', 'Igbira', 'Andoni',
+  ].map((label, i) => ({ label, count: 500 - i * 10, value: label.toLowerCase() }));
+
+  const railFor = (group: string[]) =>
+    fillArchiveIndex(html, {
+      entries: [],
+      peoples,
+      clans: [],
+      registerClans: 0,
+      periods: [],
+      sourceTypes: [],
+      completeness: { all: 1_051, sourced: 0, partial: 1_051 },
+      topics: [],
+      total: 1_051,
+      page: 1,
+      pageSize: 24,
+      selection: { group, clan: [], place: null, q: null, state: null, topic: [], sort: null },
+      emptyReason: null,
+      emptyHeadline: null,
+    });
+
+  const out = railFor([]);
+  const ethnicStart = out.indexOf('<legend>Ethnic group</legend>');
+  assert.notEqual(ethnicStart, -1, 'the ethnic group is still drawn, in the design’s own fieldset');
+  const ethnic = out.slice(ethnicStart, out.indexOf('</fieldset>', ethnicStart));
+
+  /*
+   * 1 — THE FIRST FOUR, IN THE REGISTER'S ORDER. Not "four of them": the first four, so the list a reader
+   * meets before clicking is the top of the register rather than a slice nobody chose.
+   */
+  const shown = [...ethnic.matchAll(/name="group" value="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(
+    shown.slice(0, 4),
+    peoples.slice(0, 4).map((p) => p.label),
+    'the first four peoples the register names are the four the rail shows'
+  );
+
+  // 2 — THE CONTROL IS A REAL DISCLOSURE, AND THE BROWSER OPERATES IT.
+  assert.match(ethnic, /<details[^>]*>/, 'the rest of the register is inside a disclosure');
+  assert.match(ethnic, /<summary[^>]*>View all 19 ethnic groups<\/summary>/, 'the summary says how many it reveals');
+
+  /*
+   * 3 — NOTHING IS LOST. Every people is a control with its own number, whether it is inside the collapse
+   * or not — which is the difference between collapsing a list and truncating it.
+   */
+  for (const p of peoples) {
+    assert.ok(
+      ethnic.includes(`name="group" value="${p.label}"`),
+      `${p.label} is offered as a control the reader can tick`
+    );
+    assert.ok(
+      ethnic.includes(`${p.label} <span class="count">${p.count}</span>`),
+      `${p.label} carries the number its own box returns`
+    );
+  }
+
+  // 4 — A TICKED PEOPLE STAYS TICKED, INCLUDING INSIDE THE COLLAPSE.
+  const ticked = railFor(['Igbo', 'Andoni']);
+  assert.match(ticked, /name="group" value="Igbo" checked/, 'a ticked people above the fold is drawn ticked');
+  assert.match(ticked, /name="group" value="Andoni" checked/, 'a ticked people inside the collapse is drawn ticked too');
+  /*
+   * AND THE TICKED BOX IS STILL SUBMITTED WHEN THE DETAILS IS SHUT. A closed `<details>` hides its content
+   * and does not disable it, which is the property that makes the collapse safe to use on a live filter —
+   * so what this asserts is that the control is a normal checkbox with no `disabled` on it.
+   */
+  const andoni = ticked.slice(ticked.indexOf('name="group" value="Andoni"'));
+  assert.ok(
+    !andoni.slice(0, 200).includes('disabled'),
+    'a collapsed box is hidden, not disabled, so the reader’s filter still submits'
+  );
+
+  // 5 — A SHORT REGISTER GETS NO CONTROL, BECAUSE THERE IS NOTHING FOR ONE TO REVEAL.
+  const short = fillArchiveIndex(html, {
+    entries: [], peoples: peoples.slice(0, 3), clans: [], registerClans: 0, periods: [], sourceTypes: [],
+    completeness: { all: 1_051, sourced: 0, partial: 1_051 }, topics: [], total: 1_051, page: 1, pageSize: 24,
+    selection: { group: [], clan: [], place: null, q: null, state: null, topic: [], sort: null },
+    emptyReason: null, emptyHeadline: null,
+  });
+  const shortStart = short.indexOf('<legend>Ethnic group</legend>');
+  const shortEthnic = short.slice(shortStart, short.indexOf('</fieldset>', shortStart));
+  assert.ok(!shortEthnic.includes('<details'), 'three peoples do not grow a “view all” that reveals nothing');
+  assert.ok(
+    shortEthnic.includes('Each number is the published histories'),
+    'and the note that explains the numbers is still drawn'
+  );
+
+  // The design file is the deliverable and is read, never written.
+  assert.equal(readFileSync(join(SCREENS, 'archive-index.html'), 'utf8'), html, 'the design file is byte-identical after the fill');
+});
+
+/* ------------------------------------------------------------------------------------------------
+ * A PUBLICATION IN THE DOCUMENT LIBRARY
+ * ---------------------------------------------------------------------------------------------- */
+
+/**
+ * The owner's instruction is that every article over 2,500 words becomes a PDF and is *"added there"* —
+ * to `/documents/`.
+ *
+ * A publication is not an `ozikoro_media` row, so it has no `/documents/<slug>/` page: its record is the
+ * article, and the card's second link has to say so. What is asserted is that the card carries the real
+ * title, the real file size, the record's own rights sentence, and two links that lead where they claim —
+ * with **no import of a date, an author or a licence the archive does not hold**. The author of these
+ * records is real and deliberately absent from the card: the library has never printed one, and inventing
+ * one here to make a publication look more like a paper is the fault this file exists to catch.
+ */
+test('a publication is listed with its own size, its own rights sentence, and links that lead where they say', () => {
+  const rights = 'No rights have been established for this item. The archive holds it but has not confirmed who owns it or what may be done with it, so permission has not been granted either way. Ask before reusing it.';
+  const out = fillDocuments(DOCUMENTS, [
+    {
+      title: 'Aya Adesuwa: The Ubulu-Uku Bini War',
+      href: '/aya-adesuwa-the-ubulu-uku-bini-war/pdf/',
+      recordHref: '/aya-adesuwa-the-ubulu-uku-bini-war/',
+      label: 'Publication · PDF',
+      note: rights,
+      size: '226 KB',
+      actionLabel: 'Read the full record',
+    },
+  ]);
+  const grid = pdfGrid(out);
+
+  assert.match(grid, /Aya Adesuwa: The Ubulu-Uku Bini War/, 'the record’s own title is the card’s heading');
+  assert.match(grid, /Publication · PDF/, 'the card says which kind of document it is');
+  assert.match(grid, /226 KB/, 'the size is the one measured from the document the link serves');
+  assert.match(grid, /Download PDF · 226 KB/, 'and it sits on the download link, as every other card’s does');
+
+  /* BOTH ADDRESSES, AND EACH ONE IS THE ONE ITS OWN LINK CLAIMS. */
+  assert.match(grid, /href="\/aya-adesuwa-the-ubulu-uku-bini-war\/pdf\/" download/, 'the download is the publication');
+  assert.match(grid, /href="\/aya-adesuwa-the-ubulu-uku-bini-war\/">Read the full record<\/a>/, 'the record link is the article, and says so');
+  assert.ok(
+    !/Record and citation<\/a> · <a href="\/aya-adesuwa/.test(grid),
+    'a publication does not promise a citation page and deliver a history'
+  );
+
+  /* THE RECORD'S OWN RIGHTS SENTENCE, VERBATIM — and the word "rights" is in it because the record has none. */
+  assert.ok(grid.includes(rights), 'the card carries the record’s own rights sentence rather than a borrowed one');
+
+  /*
+   * AND NOTHING IS INVENTED AROUND IT. No author, no year, no licence — the archive holds none of the
+   * three for these records, and a card that supplied any of them would be fabricating a citation.
+   */
+  for (const absent of ['Idenze', '2026', 'CC BY', 'Open access']) {
+    assert.ok(!grid.includes(absent), `the card does not invent “${absent}” about the record`);
+  }
+});
+
+test('the note under the document grid stops calling the archive’s own files demonstration PDFs', () => {
+  /*
+   * The design's closing note read *"Download buttons currently provide clearly labelled demonstration
+   * PDFs…"*. It was written for the deliverable and it is false of every page `fillDocuments` fills: the
+   * demonstration downloads are gone and the grid holds files the archive serves. A page that calls a real
+   * document a sample at the moment a reader is deciding whether to trust it is the fault this file keeps
+   * recording, in its quietest form.
+   */
+  const out = fillDocuments(DOCUMENTS, [
+    {
+      title: 'Igbo Folk Idioms In Caribbean Phrase',
+      href: '/media/ozikoro/11237-Igbo%20Folk%20Idioms%20in%20Caribbean%20Phrase.pdf',
+      recordHref: '/documents/igbo-folk-idioms-in-caribbean-phrase/',
+      label: 'Held by the archive · PDF',
+      note: 'Downloadable file held in the archive. Rights and reuse terms are recorded with the record.',
+      size: '187 KB',
+    },
+  ]);
+  assert.doesNotMatch(out, /demonstration PDFs/, 'the page no longer says its downloads are demonstrations');
+  assert.doesNotMatch(out, /must replace them before production/, 'the “before production” promise is gone with the demo');
+  /* And the slot is not simply emptied: it states what is true of every card above it. */
+  const note = /<p class="sx-source-note[^"]*">([\s\S]*?)<\/p>/.exec(out)?.[1] ?? '';
+  assert.notEqual(note, '', 'the provenance note is still on the page');
+  assert.match(note, /served by the archive/, 'the note says where the files come from');
+  assert.match(note, /rights/, 'and that the rights travel with each record');
+});

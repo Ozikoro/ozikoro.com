@@ -56,10 +56,22 @@ import {
   PLACE_NAMES_SQL,
   playableEpisodeAudioSql,
   mediaName,
+  // The archive's own file-size sentence, so a publication's size is written the way every other
+  // document's is rather than by a second formatter that could round differently.
+  humanBytes,
   type DesignOverride,
 } from '@ozikoro/platform';
 import { sessionCookieOptions } from '@ozituma/db/accounts';
 import { getCurrentAccount } from '@/lib/session';
+/*
+ * THE PUBLICATION BUILDER, WHICH IS ALSO THE DOWNLOAD THE CARD LINKS TO.
+ *
+ * ⚠️ **THE SIZE ON A CARD MUST BE THE SIZE OF THE FILE THE CARD SERVES, OR IT IS A NUMBER ABOUT SOMETHING
+ * ELSE.** `/<slug>/pdf/` is served by `publicationFor`, so this is where the library asks how large that
+ * document is rather than estimating it from the record's word count. **It returns the same bytes the
+ * link returns**, which is the only way the two can be guaranteed to agree.
+ */
+import { publicationFor } from '@/lib/publication-cache';
 import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
 /*
  * The discussion box for the three screens that are discussion pages — `watch`, `projects` and
@@ -1425,6 +1437,92 @@ export async function GET(
           size: r.filesize_bytes ? `${Math.max(1, Math.round(r.filesize_bytes / 1024))} KB` : null,
         }));
         /*
+         * ── AND THE PUBLICATION PDFs, WHICH IS THE OWNER'S INSTRUCTION CARRIED OUT ───────────────────
+         *
+         * The owner: *"check all the very long articles in the website, convert them to pdf using the pdf
+         * html design i fed you for their designs, and add them."* **The build works and the address is
+         * live — `/<slug>/pdf/` answers 200 `application/pdf` — and nothing linked to it.** A document a
+         * reader cannot reach is the fault this whole round is about, so the library lists them beside the
+         * files the archive holds.
+         *
+         * ── WHICH RECORDS, AND WHY THE THRESHOLD IS 2,500 ────────────────────────────────────────────
+         *
+         * **Published only, and not `is_page`.** `status = 'published'` is the same predicate
+         * `publicationFor` and `buildPublication` use, so the library cannot offer a document whose own
+         * address would answer 404 — and this is not a hypothetical: **32 rows in this archive are over
+         * 2,500 words and only 5 of them are published.** The other 27 are in `review` and unreadable by
+         * anybody, and `scripts/build-publications.ts` already states the same figure and the same rule.
+         * The count is read from `word_count`, the record's own column, rather than recounted here.
+         *
+         * ⚠️ **THE THRESHOLD LIVES HERE AND NOWHERE ELSE IN THE SERVING PATH.** `/<slug>/pdf/` renders a
+         * PDF for *any* published record; 2,500 words is the owner's editorial line for which ones the
+         * archive should be offering, not a property of the renderer. So the number is stated once, at the
+         * one place that decides what the library lists.
+         *
+         * ── THE SIZE IS THE DOCUMENT'S, NOT AN ESTIMATE ──────────────────────────────────────────────
+         *
+         * `publicationFor` is the very function that answers `/<slug>/pdf/`, so the KB on the card is
+         * measured from the bytes that link serves. That matters here more than anywhere: **on the live
+         * container the media root is absent, so a render loses the record's figures and the cache refuses
+         * to keep it — the header comes back `x-ozikoro-publication: built` on every request.** A card that
+         * printed a size from the complete local build would therefore be describing a file the reader will
+         * not receive. Asking the serving function costs a render when the cache is cold and is exact.
+         *
+         * ── AND A FAILURE HERE DOES NOT TAKE THE PAGE DOWN ───────────────────────────────────────────
+         *
+         * `allSettled`, deliberately. A publication that cannot be rendered is one card missing its size,
+         * not a `/documents/` page that 500s — and the record's page is where the reader is sent either
+         * way. **The four files the archive holds must still be listed on the day a render breaks**, which
+         * is exactly the kind of coupling the per-screen boundaries above exist to prevent.
+         */
+        const longRecords = await db.rows<{ slug: string; title: string; word_count: number | null }>(
+          `select slug, title, word_count
+             from ozikoro_article
+            where status = 'published' and is_page = false and word_count > 2500
+            order by word_count desc, title`
+        );
+        const PUBLICATION_RIGHTS =
+          'No rights have been established for this item. The archive holds it but has not confirmed ' +
+          'who owns it or what may be done with it, so permission has not been granted either way. ' +
+          'Ask before reusing it.';
+        const built = await Promise.allSettled(
+          longRecords.map(async (a): Promise<RealDocument> => {
+            const pub = await publicationFor(a.slug);
+            return {
+              title: a.title,
+              href: `/${a.slug}/pdf/`,
+              /*
+               * THE RECORD IS THE ARTICLE, AND THE CARD SAYS SO. A publication is not an
+               * `ozikoro_media` row, so there is no `/documents/<slug>/` page for it — and a link
+               * promising "Record and citation" that lands on a history is the dead-control fault in
+               * another shape.
+               */
+              recordHref: `/${a.slug}/`,
+              actionLabel: 'Read the full record',
+              label: 'Publication · PDF',
+              note: PUBLICATION_RIGHTS,
+              size: pub ? humanBytes(pub.pdf.length) : null,
+            };
+          })
+        );
+        built.forEach((r, i) => {
+          if (r.status === 'fulfilled') {
+            docs.push(r.value);
+            return;
+          }
+          /*
+           * SAID OUT LOUD, WITH THE RECORD NAMED. A publication that fails to build must be greppable
+           * rather than merely absent from the grid — and the card is omitted rather than listed with an
+           * invented size, because a size the archive did not measure is exactly the fabrication this
+           * file refuses everywhere else.
+           */
+          console.error(
+            `documents: publication for ${longRecords[i]?.slug ?? '?'} could not be built, so it is not ` +
+              `listed:`,
+            r.reason
+          );
+        });
+        /*
          * AND THE GRID IS FILLED EVEN WHEN IT IS EMPTY, WHICH IS THE OTHER HALF OF THE SAME RULE.
          *
          * This used to read `if (docs.length > 0)`. **So a documents screen where nothing is nameable kept
@@ -1565,8 +1663,9 @@ export async function GET(
         /*
          * THE FOUR COLLECTIONS, WITH THE ARCHIVE'S OWN SIZES.
          *
-         * **The counts are what the archive holds**, and the oral-recordings card says plainly that it holds no
-         * recording — 13 video records and no audio — rather than borrowing a number from another collection.
+         * **The counts are what the archive holds**, and the oral-recordings card says plainly what it holds
+         * — rather than borrowing a number from another collection. See the recorded-archive card below for
+         * why that sentence is not the one it used to carry.
          */
         const db = await getDb();
         const counts = await db.one<{ images: number; videos: number; docs: number }>(
@@ -1575,6 +1674,93 @@ export async function GET(
                   count(*) filter (where kind = 'document')::int docs
              from ozikoro_media`
         );
+        /*
+         * ── ⚠️ AND THE COUNT THE DOCUMENTS CARD CARRIES IS THE ONE `/documents/` LISTS, NOT THE ROW COUNT ─
+         *
+         * The owner: *"the documents and maps shows 12 documents, but only 2 is shown when you go there, and
+         * in that two, they are not hosted on the website."*
+         *
+         * **BOTH NUMBERS WERE TRUE AND THEY COUNTED DIFFERENT THINGS.** The card counted every
+         * `ozikoro_media` row of `kind = 'document'` — thirteen of them, of which **eight are `text/html`
+         * saved web pages** and two more are PDFs whose only name is the uploaded file's own name.
+         * `/documents/` lists the PDFs it can name, which was two of the thirteen.
+         *
+         * ⚠️ **SO THE RULE IS APPLIED HERE RATHER THAN REWRITTEN IN SQL.** A `regexp_replace` over the four
+         * name columns could have been made to agree with `mediaName` today, and would have been a second
+         * copy of a rule this repository already keeps in one function — the drift this file's own comments
+         * count four separate times. The rows are read and named with `mediaName` itself, and **only the
+         * result is counted**, so the card cannot disagree with the library unless the library's own
+         * function changes.
+         *
+         * WHY A SECOND STATEMENT IS ACCEPTABLE HERE AND NOT ON THE DOCUMENTS SCREEN: this is a count over
+         * rows projected to four text columns, on a page that already issues several queries. `/documents/`
+         * reads the same rows because it also has to build the cards.
+         */
+        const nameableDocumentRows = await db.rows<{
+          slug: string; title: string | null; caption: string | null; description: string | null; alt_text: string | null;
+        }>(
+          `select slug, title, caption, description, alt_text
+             from ozikoro_media
+            where kind = 'document' and mime_type = 'application/pdf' and storage_key is not null`
+        );
+        const nameableDocumentCount = nameableDocumentRows.filter(
+          (r) =>
+            mediaName({
+              kind: 'document',
+              slug: r.slug,
+              storedTitle: r.title,
+              caption: r.caption,
+              description: r.description,
+              altText: r.alt_text,
+            }).from !== 'fallback'
+        ).length;
+        /*
+         * ⚠️ **AND THE CARD NOW CARRIES THE NUMBER THE LIBRARY ACTUALLY LISTS.** The five publication PDFs
+         * the owner asked for are listed by `/documents/` in this same change, so the figure below counts
+         * them too — from the same predicate the documents fill runs (`status = 'published'`, not
+         * `is_page`, `word_count > 2500`), so the two surfaces cannot report different sizes of the same
+         * library.
+         *
+         * ⚠️ **EVERY PART OF THIS IS ALLOWED TO FAIL.** If the count cannot be taken, the card falls back
+         * to the register's own row count — which is a larger, differently-defined number, and it is still
+         * a number the archive can stand behind. A card that reads `0 document records` because a query
+         * threw would understate the archive and look like an empty collection.
+         */
+        let listedDocumentCount = counts?.docs ?? 0;
+        try {
+          const publicationsOverThreshold = await db.one<{ n: number }>(
+            `select count(*)::int n
+               from ozikoro_article
+              where status = 'published' and is_page = false and word_count > 2500`
+          );
+          listedDocumentCount = nameableDocumentCount + Number(publicationsOverThreshold?.n ?? 0);
+        } catch (error) {
+          console.error('collections: could not count the documents the library lists:', error);
+        }
+        /*
+         * ── HOW MANY RECORDINGS A READER CAN ACTUALLY HEAR, ASKED THE WAY `/listen/` ASKS IT ──────────
+         *
+         * The count is of RECORDS (one card each), not of episode rows, because that is what `/listen/`
+         * draws: the same `join lateral … limit 1` collapses a record with two approved episodes to the one
+         * card its article will play. `null` means the question could not be answered, and the card says
+         * what it said before rather than a number nobody measured.
+         */
+        let playableRecordingCount: number | null = null;
+        try {
+          const n = await db.one<{ n: number }>(
+            `select count(*)::int n
+               from ozikoro_article a
+               join lateral (
+                 select * from ozikoro_episode e
+                  where e.article_id = a.id and ${playableEpisodeAudioSql('e')}
+                  order by e.published_at desc nulls last limit 1
+               ) e on true
+              where a.status = 'published' and a.is_page = false`
+          );
+          playableRecordingCount = Number(n?.n ?? 0);
+        } catch (error) {
+          console.error('collections: could not count the recordings a reader can hear:', error);
+        }
         /*
          * THE PHOTOGRAPHS CARD CARRIES A CAMERA, NOT A PHOTOGRAPH.
          *
@@ -1602,9 +1788,35 @@ export async function GET(
             cta: `${(counts?.images ?? 0).toLocaleString('en-GB')} image records`,
             image: null, glyph: null, drawnGlyph: COLLECTION_CAMERA_SIGN },
           { label: 'Written archive', name: 'Documents & maps', href: '/documents',
-            cta: `${(counts?.docs ?? 0).toLocaleString('en-GB')} document records`, image: null, glyph: '≡' },
+            cta: `${listedDocumentCount.toLocaleString('en-GB')} documents`, image: null, glyph: '≡' },
           { label: 'Recorded archive', name: 'Oral recordings', href: '/listen',
-            cta: 'No recording held yet', image: null, glyph: '◉' },
+            /*
+             * ⚠️ **THIS CARD SAID `No recording held yet` WHILE THE ARCHIVE HELD PLAYABLE RECORDINGS.**
+             *
+             * The owner: *"why is this showing empty for oral recordings, but has some records, and dont even
+             * include ute okpu and other articles with records on them."* **He was right, and the string was
+             * hard-coded**: the card was a literal, written when the archive held no audio, and it was never
+             * revisited when episodes were approved. `/listen/` fills itself from a real query, so the two
+             * surfaces disagreed — the card denied what the page it links to was serving.
+             *
+             * ── AND IT NOW COUNTS WITH `/listen/`'s OWN QUERY RATHER THAN ONE THAT RESEMBLES IT ────────
+             *
+             * `playableEpisodeAudioSql('e')` is the same fragment the listen fill uses, and the same
+             * `join lateral … limit 1` means one card per record — so the number here is the number of cards
+             * that page draws, by construction. **A second statement of the readiness rule is exactly the
+             * copy that drifts**, and this card is the surface where that drift already produced a false
+             * statement about the archive.
+             *
+             * ⚠️ **AND WHEN THERE IS GENUINELY NOTHING THE CARD STILL SAYS SO** — in the design's own words,
+             * because a recording that has not been approved is not a recording a reader can hear, and
+             * claiming one would be the same invention in the other direction.
+             */
+            cta: (() => {
+              const n = playableRecordingCount;
+              if (n === null) return 'No recording held yet';
+              return `${n.toLocaleString('en-GB')} recorded ${n === 1 ? 'history' : 'histories'}`;
+            })(),
+            image: null, glyph: '◉' },
           { label: 'Material archive', name: 'Material culture', href: '/material-culture',
             cta: `${(counts?.videos ?? 0).toLocaleString('en-GB')} video records`, image: null, glyph: '◈' },
         ];

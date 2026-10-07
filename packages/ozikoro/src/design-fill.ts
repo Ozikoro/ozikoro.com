@@ -3348,6 +3348,34 @@ export function fillDocuments(html: string, docs: RealDocument[], empty?: string
     /<span class="small muted">Sample publication states<\/span>/,
     '<span class="small muted">0 published</span>'
   );
+  /*
+   * ── AND THE NOTE UNDER THE GRID, WHICH WAS TRUE OF THE DESIGN AND IS FALSE OF THE PAGE ─────────────
+   *
+   * The design's own closing line under this grid reads:
+   *
+   *   *"Download buttons currently provide clearly labelled demonstration PDFs. Approved publication and
+   *   archive files must replace them before production."*
+   *
+   * **It was true of the deliverable and it is false of every page this function fills.** The demonstration
+   * downloads are gone (measured on the served page: zero `../downloads/` addresses and zero
+   * `archive-guide-demonstration` links), and what is left in the grid is files the archive holds and
+   * publications rendered from its own records. **`data/partners.json`'s rule applies to a sentence as much
+   * as to a figure: a statement the page cannot stand behind does not stay on it** — and this one is worse
+   * than decoration, because it tells a reader the download beside it is a sample at the moment it is the
+   * real document.
+   *
+   * ⚠️ **IT IS REPLACED RATHER THAN DELETED, AND WITH WHAT THE PAGE ACTUALLY GUARANTEES.** The note's slot
+   * is the grid's provenance line; emptying it would leave a reader with no statement about where these
+   * files come from at all. What is said instead is true of every card above it: the archive's own files
+   * carry the record's rights, and a publication rendered from a record says so on its own card — which is
+   * where a reader looks before reusing anything.
+   */
+  out = out.replace(
+    /<p class="sx-source-note[^"]*">[\s\S]*?<\/p>/,
+    '<p class="sx-source-note sx-light-note">Every file listed here is served by the archive. A file the ' +
+      'archive holds carries the rights recorded with its own record; a publication built from a history ' +
+      'carries that record’s own rights sentence on its card. Check either before reusing anything.</p>'
+  );
   return out;
 }
 
