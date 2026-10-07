@@ -37,6 +37,8 @@ import {
   sanitiseArchiveHtml,
   SITE_ORIGIN,
   type PieceKind,
+  mediaUrlResolver,
+  rewriteBodyImages,
 } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
 import { Notices } from '../ui';
@@ -273,7 +275,18 @@ export async function EditorScreen({
   if (id !== null) {
     const stored = await getPieceForEditor(db, id, kind);
     if (!stored) notFound();
-    previewHtml = sanitiseArchiveHtml(stored.bodyHtml);
+    /*
+     * THE IMAGES ARE RESOLVED HERE, AND NOT BEFORE THIS ROUND.
+     *
+     * `sanitiseArchiveHtml` was called on the stored body alone, so this screen rendered **the address the
+     * record was published at** rather than the file the archive serves: `https://ozikoro.com/wp-content/…`
+     * 404s on the domain since the cutover, and a body quoting a Blogger or a BBC image was refused by the
+     * site's own `img-src 'self' data:` policy. **Every image on every draft screen was broken, for one of
+     * those two reasons**, which is exactly what the owner reported. `rewriteBodyImages` and
+     * `mediaUrlResolver` are the same two functions the served article route calls, so the preview cannot
+     * disagree with the page.
+     */
+    previewHtml = sanitiseArchiveHtml(rewriteBodyImages(stored.bodyHtml, await mediaUrlResolver(db)));
     if (stored.featuredMediaId !== null) {
       const chosen = await db.one<{ storage_key: string | null; title: string | null }>(
         `select storage_key, coalesce(title, storage_key) as title from ozikoro_media where id = $1`,

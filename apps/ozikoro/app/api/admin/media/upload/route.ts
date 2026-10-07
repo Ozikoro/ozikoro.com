@@ -60,6 +60,7 @@
 import { getDb } from '@ozituma/db/client';
 import { getStorage } from '@ozituma/db/storage';
 import { isAddressableMediaKey } from '@ozikoro/platform/media-key';
+import { looksLikeSvg, safeMediaFilename, sniffMediaBytes } from '@ozikoro/platform/media-bytes';
 import { jsonError, sameOrigin, requireCapability } from '@/lib/access';
 
 export const runtime = 'nodejs';
@@ -71,103 +72,6 @@ export const dynamic = 'force-dynamic';
  */
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-/** The kinds `ozikoro_media.kind` accepts, per the check constraint in migration 0035. */
-type MediaKind = 'image' | 'video' | 'audio' | 'document' | 'dataset' | 'other';
-
-interface Sniffed {
-  mime: string;
-  kind: MediaKind;
-  extension: string;
-}
-
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-/**
- * What the bytes actually are, from their first bytes and — for the ISO-BMFF family only — the declaration.
- *
- * The one place the declared type is consulted is the `ftyp` box, which is shared by MP4 video, M4A audio,
- * QuickTime film and AVIF stills. Their brands overlap in the wild and the byte signature alone cannot
- * separate a video MP4 from an audio one; the declaration is used there to choose between two types whose
- * bytes are genuinely the same container, and it never grants access to a type the signature did not first
- * establish. Everything else is decided by the signature alone.
- */
-function sniff(head: Buffer, declared: string): Sniffed | null {
-  const ascii = (start: number, end: number) => head.subarray(start, end).toString('latin1');
-
-  if (head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) {
-    return { mime: 'image/jpeg', kind: 'image', extension: 'jpg' };
-  }
-  if (head.length >= 8 && head.subarray(0, 8).equals(PNG)) {
-    return { mime: 'image/png', kind: 'image', extension: 'png' };
-  }
-  if (head.length >= 6 && (ascii(0, 6) === 'GIF87a' || ascii(0, 6) === 'GIF89a')) {
-    return { mime: 'image/gif', kind: 'image', extension: 'gif' };
-  }
-  if (head.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WEBP') {
-    return { mime: 'image/webp', kind: 'image', extension: 'webp' };
-  }
-  if (head.length >= 12 && ascii(0, 4) === 'RIFF' && ascii(8, 12) === 'WAVE') {
-    return { mime: 'audio/wav', kind: 'audio', extension: 'wav' };
-  }
-  if (head.length >= 4 && ascii(0, 4) === 'OggS') {
-    return { mime: 'audio/ogg', kind: 'audio', extension: 'ogg' };
-  }
-  if (
-    head.length >= 3 &&
-    (ascii(0, 3) === 'ID3' || (head[0] === 0xff && (head[1]! & 0xe0) === 0xe0))
-  ) {
-    return { mime: 'audio/mpeg', kind: 'audio', extension: 'mp3' };
-  }
-  if (head.length >= 4 && ascii(0, 4) === '%PDF') {
-    return { mime: 'application/pdf', kind: 'document', extension: 'pdf' };
-  }
-  // WebM and Matroska share the EBML header; MediaRecorder produces WebM.
-  if (head.length >= 4 && head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) {
-    return declared.startsWith('audio/')
-      ? { mime: 'audio/webm', kind: 'audio', extension: 'webm' }
-      : { mime: 'video/webm', kind: 'video', extension: 'webm' };
-  }
-  if (head.length >= 12 && ascii(4, 8) === 'ftyp') {
-    const brand = ascii(8, 12);
-    if (brand.startsWith('avif') || brand.startsWith('avis')) {
-      return { mime: 'image/avif', kind: 'image', extension: 'avif' };
-    }
-    if (brand.startsWith('qt')) {
-      return { mime: 'video/quicktime', kind: 'video', extension: 'mov' };
-    }
-    if (declared === 'audio/mp4' || declared === 'audio/x-m4a' || declared === 'audio/m4a') {
-      return { mime: 'audio/mp4', kind: 'audio', extension: 'm4a' };
-    }
-    return { mime: 'video/mp4', kind: 'video', extension: 'mp4' };
-  }
-  return null;
-}
-
-/** Whether the first bytes say "this is an SVG", so the refusal can name the format rather than guess. */
-function looksLikeSvg(head: Buffer): boolean {
-  const text = head.subarray(0, 512).toString('utf8').trimStart().toLowerCase();
-  return text.startsWith('<svg') || text.startsWith('<?xml');
-}
-
-/**
- * A file name the media pattern will accept, and the extension the bytes proved.
- *
- * `MEDIA_KEY_PATTERN` admits exactly the characters a WordPress file name carries
- * (`A-Za-z0-9._- ()[],'&+@` and the space — see that module's measurement). Anything else becomes `-`, the
- * name is capped so the whole key stays inside the 255-character class, and the extension is **the sniffed
- * one, never the uploaded one**: a file called `photo.html` whose bytes are a JPEG is stored as `.jpg`.
- */
-function safeName(original: string, extension: string): string {
-  const base = original.replace(/\.[^.]*$/, '');
-  const cleaned = base
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9._ ()[\],'&+@-]+/g, '-')
-    .replace(/-{2,}/g, '-')
-    .replace(/^[.\-\s]+|[.\-\s]+$/g, '')
-    .slice(0, 120);
-  return `${cleaned.length > 0 ? cleaned : 'upload'}.${extension}`;
-}
 
 /** A slug nothing else in `ozikoro_media` holds. `slug` is `not null unique` on that table. */
 async function uniqueMediaSlug(
@@ -246,7 +150,7 @@ export async function POST(request: Request): Promise<Response> {
     );
   }
 
-  const sniffed = sniff(head, (file.type || '').split(';')[0]!.trim().toLowerCase());
+  const sniffed = sniffMediaBytes(head, (file.type || '').split(';')[0]!.trim().toLowerCase());
   if (!sniffed) {
     return jsonError(
       400,
@@ -279,7 +183,7 @@ export async function POST(request: Request): Promise<Response> {
     return jsonError(500, 'record_failed', 'A record for that file could not be opened, so nothing was stored.');
   }
 
-  const filename = safeName(file.name, sniffed.extension);
+  const filename = safeMediaFilename(file.name, sniffed.extension);
   const key = `ozikoro/${mediaId}-${filename}`;
 
   /*

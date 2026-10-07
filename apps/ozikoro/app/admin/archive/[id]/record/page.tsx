@@ -36,6 +36,8 @@ import {
   listTopics,
   sanitiseArchiveHtml,
   searchDictionaryPlaces,
+  mediaUrlResolver,
+  rewriteBodyImages,
 } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
 import { Card, Head, Notices } from '../../../ui';
@@ -83,7 +85,7 @@ export default async function EditRecord({
    * whole point of showing it: a body that looks right in a textarea and wrong on the page is the fault
    * class this screen exists to catch.
    */
-  const preview = sanitiseArchiveHtml(content?.bodyHtml ?? '');
+  const preview = sanitiseArchiveHtml(rewriteBodyImages(content?.bodyHtml ?? '', await mediaUrlResolver(db)));
   const words = (html: string) => html.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
   /*
    * The decisions offered are computed from the SAME table `decideArticleStatus` consults, so a button

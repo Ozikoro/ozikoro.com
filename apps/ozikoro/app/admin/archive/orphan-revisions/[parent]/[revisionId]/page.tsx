@@ -6,7 +6,7 @@
  */
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { getArticleRevision, sanitiseArchiveHtml } from '@ozikoro/platform';
+import { getArticleRevision, mediaUrlResolver, rewriteBodyImages, sanitiseArchiveHtml } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
 import { Card, Head } from '@/app/admin/ui';
 
@@ -37,7 +37,9 @@ export default async function ReadOrphanRevision({
   const revision = await getArticleRevision(db, revId);
   if (!revision || revision.wpParentPostId !== parentPostId) notFound();
 
-  const body = revision.bodyHtml === null ? null : sanitiseArchiveHtml(revision.bodyHtml);
+  const body = revision.bodyHtml === null
+    ? null
+    : sanitiseArchiveHtml(rewriteBodyImages(revision.bodyHtml, await mediaUrlResolver(db)));
 
   return (
     <>

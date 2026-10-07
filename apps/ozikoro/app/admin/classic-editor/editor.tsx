@@ -867,10 +867,11 @@ export function ClassicEditor(props: ClassicEditorProps) {
                   </div>
                   <div className="inside">
                     <p className="hndle-note">
-                      This is the <strong>stored</strong> body, rendered through the same sanitiser the served page
-                      uses — not the text in the box above, which may hold unsaved edits. A draft has no public
-                      address by design, so there is no URL to open; publish it and the page itself is the
-                      preview.
+                      This is the <strong>stored</strong> body, rendered through the same sanitiser
+                      <em>and the same image resolver</em> the served page uses — so a picture shows here exactly
+                      as a reader would get it, or not at all. It is not the text in the box above, which may
+                      hold unsaved edits. A draft has no public address by design, so there is no URL to open;
+                      publish it and the page itself is the preview.
                     </p>
                     {previewHtml.trim() === '' ? (
                       <p>The stored body is empty. Nothing has been saved for this piece yet.</p>

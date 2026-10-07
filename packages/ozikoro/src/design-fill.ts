@@ -382,16 +382,57 @@ export function fillArchiveIndex(html: string, opts: {
   }
 
   // ---- 1. the ethnic group: the register's peoples, and the records that name each one -------------
-  const peopleRows = opts.peoples.map(
+  /*
+   * ── ⚠️ A FEW PEOPLES, THEN A REAL CONTROL THAT REVEALS THE REST — THE OWNER ASKED FOR IT IN THOSE WORDS
+   *
+   * *"the left section with title FILTERS is expected to have list of all the categories in the website,
+   * which should be fully function, then, the ethnic groups can come later, but just few showing, with one
+   * needing to click to view more. please priotise categories on the articles."*
+   *
+   * MEASURED BEFORE THIS: the served rail drew **all nineteen** of the register's peoples as checkboxes,
+   * one under the other — a wall of names below the categories. Nothing was collapsed, and the page held
+   * no `<details>` and no `<summary>` at all (both counts measured 0 on the live page).
+   *
+   * WHY `<details>`/`<summary>` AND NOT A BUTTON: **it is a real control with no JavaScript in it.**
+   * `archive-index.html` loads only `market-days.js`, the rail is a plain `<form method="get">`, and the
+   * checkbox group it belongs to has to keep working with scripting off — so the disclosure is the
+   * browser's own, keyboard-reachable and operable by Enter or Space. A `<button>` that a script had to
+   * animate is the fault the owner has reported repeatedly; this one cannot render and do nothing.
+   *
+   * ⚠️ **THE HIDDEN CHECKBOXES STILL SUBMIT, WHICH IS THE PROPERTY THAT MAKES THIS SAFE.** A `<details>`
+   * that is not `open` hides its content but does **not** disable it: a box a reader ticked, collapsed and
+   * then submitted is still carried in the query string. So collapsing can never silently drop a filter
+   * the reader set — and the four shown, and the checked state of every box, survive being re-rendered
+   * after a page load because `check()` is applied to all of them.
+   *
+   * FOUR, NOT FIVE, BECAUSE THAT IS THE DESIGN'S OWN HABIT: `showcase.css` collapses the year sections
+   * four to a page (`.sx-year-section`), and the owner's instruction — *"just few showing"* — is answered
+   * by the same number rather than by a new one invented here.
+   */
+  const ETHNIC_SHOWN = 4;
+  const peopleLabels = opts.peoples.map(
     (p) =>
       `<label><input type="checkbox" name="group" value="${esc(p.label)}"${check(p.label) ? ' checked' : ''}> ` +
       `${esc(p.label)} <span class="count">${railCount(p.count)}</span></label>`
   );
-  peopleRows.push(
+  const peopleNote =
     `<p class="small muted" style="margin-top:var(--s-3)">Each number is the published histories whose ` +
-      `title or text names that people, or which carry that people's own label — the same search this ` +
-      `filter runs. A people the archive has written nothing under counts 0, and the listing says so.</p>`
-  );
+    `title or text names that people, or which carry that people's own label — the same search this ` +
+    `filter runs. A people the archive has written nothing under counts 0, and the listing says so.</p>`;
+  /*
+   * The rest is drawn only when there IS a rest. A "view more" that reveals nothing is the dead control
+   * in miniature, and with the register at four names or fewer there is nothing to reveal.
+   */
+  const peopleRows =
+    peopleLabels.length <= ETHNIC_SHOWN
+      ? [...peopleLabels, peopleNote]
+      : [
+          ...peopleLabels.slice(0, ETHNIC_SHOWN),
+          `<details style="margin-top:var(--s-2)">\n        ` +
+            `<summary class="small" style="cursor:pointer">View all ${railCount(peopleLabels.length)} ` +
+            `ethnic groups</summary>\n        ` +
+            `${peopleLabels.slice(ETHNIC_SHOWN).join('\n        ')}\n        ${peopleNote}\n      </details>`,
+        ];
   out = railFieldset(out, 'Ethnic group', peopleRows.join('\n        '));
 
   // ---- 2. the clan: real clans, real counts, and the register's own size ---------------------------
@@ -2442,6 +2483,89 @@ export type RealArticleEntity = {
  * no match is left exactly as it was** — a third of the misses are images that were never on ozikoro.com at
  * all, from Google or the BBC, and replacing those would be inventing a source.
  */
+/**
+ * ── EVERY POSITION A BODY CAN NAME A FILE IN, WRITTEN DOWN ONCE ─────────────────────────────────────
+ *
+ * The scanning half and the rewriting half are the same list on purpose. An importer that finds an address
+ * in `data-src` and downloads it, and a rewriter that does not look at `data-src`, produces **a body whose
+ * file is in the archive and whose markup still points somewhere else** — the download is wasted and the
+ * reader sees the same broken box. Two lists would drift; this is one list.
+ *
+ * WHICH SHAPES ARE HERE, AND WHICH WERE MEASURED TO BE ABSENT
+ *
+ *   `src`, `data-src`, `data-lazy-src`, `poster`, `data`   a single address in an attribute. Attribute-name
+ *       based rather than tag-based, because a body's markup is not reliably nested and the resolver is the
+ *       bound: **a URL with no media row is returned unchanged**, so a `<script src>` or an `<iframe src>`
+ *       pointing at somebody else's service cannot be touched by this.
+ *   `srcset`, `data-srcset`, `data-lazy-srcset`             a comma list of `address descriptor`.
+ *   `<a href>` ending in a file extension                   the fallback anchor WordPress writes beside a
+ *       `<video>`, and the full-size image a Blogger thumbnail links to. Matched by extension because an
+ *       extension test cannot reach a link to an article — which is the property that makes it safe.
+ *   inline `style="… url(…) …"`                             a background image, quoted or bare. A sanitised
+ *       save drops `style`, but the imported bodies were never sanitised, so this is written for the shapes
+ *       that are actually stored rather than for the shapes that are supposed to be.
+ *
+ * Searched for and NOT present anywhere in this archive's 1,622 bodies, measured rather than assumed:
+ * `<source srcset>`, `<link href>`, `<object data>`, `<video src>`. The attribute rules above still cover
+ * them, because they are named by attribute and not by tag.
+ */
+const BODY_SINGLE_URL_ATTRIBUTES = [
+  'src', 'data-src', 'data-lazy-src', 'data-trx-lazyload-src', 'poster', 'data',
+] as const;
+
+/**
+ * THE THEME'S OWN LAZY-LOAD ATTRIBUTE, WHICH IS NOT A URL IN AN ATTRIBUTE BUT THE ONLY URL IN THE TAG.
+ *
+ * The theme writes `<img src="…/trx_addons/…/placeholder.png" data-trx-lazyload-src="REAL" …>`, so the
+ * `src` is a grey box and the real address is in the other attribute. **Rewriting that attribute in place
+ * would not be enough**: the placeholder is what a browser loads, and the theme's script that would swap
+ * it is not on this archive's pages at all — so the reader would get the grey box either way. The tag is
+ * therefore replaced, which is what `scripts/import-inbody-images.ts` already did to twelve records.
+ *
+ * **A tag whose real address has no media row is left exactly as it was.** The placeholder is then still
+ * the grey box it was, which is the honest outcome: nothing is invented to fill the space.
+ */
+const TRX_LAZYLOAD = /<img[^>]*?\sdata-trx-lazyload-src=(["'])([^"']+)\1[^>]*>/gi;
+const BODY_SRCSET_ATTRIBUTES = ['srcset', 'data-srcset', 'data-lazy-srcset'] as const;
+
+/**
+ * An address that ends in a file this archive can hold. `svg` is deliberately absent: it is the one image
+ * format that carries script and the archive's sanitiser drops it from every stored body, so a link to one
+ * is a link to something this archive will never serve.
+ */
+const BODY_LINKED_FILE = /\.(?:jpe?g|png|gif|webp|avif|bmp|tiff?|mp4|m4v|webm|ogv|ogm|mov|mp3|m4a|wav|ogg|pdf)(?:\?[^"]*)?$/i;
+
+/**
+ * Every address a record's body names in a position a browser or a reader can follow.
+ *
+ * **This is the scanning half of `rewriteBodyImages`, driven by the same constants**, and it exists so the
+ * importer cannot hunt for a shape the rewriter does not know about. It returns addresses as written —
+ * absolute, site-relative or protocol-relative — and says nothing about whether the archive holds them.
+ */
+export function bodyMediaAddresses(body: string): string[] {
+  const out = new Set<string>();
+  for (const attr of BODY_SINGLE_URL_ATTRIBUTES) {
+    for (const m of body.matchAll(new RegExp(`\\s${attr}=(["'])([^"']+)\\1`, 'gi'))) {
+      if (m[2]) out.add(m[2]);
+    }
+  }
+  for (const attr of BODY_SRCSET_ATTRIBUTES) {
+    for (const m of body.matchAll(new RegExp(`\\s${attr}=(["'])([^"']+)\\1`, 'gi'))) {
+      for (const part of (m[2] ?? '').split(',')) {
+        const url = part.trim().split(/\s+/)[0];
+        if (url) out.add(url);
+      }
+    }
+  }
+  for (const m of body.matchAll(/<a[^>]*?\shref=(["'])([^"']+)\1/gi)) {
+    if (m[2] && BODY_LINKED_FILE.test(m[2])) out.add(m[2]);
+  }
+  for (const m of body.matchAll(/url\((?:&quot;|["'])?([^)"'&]+)/gi)) {
+    if (m[1]) out.add(m[1]);
+  }
+  return [...out];
+}
+
 export function rewriteBodyImages(body: string, resolve: (url: string) => string | null): string {
   /*
    * A VIDEO IS NOT AN IMAGE, AND THREE OF ITS ADDRESSES WERE BEING MISSED.
@@ -2481,27 +2605,51 @@ export function rewriteBodyImages(body: string, resolve: (url: string) => string
     const tries: string[] = [url];
     if (bare !== url) tries.push(bare);
     if (bare.startsWith('/')) tries.push(`https://ozikoro.com${bare}`);
+    /*
+     * ⚠️ AND THE ADDRESS AS THE MARKUP WRITES IT IS NOT ALWAYS THE ADDRESS THAT WAS PUBLISHED.
+     *
+     * WordPress escapes an ampersand in an attribute, so a body holds
+     * `…/media/DjhMDScXgAQI5DD?format=jpg&amp;name=medium` while the file's own address is
+     * `…&name=medium`. **Measured: the escaped spelling answers `404` and the decoded one answers `200`,
+     * `image/jpeg`, 219,067 bytes** — so a lookup that only ever asks the escaped form reports ten recoverable
+     * images as permanently gone. Decoding is added as one more attempt, and it changes no address that
+     * already resolved, because it is consulted last.
+     */
+    const decoded = url.replace(/&amp;/g, '&').replace(/&#0?38;/g, '&');
+    if (decoded !== url && !tries.includes(decoded)) tries.push(decoded);
     for (const attempt of tries) {
       const found = resolve(attempt);
       if (found) return found + tail;
     }
     return url;
   };
-  return body
-    .replace(/(<img[^>]*?\ssrc=")([^"]+)(")/g, (_m, a, url, c) => a + fix(url) + c)
-    // A video, its nested sources, and an audio element — the same `src` attribute, three more tags.
-    .replace(/(<(?:video|source|audio)[^>]*?\ssrc=")([^"]+)(")/gi, (_m, a, url, c) => a + fix(url) + c)
-    /*
-     * AND THE FALLBACK ANCHOR, WHICH IS A LINK AND SO NEEDS A NARROWER NET. It is matched by extension
-     * rather than by being inside a `<video>`, because a body's markup is not reliably nested — and an
-     * extension test cannot reach an article link. A miss costs nothing: `fix` returns the address unchanged.
-     */
-    .replace(
-      /(<a[^>]*?\shref=")([^"]+\.(?:mp4|m4v|webm|ogv|ogm|mov))(\?[^"]*)?(")/gi,
-      (_m, a, url, q, c) => a + fix(url + (q ?? '')) + c
-    )
-    .replace(/(\ssrcset=")([^"]+)(")/g, (_m, a, set, c) =>
+  let out = body;
+
+  // Before the attribute pass, because the placeholder `src` is not the address this tag carries.
+  out = out.replace(TRX_LAZYLOAD, (tag: string, _quote: string, real: string) => {
+    const local = fix(real);
+    if (local === real) return tag;
+    const alt = /\salt="([^"]*)"/i.exec(tag);
+    return `<img src="${local}" alt="${alt ? alt[1] : ''}" loading="lazy" decoding="async">`;
+  });
+
+  /*
+   * ONE ADDRESS IN ONE ATTRIBUTE. Named by attribute rather than by tag, because a body's markup is not
+   * reliably nested — and safe for the same reason it is broad: `fix` changes nothing unless a media row
+   * carries that exact address.
+   */
+  for (const attr of BODY_SINGLE_URL_ATTRIBUTES) {
+    out = out.replace(new RegExp(`(\\s${attr}=)(["'])([^"']+)\\2`, 'gi'), (_m, a: string, q: string, url: string) => a + q + fix(url) + q);
+  }
+
+  /*
+   * A SRCSET IS A COMMA LIST AND THE BROWSER LOADS FROM IT, NOT FROM `src`. The first run of this rewrote
+   * `<img src>` and left 1,013 bodies still holding live-site URLs for exactly that reason.
+   */
+  for (const attr of BODY_SRCSET_ATTRIBUTES) {
+    out = out.replace(new RegExp(`(\\s${attr}=)(["'])([^"']+)\\2`, 'gi'), (_m, a: string, q: string, set: string) =>
       a +
+      q +
       set
         .split(',')
         .map((part: string) => {
@@ -2511,8 +2659,29 @@ export function rewriteBodyImages(body: string, resolve: (url: string) => string
           return fix(trimmed.slice(0, sp)) + trimmed.slice(sp);
         })
         .join(', ') +
-      c
+      q
     );
+  }
+
+  /*
+   * AND THE FALLBACK ANCHOR, WHICH IS A LINK AND SO NEEDS A NARROWER NET. It is matched by extension rather
+   * than by being inside a `<video>`, because a body's markup is not reliably nested — and an extension test
+   * cannot reach an article link. A miss costs nothing: `fix` returns the address unchanged.
+   */
+  out = out.replace(/(<a[^>]*?\shref=)(["'])([^"']+)\2/gi, (m, a: string, q: string, url: string) =>
+    BODY_LINKED_FILE.test(url) ? a + q + fix(url) + q : m
+  );
+
+  /*
+   * AN INLINE BACKGROUND. A sanitised save drops `style`, but the imported bodies were never sanitised, so
+   * this is written for the shapes that are stored rather than for the shapes that are supposed to be.
+   */
+  out = out.replace(/url\((?:&quot;|["'])?([^)"'&]+)(?:&quot;|["'])?\)/gi, (m, url: string) => {
+    const resolved = fix(url.trim());
+    return resolved === url.trim() ? m : `url(${resolved})`;
+  });
+
+  return out;
 }
 
 const dateFmt = (iso: string | null) =>
@@ -3047,16 +3216,32 @@ export type RealDocument = {
    * The record page at `/documents/<slug>/`. The same fault the photograph gallery had: this card
    * offered only a download, so the provenance, the rights and the citation were unreachable from the
    * library. The record is the way in; the file is one of the things it offers.
+   *
+   * ⚠️ **IT IS NOT ALWAYS A `/documents/` PAGE.** The owner's instruction is that *"every article over
+   * 2,500 words"* becomes a PDF and is *"added there"* — to this library. A publication built from a
+   * record has no `ozikoro_media` row and therefore no `/documents/<slug>/` page; the record itself,
+   * `/<slug>/`, is where its provenance, its sources and its citation live. So the field names the
+   * record, whatever address that record's page has, and `actionLabel` below says which kind of page the
+   * reader is being sent to. Naming it `documentsHref` would have been the lie, not the field.
    */
   recordHref: string;
   label: string;
   note: string;
   size: string | null;
+  /**
+   * The words on the link to `recordHref`, when *"Record and citation"* is not what that page is.
+   *
+   * It defaults to the archive's own wording, so every existing caller is unchanged. A publication
+   * passes *"Read the full record"*, because a reader sent to `/<slug>/` from a document card is being
+   * sent to the article — and a card whose second link promises a citation page and delivers a history
+   * is the same class of fault as the button that renders and does nothing.
+   */
+  actionLabel?: string;
 };
 
 /** One document card, in the design's `.sx-pdf-grid > article` markup. */
 export function renderDocument(d: RealDocument): string {
-  return `<article><span class="sx-file-icon">PDF</span><div><small>${esc(d.label)}</small><h3><a href="${esc(d.recordHref)}">${esc(d.title)}</a></h3><p>${esc(d.note)}</p><p><a href="${esc(d.recordHref)}">Record and citation</a> · <a href="${esc(d.href)}" download>Download PDF${d.size ? ` · ${esc(d.size)}` : ''} <span aria-hidden="true">↓</span></a></p></div></article>`;
+  return `<article><span class="sx-file-icon">PDF</span><div><small>${esc(d.label)}</small><h3><a href="${esc(d.recordHref)}">${esc(d.title)}</a></h3><p>${esc(d.note)}</p><p><a href="${esc(d.recordHref)}">${esc(d.actionLabel ?? 'Record and citation')}</a> · <a href="${esc(d.href)}" download>Download PDF${d.size ? ` · ${esc(d.size)}` : ''} <span aria-hidden="true">↓</span></a></p></div></article>`;
 }
 
 /**

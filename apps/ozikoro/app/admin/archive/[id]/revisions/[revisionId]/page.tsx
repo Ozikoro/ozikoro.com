@@ -13,7 +13,7 @@
  */
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { getArticleFacets, getArticleRevision, sanitiseArchiveHtml } from '@ozikoro/platform';
+import { getArticleFacets, getArticleRevision, mediaUrlResolver, rewriteBodyImages, sanitiseArchiveHtml } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
 import { Card, Head } from '@/app/admin/ui';
 
@@ -51,7 +51,9 @@ export default async function ReadRevision({
    * ceiling rather than truncating it, and a screen that printed nothing for that case would look like
    * a record with no text. It says which it is.
    */
-  const body = revision.bodyHtml === null ? null : sanitiseArchiveHtml(revision.bodyHtml);
+  const body = revision.bodyHtml === null
+    ? null
+    : sanitiseArchiveHtml(rewriteBodyImages(revision.bodyHtml, await mediaUrlResolver(db)));
 
   return (
     <>

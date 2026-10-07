@@ -1,213 +1,517 @@
 /**
- * Import every image an article carries, including the ones that were never on ozikoro.com.
+ * Import every file a record's body names, into this archive, wherever it is currently hosted.
  *
- * THE THREE CASES, AND WHY EACH IS DIFFERENT
+ * ── WHAT WAS WRONG, MEASURED RATHER THAN GUESSED ─────────────────────────────────────────────────────
  *
- * 1. THE LAZY-LOAD PLACEHOLDER. The theme writes
+ * This script did this job already, and its article selection was:
  *
- *        <img src=".../trx_addons/.../placeholder.png" data-trx-lazyload-src="REAL-URL" …>
+ *     where status = 'published' and is_page = false and body_html like '%<img%'
  *
- *    so the `src` is a grey box and **the real image is in `data-trx-lazyload-src`.** Reading only `src`
- *    counts 69 images that are not images. This resolves the real one.
+ * **The owner's drafts were not in that set.** Measured over all 1,622 rows on 7 October 2026: the archive
+ * holds **1,142 distinct image addresses on hosts that are not ozikoro.com — 1,119 of them on
+ * `blogger.googleusercontent.com` — and every one of the 374 articles carrying a Blogger image is
+ * `status = 'review'`; zero are published.** So `published` alone is why the drafts the owner named
+ * (`/admin/posts/2154` is one) still show broken images: their pictures were never fetched, and the site's
+ * own `img-src 'self' data:` policy then refuses the address that is left.
  *
- * 2. AN ozikoro.com URL THE MEDIA TABLE DOES NOT HOLD. The file is on the live site and was never catalogued
- *    by the migration — 2020 uploads, for instance. **The owner's instruction is to import it**, so it is
- *    fetched once and kept.
+ * The second fault is the same shape and was found by re-measuring: 89 distinct
+ * `ozikoro.com/wp-content/uploads/…` addresses across 29 records have **no `ozikoro_media` row at all** —
+ * uploads dated 2025/04 to 2026/03 that the migration never catalogued. Their files answer on the
+ * pre-cutover WordPress origin and nowhere else, so they are a **recovery with a deadline**: that origin is
+ * a migration source and can be switched off at any time.
  *
- * 3. AN EXTERNAL URL ON ANOTHER HOST. pbs.twimg.com, ichef.bbci.co.uk, i.pinimg.com, tumblr. **These are the
- *    images the owner asked about by name: still embedded in an article, not hosted here.** Downloading them
- *    is what keeps the article whole; leaving them pointing outward means the article breaks when the other
- *    site moves the file, and the archive would be citing an image it does not hold.
+ * ── THE THREE OUTCOMES, AND WHY ONLY TWO OF THEM WRITE ────────────────────────────────────────────────
  *
- * WHAT IT WRITES
+ *   A  the archive already serves it (`mediaUrlMap` answers)          nothing fetched, nothing written
+ *   B  it answers at its origin and the bytes are really that format   fetched, stored, row opened
+ *   C  it answers nowhere                                              **left exactly as it was, and named**
  *
- *   data/media/ozikoro-wp/ozikoro/<id>-<name>   the file
- *   ozikoro_media                               a row with source_url and storage_key
- *   ozikoro_article.body_html                   the `src` pointed at `/media/…`, placeholder replaced
+ * A `200` is not a file. The first version of this script trusted `res.ok` and the declared
+ * `content-type`, so an origin answering an HTML error page with `200` would have been written to disk and
+ * given a row whose `mime_type` said `image/jpeg`. **Every download is now checked against its own first
+ * bytes** through `sniffMediaBytes`, which is the same rule `app/api/admin/media/upload/route.ts` enforces
+ * — one definition, two doors, so the fetching importer cannot accept what the upload form would refuse.
  *
- * A download that fails is **left exactly as it was** and reported. An article with a dead external link is a
- * fault; an article whose image silently became a local path to nothing is a worse one.
+ * ── THE WORDPRESS ORIGIN, AND WHY IT IS AN ARGUMENT ───────────────────────────────────────────────────
+ *
+ * The cutover moved `ozikoro.com` to this archive's host, so `https://ozikoro.com/wp-content/uploads/…`
+ * **404s on the domain itself** while the file still answers on the pre-cutover origin
+ * (`162.213.253.73`, measured 6 October 2026). A plain `fetch` therefore cannot reach it and the importer
+ * would report 89 live files as dead. `--wp-origin` resolves the hostname to that address for exactly those
+ * addresses — the brief's own `curl --resolve ozikoro.com:443:162.213.253.73`. **It is read-only against
+ * that origin: nothing is ever written to it.**
+ *
+ * ── RESUMABLE, IDEMPOTENT, AND NOT IDEMPOTENT BY ACCIDENT ─────────────────────────────────────────────
+ *
+ * A URL that already has a row is never fetched again; a body whose addresses all resolve is never
+ * rewritten; a second run of `--apply` prints zero downloads and zero rewrites. The rewrite runs
+ * **`rewriteBodyImages` — the same function the served article route uses** — so the stored body and the
+ * rendered page cannot disagree about what an address means.
+ *
+ * ── AND A BODY IS ONLY EVER RE-POINTED AT A FILE THIS ARCHIVE HOLDS ───────────────────────────────────
+ *
+ * `fix` returns the address unchanged unless a media row carries it, so a link to another article, to a
+ * YouTube player or to a citation cannot be touched by this. A record whose picture could not be recovered
+ * keeps the dead address it had, which is the honest state; **nothing is invented to fill the space.**
+ *
+ * Usage:
+ *   node scripts/import-inbody-images.ts                    # measure only: A / B / C and every C named
+ *   node scripts/import-inbody-images.ts --apply             # fetch B, store it, open a row, rewrite bodies
+ *   node scripts/import-inbody-images.ts --apply --limit 20  # stop after twenty downloads
+ *   node scripts/import-inbody-images.ts --host blogger.googleusercontent.com --apply
  */
-import { mkdir, writeFile, stat } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { join } from 'node:path';
-import { getDb, closeDb } from '@ozituma/db/client';
+import { getDb, closeDb, type Db } from '@ozituma/db/client';
+import { getStorage } from '@ozituma/db/storage';
+import { bodyMediaAddresses, rewriteBodyImages } from '@ozikoro/platform';
+import { mediaUrlMap } from '@ozikoro/platform/media';
+import { isAddressableMediaKey } from '@ozikoro/platform/media-key';
+import { looksLikeSvg, safeMediaFilename, sniffMediaBytes } from '@ozikoro/platform/media-bytes';
 
-// No `ozikoro/` subdirectory: the local layout is flat and the route strips the prefix from the key.
+/**
+ * WHERE THE BYTES ARE KEPT WHILE THEY ARE FETCHED.
+ *
+ * The local layout is flat and the key carries the `ozikoro/` namespace, because
+ * `import:media-upload --source <this> --prefix ozikoro/ --keys db:ozikoro_media` derives the file name from
+ * the key: `ozikoro/6983-foo.jpg` is `<this>/6983-foo.jpg`. **The staging copy is kept even though the run
+ * also PUTs through `getStorage()`**, because it is what the resumable uploader re-reads and because the
+ * files on disk are the only copy until a bucket is proven.
+ */
 const OUT_DIR = join(process.cwd(), 'data', 'media', 'ozikoro-wp');
+
 const UA = 'OzikoroArchiveImporter/1.0 (+https://ozikoro.com; contact hello@ozikoro.com)';
 
-type Need = { url: string };
+/** The pre-cutover WordPress, measured 6 October 2026. Reading from it is the task; writing to it is not. */
+const DEFAULT_WP_ORIGIN = '162.213.253.73';
 
-/** Every image URL an article references, placeholder-resolved. */
-function imageUrls(body: string): string[] {
-  const urls = new Set<string>();
-  for (const tag of body.matchAll(/<img[^>]*>/g)) {
-    const t = tag[0];
-    const lazy = /data-trx-lazyload-src="([^"]+)"/.exec(t);
-    if (lazy) { urls.add(lazy[1]); continue; }
-    const src = /\ssrc="([^"]+)"/.exec(t);
-    if (src && !src[1].includes('trx_addons')) urls.add(src[1]);
-  }
-  for (const set of body.matchAll(/\ssrcset="([^"]+)"/g)) {
-    for (const part of set[1].split(',')) {
-      const u = part.trim().split(' ')[0];
-      if (u && !u.includes('trx_addons')) urls.add(u);
+interface Options {
+  apply: boolean;
+  wpOrigin: string | null;
+  hosts: string[];
+  limit: number;
+  articleIds: number[];
+  concurrency: number;
+}
+
+function parseArgs(argv: string[]): Options {
+  const o: Options = { apply: false, wpOrigin: DEFAULT_WP_ORIGIN, hosts: [], limit: 0, articleIds: [], concurrency: 6 };
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i]!;
+    if (a === '--apply') o.apply = true;
+    else if (a === '--wp-origin') {
+      const v = argv[++i];
+      if (!v) throw new Error('--wp-origin needs an address, or the word "none"');
+      o.wpOrigin = v === 'none' ? null : v;
+    } else if (a === '--host') {
+      const v = argv[++i];
+      if (!v) throw new Error('--host needs a hostname');
+      o.hosts.push(v.toLowerCase());
+    } else if (a === '--limit') {
+      const v = Number.parseInt(argv[++i] ?? '', 10);
+      if (!Number.isInteger(v) || v <= 0) throw new Error('--limit needs a positive integer');
+      o.limit = v;
+    } else if (a === '--concurrency') {
+      const v = Number.parseInt(argv[++i] ?? '', 10);
+      if (!Number.isInteger(v) || v <= 0 || v > 32) throw new Error('--concurrency needs an integer from 1 to 32');
+      o.concurrency = v;
+    } else if (a === '--article') {
+      const v = Number.parseInt(argv[++i] ?? '', 10);
+      if (!Number.isInteger(v) || v <= 0) throw new Error('--article needs an article id');
+      o.articleIds.push(v);
+    } else if (a === '--help' || a === '-h') {
+      console.log('see the header of this file for usage');
+      process.exit(0);
+    } else {
+      throw new Error(`unknown option ${a}`);
     }
   }
-  return [...urls];
+  return o;
 }
 
-const db = await getDb();
-await mkdir(OUT_DIR, { recursive: true });
+/** What one address turned out to be. */
+type Outcome = 'already-held' | 'imported' | 'origin-refused' | 'not-a-file' | 'failed' | 'skipped';
 
-const media = await db.rows<{ source_url: string; storage_key: string }>(
-  `select source_url, storage_key from ozikoro_media where source_url is not null and storage_key is not null`
-);
-/*
- * THE MAP MUST PRODUCE A URL, NOT A STORAGE KEY.
+interface Attempt {
+  url: string;
+  articles: number[];
+  outcome: Outcome;
+  detail: string;
+  bytes: number;
+  mime: string | null;
+  key: string | null;
+}
+
+/**
+ * Fetch one address to a Buffer.
  *
- * `storage_key` is where the file sits on disk (`ozikoro/11231-umunede-king.jpeg`); what a page needs is
- * `/media/ozikoro/11231-umunede-king.jpeg`. **The first version stored the key, so the rewrite wrote a
- * relative path into every body** — which the browser then resolved against the article's own address and
- * 404'd. The images were imported, served and correct, and the articles showed none of them.
+ * **curl rather than `fetch` for the old WordPress origin, and only for it**, because the address the body
+ * quotes is on a hostname whose DNS now points at this archive — the file is reachable only by resolving
+ * that hostname to the pre-cutover address, which `fetch` cannot be told to do. Every other address is a
+ * plain request.
  */
-const served = (key: string) => `/media/${key}`;
-const known = new Map<string, string>();
-for (const m of media) {
-  known.set(m.source_url, served(m.storage_key));
-  known.set(m.source_url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, ''), served(m.storage_key));
+/**
+ * THE ADDRESS AS THE FILE'S OWN SERVER SPELLS IT, WHICH IS NOT ALWAYS THE ADDRESS THE MARKUP QUOTES.
+ *
+ * WordPress escapes an ampersand in an attribute, so a body holds `?format=jpg&amp;name=medium` and the file
+ * answers at `?format=jpg&name=medium` — measured on `pbs.twimg.com`, **`404` for the escaped spelling and
+ * `200 image/jpeg` for the decoded one**. Fetching without decoding reports ten live images as gone.
+ */
+function decodeEntitiesForFetch(url: string): string {
+  return url.replace(/&amp;/g, '&').replace(/&#0?38;/g, '&');
 }
 
-const articles = await db.rows<{ id: number; slug: string; body_html: string }>(
-  `select id, slug, body_html from ozikoro_article
-    where status = 'published' and is_page = false and body_html like '%<img%'`
-);
-
-// --- which URLs are missing, and how many articles need each
-const needed = new Map<string, Set<number>>();
-for (const a of articles) {
-  for (const u of imageUrls(a.body_html)) {
-    // Already local, or not a URL at all. `known` is keyed on `source_url`, so a body already rewritten to
-    // `/media/…` is not in it — and without this the second run tried to import its own output, printing a
-    // thousand lines of "unparseable" while changing nothing. **A migration script that is not idempotent
-    // cannot be safely re-run, and this one had to be.**
-    if (u.startsWith('data:') || u.startsWith('/')) continue;
-    const base = u.replace(/-\d+x\d+(?=\.[a-z]+$)/i, '');
-    if (known.has(u) || known.has(base)) continue;
-    if (!needed.has(u)) needed.set(u, new Set());
-    needed.get(u)!.add(a.id);
-  }
+function fetchWithCurl(url: string, resolveTo: string | null): Promise<{ ok: boolean; status: number; contentType: string; body: Buffer; error: string }> {
+  const args = ['-s', '-L', '--connect-timeout', '10', '-m', '90', '--retry', '2', '--retry-delay', '2'];
+  if (resolveTo) args.push('--resolve', `ozikoro.com:443:${resolveTo}`);
+  args.push('-A', UA, '-w', '\n%{http_code}\t%{content_type}', url);
+  return new Promise((resolve) => {
+    // No `maxBuffer`: that is an `exec`/`execFile` option. A `spawn` child streams, and the chunks below
+    // are collected as they arrive, so a large image is never held twice.
+    const p = spawn('curl', args);
+    const chunks: Buffer[] = [];
+    let err = '';
+    p.stdout.on('data', (d: Buffer) => chunks.push(d));
+    p.stderr.on('data', (d: Buffer) => { err += String(d); });
+    p.on('close', (code) => {
+      const all = Buffer.concat(chunks);
+      // The status is appended after a final newline; the body is everything before it.
+      const cut = all.lastIndexOf(Buffer.from('\n'));
+      const tail = cut === -1 ? '' : all.subarray(cut + 1).toString('utf8');
+      const body = cut === -1 ? all : all.subarray(0, cut);
+      const [status, contentType] = tail.trim().split('\t');
+      resolve({ ok: code === 0 && /^(200|206)$/.test(status ?? ''), status: Number(status) || 0,
+        contentType: (contentType ?? '').split(';')[0]!.trim().toLowerCase(), body, error: err.trim().slice(0, 160) });
+    });
+  });
 }
-console.log(`  articles with images      ${articles.length}`);
-console.log(`  urls needing import      ${needed.size}`);
 
-let downloaded = 0, failed = 0, bytes = 0;
-const ok = new Map<string, string>();
-
-let nextId = ((await db.one<{ n: number }>(`select coalesce(max(id),0)::int n from ozikoro_media`))?.n ?? 0) + 1;
-
-for (const [url, articleIds] of needed) {
-  let name: string;
-  try {
-    const path = new URL(url).pathname;
-    name = decodeURIComponent(path.split('/').pop() ?? 'image');
-  } catch {
-    failed += 1;
-    console.log(`  SKIP (unparseable) ${url.slice(0, 90)}`);
-    continue;
-  }
-  name = name.replace(/[^\w.\-]+/g, '-').slice(0, 90);
-  const key = `ozikoro/${nextId}-${name}`;
-  const dest = join(OUT_DIR, `${nextId}-${name}`);
-
+async function fetchDirect(url: string): Promise<{ ok: boolean; status: number; contentType: string; body: Buffer; error: string }> {
   try {
     const res = await fetch(url, { headers: { 'user-agent': UA }, redirect: 'follow' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.byteLength === 0) throw new Error('empty body');
-
-    await writeFile(dest, buf);
-    const size = (await stat(dest)).size;
-    bytes += size;
-
-    await db.query(
-      `insert into ozikoro_media (id, kind, slug, title, alt_text, source_url, storage_key, mime_type, filesize_bytes)
-       values ($1, 'image', $2, $3, $3, $4, $5, $6, $7)
-       on conflict (id) do nothing`,
-      [
-        nextId,
-        `${nextId}-${name}`.replace(/\.[a-z]+$/i, '').slice(0, 90),
-        name.replace(/\.[a-z]+$/i, ''),
-        url,
-        key,
-        res.headers.get('content-type')?.split(';')[0] ?? null,
-        size,
-      ]
-    );
-    ok.set(url, `/media/${key}`);
-    downloaded += 1;
-    nextId += 1;
+    const body = Buffer.from(await res.arrayBuffer());
+    return { ok: res.ok, status: res.status, contentType: (res.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase(), body, error: '' };
   } catch (error) {
-    failed += 1;
-    console.log(`  FAILED ${url.slice(0, 74)}  ${String(error).slice(0, 40)}`);
+    return { ok: false, status: 0, contentType: '', body: Buffer.alloc(0), error: String(error).slice(0, 160) };
   }
 }
 
-console.log(`  downloaded               ${downloaded}  (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
-console.log(`  failed, left untouched   ${failed}`);
+/** A slug nothing else in `ozikoro_media` holds. `slug` is `not null unique` on that table. */
+async function uniqueSlug(db: Db, name: string, id: number): Promise<string> {
+  const root = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 72);
+  const base = root.length > 0 ? root : 'imported';
+  for (let n = 1; n <= 200; n += 1) {
+    const candidate = n === 1 ? base : `${base}-${n}`;
+    const taken = await db.one<{ id: number }>(`select id from ozikoro_media where slug = $1 and id <> $2 limit 1`, [candidate, id]);
+    if (!taken) return candidate;
+  }
+  return `imported-${id}`;
+}
 
-// --- rewrite the bodies: the lazy placeholder becomes the real image, and every imported URL goes local
-let rewritten = 0;
+const opts = parseArgs(process.argv.slice(2));
+const db = await getDb();
+
+/*
+ * EVERY ROW THE ARCHIVE HOLDS, KEYED BY THE ADDRESS THE OLD SITE PUBLISHED IT AT. The same rows feed
+ * `mediaUrlMap` — the resolver the served page uses — so A is decided by the running site's own rule and
+ * not by a second regex written here.
+ */
+const rows = await db.rows<{ id: number; source_url: string | null; storage_key: string | null }>(
+  `select id, source_url, storage_key from ozikoro_media where deleted_at is null and source_url is not null`
+);
+const keyed = rows.filter((r) => r.storage_key);
+let resolve = mediaUrlMap(keyed);
+/** A row the archive opened and never filled — `storage_key is null`. Its key is written, not a second row. */
+const keylessByUrl = new Map<string, number>();
+for (const r of rows) if (!r.storage_key && r.source_url) keylessByUrl.set(r.source_url, r.id);
+
+const articles = await db.rows<{ id: number; slug: string; status: string; body_html: string | null }>(
+  `select id, slug, status, body_html from ozikoro_article
+    where deleted_at is null and body_html is not null
+      ${opts.articleIds.length ? 'and id = any($1::int[])' : ''}
+    order by id`,
+  opts.articleIds.length ? [opts.articleIds] : []
+);
+
+console.log(`articles with a body            ${articles.length}`);
+console.log(`media rows already holding bytes ${keyed.length}`);
+console.log(`media rows opened, never filled  ${keylessByUrl.size}`);
+
+/*
+ * ── AN `<img>` SAYS THE THING IS AN IMAGE, SO THE EXTENSION TEST IS NOT ASKED OF IT ────────────────────
+ *
+ * An extension is a crude signal and it is the wrong one for a tag that has already declared itself:
+ * `https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9Gc…` is a photograph an `<img src>` loads and there is
+ * no extension anywhere in the address, so an extension-only rule silently skips it and reports the record as
+ * complete. **Anything an `<img>` names is taken as a file; anything else still has to look like one**, which
+ * is what keeps the 30 YouTube `embed/` iframes and the Facebook `plugins/video.php` frame out — those are
+ * pages, and fetching them would fill the report with recoveries that failed.
+ */
+const declaredImages = new Set<string>();
 for (const a of articles) {
-  let body = a.body_html;
-  const before = body;
+  const body = a.body_html ?? '';
+  for (const tag of body.matchAll(/<img[^>]*>/gi)) {
+    for (const attr of ['src', 'data-src', 'data-lazy-src', 'data-trx-lazyload-src']) {
+      const m = new RegExp(`\\s${attr}="([^"]+)"`, 'i').exec(tag[0]);
+      if (m?.[1]) declaredImages.add(m[1].trim());
+    }
+    for (const attr of ['srcset', 'data-srcset']) {
+      const m = new RegExp(`\\s${attr}="([^"]+)"`, 'i').exec(tag[0]);
+      for (const part of (m?.[1] ?? '').split(',')) {
+        const u = part.trim().split(/\s+/)[0];
+        if (u) declaredImages.add(u);
+      }
+    }
+  }
+}
+console.log(`addresses an <img> names      ${declaredImages.size}`);
 
-  // Replace the whole placeholder img with a plain one pointing at the real file.
-  body = body.replace(/<img[^>]*?data-trx-lazyload-src="([^"]+)"[^>]*>/g, (tag, real: string) => {
-    const local = ok.get(real) ?? known.get(real) ?? known.get(real.replace(/-\d+x\d+(?=\.[a-z]+$)/i, '')) ?? real;
-    const alt = /\salt="([^"]*)"/.exec(tag);
-    return `<img src="${local}" alt="${alt ? alt[1] : ''}" loading="lazy" decoding="async">`;
-  });
+// ── which addresses are needed, and by which records
+interface Need { url: string; articles: Set<number>; host: string; adoptId: number | null }
+const needed = new Map<string, Need>();
+for (const a of articles) {
+  for (const raw of bodyMediaAddresses(a.body_html ?? '')) {
+    const url = raw.trim();
+    if (!/^https?:\/\//i.test(url)) continue;                       // already ours, or relative, or a data URI
+    if (/^https?:\/\/(?:www\.)?ozikoro\.com\/media\//i.test(url)) continue;
+    /*
+     * A ROW THAT WAS OPENED AND NEVER FILLED IS ADOPTED, NOT SKIPPED.
+     *
+     * 51 rows in this archive carry a `source_url` and `storage_key is null` — a row the migration wrote
+     * before it got the bytes. **They are not "already held"**: `mediaUrlMap` filters on `storage_key`, so the
+     * address does not resolve and the reader sees nothing. The file is the only gap, and the gap is filled
+     * under the id the row already has rather than by opening a second row for the same address.
+     */
+    const adoptId = keylessByUrl.get(url) ?? null;
+    if (resolve(url) || resolve(decodeEntitiesForFetch(url)) || resolve(url.replace(/[?#].*$/, ''))) continue; // A — already served
+    let host = '';
+    try { host = new URL(url).host.toLowerCase(); } catch { continue; }
+    if (opts.hosts.length && !opts.hosts.includes(host)) continue;
+    /*
+     * ONLY AN ADDRESS THAT NAMES A FILE. The scanner returns every `src` a body carries, which includes an
+     * `<iframe>` pointing at a YouTube embed — **a page, not a file**, and fetching 25 of them would report 25
+     * recoveries that failed and bury the ones that matter. A file extension is a crude test and the right one
+     * here: `sniffMediaBytes` decides the truth afterwards, and this only decides what is worth asking for.
+     */
+    const fileLike =
+      declaredImages.has(url) ||
+      /\.(?:jpe?g|png|gif|webp|avif|bmp|tiff?|mp4|m4v|webm|ogv|ogm|mov|mp3|m4a|wav|ogg|pdf)(?:[?#]|$)/i.test(url) ||
+      // `pbs.twimg.com/media/<id>?format=jpg&name=medium` — an image whose path has no extension at all.
+      /[?&]format=(?:jpe?g|png|gif|webp|avif)\b/i.test(url) ||
+      /*
+       * AND BLOGGER'S OTHER SIZE SPELLING. The older shape is a path segment (`/s320/name.jpg`); the newer
+       * one is a query-less suffix on the id (`…AVvXsE…=s320`) with **no file extension anywhere in the
+       * address**, which the extension test cannot see and which measured `200 image/jpeg, 16,088 bytes`.
+       */
+      /=(?:s\d+|w\d+-h\d+|s\d+-c)(?:[?#]|$)/i.test(url);
+    if (!fileLike) continue;
+    const e = needed.get(url) ?? { url, articles: new Set<number>(), host, adoptId };
+    e.articles.add(a.id);
+    needed.set(url, e);
+  }
+}
 
-  // Anything else that now has a local copy.
-  body = body.replace(/(<img[^>]*?\ssrc=")([^"]+)(")/g, (_m, a2: string, url: string, c: string) => {
-    const base = url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, '');
-    return a2 + (ok.get(url) ?? known.get(url) ?? known.get(base) ?? url) + c;
-  });
+/*
+ * ── AND THE ROWS THE ARCHIVE ALREADY HAS AN ADDRESS FOR BUT NO BYTES OF ────────────────────────────────
+ *
+ * 51 live `ozikoro_media` rows carry a `source_url` and `storage_key is null`. **Eleven of them are a record's
+ * `featured_media_id` and eleven are an `ozikoro_article_media` placement**, so a pass that only walked bodies
+ * would leave the lead image of eleven records missing while reporting every body repaired — *"a fix that
+ * repairs bodies and leaves featured images broken is half a fix."* These are walked as their own targets and
+ * the file is written **under the id the row already has**, so nothing is duplicated.
+ */
+for (const [url, id] of keylessByUrl) {
+  let host = '';
+  try { host = new URL(url).host.toLowerCase(); } catch { continue; }
+  if (opts.hosts.length && !opts.hosts.includes(host)) continue;
+  needed.set(url, { url, articles: new Set<number>(), host, adoptId: id });
+}
+
+const byHost = new Map<string, number>();
+for (const n of needed.values()) byHost.set(n.host, (byHost.get(n.host) ?? 0) + 1);
+const records = new Set<number>();
+for (const n of needed.values()) for (const id of n.articles) records.add(id);
+console.log(`\nB — addresses to fetch          ${needed.size}  in ${records.size} records`);
+for (const [h, n] of [...byHost].sort((a, b) => b[1] - a[1])) console.log(`      ${h.padEnd(38)} ${n}`);
+console.log(`    of which adopt a row the migration left empty: ${[...needed.values()].filter((n) => n.adoptId).length}`);
+
+const targets = [...needed.values()].sort((a, b) => a.url.localeCompare(b.url));
+if (opts.limit) targets.length = Math.min(targets.length, opts.limit);
+
+if (!opts.apply) {
+  console.log('\nMEASURE ONLY — nothing was fetched and nothing was written. Re-run with --apply to import.');
+  await closeDb();
+  process.exit(0);
+}
+
+await mkdir(OUT_DIR, { recursive: true });
+const storage = getStorage();
+console.log(`\nstore driver                    ${storage.driver}`);
+
+const attempts: Attempt[] = [];
+let imported = 0;
+let adopted = 0;
+let bytes = 0;
+
+/**
+ * One address, end to end.
+ *
+ * THE ROW FIRST, WITH NO KEY, exactly as the upload route does it: `storage_key is null` is what every media
+ * picker filters out, so a record that never gets its bytes is a record no screen offers — and if the PUT
+ * fails the row is deleted, so a failed import leaves nothing behind rather than an orphan the owner cannot
+ * see. **The one thing this cannot undo is bytes already in the store when the row update fails**, which is
+ * logged with its key and is why step three is a single `update` rather than a second insert.
+ */
+async function importOne(t: Need): Promise<void> {
+  const url = decodeEntitiesForFetch(t.url);
+  const isWordPress = /^https?:\/\/(?:www\.)?ozikoro\.com\/wp-content\//i.test(url);
+  const got = isWordPress && opts.wpOrigin
+    ? await fetchWithCurl(url, opts.wpOrigin)
+    : await fetchDirect(url);
+
+  if (!got.ok) {
+    const detail = `HTTP ${got.status}${got.contentType ? ` ${got.contentType}` : ''}${got.error ? ` ${got.error}` : ''}`;
+    console.log(`  C  ${detail.padEnd(22)} ${t.url.slice(0, 96)}`);
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'origin-refused', detail, bytes: 0, mime: null, key: null });
+    return;
+  }
 
   /*
-   * AND `srcset`, WHICH IS THE ONE THE BROWSER ACTUALLY USES.
-   *
-   * The first run of this rewrote `<img src>` and left 1,013 articles still holding live-site URLs — because a
-   * `<img>` with a `srcset` is loaded from the `srcset`, not from the `src`. Rewriting only the fallback left
-   * the archive importing files it then did not serve.
+   * THE BYTES DECIDE, NOT THE RESPONSE. `looksLikeSvg` is asked first so the refusal can name the format, and
+   * `sniffMediaBytes` is the same rule the upload form enforces — so an origin answering `200` with an HTML
+   * error page cannot be stored as a photograph.
    */
-  body = body.replace(/(\ssrcset=")([^"]+)(")/g, (_m, a2: string, set: string, c: string) =>
-    a2 +
-    set
-      .split(',')
-      .map((part: string) => {
-        const trimmed = part.trim();
-        const sp = trimmed.indexOf(' ');
-        const url = sp === -1 ? trimmed : trimmed.slice(0, sp);
-        const rest = sp === -1 ? '' : trimmed.slice(sp);
-        const base = url.replace(/-\d+x\d+(?=\.[a-z]+$)/i, '');
-        return (ok.get(url) ?? known.get(url) ?? known.get(base) ?? url) + rest;
-      })
-      .join(', ') +
-    c
-  );
+  const head = got.body.subarray(0, 512);
+  if (looksLikeSvg(head)) {
+    console.log(`  !  SVG refused          ${t.url.slice(0, 96)}`);
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'not-a-file', detail: 'SVG is refused by name', bytes: got.body.length, mime: null, key: null });
+    return;
+  }
+  const sniffed = sniffMediaBytes(head, got.contentType);
+  if (!sniffed) {
+    const looksHtml = /^\s*<(!doctype|html|head|body)/i.test(got.body.subarray(0, 64).toString('utf8'));
+    const detail = `declared ${got.contentType || 'nothing'}, bytes are not a stored format${looksHtml ? ' (an HTML document)' : ''}`;
+    console.log(`  !  not a file           ${t.url.slice(0, 96)}  ${detail}`);
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'not-a-file', detail, bytes: got.body.length, mime: got.contentType || null, key: null });
+    return;
+  }
+  if (got.body.length === 0) {
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'not-a-file', detail: 'empty body', bytes: 0, mime: sniffed.mime, key: null });
+    return;
+  }
 
-  if (body !== before) {
-    await db.query(`update ozikoro_article set body_html = $1 where id = $2`, [body, a.id]);
+  const original = decodeURIComponent((() => { try { return new URL(url).pathname.split('/').pop() ?? 'image'; } catch { return 'image'; } })());
+  const filename = safeMediaFilename(original, sniffed.extension);
+
+  let mediaId: number;
+  try {
+    if (t.adoptId !== null) {
+      mediaId = t.adoptId;
+      adopted += 1;
+    } else {
+      const row = await db.one<{ id: number }>(
+        `insert into ozikoro_media (slug, kind, title, alt_text, source_url, storage_key, mime_type, filesize_bytes, uploaded_at)
+         values ($1, $2, $3, $3, $4, null, $5, $6, now())
+         returning id`,
+        [`pending-${Date.now()}-${Math.floor(Math.random() * 1e9)}`, sniffed.kind, filename.replace(/\.[A-Za-z0-9]+$/, '').slice(0, 200), url, sniffed.mime, got.body.length]
+      );
+      if (!row) throw new Error('the media row was not returned');
+      mediaId = Number(row.id);
+    }
+  } catch (error) {
+    console.log(`  !  row failed           ${t.url.slice(0, 96)}  ${String(error).slice(0, 80)}`);
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'failed', detail: `row: ${String(error).slice(0, 120)}`, bytes: got.body.length, mime: sniffed.mime, key: null });
+    return;
+  }
+
+  const key = `ozikoro/${mediaId}-${filename}`;
+  if (!isAddressableMediaKey(key)) {
+    if (t.adoptId === null) await db.query(`delete from ozikoro_media where id = $1`, [mediaId]);
+    console.log(`  !  key unaddressable    ${key}`);
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'failed', detail: `key the media route cannot serve: ${key}`, bytes: got.body.length, mime: sniffed.mime, key: null });
+    return;
+  }
+
+  try {
+    const staged = join(OUT_DIR, `${mediaId}-${filename}`);
+    await writeFile(staged, got.body);
+    const stored = await storage.put(key, got.body, sniffed.mime);
+    const slug = await uniqueSlug(db, filename.replace(/\.[A-Za-z0-9]+$/, ''), mediaId);
+    await db.query(
+      `update ozikoro_media set storage_key = $1, slug = $2, kind = $3, mime_type = $4, filesize_bytes = $5, source_url = $6, updated_at = now() where id = $7`,
+      [stored.key, slug, sniffed.kind, sniffed.mime, got.body.length, url, mediaId]
+    );
+    imported += 1;
+    bytes += got.body.length;
+    console.log(`  B  ${String(got.body.length).padStart(9)} B  ${sniffed.mime.padEnd(16)} ${stored.key}`);
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'imported', detail: sniffed.mime, bytes: got.body.length, mime: sniffed.mime, key: stored.key });
+  } catch (error) {
+    if (t.adoptId === null) {
+      try { await db.query(`delete from ozikoro_media where id = $1`, [mediaId]); } catch { /* no key, so no picker offers it */ }
+    }
+    console.log(`  !  store failed         ${t.url.slice(0, 96)}  ${String(error).slice(0, 100)}`);
+    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'failed', detail: `store: ${String(error).slice(0, 120)}`, bytes: got.body.length, mime: sniffed.mime, key: null });
+  }
+}
+
+/*
+ * A BOUNDED POOL RATHER THAN ONE REQUEST AT A TIME. The serial first run measured ~1,100 Blogger images at
+ * roughly one per second, which is two hours of a migration source that has a deadline. Six at a time is
+ * enough to finish it and few enough to be a guest on somebody else's CDN; **the winner is not a race on the
+ * database** — PGlite serialises the queries and each worker owns its own row.
+ */
+let cursor = 0;
+const workers = Array.from({ length: Math.min(opts.concurrency, targets.length) }, async () => {
+  while (cursor < targets.length) {
+    const t = targets[cursor++];
+    if (!t) break;
+    try {
+      await importOne(t);
+    } catch (error) {
+      console.log(`  !  threw                ${t.url.slice(0, 96)}  ${String(error).slice(0, 100)}`);
+      attempts.push({ url: t.url, articles: [...t.articles], outcome: 'failed', detail: String(error).slice(0, 160), bytes: 0, mime: null, key: null });
+    }
+  }
+});
+await Promise.all(workers);
+
+// ── and now the bodies, through the SAME function the served article route uses
+console.log('\nrewriting bodies …');
+const freshRows = await db.rows<{ id: number; source_url: string | null; storage_key: string | null }>(
+  `select id, source_url, storage_key from ozikoro_media where deleted_at is null and source_url is not null and storage_key is not null`
+);
+const freshResolve = mediaUrlMap(freshRows);
+let rewritten = 0;
+for (const a of articles) {
+  const before = a.body_html ?? '';
+  const after = rewriteBodyImages(before, freshResolve);
+  if (after !== before) {
+    await db.query(`update ozikoro_article set body_html = $1, updated_at = now() where id = $2`, [after, a.id]);
     rewritten += 1;
   }
 }
-console.log(`  articles rewritten       ${rewritten}`);
 
-const left = await db.one<{ n: number }>(
-  `select count(*)::int n from ozikoro_article
-    where body_html like '%ozikoro.com/wp-content/uploads%' or body_html like '%trx_addons%'`
-);
-console.log(`  articles still holding a live-site upload or placeholder: ${left?.n ?? 0}`);
+const summary = attempts.reduce<Record<string, number>>((acc, a) => { acc[a.outcome] = (acc[a.outcome] ?? 0) + 1; return acc; }, {});
+console.log(`\ndownloaded                      ${imported}  (${(bytes / 1024 / 1024).toFixed(1)} MB)`);
+console.log(`outcomes                        ${JSON.stringify(summary)}`);
+console.log(`records rewritten               ${rewritten}`);
+console.log(`rows adopted (a row the migration left empty) ${adopted}`);
+
+/*
+ * WHAT IS LEFT, NAMED. A record whose picture answers nowhere keeps the dead address it had — that is the
+ * honest state, and this is the list somebody has to act on. It is printed every run, so a second run is a
+ * measurement rather than a no-op nobody can see.
+ */
+const stranded = attempts.filter((a) => a.outcome === 'origin-refused' || a.outcome === 'not-a-file' || a.outcome === 'failed');
+if (stranded.length > 0) {
+  console.log(`\nCOULD NOT BE RECOVERED — ${stranded.length} address(es), left exactly as they were:`);
+  for (const s of stranded) console.log(`  ${s.outcome.padEnd(15)} ${s.url}\n                  ${s.detail}  | records ${s.articles.join(', ')}`);
+}
 await closeDb();
