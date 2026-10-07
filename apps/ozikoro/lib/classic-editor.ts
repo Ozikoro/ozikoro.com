@@ -59,7 +59,7 @@ interface ControlBase {
   labelClass?: string;
 }
 
-/** A toolbar entry: a command, a wrap, a stated refusal, or the rule between groups. */
+/** A toolbar entry: a command, a wrap, a stated refusal, a save-time conversion, or the rule between groups. */
 export type ToolbarControl =
   | (ControlBase & {
       kind: 'command';
@@ -73,6 +73,27 @@ export type ToolbarControl =
       prompt?: { message: string; initial: string };
     })
   | (ControlBase & { kind: 'wrap'; open: string; close: string })
+  /**
+   * The Read More button, which is the one control whose markup is **not** what it saves.
+   *
+   * WordPress's `wp_more` inserts a visible placeholder into the editing box and stores `<!--more-->`;
+   * the conversion lives in `classic-editor-content.ts`, and this kind is the statement that the button
+   * has one. It is a kind of its own rather than a `command` because `document.execCommand` has no
+   * read-more command — naming one would be naming a command the browser ignores, which is the fault
+   * `BROWSER_COMMANDS` exists to catch.
+   */
+  | (ControlBase & { kind: 'read-more' })
+  /**
+   * Remove link — the browser's command, but not delegated to blindly.
+   *
+   * `document.execCommand('unlink')` is a real command and returns true whenever a non-collapsed range
+   * covers the link; **measured in Chrome, it returns false and leaves the anchor alone for a collapsed
+   * selection**, which is where a writer's caret is when they click a link and reach for this button. So
+   * the control is named as its own kind and `editor.tsx` widens the selection before running the command.
+   * Naming it `command: 'unlink'` would have been a claim that the browser can do it from any caret, and
+   * that claim is false.
+   */
+  | (ControlBase & { kind: 'unlink' })
   | (ControlBase & { kind: 'unavailable'; why: string })
   | { kind: 'separator'; id: string };
 
@@ -83,9 +104,17 @@ export type ToolbarControl =
  * and not a button; "Add Media" is not here because WordPress puts it in the strip above the toolbar
  * (`#wp-content-editor-tools`), which is where this screen puts it too.
  *
- * The three alignment buttons and Insert Read More are drawn and disabled: the archive's sanitiser drops
- * `style`, `class` and `id` from every saved body, and it removes every HTML comment, so each of those
- * four would be a control that returned a save and changed nothing.
+ * The three alignment buttons are drawn and disabled: the archive's sanitiser drops `style`, `class` and
+ * `id` from every saved body, so each of them would be a control that returned a save and changed nothing.
+ *
+ * **The More button is NOT disabled any more, and the reason it was is worth keeping.** It carried the
+ * reason *"this archive renders a record whole and removes every HTML comment, so `<!--more-->` would not
+ * survive the save"* — and that was true. Two things were then measured and the second is what made the
+ * button answerable: WordPress's own `wp_more` inserts `<!--more-->` and nothing else, and the sanitiser
+ * is a thing this repository owns and could be told to keep that one string. So the tag is now kept,
+ * `documentForSaving` writes it, and the button does what the original does instead of saying it cannot.
+ * See `READ_MORE_TAG` in `packages/ozikoro/src/content.ts` for why keeping it is not a hole in the
+ * comment rule.
  */
 export const TOOLBAR_ROW_1: ToolbarControl[] = [
   { kind: 'command', id: 'bold', label: 'B', labelClass: 'mce-ico-b', title: 'Bold', command: 'bold' },
@@ -132,14 +161,24 @@ export const TOOLBAR_ROW_1: ToolbarControl[] = [
     command: 'createLink',
     prompt: { message: 'Enter the address this text should link to:', initial: 'https://' },
   },
-  { kind: 'command', id: 'unlink', label: '⛓︎̸', title: 'Remove link', command: 'unlink' },
-  {
-    kind: 'unavailable',
-    id: 'wp_more',
-    label: 'More',
-    title: 'Insert Read More tag — not offered',
-    why: 'this archive renders a record whole and removes every HTML comment, so <!--more--> would not survive the save',
-  },
+  /*
+   * REMOVE LINK, WHICH IS THE BUTTON THE OWNER NAMED AS THE LANDMARK FOR THE FAULT.
+   *
+   * *"the more button beside remove link is not working"* — so this is the button it is beside, and it was
+   * measured rather than left as a delegation: Chrome's `execCommand('unlink')` does nothing for a
+   * collapsed caret, which is where a writer's caret is when they click a link and reach for this. See the
+   * note on the `unlink` kind.
+   */
+  { kind: 'unlink', id: 'unlink', label: '⛓︎̸', title: 'Remove link' },
+  /*
+   * THE MORE BUTTON, WITH WORDPRESS'S OWN TOOLTIP.
+   *
+   * `tooltip: 'Insert Read More tag'` is the string its plugin registers for `wp_more`, and it is used
+   * here verbatim — the owner's report was *"the more button beside remove link is not working. please
+   * look into the original classic editor files, find out what it does"*, and the honest answer starts
+   * with the original's own words for it. It sits where WordPress puts it, immediately after `unlink`.
+   */
+  { kind: 'read-more', id: 'wp_more', label: 'More', title: 'Insert Read More tag' },
 ];
 
 /**
@@ -189,6 +228,11 @@ export const TOOLBAR: ToolbarControl[] = [...TOOLBAR_ROW_1, ...TOOLBAR_ROW_2];
  * It is written out rather than derived because the point of the list is to be checked against: a
  * `command` entry naming something not in here is a button whose click reaches `document.execCommand`, is
  * ignored, and leaves the document alone — the fault this whole screen exists to fix.
+ *
+ * `unlink` IS STILL USED EVEN THOUGH NO `command` ENTRY NAMES IT: the `unlink` kind's handler in
+ * `editor.tsx` widens the selection to the anchor and then runs exactly this command. It stays on the list
+ * because the list is about what the browser implements, and deleting it would turn a working control into
+ * one the test suite would then flag if anyone wired it back up as a plain command.
  */
 export const BROWSER_COMMANDS = new Set([
   'bold',

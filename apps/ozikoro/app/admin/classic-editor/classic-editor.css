@@ -426,6 +426,46 @@
 .wpedit .mce-btn .mce-ico-s { text-decoration: line-through; }
 .wpedit .mce-separator { width: 1px; height: 22px; background: #dcdcde; margin: 0 4px; }
 
+/*
+ * THE READ MORE MARKER, DRAWN WHERE WORDPRESS DRAWS ITS OWN.
+ *
+ * The marker is an empty `<span data-wp-more="more">` with `contenteditable="false"`. It carries no text
+ * and no `<img>`, and that is the point: `innerHTML` is what gets saved and what the word count reads, so
+ * a label living in the markup would be counted as a word of the record and would have to be stripped
+ * again on the way out. The word "MORE" is drawn by `::after`, which is a rendering and not a character —
+ * it cannot be selected, cannot be typed over, and does not exist in the document.
+ *
+ * It is drawn as a rule across the column so that where the split sits is obvious at a glance, which is
+ * the whole of what WordPress's stretched placeholder image is for.
+ */
+.wpedit .wp-editor-area .wp-more-tag,
+.wpedit .wp-more-tag {
+  display: block;
+  position: relative;
+  height: 18px;
+  margin: 14px 0;
+  cursor: default;
+  background-image: linear-gradient(to right, #c3c4c7 0 6px, transparent 6px 12px);
+  background-size: 12px 1px;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+.wpedit .wp-more-tag::after {
+  content: 'MORE';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 10px;
+  background: #fff;
+  color: #787c82;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+/* Selected as one object, the marker says so rather than looking like an ordinary run of text. */
+.wpedit .wp-more-tag::selection { background: #2271b1; }
+
 .wpedit #wp-content-editor-container textarea {
   display: block;
   width: 100%;

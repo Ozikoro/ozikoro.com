@@ -19,7 +19,14 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { bodyLostBeforeSave, visualBoxDocument } from './classic-editor-content.ts';
+import {
+  READ_MORE_MARKER,
+  READ_MORE_TAG,
+  bodyLostBeforeSave,
+  documentForEditing,
+  documentForSaving,
+  visualBoxDocument,
+} from './classic-editor-content.ts';
 
 /* ---------------------------------------------------------------------------------------------------
  * 1. THE SAVE THAT MUST BE REFUSED
@@ -101,4 +108,77 @@ test('the document is handed over byte for byte, so nothing a record holds is re
   assert.match(visualBoxDocument(null, stored), /&#8220;/);
   assert.match(visualBoxDocument(null, stored), /&amp;/);
   assert.equal((visualBoxDocument(null, stored).match(/&amp;amp;/g) ?? []).length, 0);
+});
+
+/* ---------------------------------------------------------------------------------------------------
+ * 3. THE READ MORE TAG — THE MARKER THE BOX DRAWS IS NOT WHAT IS SAVED
+ * -------------------------------------------------------------------------------------------------*/
+
+test('the tag WordPress writes is the tag this conversion writes', () => {
+  // Byte for byte, because the sanitiser's rule names this exact string and a stray space would make the
+  // editor write a comment the archive then deletes — the button appearing to work and storing nothing.
+  assert.equal(READ_MORE_TAG, '<!--more-->');
+});
+
+test('what the box draws is not the tag, and that is the point', () => {
+  // A comment cannot be seen or clicked. The marker is an element, so a writer can see where the split is
+  // and delete it in one gesture; `contenteditable="false"` is what makes it one object.
+  assert.notEqual(READ_MORE_MARKER, READ_MORE_TAG);
+  assert.ok(READ_MORE_MARKER.includes('data-wp-more="more"'));
+  assert.ok(READ_MORE_MARKER.includes('contenteditable="false"'));
+  // And it holds no text at all: a label here would be counted as a word and would be saved with the body.
+  assert.equal(READ_MORE_MARKER.replace(/<[^>]*>/g, ''), '');
+});
+
+test('opening a record shows the tag as a marker, in the place it was written', () => {
+  const stored = '<p>Before.</p><!--more--><p>After.</p>';
+  const editing = documentForEditing(stored);
+  assert.ok(editing.includes(READ_MORE_MARKER), 'the tag was not turned into a marker');
+  assert.ok(!editing.includes(READ_MORE_TAG), 'the raw tag is still in the editing document');
+  assert.ok(editing.indexOf('Before') < editing.indexOf('data-wp-more'));
+  assert.ok(editing.indexOf('data-wp-more') < editing.indexOf('After'));
+});
+
+test('saving turns every marker back into the tag and nothing else', () => {
+  const editing = `<p>Before.</p>${READ_MORE_MARKER}<p>After.</p>`;
+  assert.equal(documentForSaving(editing), '<p>Before.</p><!--more--><p>After.</p>');
+});
+
+test('the tag survives a full round trip through the box', () => {
+  // Open, save, open again — which is what a writer does, and what a record has to survive.
+  const stored = '<p>One.</p><!--more--><p>Two.</p>';
+  assert.equal(documentForSaving(documentForEditing(stored)), stored);
+  for (let i = 0; i < 3; i += 1) {
+    assert.equal(documentForSaving(documentForEditing(stored)), stored, 'the round trip drifted');
+  }
+});
+
+test('a record with no tag is handed over byte for byte', () => {
+  /*
+   * The rule this screen is built around: the box is given the document it was given, unchanged. A
+   * conversion that rewrote anything else would be the re-serialiser this file exists to refuse.
+   */
+  const stored =
+    '&nbsp;\r\n\r\n[caption id="attachment_2783" align="none"]<img src="https://ozikoro.com/wp-content/uploads/2024/12/IMG_3881.jpeg" alt="">' +
+    ' A man who may possibly be from Isuochi.[/caption]\r\n<p>Ọ̀nịchạ &#038; Nsụka</p>';
+  assert.equal(documentForEditing(stored), stored);
+  assert.equal(documentForSaving(stored), stored);
+});
+
+test('a half-deleted marker still becomes the tag rather than a stray span', () => {
+  /*
+   * A leaked marker would be worse than a lost one: `<span>` is on the sanitiser's allowlist, so the
+   * element would survive into the published record wrapped around the word the CSS draws — except the
+   * word is not in the markup, so the reader would get an empty span in the middle of the prose. So a
+   * marker whose closing tag has gone is still read as the tag.
+   */
+  assert.equal(documentForSaving('<p>a</p><span data-wp-more="more" contenteditable="false">'), '<p>a</p><!--more-->');
+  // And a marker the browser re-serialised with its attributes in another order is still found.
+  assert.equal(documentForSaving('<span contenteditable="false" class="wp-more-tag" data-wp-more="more"></span>'), READ_MORE_TAG);
+});
+
+test('the marker is invisible to the word count, which is why it carries no text', () => {
+  // `wordCount` strips tags, so a marker with a label in it would add a word to a published record.
+  const withMarker = `<p>three words here</p>${READ_MORE_MARKER}`;
+  assert.equal(withMarker.replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length, 3);
 });

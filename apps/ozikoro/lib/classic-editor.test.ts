@@ -36,6 +36,7 @@ import {
   switchEditorView,
   type ToolbarControl,
 } from './classic-editor.ts';
+import { READ_MORE_MARKER, documentForSaving } from './classic-editor-content.ts';
 
 /**
  * Two real bodies, copied verbatim from the WordPress REST export this archive was migrated from
@@ -91,11 +92,63 @@ test('every disabled control says why it is disabled, in the reader’s words', 
   const unavailable = TOOLBAR.filter(
     (control): control is Extract<ToolbarControl, { kind: 'unavailable' }> => control.kind === 'unavailable'
   );
-  // The three alignment buttons and Insert Read More — the four controls this archive cannot honour.
-  assert.equal(unavailable.length, 4);
+  // The three alignment buttons — the controls this archive cannot honour. Insert Read More used to be
+  // the fourth and is a working button now, so this count is the statement that it did not go back.
+  assert.equal(unavailable.length, 3);
   for (const control of unavailable) {
     assert.ok(control.why.trim().length > 10, `${control.id} is disabled without a reason`);
   }
+});
+
+test('Insert Read More is a button that acts, and it sits where WordPress puts it', () => {
+  /*
+   * The owner's report, verbatim: *"the more button beside remove link is not working. please look into
+   * the original classic editor files, find out what it does, and make sure it actually does that"*. Two
+   * things are being held here: that the control beside `unlink` is the Read More button, and that it is
+   * not one of the drawn-but-disabled kind any more.
+   */
+  const row = TOOLBAR_ROW_1.map((control) => control.id);
+  assert.equal(row[row.indexOf('unlink') + 1], 'wp_more', 'the More button is not beside Remove link');
+  const more = TOOLBAR_ROW_1.find((control) => control.id === 'wp_more');
+  assert.ok(more, 'row one has no wp_more control');
+  assert.equal(more.kind, 'read-more', 'the More button is still drawn as a control that says it cannot act');
+  // WordPress registers the tooltip as exactly this string; the button wears the original's own words.
+  assert.equal(more.title, 'Insert Read More tag');
+});
+
+test('Remove link is not a blind delegation to the browser', () => {
+  /*
+   * MEASURED IN CHROME, on a box holding one anchor: `document.execCommand('unlink')` returns **false** and
+   * leaves the anchor in place for a collapsed selection inside the link, and returns true only once a
+   * non-collapsed range covers it. A collapsed caret in a link is precisely where a writer is when they
+   * click the link and reach for this button, so a control that delegates is a control that does nothing
+   * there. It is a `kind` of its own so that cannot be changed back without failing here.
+   */
+  const unlink = TOOLBAR_ROW_1.find((control) => control.id === 'unlink');
+  assert.ok(unlink, 'row one has no unlink control');
+  assert.equal(unlink.kind, 'unlink', 'Remove link delegates to execCommand again, which does nothing for a caret in a link');
+  assert.equal(unlink.title, 'Remove link');
+  // The command it eventually runs is still one the browser implements, and the list still says so.
+  assert.ok(BROWSER_COMMANDS.has('unlink'));
+});
+
+test('what the More button saves is a tag the sanitiser keeps', () => {
+  /*
+   * THE INTERLOCK, AND THE REASON THIS BUTTON WAS DISABLED FOR SO LONG.
+   *
+   * The old reason for disabling it was *"the archive removes every HTML comment, so `<!--more-->` would
+   * not survive the save"*. That was true. So the test is not "the button inserts something" — it is that
+   * the exact document the button causes to be posted comes back out of `sanitiseArchiveHtml` intact. If
+   * the sanitiser ever stops keeping the tag, this fails rather than the button silently doing nothing.
+   */
+  const posted = documentForSaving(`<p>Before.</p>${READ_MORE_MARKER}<p>After.</p>`);
+  assert.ok(posted.includes('<!--more-->'), 'the editor did not convert the marker to the tag');
+  const stored = sanitiseArchiveHtml(posted);
+  assert.ok(stored.includes('<!--more-->'), 'the sanitiser dropped the Read More tag, so the button is a no-op');
+  assert.ok(stored.indexOf('Before') < stored.indexOf('<!--more-->'));
+  assert.ok(stored.indexOf('<!--more-->') < stored.indexOf('After'));
+  // And it is still the ONLY comment that survives, tested here rather than trusted.
+  assert.ok(!sanitiseArchiveHtml('<p>a</p><!-- wp:paragraph --><p>b</p>').includes('wp:paragraph'));
 });
 
 test('the toolbar carries the controls the owner named, on the rows WordPress draws them', () => {

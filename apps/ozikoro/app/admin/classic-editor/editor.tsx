@@ -37,18 +37,23 @@
  *     allowlist (the design draws one `<h1>` per page and it is the record's title), so the menu starts
  *     at Heading 2.
  *
- * ── AND THE TWO CONTROLS THAT ARE DRAWN BUT DISABLED, WHICH IS THE HONEST ANSWER ────────────────────
+ * ── AND THE CONTROLS THAT ARE DRAWN BUT CANNOT ACT, WHICH IS THE HONEST ANSWER ──────────────────────
  *
  *   * **align** — WordPress's align buttons write `style="text-align:…"`, and `sanitiseArchiveHtml` drops
  *     `style`, `class` and `id` on purpose: 1,629 inline styles arrived from Elementor and a saved
  *     page-builder width fights the design's reading measure. There is no presentational attribute the
  *     archive will keep, so a button that "worked" would silently lose the alignment on save.
- *   * **Insert Read More tag** — `<!--more-->` is a WordPress loop instruction, and `sanitiseArchiveHtml`
- *     removes every HTML comment before anything else. This archive renders a record whole; it has no
- *     excerpt splitter. The button is drawn where WordPress draws it and says this.
  *
- * Each is `disabled` with the reason in its `title`. A control that returns 200 and does nothing is the
- * fault class this archive has recorded four times; a control that says why it cannot is not.
+ * The three alignment buttons are `disabled` with the reason in each `title`. A control that returns 200
+ * and does nothing is the fault class this archive has recorded four times; a control that says why it
+ * cannot is not.
+ *
+ * **Insert Read More used to be the second of those and is now a working button.** Its reason was *"this
+ * archive renders a record whole and removes every HTML comment, so `<!--more-->` would not survive the
+ * save"* — and the archive owns the sanitiser, so that was a decision rather than a limit. WordPress's own
+ * `wp_more` inserts `<!--more-->` and its `GetContent` handler writes that tag out of a placeholder image;
+ * this screen now does the same with a marker and `documentForSaving` / `documentForEditing`, and
+ * `READ_MORE_TAG` in `packages/ozikoro/src/content.ts` records why keeping that one comment is safe.
  *
  * ── ADD MEDIA, THE FEATURED IMAGE, AND THE BOXES THAT FOLD ──────────────────────────────────────────
  *
@@ -74,7 +79,14 @@ import {
   switchEditorView,
   type ToolbarControl,
 } from '@/lib/classic-editor';
-import { bodyLostBeforeSave, visualBoxDocument } from '@/lib/classic-editor-content';
+import {
+  bodyLostBeforeSave,
+  documentForEditing,
+  documentForSaving,
+  READ_MORE_MARKER,
+  READ_MORE_TAG,
+  visualBoxDocument,
+} from '@/lib/classic-editor-content';
 import { MetaBox } from './meta-box';
 import { MediaPicker, mediaSrc, type PickerItem } from './media-picker';
 
@@ -286,7 +298,16 @@ export function ClassicEditor(props: ClassicEditorProps) {
   }
 
   function syncBody() {
-    const html = currentHtml();
+    /*
+     * THE DOCUMENT IS CONVERTED ON THE WAY OUT, AND THIS IS THE ONLY PLACE IT HAPPENS.
+     *
+     * The Visual box draws the Read More tag as a marker (`documentForEditing` put it there) and the
+     * archive stores `<!--more-->`; `documentForSaving` is that conversion. Every path a document can
+     * leave this screen by goes through here — the hidden field the form posts, the Text tab when the
+     * reader switches to it, and the document handed back to the Visual box on the way — so the marker
+     * cannot reach the database and the tag cannot be lost on the way to it.
+     */
+    const html = documentForSaving(currentHtml());
     if (hiddenBodyRef.current) hiddenBodyRef.current.value = html;
     return html;
   }
@@ -327,7 +348,15 @@ export function ClassicEditor(props: ClassicEditorProps) {
     if (!visual) return;
     const box = editorRef.current;
     if (!box) return;
-    box.innerHTML = visualBoxDocument(pendingVisualHtml.current, piece?.bodyHtml ?? '');
+    /*
+     * AND THE READ MORE TAG IS DRAWN HERE, ON THE ONE WRITE, FOR THE SAME REASON.
+     *
+     * `documentForEditing` turns the stored `<!--more-->` into the visible marker the box draws. It is
+     * folded into this effect rather than given an effect of its own precisely because the note above is
+     * the property that must not break: the box is written once, when it appears, and anything that
+     * wrote to it at any other moment would be putting the clobber back.
+     */
+    box.innerHTML = documentForEditing(visualBoxDocument(pendingVisualHtml.current, piece?.bodyHtml ?? ''));
     pendingVisualHtml.current = null;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see the note above: `mirror` must NOT be here.
   }, [visual]);
@@ -378,7 +407,8 @@ export function ClassicEditor(props: ClassicEditorProps) {
    *
    * `execCommand` is used for the commands whose output the archive's allowlist accepts; this is used for
    * the two it gets wrong — strikethrough, which the browser spells `<strike>` and the archive spells
-   * `<s>`, and code, which no browser command writes at all.
+   * `<s>`, and code, which no browser command writes at all — and for the link, which needs the address
+   * asked for first.
    */
   function wrapSelection(open: string, close: string) {
     if (!visual) return;
@@ -391,8 +421,26 @@ export function ClassicEditor(props: ClassicEditorProps) {
     node.innerHTML = `${open}${text}${close}`;
     const fragment = document.createDocumentFragment();
     while (node.firstChild) fragment.appendChild(node.firstChild);
+    const last = fragment.lastChild;
     range.insertNode(fragment);
-    selection.removeAllRanges();
+    /*
+     * THE INSERTION POINT IS PUT SOMEWHERE, RATHER THAN THROWN AWAY.
+     *
+     * This used to end at `selection.removeAllRanges()`, and what that leaves is a box with no caret in it:
+     * the click took the focus, the selection is gone, and the next character typed lands wherever the
+     * browser decides. It is put **after** the inserted run rather than inside it, because a writer who
+     * carries on typing after a new link, a struck word or a run of code should not still be inside what
+     * they just made.
+     */
+    if (last) {
+      const after = document.createRange();
+      after.setStartAfter(last);
+      after.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(after);
+    } else {
+      selection.removeAllRanges();
+    }
     markDirty();
     setWords(countWords(currentHtml()));
   }
@@ -426,7 +474,12 @@ export function ClassicEditor(props: ClassicEditorProps) {
     );
   }
 
-  /** The link control, once the address has been asked for. */
+  /**
+   * The link control, once the address has been asked for.
+   *
+   * The caret is left after the anchor — see the note in `wrapSelection` — and Remove link finds the anchor
+   * from there rather than needing a second click into the link. See `removeLink`.
+   */
   function insertLinkAt(url: string) {
     if (!visual) return;
     const selected = selectionHtml();
@@ -441,11 +494,107 @@ export function ClassicEditor(props: ClassicEditorProps) {
   }
 
   /**
+   * The More button: WordPress's `wp_more`.
+   *
+   * What the original does, read from its own plugin rather than guessed: `editor.addButton('wp_more', …)`
+   * calls `editor.execCommand('WP_More', 'more')`, and `WP_More` inserts a placeholder element into the
+   * editing box. The tag is `<!--more-->` only once the document is read back out, which is
+   * `documentForSaving` here. **The button therefore writes the marker, not the tag** — writing the tag
+   * straight into the box would be an invisible comment and a writer would have no way to see or remove it.
+   *
+   * `insertHTML` is the browser command the Add Media path already uses for markup, and it is used again
+   * here for the same reason: the alternative is inserting a node by hand through a `Range`, and the
+   * browser's own insertion is the one that leaves the caret after the inserted element rather than
+   * inside it. The marker carries no text at all, so nothing about it reaches the word count.
+   */
+  function insertReadMore() {
+    if (!visual) {
+      /*
+       * THE TEXT TAB IS SHOWING, so there is no caret in a rendered box to place the marker at. The tag
+       * itself goes into the box at the end — the same honest half-gesture Add Media makes there, for the
+       * same reason: the writer sees what arrived and can move it, and the tag is what this tab holds.
+       */
+      const next = `${mirror}${READ_MORE_TAG}`;
+      setMirror(next);
+      markDirty();
+      setWords(countWords(next));
+      return;
+    }
+    editorRef.current?.focus();
+    try {
+      document.execCommand('insertHTML', false, READ_MORE_MARKER);
+    } catch {
+      /* ignored; see `command` */
+    }
+    markDirty();
+    setWords(countWords(currentHtml()));
+  }
+
+  /** The element the node sits in, so `closest` can be asked of a text node as well as an element. */
+  function enclosingElement(node: Node | null): Element | null {
+    if (!node) return null;
+    return node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  }
+
+  /**
+   * Remove link, from wherever the writer's caret actually is.
+   *
+   * ── WHY THIS IS NOT A PLAIN `execCommand('unlink')`, MEASURED RATHER THAN ASSUMED ────────────────────
+   *
+   * The toolbar entry used to be `{ kind: 'command', command: 'unlink' }`, which delegates straight to the
+   * browser. **Measured in Chrome, on a box holding one anchor, at five caret positions:**
+   *
+   *     caret inside the anchor, after its text        execCommand('unlink') → false,  1 anchor left
+   *     caret inside the anchor, before its text       execCommand('unlink') → false,  1 anchor left
+   *     the anchor selected as a range                 execCommand('unlink') → true,   0 anchors left
+   *     the link's text node selected                  execCommand('unlink') → true,   0 anchors left
+   *
+   * *The command does nothing at all for a **collapsed** selection.* And a collapsed caret inside a link is
+   * exactly where a writer is when they decide the address is wrong: click the link, click Remove link,
+   * nothing happens — the fault class this archive has recorded four times, on the button the owner used as
+   * the landmark for the one beside it. So the selection is widened to cover the anchor first, and the
+   * browser's command is then doing what it is good at on a range it can act on.
+   *
+   * The anchor is looked for in two places, because there are two ways to arrive here and both are
+   * ordinary: **inside** it (the writer clicked the link), or **immediately after** it (`wrapSelection` puts
+   * the caret there when it writes one fresh, so that typing on is not swallowed by the link).
+   */
+  function removeLink() {
+    if (!visual) return;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+
+    let anchor = enclosingElement(range.startContainer)?.closest('a') ?? null;
+    if (!anchor && range.collapsed) {
+      // The caret is not inside a link, so the only link this could mean is the one it sits just after.
+      const before =
+        range.startContainer.nodeType === Node.TEXT_NODE
+          ? range.startOffset === 0
+            ? range.startContainer.previousSibling
+            : null
+          : (range.startContainer.childNodes[range.startOffset - 1] ?? null);
+      anchor = enclosingElement(before)?.closest('a') ?? null;
+    }
+    // No anchor at all: there is no link to remove, and inventing one would be a worse answer than nothing.
+    if (!anchor) return;
+
+    if (range.collapsed) {
+      const whole = document.createRange();
+      whole.selectNodeContents(anchor);
+      selection.removeAllRanges();
+      selection.addRange(whole);
+    }
+    command('unlink');
+  }
+
+  /**
    * Run one toolbar entry, from the list in `@/lib/classic-editor`.
    *
-   * The three kinds are the whole of the toolbar's behaviour, so this is the only place a button's click
-   * turns into an edit: a `command` goes to the browser (asking first if the entry carries a question), a
-   * `wrap` inserts the two strings the archive keeps, and an `unavailable` entry never reaches here
+   * The kinds are the whole of the toolbar's behaviour, so this is the only place a button's click turns
+   * into an edit: a `command` goes to the browser (asking first if the entry carries a question), a `wrap`
+   * inserts the two strings the archive keeps, `read-more` places the marker WordPress places, `unlink`
+   * widens the selection and then runs the browser's command, and an `unavailable` entry never reaches here
    * because it is drawn disabled.
    */
   function runControl(control: ToolbarControl) {
@@ -461,6 +610,8 @@ export function ClassicEditor(props: ClassicEditorProps) {
       return;
     }
     if (control.kind === 'wrap') wrapSelection(control.open, control.close);
+    if (control.kind === 'read-more') insertReadMore();
+    if (control.kind === 'unlink') removeLink();
   }
 
   /**

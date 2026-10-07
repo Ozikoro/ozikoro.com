@@ -65,3 +65,67 @@ export function bodyLostBeforeSave(submittingHtml: string, mirrorHtml: string, v
 export function visualBoxDocument(pending: string | null, stored: string): string {
   return pending !== null ? pending : stored;
 }
+
+/* ---------------------------------------------------------------------------------------------------
+ * 3. THE READ MORE TAG — THE ONE CONTROL THAT IS SAVED AS SOMETHING OTHER THAN WHAT IT DRAWS
+ * -------------------------------------------------------------------------------------------------*/
+
+/**
+ * What WordPress's More button writes into the post, byte for byte.
+ *
+ * Its TinyMCE plugin registers the button as `editor.addButton('wp_more', { tooltip: 'Insert Read More
+ * tag', onclick: … editor.execCommand('WP_More', 'more') })`, and `WP_More` inserts a **placeholder**: an
+ * `<img class="wp-more-tag mce-wp-more" data-wp-more="more" …>` stretched across the editor. The
+ * `GetContent` handler turns every one of those images back into `<!--more-->` on the way out, and
+ * `BeforeSetContent` turns it back into the image on the way in. So **the tag in the saved post and the
+ * marker in the editing box are two different strings on purpose**, and this pair of functions is that
+ * conversion for this archive.
+ *
+ * WHY A ROUND TRIP AT ALL, RATHER THAN PUTTING THE TAG IN THE BOX. Because a comment cannot be seen and
+ * cannot be clicked: a `<!--more-->` written straight into a `contenteditable` is invisible, so the
+ * writer gets no sign that the button did anything and no way to delete it — which is the fault this
+ * screen is being fixed for, reproduced. The marker is visible, is `contenteditable="false"` so it
+ * behaves as one object again, and holds **no text at all**: the word "MORE" is drawn by CSS on
+ * `::after`, so it is not in `innerHTML`, is not counted by `wordCount`, and cannot end up in a body.
+ */
+export const READ_MORE_TAG = '<!--more-->';
+
+/**
+ * The marker the Visual box draws where the tag sits.
+ *
+ * `contenteditable="false"` inside the box, which is how a writer deletes it in one gesture again rather
+ * than by picking through characters, and `data-wp-more="more"` so the marker can be found by attribute
+ * rather than by a byte-exact string the browser might re-serialise.
+ */
+export const READ_MORE_MARKER =
+  '<span class="wp-more-tag mce-wp-more" contenteditable="false" data-wp-more="more" title="Read more..."></span>';
+
+/** The marker with its closing tag — the shape the DOM holds when nothing has broken it. */
+const READ_MORE_MARKER_PAIR = /<span\b[^>]*\bdata-wp-more="more"[^>]*>[\s\S]*?<\/span>/gi;
+/** A marker whose closing tag is no longer there, which is what half a deletion leaves behind. */
+const READ_MORE_MARKER_OPEN = /<span\b[^>]*\bdata-wp-more="more"[^>]*>/gi;
+/** The tag wherever a record holds it, case-insensitively, so a Text-tab edit is picked up too. */
+const READ_MORE_TAG_ANY = /<!--more-->/gi;
+
+/**
+ * The document as it is **saved**: every marker becomes the tag WordPress stores.
+ *
+ * This is the only place the conversion happens on the way out, and it is `syncBody` that calls it, so
+ * the hidden field the form posts and the Text tab the reader sees both hold the tag rather than the
+ * marker. **A marker reaching the database would be an `<span>` the sanitiser keeps and the word "MORE"
+ * printed in the middle of a published record**, so the round trip is not cosmetic.
+ */
+export function documentForSaving(editorHtml: string): string {
+  return editorHtml.replace(READ_MORE_MARKER_PAIR, READ_MORE_TAG).replace(READ_MORE_MARKER_OPEN, READ_MORE_TAG);
+}
+
+/**
+ * The document as it is **edited**: every tag becomes the marker the Visual box draws.
+ *
+ * Applied where the box is seeded and nowhere else — see the note on `pendingVisualHtml` in `editor.tsx`
+ * for why the box is written once and never from state. A record that has never held the tag comes back
+ * byte for byte, which is what the tests below pin.
+ */
+export function documentForEditing(storedHtml: string): string {
+  return storedHtml.replace(READ_MORE_TAG_ANY, READ_MORE_MARKER);
+}

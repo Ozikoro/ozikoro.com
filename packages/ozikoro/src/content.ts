@@ -121,6 +121,43 @@ export interface SanitiseOptions {
 
 const DEFAULT_INTERNAL_HOSTS = ['ozikoro.com', 'www.ozikoro.com', 'ozituma.com', 'www.ozituma.com'];
 
+/**
+ * WordPress's Read More tag — **the one HTML comment this archive keeps**, and why it is safe to keep it.
+ *
+ * WHY IT IS HERE AT ALL. The editor's More button is WordPress's `wp_more`, and what that button does is
+ * put this tag into the post: `editor.addCommand('WP_More', …)` inserts it, and the `GetContent` handler
+ * turns the editor's placeholder back into it on the way out. So a body the editor wrote contains
+ * `<!--more-->`, and the line below used to delete it — which made the button a control that reported a
+ * save and kept nothing. **The sanitiser is the only thing that decides what survives, so the tag has to
+ * be named here or the button cannot be honest.**
+ *
+ * WHY THIS IS NOT A HOLE IN THE COMMENT RULE. The rule above this function exists for a reason that does
+ * not apply to this one string: a conditional comment (`<!--[if IE]>`) can *hide markup* — the content
+ * inside it is not parsed but is also not gone, and the old browsers that honoured it executed what was
+ * inside. **`<!--more-->` hides nothing and contains nothing.** It is a marker: inert text between two
+ * `--` pairs. It cannot run script, apply a style or fetch anything — the three things the rest of this
+ * allowlist exists to refuse — and it is *recognised* rather than merely tolerated, so it is preserved as
+ * this exact string rather than passed through.
+ *
+ * WHAT IT DOES NOT DO, STATED RATHER THAN IMPLIED. WordPress reads this tag on its own archive and
+ * category pages, where `the_content()` prints the text before it and appends a "Read more" link. **This
+ * archive has no such view** — its listings print the record's `standfirst` field and no body text at all
+ * — so a stored `<!--more-->` is preserved and rendered as the inert comment it is. The one function here
+ * that reads it is `summarise` below, which ends its summary at the tag exactly as WordPress's
+ * `get_the_excerpt()` does; see the round trip in `apps/ozikoro/lib/classic-editor-content.ts`.
+ */
+export const READ_MORE_TAG = '<!--more-->';
+
+/**
+ * What stands in for the tag while the other comments are being removed.
+ *
+ * A token rather than a second pass, because the pass below is unconditional and a regex that has to
+ * *not* match one comment among thousands is exactly the kind of rule that is right until the day it is
+ * not. The token cannot occur in a body, carries no `<`, `>`, `&` or quote, and so passes through
+ * `escapeHtml` and the tag parser untouched.
+ */
+const READ_MORE_TOKEN = '\u0000ozikoro:read-more\u0000';
+
 // ---------------------------------------------------------------------------
 // Tag parsing
 // ---------------------------------------------------------------------------
@@ -215,8 +252,12 @@ function safeUrl(value: string, options: SanitiseOptions): string | null {
 export function sanitiseArchiveHtml(html: string, options: SanitiseOptions = {}): string {
   if (!html) return '';
 
-  // Comments first: they can hide conditionals and are never wanted in the output.
-  let source = html.replace(/<!--[\s\S]*?-->/g, '');
+  // Comments first: they can hide conditionals and are never wanted in the output — the editor's
+  // Read More tag excepted, and it is taken out of the way rather than spared by a pattern that has to
+  // fail to match. See `READ_MORE_TAG` for why that one string is kept and what it does here.
+  let source = html
+    .replace(/<!--more-->/gi, READ_MORE_TOKEN)
+    .replace(/<!--[\s\S]*?-->/g, '');
   // Drop dangerous elements with their entire contents.
   for (const tag of DROPPED_WITH_CONTENT) {
     source = source.replace(new RegExp(`<${tag}\\b[^>]*>[\\s\\S]*?<\\/${tag}\\s*>`, 'gi'), '');
@@ -298,7 +339,8 @@ export function sanitiseArchiveHtml(html: string, options: SanitiseOptions = {})
   }
 
   out.push(escapeHtml(source.slice(lastIndex)));
-  return out.join('').trim();
+  // The Read More tag comes back exactly as WordPress writes it, byte for byte, wherever it stood.
+  return out.join('').trim().split(READ_MORE_TOKEN).join(READ_MORE_TAG);
 }
 
 function parseAttributesTag(input: { name: string; closing: boolean; selfClosing: boolean; attributeSource: string }): RawTag {
@@ -433,9 +475,19 @@ export function prepareArchiveHtml(html: string, options: PrepareOptions = {}): 
  *
  * Falls back to the first sentence rather than returning nothing, because a record with no
  * summary should still show something a reader can recognise.
+ *
+ * **AND IT STOPS AT THE READ MORE TAG**, which is what WordPress's own `get_the_excerpt()` does with the
+ * same tag: everything before `<!--more-->` is the summary and everything after it is the rest of the
+ * record. Without this the tag would be stored and unread, which is the same fault as a button that
+ * writes nothing — one layer further down. *What this does NOT do is give the archive an archive-page
+ * split; see `READ_MORE_TAG`. Today no page calls this function at all, so this is the archive's summary
+ * rule being made correct rather than a change to any page.*
  */
 export function summarise(html: string, maxLength = 220): string {
-  const text = html
+  // The tag itself is markup, so it is cut on before the tags are stripped — and only the FIRST one,
+  // because WordPress reads one tag per post.
+  const beforeMore = html.split(READ_MORE_TAG)[0] ?? html;
+  const text = beforeMore
     .replace(/<[^>]+>/g, ' ')
     /*
      * Decoded in the right order, and the order is the whole difficulty. `&amp;` must be decoded

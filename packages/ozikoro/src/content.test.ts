@@ -12,6 +12,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  READ_MORE_TAG,
   prepareArchiveHtml,
   readingMinutes,
   sanitiseArchiveHtml,
@@ -113,6 +114,33 @@ test('a comment is removed, including a conditional one', () => {
   const out = sanitiseArchiveHtml('<p>a</p><!--[if IE]><script>x</script><![endif]--><p>b</p>');
   assert.ok(!out.includes('IE'));
   assert.ok(!out.includes('<script'));
+});
+
+test('the Read More tag is the one comment that survives, and it survives exactly', () => {
+  /*
+   * The editor's More button is WordPress's `wp_more`, whose whole behaviour is writing this tag into the
+   * post. It is kept rather than stripped because the rule above it is about comments that can HIDE
+   * markup — a conditional comment's contents are not parsed but they are not gone — and this one hides
+   * nothing and contains nothing. Everything else about a comment is still true of this one: it runs no
+   * script, applies no style and fetches nothing.
+   */
+  assert.equal(sanitiseArchiveHtml(`<p>a</p>${READ_MORE_TAG}<p>b</p>`), `<p>a</p>${READ_MORE_TAG}<p>b</p>`);
+  assert.equal(READ_MORE_TAG, '<!--more-->');
+  // It does not smuggle anything in with it: a comment that merely STARTS with the tag is still removed.
+  assert.ok(!sanitiseArchiveHtml('<p>a</p><!--more--><script>alert(1)</script>').includes('alert'));
+  // And the pass that removes the others still removes them, either side of a kept one.
+  const mixed = sanitiseArchiveHtml(`<!-- wp:paragraph --><p>a</p>${READ_MORE_TAG}<!--[if IE]>x<![endif]--><p>b</p>`);
+  assert.equal(mixed.split(READ_MORE_TAG).length, 2, 'the tag was duplicated or lost');
+  assert.ok(!mixed.includes('wp:paragraph') && !mixed.includes('IE'));
+});
+
+test('a summary ends at the Read More tag, as WordPress’s own excerpt does', () => {
+  const body = `<p>${'one '.repeat(30)}</p><!--more--><p>${'two '.repeat(30)}</p>`;
+  const summary = summarise(body, 400);
+  assert.ok(summary.startsWith('one'), 'the summary did not start at the beginning');
+  assert.ok(!summary.includes('two'), 'the summary ran past the Read More tag');
+  // A body with no tag is summarised from the beginning as before.
+  assert.ok(summarise('<p>alpha</p><p>beta</p>').includes('alpha'));
 });
 
 test('an image with no usable source is dropped rather than shown broken', () => {
