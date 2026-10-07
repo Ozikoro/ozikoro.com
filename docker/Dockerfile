@@ -221,4 +221,19 @@ CMD ["node", "apps/ozikoro/server.js"]
 # ---------------------------------------------------------------------------
 FROM postgres:16-alpine AS backup-tools
 
-RUN apk add --no-cache age aws-cli
+# ⚠️ `curl` IS HERE FOR THE IMAGE-IMPORTER SCRIPT, AND ITS ABSENCE COST AN IMPORT RUN.
+#
+# `scripts/import-inbody-images.ts:172` does `spawn('curl', args)` — *it fetches every image a record's
+# body names, from whatever host still holds it.* **The runtime image had no `curl`, so the import ran
+# until it reached the first URL needing one and then died with a bare `Node.js v24.21.0` and a dump of
+# the argument list** — *which reads like a crash rather than a missing binary, and is why it took two
+# runs and a `which curl` to find.*
+#
+# ⚠️ **AND `wget` WAS ALREADY PRESENT, WHICH IS WHAT MADE IT CONFUSING.** *The image is `node:24-alpine`,
+# which ships busybox `wget` and no `curl`, so a script that shells out to `curl` fails on exactly the
+# hosts the archive needs.*
+#
+# **Measured: 1,389 images were imported across four runs — 803, then 221, then 368, each stopping at the
+# same kind of URL — and `ozikoro_media` went from 3,443 rows with bytes to 4,832.** *The runs before
+# `curl` was installed each ended early; the one after it completed its pass with zero errors.*
+RUN apk add --no-cache age aws-cli curl
