@@ -98,6 +98,23 @@ async function uniqueMediaSlug(
   return `upload-${id}`;
 }
 
+/**
+ * EVERY REFUSAL IS WRITTEN TO THE LOG, AND THAT IS NOT DECORATION.
+ *
+ * This route used to answer a refusal — a cross-origin request, a missing session, a body that was not
+ * multipart, an empty form, a file past the size cap, an SVG, an unrecognised format — **without writing one
+ * line anywhere.** It logs only when a row or a `put` fails. So the container's log stayed empty for every
+ * one of those outcomes, and an empty log was read as *"his file never reached the route"*. That inference
+ * was made about a route that is silent on success as well, and it sent a whole investigation into the
+ * browser when the answer could have been one line in `docker logs`.
+ *
+ * **An upload that leaves no trace of having been attempted cannot be diagnosed, only guessed at.**
+ */
+function refuse(status: number, code: string, message: string): Response {
+  console.warn(`[ozikoro/media-upload] refused ${status} ${code} — ${message.slice(0, 200)}`);
+  return jsonError(status, code, message);
+}
+
 export async function POST(request: Request): Promise<Response> {
   /*
    * ORIGIN, THEN CAPABILITY, THEN THE BODY — the order `/api/admin/media` documents and the reason for it:
@@ -105,44 +122,48 @@ export async function POST(request: Request): Promise<Response> {
    * handler is a 500 where a refusal belongs.
    */
   if (!sameOrigin(request)) {
-    return jsonError(403, 'cross_origin', 'That request did not come from this site.');
+    return refuse(403, 'cross_origin', 'That request did not come from this site.');
   }
   const guard = await requireCapability('edit_entity', { returnTo: '/admin/posts/new' });
   if (!guard.ok) {
-    return jsonError(401, 'not_signed_in', 'Sign in to add a file to the archive.');
+    return refuse(401, 'not_signed_in', 'Sign in to add a file to the archive.');
   }
   const actorId = guard.account.account.id;
 
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.includes('multipart/form-data')) {
-    return jsonError(415, 'unsupported_body', 'That file did not arrive as a form upload.');
+    return refuse(415, 'unsupported_body', 'That file did not arrive as a form upload.');
   }
 
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return jsonError(400, 'unreadable_body', 'That form could not be read. Nothing was stored.');
+    return refuse(400, 'unreadable_body', 'That form could not be read. Nothing was stored.');
   }
 
   const file = form.get('file');
   if (!(file instanceof File) || file.size === 0) {
-    return jsonError(400, 'missing_file', 'No file arrived with that form, so nothing could be stored.');
+    return refuse(400, 'missing_file', 'No file arrived with that form, so nothing could be stored.');
   }
   if (file.size > MAX_UPLOAD_BYTES) {
-    return jsonError(
+    return refuse(
       413,
       'too_large',
       `That file is ${(file.size / (1024 * 1024)).toFixed(1)} MB, which is larger than the ` +
         `${MAX_UPLOAD_BYTES / (1024 * 1024)} MB this form will read.`
     );
   }
+  console.log(
+    `[ozikoro/media-upload] attempt by account ${actorId}: ${file.name} ` +
+      `(${file.size} bytes, declared ${file.type || 'no type'})`
+  );
 
   const bytes = Buffer.from(await file.arrayBuffer());
   const head = bytes.subarray(0, 512);
 
   if (looksLikeSvg(head)) {
-    return jsonError(
+    return refuse(
       400,
       'svg_refused',
       'An SVG is refused. It is the one image format that can carry script, and the archive’s own sanitiser ' +
@@ -152,7 +173,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const sniffed = sniffMediaBytes(head, (file.type || '').split(';')[0]!.trim().toLowerCase());
   if (!sniffed) {
-    return jsonError(
+    return refuse(
       400,
       'unrecognised_file',
       'That file is not one of the formats this form stores. It takes JPEG, PNG, GIF, WebP and AVIF images, ' +
@@ -180,7 +201,7 @@ export async function POST(request: Request): Promise<Response> {
     mediaId = Number(row.id);
   } catch (error) {
     console.error('[ozikoro/media-upload] could not open the record:', String(error).slice(0, 300));
-    return jsonError(500, 'record_failed', 'A record for that file could not be opened, so nothing was stored.');
+    return refuse(500, 'record_failed', 'A record for that file could not be opened, so nothing was stored.');
   }
 
   const filename = safeMediaFilename(file.name, sniffed.extension);
@@ -194,7 +215,7 @@ export async function POST(request: Request): Promise<Response> {
   if (!isAddressableMediaKey(key)) {
     await db.query(`delete from ozikoro_media where id = $1`, [mediaId]);
     console.error('[ozikoro/media-upload] refused a key the media route cannot serve:', key);
-    return jsonError(
+    return refuse(
       400,
       'unaddressable_key',
       'That file’s name would make an address the archive’s media route cannot serve, so nothing was stored. ' +
@@ -215,6 +236,8 @@ export async function POST(request: Request): Promise<Response> {
       [mediaId, JSON.stringify({ key: stored.key, mime: sniffed.mime, bytes: bytes.length }), actorId, `Added ${filename}`]
     );
 
+    console.log(`[ozikoro/media-upload] stored ${stored.key} (${bytes.length} bytes, ${sniffed.mime})`);
+
     return Response.json({
       ok: true,
       item: {
@@ -234,7 +257,7 @@ export async function POST(request: Request): Promise<Response> {
     } catch {
       /* The record is left with no key, which no picker offers. The original failure is the one to report. */
     }
-    return jsonError(500, 'store_failed', 'That file could not be stored, and nothing was added to the archive.');
+    return refuse(500, 'store_failed', 'That file could not be stored, and nothing was added to the archive.');
   }
 }
 

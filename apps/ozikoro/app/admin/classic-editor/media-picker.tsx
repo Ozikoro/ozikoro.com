@@ -312,6 +312,21 @@ export function MediaPicker({ open, purpose, initial, selectedId, onChoose, onCl
                       setFile(picked);
                       setUploadError(null);
                       setUploadNote(null);
+                      /*
+                       * CHOOSING A FILE IS THE UPLOAD, IN ONE ACT.
+                       *
+                       * It was two: choosing only revealed a second, small "Upload" button under the file's
+                       * name, and until that was found and pressed **no request left the browser at all** —
+                       * the panel simply sat there, and the primary button at the foot stayed `disabled`
+                       * because nothing was chosen. *That is exactly "it did not upload the image, and it did
+                       * not react"*: the one control that looked like the way forward was inert, and the
+                       * control that would have worked was a step the screen never asked for.
+                       *
+                       * It is also what the pattern this panel copies does — an uploader uploads the file it
+                       * is given — and what the drop zone beside it already did, so the two ways into the
+                       * panel now agree instead of differing by one hidden click.
+                       */
+                      if (picked) void upload(picked);
                     }}
                   />
                   <button
@@ -330,10 +345,16 @@ export function MediaPicker({ open, purpose, initial, selectedId, onChoose, onCl
                 ) : (
                   <p className="meta">Up to {MAX_UPLOAD_MB} MB. The file&rsquo;s own first bytes are checked.</p>
                 )}
-                {file ? (
+                {file && !uploading ? (
+                  /*
+                   * THE SECOND ATTEMPT, WHICH IS ALL THIS BUTTON IS NOW. Choosing uploads; this is here for
+                   * the case where that attempt was refused, so the file does not have to be found and
+                   * chosen again. It is drawn only while no upload is in flight, so the panel never shows
+                   * two "Storing…" controls at once.
+                   */
                   <p>
-                    <button type="button" className="btn small" onClick={() => void upload(file)} disabled={uploading}>
-                      {uploading ? 'Storing…' : 'Upload'}
+                    <button type="button" className="btn small" onClick={() => void upload(file)}>
+                      {uploadError ? 'Try again' : 'Upload'}
                     </button>
                   </p>
                 ) : null}
@@ -518,6 +539,16 @@ export function MediaPicker({ open, purpose, initial, selectedId, onChoose, onCl
                       kind.length > 0 ? ' of this kind' : ''
                     }`}
             </span>
+            {/*
+              WHY THE INERT BUTTON SAYS SO IN WORDS RATHER THAN IN A `title`.
+              `<button disabled title="Choose a record first.">` cannot be hovered — a disabled control fires
+              no pointer events, so the browser never shows that title — and the panel therefore had a primary
+              button that was grey and silent. That silence is half of what the owner reported. The reason is
+              now a line of text beside it, which is the only shape a reader who cannot click can read.
+            */}
+            {chosen === null && blocked === null ? (
+              <span className="meta">Choose a record below, or add a file above, to continue.</span>
+            ) : null}
             {blocked ? <span className="mediamodal__blocked">{blocked}</span> : null}
             <span className="mediamodal__actions">
               <button type="button" className="btn" onClick={onClose}>
