@@ -106,6 +106,27 @@ PATHS=(
   scripts
   docs
   data
+  # ⚠️ THE DOCKERFILE TRAVELS EVEN THOUGH ITS DIRECTORY DOES NOT — AND ITS ABSENCE COST THREE FAILED DEPLOYS.
+  #
+  # `docker/` is excluded as a directory for a reason that is still correct: *the host's own compose runs the
+  # academy from an `image:`, while this checkout's compose would try to **build** it from `apps/academy`,
+  # which the host does not have.* **So the compose files must not travel — that is the safety rule at line 78
+  # and it stands.**
+  #
+  # 🔴 **BUT `Dockerfile` BECAME A COLLATERAL OF THAT RULE, AND NOTHING NOTICED FOR HOURS.** *The host's is
+  # 12,583 bytes; this checkout's is 13,081.* The difference is that the repo's removed the `learn` target and
+  # the retired `apps/learn` with it — **and the host's still runs `COPY apps/learn/package.json`, for an app
+  # retired on 2026-10-04 and deleted from this repository.**
+  #
+  # **The measured consequence, three deploys running:**
+  #     failed to solve: failed to compute cache key: "/apps/learn/package.json"
+  # **A file the repository deleted, demanded by a Dockerfile the deploy never updated.**
+  #
+  # ⚠️ **AND THE PRUNE HANDLES A SINGLE FILE CORRECTLY, WHICH IS WHY THIS IS SAFE TO ADD.** *It derives its
+  # owned directories from the manifest's own paths — `docker/Dockerfile` yields the path `docker/Dockerfile`,
+  # and `find docker/Dockerfile -type f` matches that one file.* **The host's compose files are not in the
+  # manifest, so they are not reachable from the prune, exactly as `.env` and `.data/` are not.**
+  docker/Dockerfile
 )
 
 echo "==> collecting tracked files"
