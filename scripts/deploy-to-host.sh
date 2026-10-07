@@ -330,6 +330,53 @@ cp -a /tmp/din/. .
 echo "    design files now: $(find apps/ozikoro/public/design -type f | wc -l)"
 echo "    screens now:      $(ls apps/ozikoro/public/design/screens/*.html 2>/dev/null | wc -l)"
 
+# ══════════════════════════════════════════════════════════════════════════════════════════════════════
+# RUN THE MIGRATIONS — AND THIS STEP DID NOT EXIST, WHICH TOOK THREE LIVE PAGES DOWN.
+#
+# ⚠️ THE FAULT, MEASURED. A commit added `ozikoro_comment`, `ozikoro_saved` and `ozikoro_read_event` and
+# the code that queries them. This script shipped the code and rebuilt the image. **It did not create the
+# tables, because nothing here ever ran a migration.** So `/watch/`, `/projects/` and
+# `/cultural-calendar/` — the three pages the new comment box is hooked into — answered **500** with:
+#
+#     error: relation "ozikoro_comment" does not exist
+#
+# **A deploy that ships code without its schema is not a partial deploy; it is an outage of every page
+# that touches the new table.** *And it was invisible from here: the file hashes verified, the design
+# screens copied, the container came up healthy, and the three broken pages were not in the sweep.*
+#
+# ⚠️ AND THE RECORDED MIGRATIONS HAD STOPPED AT `0057` — `0058_ozikoro_record_seo`,
+# `0059_ozikoro_contributor_wp_role`, `0060_ozikoro_library` and `0061_ozikoro_comments` were all on disk
+# and unrecorded. *Two of them had their schema anyway (applied by hand and never recorded); the other
+# two had nothing.* **So the runner is now part of the deploy, and its failure is fatal to the deploy.**
+#
+# ⚠️ WHY IT RUNS **BEFORE** THE REBUILD: the running container is the last known-good build. A migration
+# that fails must not be combined with an image that expects it. Running first means a bad migration stops
+# the deploy with the previous build still serving — which is the same rule the backup and the hash
+# verification already follow.
+#
+# ⚠️ AND WHY `migrate up` IS SAFE TO RE-RUN: it records what it applied in `schema_migration` and skips
+# the rest, so a deploy that runs twice is a no-op the second time.
+echo "==> host: migrate"
+# The runner lives in the app package and needs the database, so it runs INSIDE the container that is
+# already up rather than on the host, which has neither the toolchain nor a database client configured.
+MIGRATE_OUT="$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T ozikoro \
+  npm -w @ozituma/db run migrate 2>&1)" || {
+  echo "$MIGRATE_OUT" | tail -20 | sed 's/^/    /'
+  echo "    !! MIGRATION FAILED. THE CODE HAS NOT BEEN REBUILT AND THE RUNNING SITE IS UNTOUCHED." >&2
+  echo "    !! Nothing below this line runs. Fix the migration and deploy again." >&2
+  exit 1
+}
+echo "$MIGRATE_OUT" | grep -iE 'appl|ok|skip|up to date' | tail -6 | sed 's/^/    /'
+# The runner reports success in prose; ask the database what it actually recorded, so a run that silently
+# did nothing cannot read as a pass.
+MIG_COUNT="$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \
+  psql -U ozituma -d ozituma -tAc 'select count(*) from schema_migration' 2>/dev/null | tr -d '[:space:]')"
+echo "    schema_migration holds ${MIG_COUNT:-?} recorded migration(s)"
+if [ -z "${MIG_COUNT:-}" ] || [ "${MIG_COUNT:-0}" -lt 1 ] 2>/dev/null; then
+  echo "    !! REFUSING TO CONTINUE: could not read schema_migration, so the migration step is unproven." >&2
+  exit 1
+fi
+
 if [ "__DO_BUILD__" = "1" ]; then
   echo "==> host: rebuild"
   echo "    before: $(docker inspect ozituma-ozikoro-1 --format '{{.State.StartedAt}}' 2>/dev/null)"
