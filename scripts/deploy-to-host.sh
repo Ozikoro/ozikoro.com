@@ -326,11 +326,62 @@ cp -a apps/ozikoro/public/design/. "/opt/ozituma/backups/design-$TS/" 2>/dev/nul
 echo "    design backed up: $(find /opt/ozituma/backups/design-$TS -type f | wc -l) files"
 
 echo "==> host: install"
-# ⚠️ PRUNE FIRST, THEN COPY — AND THE MISSING PRUNE IS THE ROOT CAUSE OF EVERY FAILED DEPLOY TONIGHT.
+# ⚠️ PRUNE FIRST, THEN COPY — NARROWLY, BECAUSE THE FIRST VERSION OF THIS DELETED 49,221 FILES.
 #
-# THE MEASUREMENT THAT FOUND IT:
+# THE MEASUREMENT THAT JUSTIFIED A PRUNE:
 #
-#     the install was exactly:   cp -a /tmp/din/. .
+#     the install was:           cp -a /tmp/din/. .
+#     a prune step:              NONE
+#     the host's tree:           988 files
+#     the last manifest:         913 files
+#     the host's own git HEAD:   7ae4808 — not any revision deployed tonight
+#
+# **So the host's tree was a union of every deploy ever made, and a build could fail on a file the commit
+# did not have.** *That fault is real and still needs fixing.*
+#
+# 🔴 **BUT THIS STEP'S FIRST VERSION WAS WORSE THAN THE FAULT IT FIXED, AND IT IS RECORDED HERE RATHER THAN
+# QUIETLY CORRECTED:**
+#
+#     pruned 49221 file(s) this deployment does not ship
+#     the tree now holds 913 file(s); the manifest names 913
+#     ... then the build failed: failed to compute cache key: "/apps/learn/package.js..."
+#
+# **It walked `for dir in apps packages scripts docs data` and deleted everything under them that the
+# manifest did not name — INCLUDING `apps/learn`, `apps/web`, `apps/academy`, every `node_modules`, and the
+# checkout's own `.data`.** *The manifest ships ONE app (`apps/ozikoro`), so `apps` as a whole was never
+# the deploy's to own.* **The `-not -path '*/node_modules/*'` exclusion did not hold either, because the
+# paths `find` printed are relative and the pattern did not match them the way it does an absolute path.**
+#
+# ⚠️ **SO THE PRUNE NOW WALKS ONLY WHAT THE MANIFEST ITSELF NAMES.** *The keep-list comes from the manifest,
+# so the TOP-LEVEL directories it starts with are, by construction, exactly the ones this deploy owns —
+# `apps/ozikoro`, `packages/<name>`, `scripts`, `docs`, `data`. Anything else on that host — another app,
+# a node_modules, a `.data`, a `docker/`, a `.env` — is not in the manifest and is now not reachable from
+# this loop at all.*
+#
+# ⚠️ **AND IT IS BOUNDED BY THE KEEP-LIST RATHER THAN BY A PATH I TYPED**, so a directory this deploy does
+# not ship cannot be pruned even if the list of top-level names is later edited by hand.
+if [ -f /tmp/dm.txt ]; then
+  # The manifest's first field is the sha256, the rest of the line is the path.
+  awk '{ $1=""; sub(/^ /, ""); print }' /tmp/dm.txt | sort > /tmp/din-keep.txt
+  # THE DIRECTORY PREFIXES THE MANIFEST ITSELF USES — derived, never typed.
+  awk -F/ 'NF>1 { print $1"/"$2 } NF==1 { print $1 }' /tmp/din-keep.txt | sort -u > /tmp/din-dirs.txt
+  echo "    this deployment owns: $(tr '\n' ' ' < /tmp/din-dirs.txt)"
+  PRUNED=0
+  while IFS= read -r dir; do
+    [ -d "$dir" ] || continue
+    # `-maxdepth`-bounded to the owned directory, and files only.
+    while IFS= read -r f; do
+      [ -f "$f" ] || continue
+      if ! grep -qxF "$f" /tmp/din-keep.txt; then
+        rm -f "$f"
+        PRUNED=$((PRUNED + 1))
+      fi
+    done < <(find "$dir" -type f 2>/dev/null)
+  done < /tmp/din-dirs.txt
+  echo "    pruned $PRUNED file(s) this deployment does not ship"
+  echo "    the tree now holds $(find apps packages scripts docs data -type f -not -path '*/node_modules/*' 2>/dev/null | wc -l) file(s); the manifest names $(wc -l < /tmp/din-keep.txt)"
+fi
+cp -a /tmp/din/. .
 #     a prune step:              NONE — no rm, no find -delete, no rsync --delete
 #     the host's tree:           988 files
 #     the last manifest:         913 files
