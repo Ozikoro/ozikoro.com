@@ -359,8 +359,7 @@ echo "    screens now:      $(ls apps/ozikoro/public/design/screens/*.html 2>/de
 echo "==> host: migrate"
 # The runner lives in the app package and needs the database, so it runs INSIDE the container that is
 # already up rather than on the host, which has neither the toolchain nor a database client configured.
-MIGRATE_OUT="$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T ozikoro \
-  npm -w @ozituma/db run migrate 2>&1)" || {
+MIGRATE_OUT="$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T ozikoro npm -w @ozituma/db run migrate 2>&1)" || {
   echo "$MIGRATE_OUT" | tail -20 | sed 's/^/    /'
   echo "    !! MIGRATION FAILED. THE CODE HAS NOT BEEN REBUILT AND THE RUNNING SITE IS UNTOUCHED." >&2
   echo "    !! Nothing below this line runs. Fix the migration and deploy again." >&2
@@ -369,8 +368,7 @@ MIGRATE_OUT="$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T o
 echo "$MIGRATE_OUT" | grep -iE 'appl|ok|skip|up to date' | tail -6 | sed 's/^/    /'
 # The runner reports success in prose; ask the database what it actually recorded, so a run that silently
 # did nothing cannot read as a pass.
-MIG_COUNT="$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres \
-  psql -U ozituma -d ozituma -tAc 'select count(*) from schema_migration' 2>/dev/null | tr -d '[:space:]')"
+MIG_COUNT="$(docker compose --env-file /opt/ozituma/.env __COMPOSE__ exec -T postgres psql -U ozituma -d ozituma -tAc 'select count(*) from schema_migration' 2>/dev/null | tr -d '[:space:]')"
 echo "    schema_migration holds ${MIG_COUNT:-?} recorded migration(s)"
 if [ -z "${MIG_COUNT:-}" ] || [ "${MIG_COUNT:-0}" -lt 1 ] 2>/dev/null; then
   echo "    !! REFUSING TO CONTINUE: could not read schema_migration, so the migration step is unproven." >&2
