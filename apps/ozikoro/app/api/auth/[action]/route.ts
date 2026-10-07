@@ -42,13 +42,14 @@ import {
  */
 import {
   RESET_TTL_MINUTES,
+  changeOwnPassword,
   markResetDelivered,
   requestPasswordReset,
   resetPasswordWithToken,
 } from '@ozituma/db/passwords';
 import { sendMail, siteAddress } from '@ozituma/core';
 import { capabilitiesFor } from '@ozikoro/platform';
-import { sessionCookie, sessionMaxAgeSeconds } from '@/lib/session';
+import { getCurrentAccount, sessionCookie, sessionMaxAgeSeconds } from '@/lib/session';
 import { mayEnterBackOffice, sameOrigin } from '@/lib/access';
 import { clientKey, rateLimit } from '@/lib/rate-limit';
 
@@ -397,6 +398,134 @@ export async function POST(
       if (!(error instanceof AccountError)) console.error('[ozikoro/auth] reset', error);
       return answer(request, { status: 400, body: { ok: false, error: message } }, '/reset', {
         token,
+        error: message,
+      });
+    }
+  }
+
+  /*
+   * CHANGING THE PASSWORD OF THE ACCOUNT YOU ARE ALREADY SIGNED IN AS.
+   *
+   * THE OWNER'S REPORT, VERBATIM: **"why is users not able to change their passwords? everyone should be
+   * able to change their passwords."** He was right, and this is the missing half of the feature. `/forgot/`
+   * has existed and sends a recovery link; what a signed-in person had no way to do was replace a password
+   * they still knew. `/account/page.tsx` said so in its own words — *"no 'change password'"* — and a
+   * recovery email is a poor substitute for a change form **even when the mail arrives**, because it costs
+   * the person their session, their inbox round-trip and any other open link.
+   *
+   * ── WHY THE CURRENT PASSWORD IS REQUIRED, AND WHY THAT IS THE ENTIRE POINT ────────────────────────────
+   *
+   * `changeOwnPassword` demands it and this route must not try to avoid that. **A form that swaps the
+   * password without the old one turns a borrowed session into a permanent account takeover**: anyone at an
+   * unlocked machine, or holding a copied cookie, could set a new password and lock the real owner out of
+   * their own account forever. The session proves *a* browser signed in at some point; the current password
+   * is the only thing that proves *this person* is the account holder. That is the difference between a
+   * change-password and a password *reset*, and it is why this route cannot be a thin alias for `reset`.
+   *
+   * ── IT REUSES THE ONE HASHING PATH, WHICH IS THE RULE THIS REPOSITORY ALREADY SET ─────────────────────
+   *
+   * `changeOwnPassword` calls the same `hashPassword` (scrypt, per-password salt), the same
+   * `assertPasswordAcceptable` (ten-character minimum, email rejected) and the same private `writePassword`
+   * that `join` and `reset` use. **Nothing about hashing or policy is re-implemented here**, so the three
+   * ways a password changes cannot drift apart. `packages/db/src/passwords.ts` says the quiet part out loud:
+   * *"every path that writes `account.password_hash` is in one place, and there is exactly one of them."*
+   *
+   * ── THE SESSION SURVIVES THE CHANGE, AND THAT IS A DECISION RATHER THAN AN OVERSIGHT ──────────────────
+   *
+   * `writePassword` revokes every session on the account, because that is right when the reason for the
+   * change is that somebody else has the password. The token doing the changing is passed through
+   * `keepSessionToken` so the person is not thrown out of the page they just used — signing somebody out of
+   * the page where they just succeeded reads as a failure, not a precaution. **Every OTHER session is still
+   * closed**, which is the part that matters, and the page says so in as many words.
+   *
+   * ── ANSWERED IN BOTH SHAPES, LIKE EVERY OTHER FORM HERE ──────────────────────────────────────────────
+   *
+   * `answer()` gives a JSON body to a caller that asked for `application/json` and a 303 carrying the message
+   * in the query string to one that did not, so the form works with JavaScript off — the same rule `forgot`
+   * and `reset` follow.
+   */
+  if (action === 'change-password') {
+    if (!sameOrigin(request)) {
+      return answer(
+        request,
+        { status: 403, body: { ok: false, error: 'That request did not come from this site.' } },
+        '/account',
+        { error: 'That request did not come from this site.' }
+      );
+    }
+
+    /*
+     * A SIGNED-OUT REQUEST IS REFUSED, AND REFUSED BEFORE ANY PASSWORD IS READ.
+     *
+     * The account comes from the session cookie and from nothing the form sends: **no account id is accepted
+     * from the client**, so this endpoint cannot be pointed at somebody else's account by editing the form.
+     */
+    const current = await getCurrentAccount();
+    if (!current) {
+      return answer(
+        request,
+        { status: 401, body: { ok: false, error: 'Sign in to change your password.' } },
+        '/signin',
+        { error: 'Sign in to change your password.' }
+      );
+    }
+
+    /*
+     * Rate limited per ACCOUNT, like sign-in, and for the same reason: without it this form is an unlimited
+     * oracle for guessing the current password of a session somebody has borrowed. Ten in five minutes,
+     * which no honest typist reaches and a guesser cannot use.
+     */
+    const limit = rateLimit(`change-password:${current.account.id}`, { limit: 10, windowSeconds: 300 });
+    if (!limit.allowed) {
+      const message = 'Too many attempts. Wait a few minutes and try again.';
+      return answer(
+        request,
+        {
+          status: 429,
+          body: { ok: false, error: message, retryAfterSeconds: limit.retryAfterSeconds },
+          headers: { 'Retry-After': String(limit.retryAfterSeconds) },
+        },
+        '/account',
+        { error: message }
+      );
+    }
+
+    const currentPassword = String(form.get('currentPassword') ?? '');
+    const newPassword = String(form.get('newPassword') ?? '');
+    const newPasswordAgain = String(form.get('confirmPassword') ?? '');
+
+    // Checked here rather than in the library because it is a property of this form, not of the password:
+    // `changeOwnPassword` never sees the second field. The words match `register`'s and `reset`'s.
+    if (newPassword !== newPasswordAgain) {
+      const message = 'The two new passwords are not the same.';
+      return answer(request, { status: 400, body: { ok: false, error: message } }, '/account', {
+        error: message,
+      });
+    }
+
+    try {
+      await changeOwnPassword(db, current.account.id, currentPassword, newPassword, {
+        userAgent: request.headers.get('user-agent'),
+        ipAddress: request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null,
+        // The session doing the changing is the one that survives; `writePassword` closes all the others.
+        keepSessionToken: (await cookies()).get(SESSION_COOKIE)?.value ?? null,
+      });
+
+      const message =
+        'Your password is changed. Every other device that was signed in has been signed out.';
+      return answer(request, { status: 200, body: { ok: true, message } }, '/account', {
+        changed: '1',
+      });
+    } catch (error) {
+      /*
+       * A WRONG CURRENT PASSWORD IS AN EXPECTED ANSWER, NOT A CRASH, and it is answered with the library's
+       * own sentence — "That is not your current password." — beside the form. Anything that is not an
+       * `AccountError` is a real fault and is logged rather than dressed up as a policy refusal.
+       */
+      const message =
+        error instanceof AccountError ? error.message : 'Something went wrong. Please try again.';
+      if (!(error instanceof AccountError)) console.error('[ozikoro/auth] change-password', error);
+      return answer(request, { status: 400, body: { ok: false, error: message } }, '/account', {
         error: message,
       });
     }
