@@ -597,6 +597,32 @@ export function designScreenLinks(html: string, at?: string): string {
   );
   out = out.replace(/<div>\s*<h4>[^<]*<\/h4>\s*<ul>\s*<\/ul>\s*<\/div>/g, '');
 
+  /*
+   * ⚠️ THE FRONT PAGE'S LEDE, NARROWED BY THE OWNER — AND ONE WORD IS THE WHOLE CHANGE.
+   *
+   * He: *"on the homepage, change 'Read the histories of Igbo and African communities, explore old
+   * photographs and documents, and share what your family remembers.' to this 'Read the histories of
+   * African communities, explore old photographs and documents, and share what your family remembers.'"*
+   *
+   * **`Igbo and ` goes.** *The sentence now says African communities, which is what the archive's own
+   * standfirst and its `/about/` institution section have said since the cutover — the front page was the
+   * place still naming one people where the rest of the site names the continent.*
+   *
+   * ⚠️ **IT IS A SERVE-TIME REWRITE BECAUSE THE SENTENCE LIVES IN THE DESIGN DELIVERABLE.** *`/` is served by
+   * `screens/home.html` — measured, `/` and `/design-screen/home` are byte-identical (sha256 `d1314a97…`) —
+   * and that file is INVIOLABLE.* **So the design keeps its own words on disk and the page a reader gets is
+   * what he asked for**, which is how every other design-string correction in this file already works.
+   *
+   * ⚠️ **AND THE MATCH IS THE WHOLE SENTENCE, NOT `Igbo and `.** *A bare phrase replacement would also hit
+   * the `<title>`, which reads "Ozikoro — Igbo and African history, archives and scholarship" and which he
+   * did NOT ask to change.* **Measuring the blast radius is the point: one sentence is the request, and the
+   * title is a different sentence that happens to share four characters.**
+   */
+  out = out.replace(
+    'Read the histories of Igbo and African communities, explore old photographs and documents, and share what your family remembers.',
+    'Read the histories of African communities, explore old photographs and documents, and share what your family remembers.'
+  );
+
   return out;
 }
 
