@@ -48,6 +48,66 @@
   notice.style.cssText = 'margin:var(--s-3,12px) 0 0;font-size:.92rem;line-height:1.5';
   form.parentNode.insertBefore(notice, form.nextSibling);
 
+  /*
+   * ── WHERE THE PERSON WAS GOING, WHICH THIS FILE USED TO THROW AWAY ────────────────────────────────────
+   *
+   * THE OWNER'S REPORT: *"why is this not working? https://ozikoro.com/dashboard-account?mode=account"*
+   *
+   * That address is gated (`MEMBER_DASHBOARDS` in `app/design-screen/[screen]/route.ts`), so a reader who is
+   * not signed in — or whose session has ended — is sent to
+   * `/signin?error=Sign+in+to+see+your+account.&next=%2Fdashboard-account%2F`, **which names exactly where
+   * they were trying to go. This file then ignored `next` entirely**: the success branch below assigned
+   * `location.assign('/dashboard-reader')` whatever the address said, and the join branch did the same with
+   * `?welcome=1`. So the reader signed in successfully and **arrived somewhere else than the page they
+   * asked for, every time**, which from outside is indistinguishable from the link being broken — the same
+   * complaint one step earlier.
+   *
+   * The server has always honoured the field when it is given one: `/api/auth/signin` reads `next` through
+   * `safeNext` and redirects there. Nothing was posting it. So the parameter is carried here, in the body
+   * for the fetch and in a hidden field for the no-JavaScript post, and the browser's own answer is used
+   * rather than a second redirect invented here.
+   *
+   * WHY THE VALUE IS VALIDATED AGAIN IN THE BROWSER, WHOSE ANSWER THE SERVER ALREADY CHECKS
+   *
+   * `location.assign()` sends the browser somewhere with no server in the way, so **the server's `safeNext`
+   * cannot protect this path.** The test is deliberately the same one — a single leading `/`, no `//`, no
+   * backslash — and it is written as `indexOf`/`slice` rather than as a regular expression so it is legible
+   * beside `safeNext` at `app/api/auth/[action]/route.ts`. A value that fails is treated as absent rather
+   * than refused, so a malformed `next` costs the reader their destination and never the sign-in itself.
+   */
+  var DEFAULT_NEXT = { join: '/dashboard-reader?welcome=1', signin: '/dashboard-reader' };
+
+  function safeNextPath(raw) {
+    var value = (raw || '').trim();
+    if (value.charAt(0) !== '/') return null;
+    if (value.indexOf('//') === 0) return null;      // protocol-relative, i.e. another origin
+    if (value.indexOf('\\') !== -1) return null;     // browsers may read \ as /
+    return value;
+  }
+
+  var requestedNext = null;
+  try {
+    requestedNext = safeNextPath(new URLSearchParams(location.search).get('next'));
+  } catch (error) {
+    requestedNext = null; // an unparseable address is treated as one that named nowhere
+  }
+
+  /*
+   * AND A FORM WITH NO JAVASCRIPT AT ALL STILL CARRIES IT.
+   *
+   * Without this the fallback post sends only email and password, `/api/auth/signin` finds no `next` and
+   * uses `safeNext`'s default — `/admin` for a sign-in and `/dashboard-reader` for a join — so a reader
+   * whose browser runs no scripts lands on the wrong page exactly as the scripted one did. The hidden field
+   * is added to the SERVED copy rather than to `account.html`, which is the design and is not edited.
+   */
+  if (requestedNext) {
+    var nextField = document.createElement('input');
+    nextField.type = 'hidden';
+    nextField.name = 'next';
+    nextField.value = requestedNext;
+    form.appendChild(nextField);
+  }
+
   function say(text, bad) {
     notice.textContent = text;
     notice.style.color = bad ? '#8a2b1f' : 'var(--emerald, #0d5c45)';
@@ -157,6 +217,10 @@
       body.set('password', pw ? pw.value : '');
     }
 
+    /* The field the server has always read and this file never sent. See `safeNextPath` above for why it is
+     * validated here as well as there. */
+    if (requestedNext) body.set('next', requestedNext);
+
     submit.disabled = true;
     say(mode === 'join' ? 'Creating your account\u2026' : 'Signing in\u2026');
 
@@ -172,7 +236,9 @@
          * have been sent somewhere without actually going. */
         if (res.type === 'opaqueredirect' || res.status === 303 || res.status === 302 || res.status === 0) {
           say(mode === 'join' ? 'Account created. Taking you in\u2026' : 'Signed in. Taking you in\u2026');
-          location.assign(mode === 'join' ? '/dashboard-reader?welcome=1' : '/dashboard-reader');
+          /* THE PERSON'S OWN DESTINATION FIRST, THE MODE'S DEFAULT SECOND. This is the line that used to
+           * send everybody to `/dashboard-reader` whatever they had asked for. */
+          location.assign(requestedNext || DEFAULT_NEXT[mode]);
           return null;
         }
         return res.json().then(function (d) {

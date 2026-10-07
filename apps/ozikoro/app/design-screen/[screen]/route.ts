@@ -206,8 +206,10 @@ const DASHBOARDS = [
  *
  *   `dashboard-reader`    the reader's own workspace — the floor every account stands on, and the address the
  *                         masthead, the design's own "My Ozikoro" item and `primaryDashboardHref` all point at
- *   `dashboard-account`   the account screen, which is the same page `/account/` serves — and `/account/`
- *                         has required a session since it was built
+ *   `dashboard-account`   the account screen — **and since this round the address MOVES to `/account/`, which
+ *                         is the page that actually holds the account, rather than serving the deliverable's
+ *                         demonstration of it.** The reason, the measurement and the one address that keeps
+ *                         the design are written at the redirect itself, below.
  *
  * **THE OTHER TWELVE ALREADY REFUSE, AND A REFUSAL IS NOT THIS FAULT.** `/dashboard-editor/`,
  * `/dashboard-admin/` and the rest are opened by a capability, so signed out they reach `decideDashboardMode`
@@ -230,6 +232,34 @@ const DASHBOARDS = [
  * design's signed-out panel is now unreachable at `/dashboard-reader/` and `/dashboard-account/`**, because
  * the reader never sees the page that carries it. Whoever wants it back should read this list and the design's
  * comment together, and decide the question the owner has now answered the other way.
+ *
+ * ── WHAT THIS GATE IS, AND WHAT IT IS NOT: IT ASKS FOR A SESSION AND NEVER FOR A ROLE ─────────────────
+ *
+ * **There is no `role === 'reader'` test anywhere in this file's gate, and there never was.** Both names are
+ * road signs rather than permissions, and the difference matters because it decides what the account screen's
+ * fault actually was — measured rather than reasoned about:
+ *
+ *   `DASHBOARD_ROLE['dashboard-account'].role`  is `'reader'`, and it is read in exactly one place: the
+ *       `roleLabel` handed to `fillDashboard` for a display name. **It is a label, not a test.**
+ *   `DASHBOARD_MODES[].capability`              is what `decideDashboardMode` actually tests, through
+ *       `mayEnterDashboardMode`. `account`, `reader` and `states` are the three entries whose capability is
+ *       `null`, and `mayEnterDashboardMode` answers **`true` for a null capability by construction** — so
+ *       every signed-in account may open all three, whatever role the database holds. The platform `owner`
+ *       additionally short-circuits the whole test; a plain `reader` never needs to.
+ *
+ * So the account screen was **not** gated on the `reader` role, and an administrator was never turned away
+ * from it. **Measured on the review server, session by session, rather than inferred from the code**: with no
+ * cookie `/dashboard-account` answers **307 to `/signin`**, and with a session it answers **200 in every role
+ * the database holds** — the platform `owner` (`idenzeme@gmail.com`), the platform `admin`, and a plain
+ * `contributor` holding only the archive's `reader` role and the three capabilities `read`, `collection` and
+ * `bookmark`. **Those 200s are the measurement that mattered and they were taken a step before the redirect
+ * below exists**: they are what proves no role was ever refused, and they are why the redirect below is about
+ * *where the account lives* rather than about *who may open it*. (The one account a role test could have
+ * turned away — the owner — is the one it would have admitted anyway, because `owner` short-circuits
+ * `mayEnterDashboardMode`.) *(`DASHBOARD_ROLE.role` is not read for `dashboard-account` at all in this file:
+ * the fill takes `label`, and the SEO table takes the title and description.)* The faults are elsewhere and
+ * are fixed where they live — the signed-out branch's sentence, the account address that served a
+ * demonstration, and the two endpoints that dropped `?next=`.
  */
 const MEMBER_DASHBOARDS = new Set(['dashboard-reader', 'dashboard-account']);
 
@@ -872,11 +902,17 @@ export async function GET(
      * above it. A design screen never reaches either: the middleware rewrites `/dashboard-reader/` to
      * `/design-screen/dashboard-reader` with `NextResponse.rewrite(target)` and **no request headers of its
      * own**, so `x-pathname` is not on the request this route receives. Measured on the served response: a
-     * request for `/dashboard-reader` (no slash) comes back with `next=%2Fdashboard-reader%2F`, with the
-     * trailing slash the reader did not type — which is the fallback and not the header, because a header
-     * would have carried `/dashboard-reader` verbatim. **So the fallback is what runs on this route, and the
-     * fallback is the screen's own canonical address rather than `/account/`.** The header is still read
-     * first: it costs one call, and it is what keeps this correct if the middleware ever starts forwarding it.
+     * request for `/dashboard-reader` (no slash) comes back with `next=%2Fdashboard-reader%2F`.
+     *
+     * ⚠️ **`x-pathname` IS THEREFORE ALWAYS NULL ON THIS ROUTE, AND THE FALLBACK IS WHAT RUNS** — re-measured
+     * for the account round: `curl -D- /dashboard-account?mode=account` returns
+     * `location: /signin?error=…&next=%2Fdashboard-account%2F`, and a header would have carried
+     * `/dashboard-account` with no slash. **The first version of this fallback wrote `` `/${name}/` `` while
+     * the design screen's `name` is already the `dashboard-account` segment, so any REAL header would have
+     * produced `/dashboard-account//`** — a doubled slash from a branch that could only be reached if the
+     * middleware changed. The slash is restored only when it is missing, so the fallback is the canonical
+     * address under `trailingSlash: true` and the header is passed through verbatim. `x-pathname` is still
+     * read first: it costs one call and it is what keeps this correct if the middleware ever forwards it.
      */
     if (MEMBER_DASHBOARDS.has(name) && !workspace.signedIn) {
       /*
@@ -885,13 +921,24 @@ export async function GET(
        * Headers(...)`, so `headers()` from `next/headers` would be a name collision inside one function body —
        * `TS2448: Block-scoped variable 'headers' used before its declaration`, measured, not guessed.
        */
-      const requestedPath = (await requestHeaders()).get('x-pathname') ?? `/${name}/`;
+      const seen = (await requestHeaders()).get('x-pathname') ?? `/${name}`;
+      const requestedPath = seen.endsWith('/') ? seen : `${seen}/`;
+      /*
+       * THE SENTENCE NAMES THE PAGE THAT IS ACTUALLY BEHIND THE DOOR.
+       *
+       * It said *"Sign in to reach your workspace"* on both screens, and the owner's own URL is
+       * `/dashboard-account` — the account page, which is about the person rather than about a workspace.
+       * A reader who asked for their account and is told to sign in "to reach your workspace" has been
+       * told the wrong thing about what they asked for, and `/account/` answers the same case with
+       * *"Sign in to see your account."* **The two member surfaces now say the same thing in the same
+       * words**, which is the point: they are the same page.
+       */
+      const refusal =
+        name === 'dashboard-account' ? 'Sign in to see your account.' : 'Sign in to reach your workspace.';
       return new Response(null, {
         status: 307,
         headers: {
-          location:
-            `/signin?error=${encodeURIComponent('Sign in to reach your workspace.')}` +
-            `&next=${encodeURIComponent(requestedPath)}`,
+          location: `/signin?error=${encodeURIComponent(refusal)}` + `&next=${encodeURIComponent(requestedPath)}`,
           'cache-control': 'no-store',
         },
       });
@@ -948,6 +995,65 @@ export async function GET(
       if (decision.kind === 'refuse') return refuseWorkspace(decision.sentence, workspace);
       // THE RIGHT WORKSPACE AT THE WRONG ADDRESS MOVES TO ITS OWN, WITH THE PARAMETER INTACT.
       if (decision.kind === 'redirect') return moveToWorkspace(decision.to);
+
+      /*
+       * ── THE ACCOUNT WORKSPACE IS THE ACCOUNT PAGE, AND THIS ADDRESS WAS A WALKTHROUGH OF IT ──────────
+       *
+       * THE OWNER'S REPORT, VERBATIM: *"why is this not working?
+       * https://ozikoro.com/dashboard-account?mode=account"* — and, in the round before, *"i went to the
+       * dashboard, clicked on profile, and it led me to login again, instead of the account profile."*
+       *
+       * `design-paths.ts` and this route's own comments have said since the account screen was built that
+       * `dashboard-account` **is** the account screen — *"the same page `/account/` serves"* — and it was
+       * not. Measured on the served page, `/dashboard-account?mode=account` answered **200** with the
+       * DELIVERABLE'S DEMONSTRATION: `<p class="example-flag">Dashboard design demonstration — all records
+       * and statuses are <b>example material</b>.</p>`, four `sx-state` cards — Identity, Privacy,
+       * Languages, Security — each over `<a href="#" ...>Open →</a>`, and a **Primary action** button.
+       * Seven dead placeholders and not one live control. `fillDashboardLinks` then turned the dead links
+       * into *"— Not built yet"*, which is honest about the design's material and is still not an account
+       * screen: the signed-in person's own record is not on it, and the one operation this archive does
+       * offer here — **changing your own password**, at `/account/` — is one address away with nothing on
+       * this page pointing at it.
+       *
+       * So the account workspace MOVES to the page that holds the account. That is the same destination
+       * `design-paths.ts` already gives the design's own `<a href="dashboard-account.html">` — *"its
+       * address on this site is `/account/`"* — so the served menus and this route now agree, instead of
+       * one of them being right. **A redirect rather than splicing `/account/`'s body in here**, because
+       * `/account/` is a real Next.js route with its own gate, its own metadata and its own change-password
+       * form; re-rendering it inside this handler would be a second copy of a page that already exists.
+       *
+       * ── WHAT THIS DELIBERATELY DOES NOT DO ─────────────────────────────────────────────────────────────
+       *
+       * **Only the account workspace moves.** The other thirteen dashboards keep serving their own screens
+       * and keep their own gates: `/dashboard-admin` is opened by `manage_users`, `/dashboard-editor` by
+       * `edit_entity`, `/dashboard-workflow` by `publish`, and `decideDashboardMode` above has already
+       * refused anybody who lacks the capability. Those screens are about OTHER people's work; the account
+       * page is the one screen that is about the person themselves, and it is the one the owner's rule
+       * speaks for — *"any signed-in account reaches its own."* Nothing here widens any of them.
+       *
+       * ── AND THE DESIGN ROUTE KEEPS THE DESIGN ─────────────────────────────────────────────────────────
+       *
+       * `/design-screen/dashboard-account` is not a reader's address; it is where the deliverable is
+       * reviewed, and a person reviewing it must still get the deliverable's screen. **`x-pathname` cannot
+       * tell the two apart here**: measured in the same round, the middleware rewrites `/dashboard-account/`
+       * to this route with `NextResponse.rewrite(target)` and no request headers of its own — the same
+       * measurement the `next` note above records — so that header is null on BOTH branches, and the first
+       * version of this check therefore read a null that was always null and redirected nothing.
+       *
+       * **`request.url` is what distinguishes them, and it is a fact rather than an inference**: a rewrite
+       * leaves the destination in the URL this handler is given, so the design branch arrives as
+       * `/design-screen/dashboard-account` and the reader's address as `/dashboard-account/`. Measured on
+       * the running server: `/design-screen/dashboard-account` answered 200 with the deliverable's screen
+       * while `/dashboard-account` answered 200 with the same screen and should have moved — which is how
+       * the null was found rather than reasoned about.
+       */
+      const designBranch = new URL(request.url).pathname.startsWith('/design-screen/');
+      if (screenMode?.mode === 'account' && !designBranch) {
+        return new Response('Your account is at /account/', {
+          status: 307,
+          headers: { location: '/account/', 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+        });
+      }
     }
 
     html = fillModeSwitcher(html, {
