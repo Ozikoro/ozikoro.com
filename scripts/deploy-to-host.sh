@@ -393,6 +393,25 @@ if [ -f /tmp/dm.txt ]; then
     # `-maxdepth`-bounded to the owned directory, and files only.
     while IFS= read -r f; do
       [ -f "$f" ] || continue
+      # ⚠️ NEVER PRUNE A MIGRATION THIS DEPLOYMENT DOES NOT SHIP — `packages/db/migrations/` IS SHARED WITH
+      # THE DICTIONARY, AND PRUNING IT DELETED SEVENTEEN OF OZITUMA'S OWN MIGRATIONS.
+      #
+      # THE MEASUREMENT: after a deploy, seventeen recorded migrations had no file on the host — 0034 to
+      # 0038, three `0058_*`, 0059, 0060, 0061, 0062, 0063, 0064, both `0065_*` and `0066`. **Every one
+      # belongs to ozituma.com, every one is recorded in the database as applied, and every one was in this
+      # manifest's way rather than in it.**
+      #
+      # ⚠️ AND THE OWNER HAD JUST SAID THE THING THAT MAKES THIS THE WORST POSSIBLE DIRECTORY TO GET WRONG:
+      # *"make sure that everything deployed here does not affect ozituma.com"*. **The archive's deploy has
+      # no business deleting the dictionary's schema history — this repository carries both projects'
+      # migrations in one directory, so that directory is not the archive's to own.**
+      #
+      # **So a file under `packages/db/migrations/` that this manifest does not name is LEFT ALONE.** *The
+      # cost is that a migration the archive deleted stays on the host — which is the safe direction: an
+      # extra file is inert, and a missing one is a schema history with a hole in it.*
+      case "$f" in
+        packages/db/migrations/*) continue ;;
+      esac
       if ! grep -qxF "$f" /tmp/din-keep.txt; then
         rm -f "$f"
         PRUNED=$((PRUNED + 1))
@@ -449,6 +468,25 @@ if [ -f /tmp/dm.txt ]; then
       esac
       # Never remove the directories themselves, and never a path the manifest is about to write.
       [ -f "$f" ] || continue
+      # ⚠️ NEVER PRUNE A MIGRATION THIS DEPLOYMENT DOES NOT SHIP — `packages/db/migrations/` IS SHARED WITH
+      # THE DICTIONARY, AND PRUNING IT DELETED SEVENTEEN OF OZITUMA'S OWN MIGRATIONS.
+      #
+      # THE MEASUREMENT: after a deploy, seventeen recorded migrations had no file on the host — 0034 to
+      # 0038, three `0058_*`, 0059, 0060, 0061, 0062, 0063, 0064, both `0065_*` and `0066`. **Every one
+      # belongs to ozituma.com, every one is recorded in the database as applied, and every one was in this
+      # manifest's way rather than in it.**
+      #
+      # ⚠️ AND THE OWNER HAD JUST SAID THE THING THAT MAKES THIS THE WORST POSSIBLE DIRECTORY TO GET WRONG:
+      # *"make sure that everything deployed here does not affect ozituma.com"*. **The archive's deploy has
+      # no business deleting the dictionary's schema history — this repository carries both projects'
+      # migrations in one directory, so that directory is not the archive's to own.**
+      #
+      # **So a file under `packages/db/migrations/` that this manifest does not name is LEFT ALONE.** *The
+      # cost is that a migration the archive deleted stays on the host — which is the safe direction: an
+      # extra file is inert, and a missing one is a schema history with a hole in it.*
+      case "$f" in
+        packages/db/migrations/*) continue ;;
+      esac
       if ! grep -qxF "$f" /tmp/din-keep.txt; then
         rm -f "$f"
         PRUNED=$((PRUNED + 1))
