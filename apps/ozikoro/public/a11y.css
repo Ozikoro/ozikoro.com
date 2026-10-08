@@ -879,6 +879,126 @@
  * predict — a reader at 400% text zoom, or a viewport narrower than the table's min-content — so the
  * fallback is still the wrapper scrolling, never the page.
  */
+/*
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ * A RECORD'S OWN HEADINGS ON THE SERVED ARTICLE. THE OWNER'S SECOND REPORT.
+ *
+ * ▸ THIS BLOCK IS ONE CHANGE AND NOTHING ELSE IN THIS FILE IS ITS. If you are looking for the calendar
+ *   table's phone treatment, that is the block directly below this one; the reader-header wordmark is
+ *   further up. Nothing here re-declares a colour and nothing here touches a layout property.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * The owner: *"also, the title h1, h2, etc should be showing exactly like that on the main article when
+ * one is reading it. most of it appear very small, instead of its right size"*.
+ *
+ * ── WHAT THE ARCHIVE'S WRITING ACTUALLY CONTAINS, COUNTED RATHER THAN ASSUMED ─────────────────────────
+ *
+ * Every published record was fetched from the served sitemaps and its headings counted inside the record's
+ * own `<div class="prose">` — the element `fillArticleProse` puts the record's words into, with the
+ * frame's own `sr-only` headings separated out. **1,063 records (1,051 histories and 12 pages); 695 of them
+ * carry at least one authored heading.** The headings they carry:
+ *
+ *     h1      0        h2    883        h3    442        h4  2,309        h5    441        h6      8
+ *
+ * ⚠️ **`h4` IS THE ARCHIVE'S HEADING — 2,309 of 4,083, 57% of every heading in the corpus** — and 408
+ * records use `h4` as their SHALLOWEST heading, so for those it is the top-level section marker in the
+ * record. `h5` is next at 441. `h1` is zero: the sanitiser drops it (see below), so there is nothing to
+ * size.
+ *
+ * ── WHAT WAS PAINTED, MEASURED IN CHROME AT 1280 px BEFORE THIS BLOCK EXISTED ──────────────────────────
+ *
+ *   body paragraph      18.08px      `.sx-page .prose { font-size: 1.13rem }`   showcase.css:310
+ *   h2                  24.00px      `.sx-page .prose h2 { font-size: 1.5rem }` showcase.css:311
+ *   h3                  26.00px      `.prose h3 { font-size: var(--t-xl) }`     main.css:223
+ *   h4                  15.00px      `h4 { font-size: var(--t-base) }`          main.css:50
+ *   h5                  15.01px      no rule at all — the browser's 0.83em      (× 18.08px)
+ *   h6                  12.11px      no rule at all — the browser's 0.67em
+ *
+ * Three separate faults, and all three are in those six numbers:
+ *
+ *   1. **`h4`, the archive's dominant heading, is SMALLER than the paragraph text under it** — 15px against
+ *      18.08px. `main.css:50` sizes every `h4` on the site at the UI base size (`--t-base`, 0.9375rem),
+ *      which is right for a footer column heading and wrong for a section heading inside a reading column.
+ *      This is "most of it appear very small", and it is 57% of the corpus.
+ *   2. **`h5` and `h6` are smaller still**, for the opposite reason: no rule reaches them, so they keep the
+ *      browser's own `0.83em` and `0.67em` defaults, which the `.prose` reading size then scales down.
+ *   3. **`h3` DRAWS LARGER THAN `h2`** — 26px against 24px — because `showcase.css:311` overrides the
+ *      article's `h2` down to 1.5rem while `main.css:223` leaves the same article's `h3` at `--t-xl`
+ *      (1.625rem). *The outline is inverted on the page: a reader is shown a sub-section bigger than the
+ *      section above it.* On the sample article measured, that is visible directly — its eleven body `<h3>`s
+ *      at 26px sit under the frame's `<h2>`s at 24px.
+ *
+ * ── THE SCALE, AND WHY IT IS IN `em` ───────────────────────────────────────────────────────────────────
+ *
+ * The values are multiples of the reading size, not absolute rems, because the design sets that size three
+ * times and each one is deliberate: `1.13rem` on the article, `1.05rem` at the 40rem breakpoint
+ * (`showcase.css:450`) and `10.5pt` in print (`showcase.css:459`). A scale in `em` follows all three, and
+ * an absolute one would be wrong in two of them without anybody noticing.
+ *
+ * Nothing here makes a heading huge, and the ceiling is deliberate: the largest body heading is **1.6em
+ * (28.9px)**, comfortably under the page's own `<h1>` title at 42px. *A section heading in a record is not
+ * competing with the record's title, and the design's article frame draws that title itself.* `h4`, the one
+ * the corpus actually uses, is 1.18em (21.3px) — a real step above the 18.08px it sits in, and small enough
+ * that four levels of nesting still fit the reading column.
+ *
+ * ⚠️ AND `h5`/`h6` ARE GIVEN A FAMILY AND A WEIGHT, NOT ONLY A SIZE. `main.css:40` puts `h1, h2, h3, h4` in
+ * the serif and leaves `h5`/`h6` in the body sans, so the two rarest levels were also the only ones not set
+ * in the record's own typeface. A heading that changes typeface at the fifth level is the same fault in a
+ * different property.
+ *
+ * WHY THIS IS IN `/a11y.css` AND NOT IN THE DESIGN. `apps/ozikoro/public/design/` is the approved
+ * deliverable and is byte-identical to `design/calm-comfort-construct/public/design`; it must stay so. This
+ * sheet is the archive's own, it loads after both of the design's (`layout.tsx:193`), and the whole reason
+ * it exists is to correct what the design's values paint — which is what these six declarations are.
+ *
+ * ⚠️ THE SELECTORS CARRY TWO ARMS ON PURPOSE AND THE SECOND ONE IS THE ONE THAT WINS.
+ * `showcase.css:311` is `.sx-page .prose h2` — specificity (0,2,1) — and a bare `.prose h2` (0,1,1) loses to
+ * it however late this sheet loads. So each level is written both as the general `.prose h*` (which covers
+ * every other reading column the archive draws: clan, town, researcher, publication) **and** as
+ * `.sx-page .prose h*`, which ties the design's own selector and wins on order.
+ *
+ * ⚠️ AND `:not(.sr-only)` IS WHAT MAKES THE RULE MATCH THE POPULATION THAT WAS COUNTED. The article frame
+ * draws two headings of its own inside `.prose` — *"The written record"* and *"Historical context"* — and
+ * marks them `class="sr-only"`, because they exist for a screen reader's outline and are not the record's
+ * writing. The census above excludes them by that class, and so do these rules; without it this block would
+ * quietly restyle two of the design's own elements as a side effect of sizing the archive's.
+ */
+.prose h2:not(.sr-only),
+.sx-page .prose h2:not(.sr-only) {
+  font-size: 1.6em;
+}
+
+.prose h3:not(.sr-only),
+.sx-page .prose h3:not(.sr-only) {
+  font-size: 1.35em;
+  margin-top: 2rem;
+}
+
+/* 2,309 of the archive's 4,083 body headings are this one. */
+.prose h4:not(.sr-only),
+.sx-page .prose h4:not(.sr-only) {
+  font-size: 1.18em;
+  margin-top: 1.7rem;
+  font-family: var(--font-serif);
+}
+
+.prose h5:not(.sr-only),
+.sx-page .prose h5:not(.sr-only) {
+  font-size: 1.06em;
+  margin-top: 1.5rem;
+  font-family: var(--font-serif);
+}
+
+.prose h6:not(.sr-only),
+.sx-page .prose h6:not(.sr-only) {
+  font-size: 1em;
+  margin-top: 1.4rem;
+  font-family: var(--font-serif);
+  /* At the reading size the level needs something other than size to read as a heading. */
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 @media (max-width: 40rem) {
   /* The design's own scroll container, made to move smoothly on iOS. */
   .sx-cal-table-wrap {

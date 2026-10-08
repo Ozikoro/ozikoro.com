@@ -909,3 +909,78 @@
   font-size: 9px;
   word-break: break-all;
 }
+
+/*
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ * THE HEADING SCALE IN THE WRITING BOX, WHICH MUST BE THE SCALE THE READER GETS.
+ *
+ * ▸ ONE CHANGE. It is the editor's half of the owner's second report — *"the title h1, h2, etc should be
+ *   showing exactly like that on the main article when one is reading it. most of it appear very small,
+ *   instead of its right size"* — and the reader's half is the heading block in `public/a11y.css`, which
+ *   carries the corpus count (h4 is 2,309 of the archive's 4,083 body headings) and the measurements. This
+ *   block exists so that the two surfaces cannot drift apart again.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * ── WHAT THE WRITING BOX PAINTED BEFORE THIS BLOCK, MEASURED IN CHROME ─────────────────────────────────
+ *
+ * The box's own text is 14px, set inline in `editor.tsx`. Headings in it were styled by the design's
+ * `main.css`, which is linked on the admin route as well as on the reader's:
+ *
+ *     body text   14px          h2  26px   `h2 { font-size: var(--t-xl) }`    main.css:48
+ *     h3          21px          h4  15px   `h4 { font-size: var(--t-base) }`  main.css:50
+ *     h5       11.62px          h6   9.38px  no rule — the browser's 0.83em and 0.67em
+ *
+ * and the reader, on the same day, painted `h2 24px · h3 26px · h4 15px · h5 15px · h6 12.1px` at a reading
+ * size of 18.08px. **So the box showed the writer an `h3` (21px) under an `h2` (26px) while the article
+ * showed an `h3` (26px) ABOVE an `h2` (24px), and both showed `h4` at 15px against body text that was
+ * larger.** The writer was being shown the wrong shape *and* the wrong size, in opposite directions.
+ *
+ * ── THE MULTIPLIERS ARE THE READER'S, DELIBERATELY, AND THEY ARE THE ONLY COPY THAT MATTERS ────────────
+ *
+ * Every value below is character-for-character the multiplier `public/a11y.css` uses. **If one of the two
+ * is ever changed, the other must change with it**, and that is the whole reason they are written as `em`
+ * against the box's own text size rather than as pixels: the box's text and the article's text are
+ * different sizes on purpose (a WordPress admin box is 14px; the reading column is 18px), so the thing
+ * that can agree is the hierarchy. `h2` is 1.6× whatever the text around it is, on both surfaces.
+ *
+ * ⚠️ THE ABSOLUTE PIXELS DO NOT MATCH, AND THAT IS STATED RATHER THAN HIDDEN. In the box the scale comes
+ * out 22.4 / 18.9 / 16.5 / 14.8 / 14px against a 14px text; on the article 28.9 / 24.4 / 21.3 / 19.2 /
+ * 18.1px against 18.08px. *The one thing that must not differ is which heading is bigger than which, and
+ * with these multipliers it cannot.*
+ *
+ * The selector carries `.wpedit .wp-editor-area` so it cannot reach anything outside this screen, which is
+ * this file's rule from its own header. `h5` and `h6` are given the serif as well: `main.css:40` puts
+ * `h1, h2, h3, h4` in it and leaves the two rarest levels in the body sans, which is the same fault in a
+ * different property.
+ */
+.wpedit .wp-editor-area h2 {
+  font-size: 1.6em;
+}
+.wpedit .wp-editor-area h3 {
+  font-size: 1.35em;
+}
+.wpedit .wp-editor-area h4 {
+  font-size: 1.18em;
+}
+.wpedit .wp-editor-area h5 {
+  font-size: 1.06em;
+  font-family: var(--font-serif);
+}
+.wpedit .wp-editor-area h6 {
+  font-size: 1em;
+  font-family: var(--font-serif);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/*
+ * THE AUTOSAVE INDICATOR, WHICH MUST NOT LOOK LIKE A WARNING.
+ *
+ * It lives in `#post-status-info` beside the word count and the last-edited time — the row WordPress puts
+ * its own `wp.autosave` message in — and it changes about once a minute while somebody is writing. So it is
+ * quiet by default and gets weight only for the two states a person must notice: a write in progress, and a
+ * write that has stopped. It never takes a colour of its own that the surrounding row does not use.
+ */
+.wpedit #post-status-info .autosave-status {
+  font-variant-numeric: tabular-nums;
+}

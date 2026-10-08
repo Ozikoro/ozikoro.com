@@ -226,6 +226,128 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     /*
+     * ── AUTOSAVE: THE OWNER'S THIRD REPORT, AND WHY IT IS AN ACTION HERE RATHER THAN A SECOND ROUTE ────
+     *
+     * The owner: *"also, the site should be autosaving contents as it is being written. auto saving as they
+     * are adding words"*. WordPress does this through `wp.autosave`, which posts the same form its Save
+     * button posts to the same endpoint, roughly once a minute. **This is that, and it is the same two
+     * writes the Save button already reaches: `createPiece` for a piece that has never been saved, and
+     * `savePieceText` for one that has.** A second route would be a second place for the capability check
+     * to drift, which is the rule this file's header states for the whole endpoint.
+     *
+     * ── WHY IT ANSWERS JSON AND NOT A REDIRECT, WHICH IS THE ONE WAY IT DIFFERS FROM EVERY OTHER ACTION ──
+     *
+     * Every other action answers `redirectTo`, because a person pressed a button and the browser is going to
+     * the place the work now lives. An autosave is fired by a timer while the writer is still typing, so a
+     * redirect would navigate the page out from under them. It answers `{ ok, … }` and the screen updates a
+     * line of text. **Nothing about the write itself changes: the same capability was asked for at the top
+     * of this function, and the same audited functions do the writing.**
+     *
+     * ── AND THE GUARD THAT MAKES TWO TABS SAFE, WHICH IS THE ONLY NEW RULE HERE ────────────────────────
+     *
+     * `baseModifiedAt` is the `modified_at` the screen last saw for this piece. **If the row has moved since
+     * then, another tab (or another writer) has saved this piece, and this request refuses rather than
+     * writing over it.** Without it, two open tabs autosaving the same draft would each overwrite the other
+     * about once a minute, and the last timer to fire would win with the older text.
+     *
+     * ⚠️ IT IS A READ-THEN-WRITE AND NOT A TRANSACTION. The comparison and `savePieceText` are two
+     * statements, so a second writer landing between them is still possible; what is closed is the case that
+     * actually happens, which is two timers in two tabs a minute apart. A true guard needs the expected
+     * `modified_at` in `savePieceText`'s own `where` clause, and that is a change to the shared write path
+     * rather than to this route. `note: 'autosave'` on the audit row and on the revision is what makes the
+     * difference legible afterwards.
+     */
+    if (action === 'autosave') {
+      /** The row's own `modified_at`, in the same form `getPieceForEditor` reports it. */
+      const readModifiedAt = async (pieceId: number): Promise<string | null> => {
+        const row = await db.one<{ modified_at: unknown }>(
+          `select modified_at from ozikoro_article where id = $1 and is_page = $2`,
+          [pieceId, kind === 'page']
+        );
+        return row?.modified_at ? new Date(String(row.modified_at)).toISOString() : null;
+      };
+
+      const title = String(form.get('title') ?? '');
+      const bodyHtml = String(form.get('bodyHtml') ?? '');
+      const standfirst = String(form.get('standfirst') ?? '') || null;
+      const baseModifiedAt = text('baseModifiedAt', 40);
+
+      if (id === null || id <= 0) {
+        // A piece that has never been saved. WordPress creates the draft and keeps the writer on the screen.
+        const created = await createPiece(db, {
+          kind,
+          title,
+          bodyHtml,
+          standfirst,
+          slug: text('slug', 200) || null,
+          topicId: num('topicId'),
+          authorId: num('authorId'),
+          actorId,
+        });
+        return Response.json({
+          ok: true,
+          created: true,
+          id: created.id,
+          kind: created.kind,
+          slug: created.slug,
+          modifiedAt: await readModifiedAt(created.id),
+        });
+      }
+
+      const current = await db.one<{ modified_at: unknown }>(
+        `select modified_at from ozikoro_article where id = $1 and is_page = $2`,
+        [id, kind === 'page']
+      );
+      if (!current) {
+        return Response.json(
+          { ok: false, reason: 'missing', message: 'That piece no longer exists, so nothing was autosaved.' },
+          { status: 404 }
+        );
+      }
+      const currentModifiedAt = current.modified_at ? new Date(String(current.modified_at)).toISOString() : null;
+      /*
+       * A MISSING `baseModifiedAt` IS NOT A CONFLICT. The screen sends one on every autosave; a caller that
+       * sends none is a script or an older screen, and refusing it would make this action unusable outside
+       * the one screen that writes the field. The guard is only meaningful when both sides have a value.
+       */
+      if (baseModifiedAt.length > 0 && currentModifiedAt !== null && baseModifiedAt !== currentModifiedAt) {
+        return Response.json(
+          {
+            ok: false,
+            reason: 'conflict',
+            modifiedAt: currentModifiedAt,
+            message:
+              'This piece was saved somewhere else — another tab or another writer — after this screen last ' +
+              'read it, so nothing here was written over it. Reload the screen to see what is there now; ' +
+              'your text is still in this box and has not been sent.',
+          },
+          { status: 409 }
+        );
+      }
+
+      const result = await savePieceText(db, {
+        id,
+        kind,
+        title,
+        bodyHtml,
+        standfirst,
+        slug: text('slug', 200) || null,
+        // The audit row and the revision say which writer made this change: a person pressing Save, or a timer.
+        note: 'autosave',
+        actorId,
+      });
+      return Response.json({
+        ok: true,
+        created: false,
+        id,
+        slug: result.slug,
+        wordCount: result.wordCount,
+        revisionId: result.revisionId,
+        modifiedAt: await readModifiedAt(id),
+      });
+    }
+
+    /*
      * THE ONE ACTION THAT NAMES MANY RECORDS AND NO SINGLE PIECE, AND WHY IT IS HANDLED FIRST.
      *
      * `bulk` is what the list table's "Move to Trash" / "Return to draft" / "Restore" dropdown posts: a list

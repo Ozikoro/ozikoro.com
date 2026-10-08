@@ -161,6 +161,17 @@ const STATUS_LABEL: Record<string, string> = {
   trashed: 'Trash',
 };
 
+/**
+ * How often the screen writes the document on its own, while it differs from what the archive holds.
+ *
+ * **60,000 ms, taken from WordPress rather than chosen.** WordPress autosaves a draft while it is being
+ * edited on a 60-second interval, which is the behaviour the owner named when he asked for this: *"the site
+ * should be autosaving contents as it is being written"*. A shorter interval is not free — every autosave is
+ * a revision row and an audit row, because it goes through `savePieceText`, which is the same write the Save
+ * button makes.
+ */
+const AUTOSAVE_INTERVAL_MS = 60_000;
+
 /** `2026-10-06T09:31:00.000Z` -> `6 October 2026 at 09:31`, the way WordPress prints a date. */
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -198,7 +209,7 @@ function countWords(html: string): number {
  * a hidden field to do; the button attribute is the same thing without the race.
  */
 export function ClassicEditor(props: ClassicEditorProps) {
-  const { kind, mode, piece, topics, writers, media, tagCloud, previewHtml, canPublish, siteOrigin } = props;
+  const { kind, piece, topics, writers, media, tagCloud, previewHtml, canPublish, siteOrigin } = props;
   const isPage = kind === 'page';
   const noun = isPage ? 'Page' : 'Post';
 
@@ -226,9 +237,63 @@ export function ClassicEditor(props: ClassicEditorProps) {
    * it, leaving the Text tab would show the reader the body as it was saved and quietly drop their edits.
    */
   const pendingVisualHtml = useRef<string | null>(null);
+
+  /*
+   * THE CARET, SAVED AROUND THE MEDIA PICKER — BECAUSE THE PICKER TAKES IT AND NOTHING GAVE IT BACK.
+   *
+   * ── THE FAULT, MEASURED IN A BROWSER BEFORE THIS REF EXISTED ────────────────────────────────────────
+   *
+   * The owner's report was *"when one uploads a media, write, and wants to add another media, it does not
+   * work, rather the new media goes ahead to appear as the first thing you added on the site."* Driving the
+   * served screen over the DevTools Protocol with the caret placed mid-sentence, and recording
+   * `window.getSelection()` at the moment `insertHTML` ran:
+   *
+   *     caret placed inside #content        rangeCount 1 · anchor #text · offset 12 · insideContent TRUE
+   *     the picker opens                    activeElement INPUT · anchor DIV · insideContent FALSE
+   *     a record is chosen                  activeElement BUTTON · insideContent FALSE
+   *     the moment `insertHTML` runs        activeElement content · anchor #text · offset 0   ← the START
+   *
+   *   and the box came out `<figure>…</figure><p></p>Alpha bravo charlie delta.` — the picture before the
+   *   sentence it was placed in the middle of. **A second picture then went inside the first `<figure>`**,
+   *   because the browser's invented caret sat at offset 0 of a document that now began with one.
+   *
+   * The cause is not `removeAllRanges` in `wrapSelection` and it is not `insertHTML` prepending. It is that
+   * **the picker focuses its own search box 40 ms after it opens** (`searchRef.current?.focus()` in
+   * `./media-picker.tsx`), which moves the document selection out of the contenteditable and into the
+   * input — and `editorRef.current?.focus()` in `insertMedia` does not restore it. Focusing a
+   * `contenteditable` that has no range in it puts the caret at the beginning, which is where the browser
+   * then inserted. So the selection is lost **on modal open**, and every insertion after the first is
+   * wrong in a worse way than the first.
+   *
+   * ── WHY THE FIX IS A SAVED RANGE AND NOT A RE-RENDER ────────────────────────────────────────────────
+   *
+   * React owns no children of `#content` (see the note on `pendingVisualHtml`) and that property is what
+   * keeps a keystroke alive, so the caret cannot be restored by re-rendering anything. It is a `Range`
+   * cloned out of the box before the picker is opened and put back into the selection immediately before
+   * the browser's own insertion — the same shape TinyMCE uses (`bookmark` / `moveToBookmark`), and the
+   * only shape that leaves the document itself untouched.
+   *
+   * `cloneRange` rather than the live range: the live one is what the picker's focus destroys, and a
+   * reference to a range the selection has since abandoned is exactly the thing that would silently
+   * degrade to the start of the box again.
+   */
+  const savedCaret = useRef<Range | null>(null);
   /** Set when a submit was refused because the content box had lost what was typed into it. */
   const [lostBody, setLostBody] = useState(false);
   const [title, setTitle] = useState(piece?.title ?? '');
+  /*
+   * THE RECORD'S ID, WHICH AN AUTOSAVE CAN SUPPLY FOR A PIECE THAT HAS NEVER BEEN SAVED.
+   *
+   * `piece` is null on `/admin/posts/new/`, and `mode` is a constant for the life of the render — so on the
+   * Add New screen there was no id at all, and every submit button carried a *creating* action
+   * (`create`, `create-and-publish`). **The first autosave necessarily creates the draft** — that is what
+   * WordPress's does too — and if nothing changed after that, the writer's next press of Save Draft would
+   * create a SECOND piece out of the same text. So the id is state, an autosave that created the piece puts
+   * its id here, and the two buttons and the hidden field below read this rather than the `mode` prop.
+   * *A draft created by a timer that then silently duplicates itself on Save is a worse fault than the
+   * missing autosave.*
+   */
+  const [pieceId, setPieceId] = useState<number | null>(piece?.id ?? null);
   const [slug, setSlug] = useState(piece?.slugIsPlaceholder ? '' : (piece?.slug ?? ''));
   const [standfirst, setStandfirst] = useState(piece?.standfirst ?? '');
   const [tags, setTags] = useState((piece?.tags ?? []).join(', '));
@@ -269,6 +334,72 @@ export function ClassicEditor(props: ClassicEditorProps) {
   const [words, setWords] = useState(() => countWords(piece?.bodyHtml ?? ''));
   const [mirror, setMirror] = useState(piece?.bodyHtml ?? '');
 
+  /*
+   * ── AUTOSAVE: THE OWNER'S THIRD REPORT ──────────────────────────────────────────────────────────────
+   *
+   * The owner: *"also, the site should be autosaving contents as it is being written. auto saving as they
+   * are adding words"*. **Measured before anything was built: there was none.** `setInterval`, `autosave`
+   * and `lastSaved` appear nowhere in this screen or in `@/lib/classic-editor*` — the only mention of a
+   * revision is the sentence in the *This piece* box describing what the Save button does — so the only
+   * protection a half-written article had was `beforeunload`, the sentence WordPress prints. That stops a
+   * reader leaving the page and does nothing at all about a crash, a power cut or a browser that is closed.
+   *
+   * WHAT WORDPRESS DOES, WHICH IS WHAT HE IS COMPARING IT TO: its autosave posts the same form the Save
+   * button posts, to the same endpoint, about once a minute while the document is dirty, shows *"Saving…"*
+   * and then *"Saved at HH:MM"*, and warns on the way out if anything is unsaved. Every one of those four
+   * is here, and the interval is 60 seconds because that is WordPress's own heartbeat.
+   *
+   * ── THE HOUSE RULES THIS SCREEN HAS TO KEEP WHILE DOING IT ──────────────────────────────────────────
+   *
+   * 1. **THE WRITE IS THE SAVE'S OWN WRITE.** The request is the live `<form id="post">` serialised, posted
+   *    to `/api/admin/posts` with `action=autosave`. There is no second write path to drift: the route's
+   *    new branch calls `createPiece` for a piece that has never been saved and `savePieceText` for one
+   *    that has — the same two functions the Save button reaches, with the same capability check, the same
+   *    sanitiser and the same revision row.
+   * 2. **NOTHING IS WRITTEN WHEN NOTHING CHANGED.** `lastSaved` holds the title, standfirst, slug and body
+   *    the archive last wrote, and a tick whose snapshot equals it returns without a request. *Without
+   *    that test a 60-second timer on an idle screen would write a revision every minute for as long as the
+   *    tab stayed open, and every one of those writes is a row in the trail.*
+   * 3. **REACT STILL MUST NOT TOUCH `#content`.** The autosave READS the box (`syncBody` through
+   *    `currentHtml`) and writes only the hidden field the form already used. It re-renders the indicator
+   *    and nothing else, so a keystroke survives it — the property the seeding effect above exists for.
+   * 4. **ONE REQUEST AT A TIME.** `inFlight` refuses a tick while a request is out; `queued` fires exactly
+   *    one more the moment it lands, so a sentence typed while the request was travelling is not left
+   *    waiting for the next minute. Nothing here can put two autosaves in the air together.
+   * 5. **A SECOND TAB CANNOT OVERWRITE THE FIRST.** Each request carries `baseModifiedAt`, the
+   *    `modified_at` this screen last saw; the route refuses with a 409 when the row has moved, and this
+   *    screen stops autosaving and says so. See the route's own note for what that guard does and does not
+   *    cover.
+   */
+  const formRef = useRef<HTMLFormElement>(null);
+  /**
+   * The showing tab and its mirror, readable from a callback that closed over an older render.
+   *
+   * The autosave interval is created once (see the effect below) and so cannot close over fresh state, and
+   * the two values it needs — which tab is showing, and the mirror the Text tab keeps — are exactly the two
+   * that change. They are copied here by an effect, and `currentHtml` reads this ref rather than the state,
+   * which makes every caller safe including the one inside the timer.
+   */
+  const liveRef = useRef({ visual, mirror });
+  /**
+   * Whether the document differs from what the archive last wrote, in the terms the request is made in.
+   *
+   * A ref rather than `dirty` state for the reason the interval exists at all: the timer is created once
+   * and must not be recreated on every keystroke, so it cannot close over fresh state. `dirtyRef` is what
+   * it reads instead, and `markDirty`/`markClean` are the only two things that write it.
+   */
+  const dirtyRef = useRef(false);
+  const lastSavedRef = useRef<string | null>(null);
+  const inFlightRef = useRef(false);
+  const queuedRef = useRef(false);
+  /** Set when the archive refused an autosave for a reason that will not change by trying again. */
+  const autosaveStoppedRef = useRef(false);
+  const [autosaveState, setAutosaveState] = useState<'off' | 'clean' | 'dirty' | 'saving' | 'saved' | 'stopped'>('off');
+  const [autosaveAt, setAutosaveAt] = useState<string | null>(null);
+  const [autosaveNote, setAutosaveNote] = useState<string | null>(null);
+  /** The `modified_at` this screen last saw. Sent with every autosave; see rule 5 above. */
+  const baseModifiedAtRef = useRef<string | null>(piece?.modifiedAt ?? null);
+
   const published = piece?.status === 'published';
   const trashed = piece?.status === 'trashed';
 
@@ -289,12 +420,40 @@ export function ClassicEditor(props: ClassicEditorProps) {
    * the docstring on it says what that failure looks like.
    */
   function currentHtml(): string {
-    return documentToSubmit(visual ? 'visual' : 'text', editorRef.current?.innerHTML ?? mirror, mirror);
+    /*
+     * READ THROUGH `liveRef`, NOT THROUGH THE CLOSURE.
+     *
+     * Every synchronous caller — the toolbar, a submit — sees the same values either way, because the ref is
+     * updated on every render. The autosave timer is the one caller that does not: it is created once and
+     * runs while an older render's `visual` and `mirror` are still its closure. Without this the timer would
+     * read `#content` after the writer had switched to the Text tab and write the document from before the
+     * switch. See the note on the autosave refs.
+     */
+    const live = liveRef.current;
+    return documentToSubmit(live.visual ? 'visual' : 'text', editorRef.current?.innerHTML ?? live.mirror, live.mirror);
   }
 
   /** Everything that is a change to the document sets the dirty flag, which the unload guard reads. */
   function markDirty() {
     setDirty(true);
+    dirtyRef.current = true;
+    /*
+     * A CHANGE MADE WHILE AN AUTOSAVE IS IN THE AIR IS NOT LOST AND IS NOT WAITED FOR.
+     *
+     * The response is about the document as it was when the request left, so what was typed during the
+     * round trip is unsaved; `queued` fires exactly one more autosave the moment the first lands. One, not
+     * one per keystroke — the flag is a boolean.
+     */
+    if (inFlightRef.current) queuedRef.current = true;
+    // The indicator goes back to "unsaved" the moment there is something unsaved. It is never left saying
+    // "Saved at 14:32" over a sentence typed at 14:33 — an indicator that lies is worse than none.
+    setAutosaveState((current) => (current === 'saving' ? current : 'dirty'));
+  }
+
+  /** The document is now what the archive holds — after a save, and after the screen was first written. */
+  function markClean() {
+    setDirty(false);
+    dirtyRef.current = false;
   }
 
   function syncBody() {
@@ -361,6 +520,188 @@ export function ClassicEditor(props: ClassicEditorProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see the note above: `mirror` must NOT be here.
   }, [visual]);
 
+  /*
+   * ── THE AUTOSAVE ENGINE ─────────────────────────────────────────────────────────────────────────────
+   *
+   * Read the block on the autosave refs above first: it carries the owner's words, what WordPress does, the
+   * five rules this keeps, and the measurement that there was nothing here before. What is below is the
+   * mechanism.
+   */
+  /**
+   * The showing tab's document and its mirror, readable from a callback that closed over an older render.
+   *
+   * The interval is created once (see the effect below) and so cannot close over fresh state, and the two
+   * values it needs — which tab is showing, and the mirror the Text tab keeps — are exactly the two that
+   * change. They are mirrored into `liveRef` here, and `currentHtml` reads that ref rather than the state.
+   */
+  useEffect(() => {
+    liveRef.current = { visual, mirror };
+  }, [visual, mirror]);
+
+  /** What the archive would be asked to write, as one comparable string. Empty when there is no form. */
+  function formSnapshot(): string {
+    const form = formRef.current;
+    if (!form) return '';
+    const data = new FormData(form);
+    return JSON.stringify([
+      String(data.get('title') ?? ''),
+      String(data.get('standfirst') ?? ''),
+      String(data.get('slug') ?? ''),
+      // The hidden field the save posts. `syncBody` is what keeps it current and it is always called first.
+      String(data.get('bodyHtml') ?? ''),
+      String(data.get('topicId') ?? ''),
+      String(data.get('tags') ?? ''),
+      String(data.get('mediaId') ?? ''),
+      String(data.get('authorId') ?? ''),
+    ]);
+  }
+
+  /** `14:32`, the way WordPress prints the time of an autosave. */
+  function clockTime(): string {
+    return new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  /**
+   * One autosave: the live form, posted with `action=autosave`, or nothing at all when nothing changed.
+   *
+   * It never throws and it never rejects: every ending leaves the indicator saying something true and,
+   * where the work is still only in the browser, leaves it dirty so the next tick tries again.
+   */
+  async function runAutosave(): Promise<void> {
+    const form = formRef.current;
+    if (!form || inFlightRef.current || autosaveStoppedRef.current) return;
+    if (!dirtyRef.current) return;
+
+    // The document leaves the box through the same two conversions the Save button uses — nowhere else.
+    syncBody();
+    const snapshot = formSnapshot();
+    /*
+     * THE "NOTHING CHANGED" TEST. It is the whole reason this is not "a write every 60 seconds": an idle
+     * screen must not put a revision and an audit row into the trail for every minute it is left open.
+     */
+    if (snapshot === lastSavedRef.current) {
+      markClean();
+      setAutosaveState('clean');
+      return;
+    }
+
+    const sending = new FormData(form);
+    sending.set('action', 'autosave');
+    if (baseModifiedAtRef.current) sending.set('baseModifiedAt', baseModifiedAtRef.current);
+
+    /*
+     * THE SAME REFUSAL THE SAVE BUTTON MAKES, MADE BEFORE THE REQUEST RATHER THAN AFTER IT.
+     *
+     * `bodyLostBeforeSave` is the archive's rule about an empty box whose last known document was not
+     * empty. On a submit it cancels the submit and says so; here it must stop the write, because an
+     * autosave that fired on a box that had lost its text would put an empty body into the record without
+     * anybody pressing anything — the exact outcome the guard exists to prevent, arriving on a timer.
+     */
+    if (bodyLostBeforeSave(String(sending.get('bodyHtml') ?? ''), liveRef.current.mirror, liveRef.current.visual)) {
+      autosaveStoppedRef.current = true;
+      setAutosaveState('stopped');
+      setAutosaveNote(
+        'The content box is empty and the last document written into it was not, so nothing has been ' +
+          'autosaved. Press Save to be told what to do — nothing you had has been changed.'
+      );
+      return;
+    }
+
+    inFlightRef.current = true;
+    setAutosaveState('saving');
+    setAutosaveNote(null);
+    try {
+      const response = await fetch('/api/admin/posts', {
+        method: 'POST',
+        body: sending,
+        headers: { accept: 'application/json' },
+        credentials: 'same-origin',
+      });
+      const answer = (await response.json().catch(() => null)) as
+        | { ok?: boolean; id?: number; modifiedAt?: string | null; created?: boolean; message?: string }
+        | null;
+
+      if (!response.ok || !answer?.ok) {
+        /*
+         * A REFUSAL STOPS THE TIMER RATHER THAN REPEATING EVERY MINUTE. A conflict will not resolve itself,
+         * and a screen that kept posting the same losing request would fill the log with refusals while
+         * telling nobody. The text stays in the box, the indicator says what happened, and Save is still
+         * there for the person to use deliberately.
+         */
+        autosaveStoppedRef.current = true;
+        setAutosaveState('stopped');
+        setAutosaveNote(
+          answer?.message ??
+            'The archive refused this autosave, so it has stopped trying. Nothing in the box was lost.'
+        );
+        return;
+      }
+
+      lastSavedRef.current = snapshot;
+      markClean();
+      if (typeof answer.modifiedAt === 'string') baseModifiedAtRef.current = answer.modifiedAt;
+      if (answer.created && typeof answer.id === 'number') {
+        /*
+         * THE DRAFT NOW EXISTS, SO THE SCREEN STOPS BEING AN "ADD NEW" SCREEN.
+         *
+         * The hidden id appears, the two submit buttons switch from `create`/`create-and-publish` to
+         * `save-draft`/`publish`, and the address changes to the piece's own edit screen — so a reload, a
+         * bookmark or a press of Save Draft writes THIS draft instead of making a second one out of the
+         * same text. This is the one place React state is set by the timer, and it touches nothing the
+         * writer has typed: `#content` is not re-rendered and its children are still the browser's.
+         */
+        setPieceId(answer.id);
+        window.history.replaceState(null, '', `${isPage ? '/admin/pages' : '/admin/posts'}/${answer.id}`);
+      }
+      setAutosaveAt(clockTime());
+      setAutosaveState('saved');
+    } catch {
+      // The request never arrived. The document is still only in the browser, so it stays dirty.
+      setAutosaveState('dirty');
+      setAutosaveNote('The archive could not be reached just now. This has not been autosaved yet; it will try again.');
+    } finally {
+      inFlightRef.current = false;
+      if (queuedRef.current) {
+        queuedRef.current = false;
+        void runAutosave();
+      }
+    }
+  }
+
+  /*
+   * THE TIMER, CREATED ONCE FOR THE LIFE OF THE SCREEN.
+   *
+   * It cannot depend on the document: an interval recreated by every keystroke restarts its sixty seconds
+   * each time, and would therefore never fire while somebody is actually writing — which is the one case it
+   * exists for. Everything it reads is read through a ref, and the two refs it reads are `dirtyRef` and
+   * `liveRef`, both of which are kept current by the code above.
+   */
+  useEffect(() => {
+    if (trashed) return undefined;
+    setAutosaveState((current) => (current === 'off' ? 'clean' : current));
+    const timer = window.setInterval(() => {
+      void runAutosave();
+    }, AUTOSAVE_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one timer, deliberately; see the note above.
+  }, [trashed]);
+
+  /*
+   * THE BASELINE: WHAT THE ARCHIVE ALREADY HOLDS.
+   *
+   * Declared after the seeding effect above, so it runs after that effect has written the record into the
+   * box — and it takes the baseline FROM THE BOX rather than from `piece.bodyHtml`, because the browser
+   * re-serialises a stored body on the way in (`&quot;` becomes `"`, a `<!--more-->` becomes the marker and
+   * back). Comparing against the raw column would make the first tick read that re-serialisation as an edit
+   * and write a revision for a document nobody had touched.
+   */
+  useEffect(() => {
+    syncBody();
+    lastSavedRef.current = formSnapshot();
+    setAutosaveState((current) => (current === 'off' ? 'clean' : current));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the baseline is taken once, on load.
+  }, []);
+
   /**
    * Switch between the Visual and Text views of the same document, as `switchEditors` does.
    *
@@ -373,6 +714,48 @@ export function ClassicEditor(props: ClassicEditorProps) {
     setMirror(html);
     if (view === 'visual') pendingVisualHtml.current = html;
     setVisual(view === 'visual');
+  }
+
+  /**
+   * The caret as it is in `#content` right now, or `null` when there is not one there.
+   *
+   * `null` is a real answer and it is distinguished from "the caret is at the start": the range has to be
+   * *inside the box* to count, so a selection left in the title field or in the picker's search box is not
+   * mistaken for a caret in the document. `Node.contains` is asked of the start container, which is a text
+   * node as often as an element, and it answers for both.
+   */
+  function caretInsideBox(): Range | null {
+    const box = editorRef.current;
+    if (!box) return null;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    const range = selection.getRangeAt(0);
+    if (!box.contains(range.startContainer)) return null;
+    return range.cloneRange();
+  }
+
+  /** Put the caret at the end of the document — where an insertion belongs when there was no caret to use. */
+  function caretToEnd(box: HTMLElement) {
+    const range = document.createRange();
+    range.selectNodeContents(box);
+    range.collapse(false);
+    const selection = window.getSelection();
+    if (!selection) return;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+
+  /**
+   * Open the media picker, keeping the caret the picker is about to take.
+   *
+   * This is the whole of the repair for the owner's first report, and it is one line of consequence: the
+   * caret is read **while it is still in the box**, because 40 ms later the picker's search field will have
+   * it. The featured-image picker does not place anything in the body, so it saves nothing — and saying so
+   * here is cheaper than a reader wondering why one door does and the other does not.
+   */
+  function openPicker(which: 'insert' | 'featured') {
+    savedCaret.current = which === 'insert' ? caretInsideBox() : null;
+    setPicker(which);
   }
 
   /** The selection, as text, inside the editor. Empty when the Text tab is showing. */
@@ -666,7 +1049,31 @@ export function ClassicEditor(props: ClassicEditorProps) {
       setWords(countWords(next));
       return;
     }
-    editorRef.current?.focus();
+    const box = editorRef.current;
+    if (!box) return;
+    /*
+     * THE CARET IS PUT BACK BEFORE THE BROWSER INSERTS, AND BOTH BRANCHES ARE ON PURPOSE.
+     *
+     * `focus()` comes first, because a range added to a selection while the box is unfocused is a range the
+     * browser may replace the moment focus arrives. It is followed by the range, not preceded by it.
+     *
+     * The saved caret is the one that was in the box when Add Media was pressed. When there is none — the
+     * writer opened the picker without ever having clicked into the document, which is ordinary on a new,
+     * empty piece — the insertion goes to **the end of the document**. It used to go to the start, because
+     * that is where a browser puts a caret it has had to invent, and "the top of the post" is precisely the
+     * fault the owner reported. Appending is the honest reading of "I have no caret, put it after what is
+     * there"; prepending is not.
+     */
+    box.focus();
+    const caret = savedCaret.current;
+    savedCaret.current = null;
+    if (caret && box.contains(caret.startContainer)) {
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(caret);
+    } else {
+      caretToEnd(box);
+    }
     try {
       document.execCommand('insertHTML', false, mediaMarkupFor(item));
     } catch {
@@ -685,6 +1092,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
     <div className={`wpadmin wpedit${dfw ? ' wpedit--dfw' : ''}`}>
       <form
         id="post"
+        ref={formRef}
         method="post"
         action="/api/admin/posts"
         onSubmit={(event) => {
@@ -706,15 +1114,20 @@ export function ClassicEditor(props: ClassicEditorProps) {
           if (bodyLostBeforeSave(submitting, mirror, visual)) {
             event.preventDefault();
             setLostBody(true);
-            setDirty(false);
+            markClean();
             return;
           }
           setLostBody(false);
-          setDirty(false);
+          markClean();
         }}
       >
         <input type="hidden" name="kind" value={kind} />
-        {piece ? <input type="hidden" name="id" value={piece.id} /> : null}
+        {/*
+          THE ID, WHICH AN AUTOSAVE MAY HAVE SUPPLIED. It used to be `piece.id`, so on the Add New screen it
+          was absent for the whole life of the render — and the first autosave creates the draft, after which
+          a `create` submit would have made a second one. See the note on `pieceId`.
+        */}
+        {pieceId !== null ? <input type="hidden" name="id" value={pieceId} /> : null}
         {/* The document, submitted whichever tab is showing. Written on submit by `syncBody`. */}
         <textarea ref={hiddenBodyRef} name="bodyHtml" defaultValue={piece?.bodyHtml ?? ''} hidden readOnly />
 
@@ -843,7 +1256,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     <button
                       type="button"
                       className="button"
-                      onClick={() => setPicker('insert')}
+                      onClick={() => openPicker('insert')}
                       title="Add Media — place a picture, film or recording from the archive's register in the body"
                     >
                       Add Media
@@ -976,6 +1389,35 @@ export function ClassicEditor(props: ClassicEditorProps) {
 
                 <div id="post-status-info">
                   <span>{wordLabel}</span>
+                  {/*
+                    THE AUTOSAVE INDICATOR, WHICH IS THE HALF OF AUTOSAVE THAT IS VISIBLE.
+                    
+                    An autosave with no indicator is indistinguishable from no autosave: the writer cannot
+                    tell whether the timer is running, whether it is mid-write, or when it last landed — so he
+                    cannot trust the screen and writes with his hand on Save regardless. WordPress prints
+                    "Saving…" and then "Saved at HH:MM" in this very row, and these are those two states plus
+                    the two WordPress does not have to name because its screen has been the same for fifteen
+                    years: "unsaved" while a keystroke is newer than the last write, and the reason when the
+                    archive has refused and the timer has stopped.
+
+                    `role="status"` is what makes it read out rather than merely be drawn, and it is polite:
+                    it announces the change between words rather than interrupting a sentence.
+                  */}
+                  {!trashed ? (
+                    <span role="status" aria-live="polite" className="autosave-status">
+                      {autosaveState === 'saving'
+                        ? 'Saving…'
+                        : autosaveState === 'saved'
+                          ? `Saved at ${autosaveAt ?? clockTime()}`
+                          : autosaveState === 'dirty'
+                            ? 'Unsaved — autosaving every minute'
+                            : autosaveState === 'stopped'
+                              ? 'Autosave stopped'
+                              : autosaveAt !== null
+                                ? `Autosave on · saved at ${autosaveAt}`
+                                : 'Autosave on · every minute'}
+                    </span>
+                  ) : null}
                   <span>
                     Last edited:{' '}
                     {piece?.modifiedAt ? formatDate(piece.modifiedAt) : piece ? formatDate(piece.publishedAt) : 'not saved yet'}
@@ -997,6 +1439,24 @@ export function ClassicEditor(props: ClassicEditorProps) {
                       : 'Text — the document as HTML, parsed by the browser, so a stored entity shows as the character it names. A save writes this box.'}
                   </span>
                 </div>
+
+                {/*
+                  WHY AN AUTOSAVE STOPPED, IN THE WRITER'S OWN FIELD OF VIEW.
+
+                  There are exactly two ways it stops and neither is silent: the archive refused the write
+                  (another tab saved this piece first), or the content box was empty while its last known
+                  document was not. Both leave the text where it is and both need a person to decide
+                  something, so both are printed here rather than in a console. The indicator above says
+                  "Autosave stopped" in either case; this says what to do about it.
+                */}
+                {autosaveNote !== null ? (
+                  <div className="notice notice--error" role="alert" style={{ marginTop: '8px' }}>
+                    <div>
+                      <p className="notice__title">Autosave has stopped</p>
+                      <p className="notice__body">{autosaveNote}</p>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {/*
@@ -1174,7 +1634,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     )}
 
                     {!published ? (
-                      <button type="submit" name="action" value={mode === 'new' ? 'create' : 'save-draft'} className="button">
+                      <button type="submit" name="action" value={pieceId === null ? 'create' : 'save-draft'} className="button">
                         Save Draft
                       </button>
                     ) : null}
@@ -1183,7 +1643,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
                       <button type="submit" name="action" value="restore" className="button">
                         Restore
                       </button>
-                    ) : mode === 'new' ? (
+                    ) : pieceId === null ? (
                       <button type="submit" name="action" value="create-and-publish" className="button button-primary">
                         Publish
                       </button>
@@ -1332,7 +1792,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     </p>
                   )}
                   <p className="row" style={{ gap: '8px', flexWrap: 'wrap' }}>
-                    <button type="button" className="button" onClick={() => setPicker('featured')}>
+                    <button type="button" className="button" onClick={() => openPicker('featured')}>
                       {featured ? 'Replace featured image' : 'Set featured image'}
                     </button>
                     {featured ? (
@@ -1504,7 +1964,11 @@ export function ClassicEditor(props: ClassicEditorProps) {
             }
             insertMedia(item);
           }}
-          onClose={() => setPicker(null)}
+          onClose={() => {
+            // A picker that was closed chose nothing, so the caret it was holding is stale and is dropped.
+            savedCaret.current = null;
+            setPicker(null);
+          }}
         />
       </form>
     </div>
