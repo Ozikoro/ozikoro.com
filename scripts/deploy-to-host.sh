@@ -64,6 +64,98 @@ cd "$REPO_ROOT"
 
 AWS=(aws --profile "$AWS_PROFILE" --region "$AWS_REGION")
 
+# ── A LOCK ON THE DEPLOY, BECAUSE TWO OF THESE AT ONCE COST THE OWNER AN HOUR ──────────────────────
+#
+# ⚠️ **THIS EXISTS BECAUSE I RAN THREE DEPLOYS SIMULTANEOUSLY, AND EVERY FIX THE OWNER REPORTED THEN
+# ARRIVED 25 TO 40 MINUTES AFTER HE REPORTED IT.** *Three installs of the same 923 files into the same
+# directories, and three `docker compose build` calls against one build directory — which is the exact
+# contention `scripts/lib/next-build-lock.sh` was written to prevent for the review server, arriving here
+# by a different door.*
+#
+# **The mistake was easy to make and had no signal at all.** *A deploy takes 25–40 minutes, so starting a
+# second one an hour later looked reasonable; nothing said the first was still running, and each one's log
+# looked healthy on its own.* **A rule that a caller has to remember is not a guard** — the same sentence
+# `cluster-lock.ts` carries — *so the guard is here, in the script, where it cannot be forgotten.*
+#
+# ⚠️ **AND IT IS BUILT ON THE LESSON THE OTHER TWO LOCKS PAID FOR: A PID IS NOT EVIDENCE OF LIFE OR
+# DEATH ON ITS OWN.** *Pids are reused on both macOS and Linux, so a recycled pid passes a liveness check
+# and wedges the lock forever; and a lock whose owner died must not need a human to clear it.* **So the
+# holder records its pid AND its process start time, and both must agree.** *Time is never used as evidence
+# of death; the platform is asked, and a disagreement about the start time means the pid was recycled.*
+#
+# **The lock lives at the repository root, beside the work, not inside anything a deploy replaces.**
+# *`DEPLOY_LOCK_PATH` overrides it, which is how the behaviour below can be tested without deploying.*
+DEPLOY_LOCK_PATH="${DEPLOY_LOCK_PATH:-$REPO_ROOT/.deploy.lock}"
+
+deploy_lock_release() {
+  [ -d "$DEPLOY_LOCK_PATH" ] || return 0
+  # Only the holder may release it: a second process that found a stale lock must never delete a live one.
+  [ "$(cat "$DEPLOY_LOCK_PATH/pid" 2>/dev/null || true)" = "$$" ] || return 0
+  rm -rf "$DEPLOY_LOCK_PATH"
+}
+
+if ! mkdir "$DEPLOY_LOCK_PATH" 2>/dev/null; then
+  HELD_PID="$(cat "$DEPLOY_LOCK_PATH/pid" 2>/dev/null || true)"
+  HELD_ALIVE=0
+  HELD_START=""
+  if [ -n "$HELD_PID" ] && kill -0 "$HELD_PID" 2>/dev/null; then
+    HELD_START="$(cat "$DEPLOY_LOCK_PATH/started" 2>/dev/null || true)"
+    LIVE_START="$(ps -o lstart= -p "$HELD_PID" 2>/dev/null | sed 's/^ *//' || true)"
+    # ⚠️ THE PID IS ALIVE. THE QUESTION IS ONLY WHETHER IT IS *THE SAME* PROCESS.
+    #
+    # `kill -0` succeeding is the strong evidence; the start time is the refinement that catches a
+    # recycled pid. **But a refinement must never override the strong evidence when it is UNAVAILABLE.**
+    #
+    # 🔴 AND THAT IS A MEASURED FAULT, NOT A CAUTION. The first version of this lock demanded a matching
+    # start time on both sides and cleared the lock when they differed — *and on this machine `ps -o
+    # lstart= -p <pid>` returns the EMPTY STRING for a sibling process, while `kill -0` returns success.*
+    # So the two sides compared `""` against `""`, the guard saw no match, declared the holder recycled,
+    # **and cleared a lock that a LIVE deploy was holding — which is the exact failure this guard exists to
+    # prevent, arriving through the guard itself.**
+    #
+    # **So the rule is: refuse unless the pid can be PROVED recycled.** *A start time that cannot be read on
+    # either side is not proof of anything, and neither is a lock whose holder we cannot inspect.* The cost
+    # of being wrong in this direction is a lock that needs the documented `rm -rf` to clear, which the
+    # refusal message prints. *The cost of being wrong in the other direction is two deploys at once, which
+    # has already happened once and cost the owner an hour.*
+    if [ -n "$HELD_START" ] && [ -n "$LIVE_START" ] && [ "$HELD_START" != "$LIVE_START" ]; then
+      HELD_ALIVE=0   # both readable AND different: this pid was recycled
+    else
+      HELD_ALIVE=1   # alive, and not provably a different process
+    fi
+  fi
+  if [ "$HELD_ALIVE" = "1" ]; then
+    cat >&2 <<EOF
+REFUSING TO DEPLOY: ANOTHER DEPLOY IS ALREADY RUNNING.
+
+  holder pid:  $HELD_PID
+  started:     $HELD_START
+  command:     $(cat "$DEPLOY_LOCK_PATH/argv" 2>/dev/null || echo unknown)
+  lock:        $DEPLOY_LOCK_PATH
+
+Two deploys at once install the same files into the same directories and build the same image twice.
+**That is not hypothetical — three ran at once, and it is why the owner's fixes arrived 25 to 40
+minutes after he reported them.**
+
+This is contention, not corruption. Nothing is wrong with the host, the database or the site.
+**Wait for the other deploy and run this command again.**
+
+If that pid is CONFIRMED dead, clear the lock with:
+    rm -rf $DEPLOY_LOCK_PATH
+EOF
+    exit 75
+  fi
+  echo "==> clearing a stale deploy lock (holder ${HELD_PID:-unknown} is not running)" >&2
+  rm -rf "$DEPLOY_LOCK_PATH"
+  mkdir "$DEPLOY_LOCK_PATH" || { echo "cannot create $DEPLOY_LOCK_PATH" >&2; exit 75; }
+fi
+
+printf '%s\n' "$$" > "$DEPLOY_LOCK_PATH/pid"
+ps -o lstart= -p "$$" 2>/dev/null | sed 's/^ *//' > "$DEPLOY_LOCK_PATH/started" || true
+printf '%s\n' "$0 $*" > "$DEPLOY_LOCK_PATH/argv"
+trap 'deploy_lock_release' EXIT INT TERM
+echo "==> deploy lock taken: $DEPLOY_LOCK_PATH (pid $$)"
+
 # ── WHAT TRAVELS ────────────────────────────────────────────────────────────────────────────────
 #
 # **Tracked files only, and that is a deliberate limit.** An untracked file on this machine is a
@@ -194,7 +286,7 @@ fi
 # ── STAGE ───────────────────────────────────────────────────────────────────────────────────────
 BUCKET="ozikoro-deploy-$(date -u +%Y%m%d-%H%M%S)"
 STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"' EXIT
+trap 'rm -rf "$STAGE"; deploy_lock_release' EXIT
 
 echo "==> staging to $STAGE"
 for f in "${KEEP[@]}"; do

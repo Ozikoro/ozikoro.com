@@ -171,3 +171,6 @@ __pycache__/
 # Their contents are recoverable from git history — they are never deliverables.
 .incomplete-*/
 .removed-*/
+
+# The deploy lock — created and removed by scripts/deploy-to-host.sh
+.deploy.lock
