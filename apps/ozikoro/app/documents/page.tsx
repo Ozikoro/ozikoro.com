@@ -7,6 +7,18 @@
  * `sx-library-section` blocks, with the h1 reading "Published work, ready to read." This page had a different
  * title and none of the structure.
  *
+ * AND WHAT THE SAME H1 BECAME. The owner asked for that heading to be removed — *"the title is wrong"* — and
+ * it was a slogan rather than a name: read from the deliverable, `/photographs/` is headed "Photographs",
+ * `/archive/` "Histories" and `/publications/` "Publications", so `documents.html` was the one screen that
+ * sold the page instead of naming it. The served `<h1>` is now "Documents", rewritten at serve time in
+ * `fillDocuments` because `public/design/` is inviolable.
+ *
+ * ⚠️ **AND THIS FILE'S OWN `<h1>` IS NOT WHAT A READER MEETS.** `/documents/` is in the middleware's own
+ * screen set, so it is rewritten to `/design-screen/documents` and the hero a reader receives is the
+ * deliverable's. The `<h1>` and the `openGraph` description below are corrected rather than left carrying
+ * the withdrawn slogan — a stale slogan in the tree is how it comes back — but **the head that is served is
+ * built by the design-screen route**, which is where that line has to be checked.
+ *
  * WHAT THE LIBRARY ACTUALLY HOLDS, WHICH IS NOT WHAT THE WORD SUGGESTS
  *
  * Twelve media records are filed as documents. **Only two are PDFs.** The other ten are `text/html` captures
@@ -35,7 +47,22 @@ export const metadata: Metadata = {
   description:
     'Download open research by Ozikoro contributors and browse the PDF records the archive holds. Restricted work is marked.',
   alternates: { canonical: 'https://ozikoro.com/documents' },
-  openGraph: { title: 'Documents — Ozikoro', description: 'Published work, ready to read.', type: 'website' },
+  /*
+   * THE SLOGAN DOES NOT COME BACK THROUGH THE CARD.
+   *
+   * The headline the owner asked to have removed was `Published work, ready to read.`, and it was doing
+   * double duty: this line put the same words into the Open Graph card, where they are the ONLY description
+   * a reader sees when the page is shared — and the page itself had no publication at all. *"Remove this,
+   * the title is wrong"* is not answered by taking the words off the page and leaving them on the card that
+   * advertises it. The on-page `<h1>` is rewritten at serve time (`fillDocuments`, because the deliverable is
+   * inviolable); this is the head of the same page and it is this file's own to correct.
+   */
+  openGraph: {
+    title: 'Documents — Ozikoro',
+    description:
+      'PDF records the archive holds and open research by Ozikoro contributors, with the rights recorded against each one.',
+    type: 'website',
+  },
 };
 
 interface Doc {
@@ -83,7 +110,7 @@ export default async function DocumentsPage({
       <section className="sx-document-hero">
         <div className="wrap">
           <p className="eyebrow">Research &amp; document library</p>
-          <h1>Published work, ready to read.</h1>
+          <h1>Documents</h1>
           <p className="lede">
             Download open research by Ozikoro contributors and browse the PDF records the archive holds.
             Restricted work is marked, and nothing here is presented as peer-reviewed unless that review

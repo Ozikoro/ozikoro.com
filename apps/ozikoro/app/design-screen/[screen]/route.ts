@@ -95,6 +95,7 @@ import {
    */
   stripLeadingFormat,
   renderNoNameableDocuments,
+  dropDeadInPageLinks,
   extractArchiveFilms,
   COLLECTION_CAMERA_SIGN,
   HOME_STRIP_PLACES,
@@ -1635,6 +1636,28 @@ export async function GET(
             where status = 'published' and is_page = false and word_count > 2500
             order by word_count desc, title`
         );
+        /*
+         * ── THE FIGURE BESIDE *Researcher publications*, COUNTED RATHER THAN WRITTEN DOWN ───────────────
+         *
+         * It reads `0 deposited` today and `ozikoro_publication` genuinely holds no rows, so the number is
+         * not the fault — **the noun was.** `fillDocuments` used to stamp the literal `0 published` beside a
+         * heading on a page that was at that moment listing eight documents, which reads as a claim about the
+         * whole library and contradicts the grid under it. The count is taken here, by the same predicate the
+         * app's own `/documents/` page uses (`status = 'published'`), so the two surfaces cannot report
+         * different numbers for the same section.
+         *
+         * A FAILURE HERE IS NOT A FAILURE OF THE PAGE. A section whose number cannot be read falls back to
+         * zero — which is what the literal said anyway — rather than taking the library down with it.
+         */
+        let deposited = 0;
+        try {
+          const n = await db.one<{ n: number }>(
+            `select count(*)::int n from ozikoro_publication where status = 'published'`
+          );
+          deposited = Number(n?.n ?? 0);
+        } catch (error) {
+          console.error('documents: could not count the deposited publications:', error);
+        }
         const PUBLICATION_RIGHTS =
           'No rights have been established for this item. The archive holds it but has not confirmed ' +
           'who owns it or what may be done with it, so permission has not been granted either way. ' +
@@ -1695,7 +1718,7 @@ export async function GET(
          * easily lead a reader to an empty result. A sentence that claims nothing beats a button that might
          * resolve to nothing.
          */
-        html = fillDocuments(html, docs, renderNoNameableDocuments());
+        html = fillDocuments(html, docs, deposited, renderNoNameableDocuments());
       }
     } catch (error) {
       /*
@@ -3127,6 +3150,25 @@ export async function GET(
    * `packages/ozikoro/src/comments.ts` and in the header of `apps/ozikoro/lib/discussion.ts`.
    */
   html = await withDiscussion(html, name, new URL(request.url).searchParams);
+
+  /*
+   * ── AND THE IN-PAGE CONTROL THAT POINTS AT SOMETHING THIS PAGE NO LONGER DRAWS ───────────────────────
+   *
+   * The owner's fault all night in one shape: **a control you can press that does nothing.** Measured on
+   * `/documents/`, the toolbar's "Restricted" item answers `href="/documents/#locked"` and the document
+   * carries no `id="locked"` — the design drew one, `fillDocuments` emptied the section that held it
+   * because the archive holds no publication, and the control was left pointing into the hole.
+   *
+   * ⚠️ **IT RUNS HERE, AFTER EVERY FILL AND AFTER `withDiscussion`, WHICH IS THE ONLY PLACE IT CAN RUN.**
+   * `designScreenLinks` has already turned the design's bare `#locked` into a page address by this point,
+   * and `dropUnreachableFragments` cannot see that form by design — it would break `fillWatch`, which has to
+   * find `href="#series"` while it is still bare. So the question is asked once, at the end, over the
+   * document that is about to be served: *does this page draw the thing this link points at?*
+   *
+   * It is a rule over the document rather than a list of ids, so the next fill that empties a section a nav
+   * pointed at is handled without anybody remembering this call. See `dropDeadInPageLinks`.
+   */
+  html = dropDeadInPageLinks(html, `/${name}/`);
 
   /*
    * THE CHOSEN WORKSPACE IS REMEMBERED HERE, AND ONLY FOR A DASHBOARD THAT WAS ACTUALLY SERVED.

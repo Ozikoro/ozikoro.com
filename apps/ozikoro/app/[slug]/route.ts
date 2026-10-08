@@ -627,6 +627,126 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
     const TOOLS = '<details><summary>Reading tools</summary><nav>';
     if (filled.includes(TOOLS)) {
       filled = filled.replace(TOOLS, `${TOOLS}<a class="btn btn-sm" href="/${clean}/pdf">Download PDF</a>`);
+
+      /*
+       * ── AND THE PREVIEW, WHICH IS THE OWNER'S FIRST REPORT OF THIS ROUND ────────────────────────────────
+       *
+       * *"why are the documents listed here https://ozikoro.com/documents, not showing in preview when
+       * clicked, like it is meant to be?"*
+       *
+       * MEASURED, IN CHROME, ON ALL EIGHT CARDS OF `/documents/`: the three `ozikoro_media` PDFs land on
+       * `/documents/<slug>/`, which draws their PDF in an `<iframe>` — **and that frame renders, the file
+       * answers 200 `application/pdf` with `X-Frame-Options: SAMEORIGIN` and `frame-ancestors 'self'`, and
+       * the console carries no CSP violation.** The other five are publications, and their card sends the
+       * reader here, to the record — **where the only way to the document was a "Download PDF" button
+       * folded inside the collapsed "Reading tools" panel. Nothing on this page showed the document at
+       * all.** Five of the eight cards therefore led to a page that did not do what the library promised,
+       * which is the fault exactly as the owner reported it.
+       *
+       * SO THE PREVIEW IS DRAWN HERE, IN THE RECORD'S OWN COLUMN, AND IT IS THE SAME INSTRUMENT THE MEDIA
+       * RECORD USES.
+       *
+       * IT IS AN `<iframe>` AND NOT AN `<object>`, and the reason is already recorded on
+       * `app/documents/[slug]/page.tsx`: this site serves every HTML page with `object-src 'none'`, which
+       * is correct — it is what stops a plugin being injected into a page — but the browser's PDF viewer
+       * IS an `<object>`, so that directive forbids the instrument rather than the document.
+       * `frame-src 'self'` is already open, so a frame of `/.../pdf` on this origin is the same document
+       * through a directive nobody had to relax.
+       *
+       * ── IT LOADS ON THE CLICK, AND THAT ORDER IS THE POINT ──────────────────────────────────────────────
+       *
+       * `/.../pdf` does not serve a stored file: it RENDERS the document (the route's own header,
+       * `x-ozikoro-publication`, reports whether it built or was served from cache). Framing it eagerly
+       * would render a publication on every article view — megabytes of work for every reader who never
+       * asked for it, including every crawler. So the frame is not in the served HTML; the control is, and
+       * clicking it puts the frame in place. **A reader who never clicks pays nothing, and the document
+       * that arrives is a real one** — which is what "a live preview for documents" means here, as against
+       * a picture of a document that cannot be trusted to match the file.
+       *
+       * ⚠️ **AND THE CONTROL SITS WHERE A READER MEETS IT, NOT INSIDE A COLLAPSED PANEL.**
+       *
+       * The download button goes *inside* "Reading tools" and that is fine for a download — but it was measured
+       * that `<details>` is CLOSED on the served page, so the same placement for the preview meant **a reader
+       * who never opened that panel never saw that this page could preview anything.** The preview is the thing
+       * the owner reported missing, so it is not put behind a disclosure. It goes at the foot of the record's
+       * sticky sidebar, after the design's own two panels, and the sidebar has a home for it: the panel above
+       * it is capped at `14rem`.
+       *
+       * ⚠️ **AND IT OPENS AS A FULL-SIZE VIEWER, NOT AS A BLOCK IN THE READING COLUMN.**
+       *
+       * Two other placements were built and measured before this one, and both are recorded because each
+       * failed for a reason the next reader would otherwise rediscover:
+       *
+       *   1. *Inside the "Reading tools" panel.* Chrome measured the frame at **191 × 838 px** — the sidebar
+       *      is `14rem` wide (`showcase.css`: `.sx-reading-columns{grid-template-columns:14rem minmax(0,1fr)}`),
+       *      so the document was one column of text wide. A preview that narrow is not a preview.
+       *   2. *Between the columns, spanning both* (`grid-column:1/-1`). The frame came out **1079 px** wide —
+       *      and the sidebar is `position:sticky;top:5rem` and therefore did not move, so **it sat on top of
+       *      the document**: measured in a screenshot, the "In this history" panel covered the first page.
+       *      A sticky element cannot be left in a grid whose rows have been reordered around it.
+       *
+       * So the frame is not a child of that grid at all. **It is a `<dialog>` opened with `showModal()`,
+       * which is centred, sized against the viewport rather than the column, and cannot collide with
+       * anything** — and no rule of the design's is redeclared, because the geometry is inline on the two
+       * elements this route inserted. The dialog is created only when the control is pressed, so nothing is
+       * added to the page until a reader asks for the document: measured, `dialog open=true 1198 × 1054 px`
+       * with the PDF drawing inside it.
+       *
+       * ⚠️ **THE CONTROL IS AN ANCHOR TO THE PDF, NOT A BUTTON.** With JavaScript off, or in a browser with no
+       * `<dialog>`, it is a working link to the document, which is the rule this route already follows for its
+       * share controls: **the control works if the script never runs, rather than only working because it
+       * does.** The script claims the click and opens the viewer.
+       */
+      const preview = ((): string => {
+        const pdf = `/${clean}/pdf`;
+        /*
+         * A PANEL OF ITS OWN, FIRST IN THE SIDEBAR, AND OPEN BY CONSTRUCTION.
+         *
+         * The design's sticky sidebar is `display:grid;gap:.8rem`, so a fourth child is styled by the
+         * design's own `.sx-reading-columns > details` rule and needs nothing added to a stylesheet. **It is
+         * inserted at the TOP of the aside**, before the design's own two panels, because the preview is the
+         * thing the owner reported missing and a control a reader has to scroll or expand to find is the same
+         * fault in a smaller size. It is deliberately NOT a `<details>`: nothing here is disclosed.
+         */
+        return '<div class="sx-preview" style="background:rgba(255,250,238,.7);border:1px solid #dccaa5;'
+          + 'border-radius:8px;padding:.7rem .9rem">'
+          + '<p class="eyebrow" style="margin:0 0 .45rem">The document</p>'
+          + '<a class="btn btn-quiet btn-sm" href="' + pdf + '" data-pdf-preview="' + pdf + '">'
+          + 'Preview this document</a>'
+          + '<p class="small muted" style="margin:.5rem 0 0">The viewer draws the published PDF of this '
+          + 'record in place. It is built when it is opened, so it is the same document the download button '
+          + 'serves.</p></div>'
+          + '<script>(function(){var a=document.querySelector("[data-pdf-preview]");if(!a)return;'
+          + 'a.addEventListener("click",function(e){'
+          + 'if(!window.HTMLDialogElement)return;' // No dialog support: the anchor is the link, and it works.
+          + 'e.preventDefault();'
+          + 'var d=document.createElement("dialog");'
+          + 'd.style.cssText="width:min(1200px,94vw);height:88vh;max-width:none;max-height:none;'
+          + 'padding:.8rem;border:1px solid #dccaa5;border-radius:8px;background:#fffaf0";'
+          + 'var f=document.createElement("iframe");'
+          + 'f.src=a.getAttribute("data-pdf-preview");'
+          + 'f.title="Publication preview";'
+          + 'f.style.cssText="width:100%;height:calc(100% - 2.6rem);border:1px solid rgba(0,0,0,.08)";'
+          + 'var c=document.createElement("p");'
+          + 'c.style.cssText="margin:.6rem 0 0;text-align:right";'
+          + 'var x=document.createElement("button");'
+          + 'x.type="button";x.className="btn btn-quiet";x.textContent="Close";'
+          + 'x.addEventListener("click",function(){d.close();});'
+          + 'c.appendChild(x);d.appendChild(f);d.appendChild(c);document.body.appendChild(d);'
+          + 'd.showModal();});})();</script>';
+      })();
+      /*
+       * WHERE IT GOES. The design draws exactly one `<div class="sx-reading-columns"><aside>` on this screen
+       * — the record's sidebar — and the preview is inserted immediately inside it, ahead of the two panels
+       * the design put there. **The panel is rebuilt from the design's own recipe** (`.sx-reading-columns
+       * details` is `rgba(255,250,238,.7)` on `1px solid #dccaa5`, radius 8, padding `.7rem .9rem`), written
+       * inline on this one element rather than added to a stylesheet, so the design's file and its CSS are
+       * both untouched.
+       */
+      const ASIDE = '<div class="sx-reading-columns"><aside>';
+      if (filled.includes(ASIDE)) {
+        filled = filled.replace(ASIDE, `${ASIDE}${preview}`);
+      }
     }
 
     /*

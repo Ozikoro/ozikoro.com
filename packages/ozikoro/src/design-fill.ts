@@ -1240,6 +1240,62 @@ export function dropUnreachableFragments(html: string): string {
 }
 
 /**
+ * THE SAME RULE, FOR THE FRAGMENT A FILL HAS ALREADY MADE ABSOLUTE.
+ *
+ * ⚠️ **`/documents/#locked` IS THE MEASURED CASE.** The design's documents screen carries four in-page
+ * controls in its toolbar and draws an `id="locked"` for the fourth — the "Restricted" card among the
+ * publication list. **`fillDocuments` replaces that whole publication list**, because the archive holds no
+ * publication and the design's own list is a demonstration; the restricted card goes with it, and the
+ * toolbar item that pointed at it was left pointing at nothing. Measured on the served page: the anchor
+ * `href="/documents/#locked"` and no `id="locked"` anywhere in the document.
+ *
+ * WHY `dropUnreachableFragments` ABOVE DOES NOT CATCH IT, WHICH IS THE WHOLE REASON THIS FUNCTION EXISTS.
+ * That one matches a BARE fragment, and it has to: it runs before `designScreenLinks` rewrites the design's
+ * `#locked` into `/documents/#locked`, because the fill has to be able to find `href="#series"` and move it
+ * to the page that draws that section. **So by the time the fill has emptied the section, the address on
+ * the control is no longer the form that pass can see.** This one runs last, over the served document, and
+ * asks the only question that matters at that point: *does this document draw the thing this link points
+ * at?*
+ *
+ * IT IS DELIBERATELY NARROWER THAN A LINK CHECKER. Only a link whose fragment is on THIS PAGE — the
+ * document's own path, or a bare `#…` a fill wrote late — is judged, and only against the ids this document
+ * actually carries. A link to `/watch/#series` from `/documents/` is a link to another page that holds that
+ * section, which is a working control and not this pass's business. `#` alone is left alone, because it is
+ * not an anchor at all; it is the placeholder a control with no destination is written as.
+ *
+ * WHAT IT DOES WITH A DEAD CONTROL DEPENDS ON WHERE IT SITS: an `<li>` that is nothing but that link is
+ * removed with it, so a nav does not keep an empty bullet — the same treatment `design-paths.ts` gives the
+ * footer items whose sections the owner removed — and a link that stands on its own is replaced by its own
+ * words, so the sentence it was part of still reads rather than ending in a hole. **Nothing is added and no
+ * destination is invented**: a reader who meets these words should be able to follow them, and pointing them
+ * at the place they already are is not following them.
+ */
+export function dropDeadInPageLinks(html: string, path: string): string {
+  const ids = new Set([...html.matchAll(/\bid="([^"]*)"/g)].map((m) => m[1]));
+  const here = path.endsWith('/') ? path : `${path}/`;
+  const dead = (href: string): boolean => {
+    if (href.startsWith('/') && !href.startsWith('//')) {
+      const [target = '', fragment] = href.split('#');
+      if (!fragment) return false;
+      const targetPath = target.endsWith('/') ? target : `${target}/`;
+      return targetPath === here && !ids.has(fragment);
+    }
+    return false;
+  };
+  // An `<li>` holding nothing but the dead control goes with it, so a nav keeps no empty bullet.
+  let out = html.replace(
+    /<li>\s*(<a\b[^>]*\bhref="([^"]*#[^"]+)"[^>]*>[\s\S]*?<\/a>)\s*<\/li>/g,
+    (match: string, _anchor: string, href: string) => (dead(href) ? '' : match)
+  );
+  // Anywhere else, the link is unwrapped rather than deleted, so the words it carried still read.
+  out = out.replace(
+    /<a\b[^>]*\bhref="([^"]*#[^"]+)"[^>]*>([\s\S]*?)<\/a>/g,
+    (match: string, href: string, words: string) => (dead(href) ? words : match)
+  );
+  return out;
+}
+
+/**
  * `watch.js`, with ONE line appended: the film's own page, pointed at the film that was just opened.
  *
  * WHY THIS EXISTS AND WHY IT IS AN EXTENSION RATHER THAN AN EDIT
@@ -3315,8 +3371,20 @@ export function renderNoNameableDocuments(): string {
  * only when `docs` was non-empty, so a screen with no nameable real documents kept the design's invented
  * files. It now empties the grid in either case: with the real cards, or with the caller's `empty`
  * sentence. **An empty state is a real state**, and it is never the demonstration.
+ *
+ * ⚠️ AND THE FIGURE BESIDE *Researcher publications* IS NOW THE CALLER'S, PASSED IN RATHER THAN WRITTEN
+ * INTO THE MARKUP. It used to be the literal `0 published`, which was true of `ozikoro_publication` and read
+ * as a claim about the whole library — see where it is used below. A fill that counted for itself would be a
+ * second copy of a predicate the route already runs, so the number comes in with the documents. It is the
+ * THIRD parameter; `empty` moves to fourth, and both keep their defaults so a caller passing only documents
+ * is unchanged.
  */
-export function fillDocuments(html: string, docs: RealDocument[], empty?: string): string {
+export function fillDocuments(
+  html: string,
+  docs: RealDocument[],
+  deposited = 0,
+  empty?: string
+): string {
   let out = dropExampleFlag(html);
   /*
    * ⚠️ AN EMPTY GRID IS A REAL STATE, AND IT IS NOT THE DESIGN'S DEMONSTRATION.
@@ -3368,17 +3436,53 @@ export function fillDocuments(html: string, docs: RealDocument[], empty?: string
           <p><a class="btn" href="/submit">Deposit a paper</a></p>
         </div>`
   );
+
   /*
-   * AND THE COUNT BESIDE THE HEADING, WHICH READ `Sample publication states`.
+   * ── ⚠️ AND THE HEADING AT THE TOP, WHICH WAS A SLOGAN AND IS NOW A NAME ─────────────────────────────
    *
-   * It is not a count at all — it is a label saying the row above is a demonstration — and with the
-   * demonstration removed it says nothing a reader can use. `ozikoro_publication` is empty, so the honest
-   * figure is zero; **the day a paper is deposited this line needs the real number, and it is written here
-   * rather than in the route because the route does not reach this container.**
+   * The owner: *"also, remove this, the title is wrong https://ozikoro.com/documents"* — and when he was
+   * offered the H1, the badge, the two eyebrows and the browser title to choose between, **he chose none of
+   * them. So the answer is the one a reader can see without being asked, and it is the contradiction:**
+   *
+   *     <h1>Published work, ready to read.</h1>
+   *     <span class="small muted">0 published</span>
+   *
+   * **The slogan promises published work and the badge directly beneath it counts none.** That is a page
+   * arguing with itself in the first two lines a reader reads, and it is worse than either line alone.
+   *
+   * ⚠️ **AND THE DESIGN'S OWN OTHER PAGES SAY WHAT THIS PAGE SHOULD SAY.** Read from the deliverable:
+   * `/photographs/` is headed *"Photographs"*, `/archive/` is headed *"Histories"*, `/publications/` is
+   * headed *"Publications"*. **`documents.html` is the only screen in the set whose `<h1>` is a marketing
+   * line rather than the name of the thing the page holds** — and the browser tab the same page serves
+   * already reads `Documents — Ozikoro`, so the page was contradicting its own `<title>` as well.
+   *
+   * The `<h1>` is replaced here rather than in `public/design/`, which is inviolable: the design's hero is
+   * the approved handoff and this is a serve-time rewrite of one line of it, which is what every other fill
+   * in this file already does. **The hero, the eyebrow, the lede and the search form are untouched.**
+   *
+   * THE WORDS ARE THE TAB'S OWN. "Documents" is what the page is called in its `<title>`, in the nav item
+   * that reaches it, and in the breadcrumb of every record beneath it — so the heading now names the page
+   * instead of selling it, and a reader who arrives from anywhere already knows the word.
+   */
+  out = out.replace(/<h1[^>]*>[\s\S]*?<\/h1>/, '<h1>Documents</h1>');
+
+  /*
+   * AND THE COUNT BESIDE THE HEADING, WHICH READ `Sample publication states` AND THEN `0 published`.
+   *
+   * It is not a count of the library. It sits in the *Researcher publications* section, beside the sentence
+   * saying no publication has been deposited, and it counts `ozikoro_publication` rows — **so the figure is
+   * right and the noun was the problem.** `0 published` under a heading that fills the rest of the page with
+   * eight documents read as a claim about the library, which is how a true number becomes a false statement:
+   * this page was printing "0 published" directly above eight files it was publishing.
+   *
+   * ⚠️ **THE COUNT IS NOT INVENTED HERE AND IS NOT INVENTED ABOVE IT EITHER.** It is the caller's figure,
+   * passed in with the documents, because a fill that counted for itself would be a second copy of a rule the
+   * route already runs — and it is a REAL zero today: `ozikoro_publication` holds no rows at all. **It says
+   * what it counts, so the day a paper is deposited the number changes and its meaning does not.**
    */
   out = out.replace(
     /<span class="small muted">Sample publication states<\/span>/,
-    '<span class="small muted">0 published</span>'
+    `<span class="small muted">${deposited} deposited</span>`
   );
   /*
    * ── AND THE NOTE UNDER THE GRID, WHICH WAS TRUE OF THE DESIGN AND IS FALSE OF THE PAGE ─────────────

@@ -39,6 +39,7 @@ import { extractArchiveFilms, fillWatch, renderFilmCard } from './design-fill.ts
 import { extendWatchScript, fillWatchVideo } from './design-fill.ts';
 import { COLLECTION_CAMERA_SIGN, renderCollection } from './design-fill.ts';
 import { fillDocuments } from './design-fill.ts';
+import { dropDeadInPageLinks } from './design-fill.ts';
 import { renderNoNameableDocuments } from './design-fill.ts';
 import { renderTown } from './design-fill.ts';
 import {
@@ -3906,7 +3907,7 @@ test('an empty grid is emptied and explained, and never left holding the demonst
    * would be measuring a page the archive never serves.
    */
   const served = designScreenLinks(DOCUMENTS, '/documents/');
-  const out = fillDocuments(served, [], renderNoNameableDocuments());
+  const out = fillDocuments(served, [], 0, renderNoNameableDocuments());
   const grid = pdfGrid(out);
   assert.doesNotMatch(grid, /Ozikoro archive record guide/, 'an empty list fell back to the demonstration');
   assert.doesNotMatch(grid, /Collection finding-aid pattern/, 'an empty list fell back to the demonstration');
@@ -4441,4 +4442,105 @@ test('the note under the document grid stops calling the archive’s own files d
   assert.notEqual(note, '', 'the provenance note is still on the page');
   assert.match(note, /served by the archive/, 'the note says where the files come from');
   assert.match(note, /rights/, 'and that the rights travel with each record');
+});
+
+/*
+ * ------------------------------------------------------------------------------------------------
+ * THE HEADING AND THE FIGURE, WHICH THE OWNER REPORTED TOGETHER
+ * ----------------------------------------------------------------------------------------------
+ */
+
+/**
+ * THE OWNER: *"also, remove this, the title is wrong https://ozikoro.com/documents"* — and offered the H1,
+ * the badge, the eyebrows and the browser title, **he picked none of them**.
+ *
+ * So the report is the thing a reader meets without being asked, and the design itself supplies the test:
+ * the H1 was a slogan, `Published work, ready to read.`, and the badge directly under it counted none. Read
+ * from the deliverable, every other collection page is headed by the name of what it holds — `Photographs`,
+ * `Histories`, `Publications` — and `documents.html` is the only one that sells instead. The tab the same
+ * page served already read `Documents — Ozikoro`.
+ */
+test('the documents hero is headed by the name of what the page holds, not by a slogan', () => {
+  const served = designScreenLinks(DOCUMENTS, '/documents/');
+  const out = fillDocuments(served, [namedDoc('Igbo Folk Idioms In Caribbean Phrase', 'igbo-folk-idioms-in-caribbean-phrase')]);
+
+  assert.doesNotMatch(out, /Published work, ready to read\./, 'the slogan is still the heading');
+  assert.match(out, /<h1>Documents<\/h1>/, 'the heading names the page rather than selling it');
+  /* THE HERO IS OTHERWISE UNTOUCHED: the eyebrow, the lede and the search form are the design's own. */
+  assert.match(out, /<p class="eyebrow">Research & document library<\/p>/, 'the hero’s own eyebrow survives');
+  assert.match(out, /<form class="search" role="search" action="\/documents\/" method="get">/, 'the hero’s search form survives');
+});
+
+test('the count beside Researcher publications says what it counts and is the caller’s number', () => {
+  /*
+   * THE FIGURE WAS NEVER WRONG AND THE NOUN WAS. `0 published` sat beside a heading on a page that was at
+   * that moment listing real documents, so a true count of `ozikoro_publication` read as a claim about the
+   * library. The words now name the thing counted, and the number is the route's rather than a literal baked
+   * into the fill — so the day a paper is deposited the two move together.
+   */
+  const zero = fillDocuments(DOCUMENTS, []);
+  assert.doesNotMatch(zero, /0 published/, 'the bare “0 published” claim is gone from the section');
+  assert.match(zero, /<span class="small muted">0 deposited<\/span>/, 'the figure names what it counts');
+
+  const two = fillDocuments(DOCUMENTS, [], 2);
+  assert.match(two, /<span class="small muted">2 deposited<\/span>/, 'the figure is the caller’s, not a literal');
+});
+
+/*
+ * ------------------------------------------------------------------------------------------------
+ * THE IN-PAGE CONTROL THAT POINTS AT NOTHING
+ * ----------------------------------------------------------------------------------------------
+ */
+
+/**
+ * ⚠️ **MEASURED ON THE SERVED PAGE: `/documents/#locked`, AND NO `id="locked"` ANYWHERE IN THE DOCUMENT.**
+ *
+ * `documents.html`'s toolbar carries four controls and draws an `id="locked"` for the fourth — the design's
+ * restricted card, which lives inside the publication list. `fillDocuments` replaces that whole list because
+ * the archive holds no publication, so the card goes and the toolbar item is left pointing into the hole.
+ * That is the fault the owner has reported all night in every one of its shapes: **a control you can press
+ * that does nothing.**
+ */
+test('an in-page control whose target this page does not draw is not served', () => {
+  const pages = ['/documents/', '/photographs/'];
+  for (const page of pages) {
+    const screen = readFileSync(
+      new URL(`../../../apps/ozikoro/public/design/screens/${page.replace(/\//g, '')}.html`, import.meta.url),
+      'utf8'
+    );
+    const served = dropDeadInPageLinks(designScreenLinks(screen, page), page);
+    /*
+     * EVERY in-page link on the served page is checked against the ids that page carries — the rule the
+     * function implements, restated here as an assertion rather than trusted. A fragment that only ever
+     * appears inside a URL that has one is not in the served document: the anchor is unwrapped or its list
+     * item removed, so what is left is either a live link or no link at all.
+     */
+    const ids = new Set([...served.matchAll(/\bid="([^"]*)"/g)].map((m) => m[1]));
+    for (const [, captured] of served.matchAll(/<a\b[^>]*\bhref="([^"]*#[^"]+)"/g)) {
+      const href = captured ?? '';
+      if (!href.startsWith('/') || href.startsWith('//')) continue;
+      const [target = '', fragment] = href.split('#');
+      const targetPath = target.endsWith('/') ? target : `${target}/`;
+      if (targetPath !== page) continue;
+      assert.ok(ids.has(fragment), `${page} still serves ${href} and does not draw #${fragment}`);
+    }
+  }
+  /*
+   * AND THE NARROW CASE, ASSERTED DIRECTLY: the design's own toolbar item is what goes. The page is built
+   * the way the route builds it — links first, then the fill that empties the list holding `#locked`, then
+   * this pass — because the id is still drawn by the design file until the fill removes it.
+   */
+  const served = dropDeadInPageLinks(
+    fillDocuments(designScreenLinks(DOCUMENTS, '/documents/'), [], 0, renderNoNameableDocuments()),
+    '/documents/'
+  );
+  assert.doesNotMatch(served, /href="\/documents\/#locked"/, 'the dead “Restricted” item is still served');
+  /* A live in-page control on the same page is NOT touched — this is not a pass that empties a nav. */
+  assert.match(served, /href="\/documents\/#other-pdfs"/, 'a control whose section exists is kept');
+  /* And a fragment belonging to ANOTHER page is left alone: that page draws the section. */
+  assert.match(
+    dropDeadInPageLinks('<a href="/watch/#series">Series</a>', '/documents/'),
+    /href="\/watch\/#series"/,
+    'a link to a section on another page is not this page’s business'
+  );
 });
