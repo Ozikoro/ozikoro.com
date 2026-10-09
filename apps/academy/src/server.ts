@@ -3,6 +3,7 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 import { handleHealthRequest, handleSessionRequest } from "./backend/introspection";
+import { comingSoon, comingSoonPage, robotsTxt } from "./backend/coming-soon";
 
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
@@ -82,6 +83,21 @@ export default {
     }
 
     try {
+      const pathname = new URL(request.url).pathname;
+
+      // Answered in BOTH states, because the static file that used to serve it has been removed —
+      // it was shadowing the gate's own response. See `robotsTxt`.
+      if (pathname === "/robots.txt") return robotsTxt();
+
+      // THE LAUNCH GATE, BEFORE ANYTHING ELSE THAT IS PUBLIC.
+      //
+      // It sits here rather than in a route so that no Academy page renders and no route loader or
+      // server function runs while it is closed. `/api/health` and `/api/session` are matched above
+      // and are therefore still answered — the healthcheck because gating it would mark a healthy
+      // container unhealthy, and the session endpoint because it returns 401 to anyone without a
+      // cookie and is what the shop and archive call to join the shared sign-in.
+      if (comingSoon()) return comingSoonPage();
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);
