@@ -17,6 +17,8 @@ import {
   getResearcher,
   getResearcherBio,
   listByAccount,
+  listMemberSocial,
+  socialHref,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 
@@ -67,10 +69,20 @@ export default async function ResearcherPage({
     (await getResearcher(db, id)) ?? (viewerId === id ? await getOwnResearcher(db, id) : null);
   if (!researcher) notFound();
 
-  const [bio, works, editable] = await Promise.all([
+  const [bio, works, editable, social] = await Promise.all([
     getResearcherBio(db, id),
     listByAccount(db, id, { includePrivate: false }),
     viewerId === id ? getProfileForEditing(db, id) : Promise.resolve(null),
+    /*
+     * THE HANDLES THE PERSON PUBLISHED, READ FOR EVERYBODY WHO MAY SEE THE PROFILE.
+     *
+     * They are the same public record as the biography and the picture — the person typed them on
+     * `/account/` and asked to be found by them — so this is not gated on the viewer. A handle has no
+     * visibility of its own and giving it one would be a third place for "is this profile public" to be
+     * decided, which is the fault the two existing readers (`getResearcher` / `getOwnResearcher`) exist to
+     * keep to one place.
+     */
+    listMemberSocial(db, id),
   ]);
 
   /*
@@ -103,7 +115,25 @@ export default async function ResearcherPage({
       ) : null}
 
       <div className="profile-head">
-        <p className="avatar" aria-hidden="true">{initials(researcher.name)}</p>
+        {/*
+          THE PERSON'S OWN PICTURE, WHERE THEY HAVE UPLOADED ONE.
+
+          ⚠️ **THIS DREW A MONOGRAM FOR EVERYBODY, INCLUDING THE PEOPLE WHO HAD SET A PICTURE.** The page read
+          no picture at all — `researcher.avatarUrl` did not exist — while `/researchers/` one link away drew
+          real portraits for the writers, so a person's own profile page showed their initials beside a link to
+          a directory that showed their face. The picture comes from the archive's own media store through
+          `account.avatar_url`; see `setOwnAvatarUrl` for the write and `storePicture` for why it is an upload
+          into this archive rather than a Gravatar address — **the CSP allows `img-src 'self'` and refuses an
+          external avatar host**, which was measured on this very page: 22 Gravatar avatars refused here.
+
+          A monogram where none is set, never a stock face — the rule `/researchers/` already states about
+          Gravatar's `d=mm` silhouette, and the reason `alt` names whose picture it is either way.
+        */}
+        {researcher.avatarUrl ? (
+          <img className="avatar" src={researcher.avatarUrl} alt={`Portrait of ${researcher.name}`} />
+        ) : (
+          <p className="avatar" aria-hidden="true">{initials(researcher.name)}</p>
+        )}
         <div>
           <h1 style={{ fontSize: 'var(--t-2xl)' }}>{researcher.name}</h1>
           <p className="lede" style={{ marginTop: 'var(--s-2)', fontSize: 'var(--t-base)', fontFamily: 'var(--font-sans)' }}>{role}</p>
@@ -289,10 +319,52 @@ export default async function ResearcherPage({
         )}
       </section>
 
-      {bio.website ? (
+      {bio.website || social.length > 0 ? (
         <section className="section">
           <p className="eyebrow">Elsewhere</p>
-          <p className="small"><a href={bio.website} rel="noopener noreferrer">{bio.website}</a></p>
+          {bio.website ? (
+            <p className="small"><a href={bio.website} rel="noopener noreferrer">{bio.website}</a></p>
+          ) : null}
+          {/*
+            ── THE HANDLES, AS LINKS, BUILT FROM A CONSTANT HOST ──────────────────────────────────────────
+
+            ⚠️ **THE `href` IS NOT THE STORED VALUE AND MUST NEVER BE.** It is assembled by `socialHref` from
+            the network's own template in `member-social.ts` — `https://x.com/<handle>` and so on — over a
+            handle that passed `SOCIAL_USERNAME_PATTERN`. **The reader supplies a handle, never a
+            destination**, so no row in the table can send a reader to a host the archive did not choose; and
+            the same pattern is a `check` constraint on the column, so a value that could escape the host
+            cannot be stored by any path, not merely by this application.
+
+            ⚠️ **AND AN UNRECOGNISED HANDLE RENDERS AS TEXT, NOT AS A LINK.** `socialHref` returns `null` for
+            an unknown network, an empty handle or one that fails the pattern — a row written before the
+            constraint existed, or by hand — and the `null` branch below prints the handle with no `<a>` around
+            it. **That is the failing-safe shape the brief asks for**: the profile still draws, the handle is
+            still visible, and nothing that could not be addressed becomes clickable.
+
+            ⚠️ **NO `target="_blank"`.** The archive's other external links do not use one, and a profile's
+            own links keeping the reader in the same tab is the browser's decision to make rather than this
+            page's. `rel="noopener noreferrer"` is here because the destination is a third-party origin.
+          */}
+          {social.length > 0 ? (
+            <ul className="chips" style={{ marginTop: 'var(--s-3)' }}>
+              {social.map((handle) => {
+                const href = socialHref(handle.network, handle.username);
+                return (
+                  <li key={handle.network}>
+                    {href ? (
+                      <a className="chip" href={href} rel="noopener noreferrer">
+                        {handle.label} · {handle.username}
+                      </a>
+                    ) : (
+                      <span className="chip">
+                        {handle.label} · {handle.username}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </section>
       ) : null}
 

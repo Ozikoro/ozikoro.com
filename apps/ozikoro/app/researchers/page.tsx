@@ -318,13 +318,25 @@ export default async function ResearchersPage({
             {profiles.map((p) => (
               <article className="entry" key={`p-${p.accountId}`}>
                 <div className="profile-head">
-                  <p
-                    className="avatar"
-                    role="img"
-                    aria-label={`Monogram for ${p.name}: no portrait has been supplied`}
-                  >
-                    {initials(p.name)}
-                  </p>
+                  {/*
+                    ⚠️ **THIS DREW A MONOGRAM FOR EVERY PROFILE, EVEN ONE WITH A PICTURE.** `DirectoryProfile`
+                    carried no `avatarUrl`, so a person who had uploaded a portrait on `/account/` appeared here
+                    as their initials — on the same page that drew real portraits for the writers beside them, and
+                    one click from their own profile page. The picture is read from `account.avatar_url` now; the
+                    monogram remains the answer for the much commoner case of no picture set, and it is never a
+                    stock face.
+                  */}
+                  {p.avatarUrl ? (
+                    <img className="avatar" src={p.avatarUrl} alt={`Portrait of ${p.name}`} loading="lazy" />
+                  ) : (
+                    <p
+                      className="avatar"
+                      role="img"
+                      aria-label={`Monogram for ${p.name}: no portrait has been supplied`}
+                    >
+                      {initials(p.name)}
+                    </p>
+                  )}
                   <div>
                     <h3><Link href={`/researchers/${p.accountId}/`}>{p.name}</Link></h3>
                     <p className="small muted">{roleLine(p)}</p>

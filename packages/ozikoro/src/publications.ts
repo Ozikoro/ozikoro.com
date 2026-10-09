@@ -1105,6 +1105,19 @@ export interface ResearcherCard {
   orcid: string | null;
   researchInterests: string[];
   publicationCount: number;
+  /**
+   * The picture the person set on `/account/`, or null.
+   *
+   * ⚠️ **THIS FIELD EXISTS BECAUSE THE PROFILE PAGE DREW A MONOGRAM FOR EVERYBODY.** `/researchers/<id>/`
+   * rendered `initials(name)` in an `.avatar` element and never read a picture at all, while the directory
+   * one page away drew real portraits for writers — so a person's own profile showed their initials beside a
+   * link to a directory that showed their face. The upload path is `/account/` (`setOwnAvatarUrl`); this is
+   * the read that carries it to the page a reader meets them on.
+   *
+   * Null means no picture has been set, and the page draws the monogram — never a stock face, which is the
+   * rule `/researchers/` already states about Gravatar's `d=mm` silhouette.
+   */
+  avatarUrl: string | null;
 }
 
 /**
@@ -1140,7 +1153,7 @@ export async function listResearchers(
 
   const rows = await db.rows<Record<string, unknown>>(
     `select m.account_id, coalesce(m.display_name, a.display_name, a.email) as name,
-            m.headline, m.institution, m.department, m.orcid, m.research_interests,
+            m.headline, m.institution, m.department, m.orcid, m.research_interests, a.avatar_url,
             (select count(distinct p.id)::int from ozikoro_publication p
                join ozikoro_publication_author pa on pa.publication_id = p.id
               where pa.account_id = m.account_id and p.status = 'published' and p.is_public = true) as publication_count
@@ -1161,6 +1174,8 @@ export async function listResearchers(
     orcid: r.orcid ? String(r.orcid) : null,
     researchInterests: Array.isArray(r.research_interests) ? r.research_interests.map(String) : [],
     publicationCount: Number(r.publication_count ?? 0),
+    // The person's own picture, set on `/account/`. Null draws the monogram — never a stock face.
+    avatarUrl: r.avatar_url ? String(r.avatar_url) : null,
   }));
 }
 
@@ -1230,6 +1245,14 @@ export interface DirectoryProfile {
   institution: string | null;
   department: string | null;
   researchInterests: string[];
+  /**
+   * The picture the person set on `/account/`, or null.
+   *
+   * ⚠️ **THE DIRECTORY DREW A MONOGRAM FOR EVERY PROFILE BEFORE THIS FIELD EXISTED**, while drawing real
+   * portraits for the writers on the same page. A person's own picture is theirs whichever list they appear
+   * in, so it is carried here as well as on `ResearcherCard`. Null draws the monogram.
+   */
+  avatarUrl: string | null;
 }
 
 export interface ResearchDirectoryTotals {
@@ -1306,7 +1329,26 @@ export async function listResearchDirectory(
               count(a.id)::int as records,
               (m.account_id is not null) as has_profile,
               m.headline, m.institution, m.department,
-              m.research_interests
+              m.research_interests,
+              /*
+               * THE PERSON'S OWN PICTURE, WHERE THE RECORD LINKS THEM TO A BYLINE AND THEY HAVE SET ONE.
+               *
+               * c.avatar_url is the byline's portrait: the archive's record, imported from the old site's
+               * author-box field and curated since. ac.avatar_url is the picture the person uploaded
+               * themselves on /account/. Where an editor has approved their claim the two are the same human
+               * being, and the person's own picture is the more recent statement about themselves, so it is
+               * preferred; where no claim is approved ac.avatar_url is null for everybody and the imported
+               * portrait stands. See getBylineProfile for the same precedence and why it is not a merge.
+               *
+               * (This comment carries no backticks on purpose: it sits inside a template literal, and a
+               * backtick would end the SQL string.)
+               */
+              coalesce(
+                (select ac.avatar_url from account ac
+                  where ac.id = c.account_id
+                    and ac.avatar_url is not null and length(trim(ac.avatar_url)) > 0),
+                c.avatar_url
+              ) as portrait_url
          from ozikoro_contributor c
          left join ozikoro_article a
                 on a.author_id = c.id and a.status = 'published' and a.is_page = false
@@ -1322,7 +1364,14 @@ export async function listResearchDirectory(
     ),
     db.rows<Record<string, unknown>>(
       `select m.account_id, coalesce(m.display_name, ac.display_name, ac.email) as name,
-              m.headline, m.institution, m.department, m.research_interests
+              m.headline, m.institution, m.department, m.research_interests,
+              /*
+               * A profile card draws the person's own picture. Until this column was read, /researchers/ drew
+               * a monogram for every profile while drawing a real portrait for the writers beside them — so a
+               * person who had uploaded a picture of themselves appeared on the same page as their own
+               * initials. The upload path is /account/; see setOwnAvatarUrl.
+               */
+              ac.avatar_url
          from ozikoro_member m
          join account ac on ac.id = m.account_id
         where m.is_public = true and m.status = 'active'
@@ -1373,7 +1422,12 @@ export async function listResearchDirectory(
       slug: String(r.slug),
       name: String(r.name),
       bio: r.bio ? String(r.bio) : null,
-      avatarUrl: r.avatar_url ? String(r.avatar_url) : null,
+      /*
+       * `portrait_url` is the person's own picture where the record links an account that has set one, and
+       * the imported byline portrait otherwise. See the note on the query above; `c.avatar_url` is read only
+       * for the totals now, so a directory that preferred the wrong one would be visible here.
+       */
+      avatarUrl: r.portrait_url ? String(r.portrait_url) : null,
       records: Number(r.records ?? 0),
       accountId: r.account_id === null || r.account_id === undefined ? null : Number(r.account_id),
       hasProfile: Boolean(r.has_profile),
@@ -1389,6 +1443,7 @@ export async function listResearchDirectory(
       institution: r.institution ? String(r.institution) : null,
       department: r.department ? String(r.department) : null,
       researchInterests: interests(r.research_interests),
+      avatarUrl: r.avatar_url ? String(r.avatar_url) : null,
     })),
     totals: {
       writers: Number(totalRow?.writers ?? 0),
@@ -1407,7 +1462,7 @@ export async function getResearcher(db: Db, accountId: number): Promise<(Researc
   const row = await db.one<Record<string, unknown>>(
     `select m.account_id, coalesce(m.display_name, a.display_name, a.email) as name,
             m.headline, m.institution, m.department, m.orcid, m.research_interests,
-            m.bio, m.website, m.created_at,
+            m.bio, m.website, m.created_at, a.avatar_url,
             (select count(distinct p.id)::int from ozikoro_publication p
                join ozikoro_publication_author pa on pa.publication_id = p.id
               where pa.account_id = m.account_id and p.status = 'published' and p.is_public = true) as publication_count
@@ -1426,6 +1481,7 @@ export async function getResearcher(db: Db, accountId: number): Promise<(Researc
     orcid: row.orcid ? String(row.orcid) : null,
     researchInterests: Array.isArray(row.research_interests) ? row.research_interests.map(String) : [],
     publicationCount: Number(row.publication_count ?? 0),
+    avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
     memberSince: row.created_at ? new Date(String(row.created_at)).toISOString() : null,
   };
 }
@@ -1457,7 +1513,7 @@ export async function getOwnResearcher(
   const row = await db.one<Record<string, unknown>>(
     `select m.account_id, coalesce(m.display_name, a.display_name, a.email) as name,
             m.headline, m.institution, m.department, m.orcid, m.research_interests,
-            m.created_at,
+            m.created_at, a.avatar_url,
             (select count(distinct p.id)::int from ozikoro_publication p
                join ozikoro_publication_author pa on pa.publication_id = p.id
               where pa.account_id = m.account_id and p.status = 'published' and p.is_public = true) as publication_count
@@ -1476,6 +1532,7 @@ export async function getOwnResearcher(
     orcid: row.orcid ? String(row.orcid) : null,
     researchInterests: Array.isArray(row.research_interests) ? row.research_interests.map(String) : [],
     publicationCount: Number(row.publication_count ?? 0),
+    avatarUrl: row.avatar_url ? String(row.avatar_url) : null,
     memberSince: row.created_at ? new Date(String(row.created_at)).toISOString() : null,
   };
 }
@@ -1528,7 +1585,41 @@ export interface BylineProfile {
 
 export async function getBylineProfile(db: Db, slug: string): Promise<BylineProfile | null> {
   const row = await db.one<Record<string, unknown>>(
-    `select c.slug, c.display_name as name, c.bio, c.avatar_url, c.account_id,
+    /*
+     * ── WHERE A BYLINE'S PORTRAIT AND BIOGRAPHY COME FROM, ONCE THE BYLINE IS CLAIMED ─────────────────
+     *
+     * Two rows describe the same person here and they are not interchangeable:
+     *
+     *   ozikoro_contributor            the ARCHIVE'S RECORD of the byline — the name WordPress published,
+     *                                  the description the import carried (7 of 16 rows have one) and the
+     *                                  portrait recovered from the old site's author-box field (8 of 16).
+     *   account + ozikoro_member       the PERSON — what they have written about themselves on /account/
+     *                                  since they were able to, and the picture they uploaded.
+     *
+     * c.account_id is set only by an approved claim, so before that the person's columns are not reachable
+     * from this byline at all and the imported record stands. After it, the person's own words are the more
+     * recent statement about themselves, and a bio they cannot see on their own byline page is the exact
+     * fault the owner reported — "writers to change their bio". So coalesce prefers the person's value and
+     * falls back to the archive's, per field rather than per row: a writer who has written a biography but
+     * not uploaded a picture keeps the archive's portrait.
+     *
+     * NOTHING IS MERGED, and no join is made on a matching name: this is the record's own account_id or it is
+     * nothing. That is the rule requestContributorClaim states — "a name is neither unique nor secret" — and
+     * it is why the precedence is expressed as a coalesce over a link rather than a lookup.
+     *
+     * (These comments carry no backticks on purpose: they sit inside a template literal, and one would end
+     * the SQL string.)
+     */
+    `select c.slug, c.display_name as name,
+            coalesce(
+              (select nullif(trim(m.bio), '') from ozikoro_member m where m.account_id = c.account_id),
+              c.bio
+            ) as bio,
+            coalesce(
+              (select nullif(trim(ac.avatar_url), '') from account ac where ac.id = c.account_id),
+              c.avatar_url
+            ) as avatar_url,
+            c.account_id,
             count(a.id)::int as records,
             m.headline, m.institution, m.department, m.research_interests
        from ozikoro_contributor c

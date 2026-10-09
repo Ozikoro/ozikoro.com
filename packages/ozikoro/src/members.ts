@@ -12,6 +12,13 @@
  * the server agree by construction rather than by care.
  */
 import type { Db } from '@ozituma/db/client';
+import {
+  SOCIAL_NETWORKS,
+  listMemberSocial,
+  normaliseSocialUsername,
+  socialUsernameProblem,
+  type SocialHandle,
+} from './member-social.ts';
 
 /**
  * The plan's ten, in the order it lists them, and the eleventh added above `admin` in migration 0044.
@@ -453,6 +460,317 @@ export async function updateMemberProfile(
     },
     actorId: input.actorId,
   });
+}
+
+// ---------------------------------------------------------------------------
+// The account's own public profile: the biography, the picture and the handles
+// ---------------------------------------------------------------------------
+
+/**
+ * The picture an account publishes, as a path the site serves — or `null`.
+ *
+ * ── WHY THIS READS `account.avatar_url`, WHICH IS A SHARED COLUMN ────────────────────────────────────
+ *
+ * Because it already exists and its own migration says what it is for. `0033_account_avatar.sql` adds
+ * `avatar_url` to the shared `account` table with the header *"The owner: 'one should be able to add profile
+ * picture/avatar, or change it.'"* — **the column was added for this feature and nothing has ever written
+ * it.** Measured on the live database: six accounts, `avatar_url` empty on all six.
+ *
+ * So this is **exposing an existing field**, not adding one. That distinction is the answer to the question
+ * a shared table forces: *what will the other two sites do with a column they do not read?* **They already
+ * carry it and already ignore it.** No column is added to `account` by this work, no column is altered, and
+ * no constraint changes — so there is nothing new for ozituma.com or academy.ozikoro.com to be affected by.
+ * `packages/db/src/admin.ts` (shared) already selects it, and the Ozikoro admin screens already render it
+ * where it is set.
+ *
+ * ── WHY IT IS NOT `ozikoro_contributor.avatar_url` ───────────────────────────────────────────────────
+ *
+ * That column is the BYLINE's portrait and it is the archive's record, curated by the import and by an
+ * editor. This one is the PERSON's, set by themselves. Where a byline is linked to an account the two are
+ * the same human being, and the pages resolve that precedence rather than the columns being merged — see
+ * `getBylineProfile`, which prefers the person's own picture over the imported one and says why.
+ */
+export async function getAccountPicture(db: Db, accountId: number): Promise<string | null> {
+  const row = await db.one<{ avatar_url: string | null }>(
+    `select avatar_url from account where id = $1`,
+    [accountId]
+  );
+  const value = row?.avatar_url?.trim();
+  return value ? value : null;
+}
+
+/**
+ * Everything `/account/` draws in its own form, in one read.
+ *
+ * One function rather than four, because the page needs the member row, the picture and the handles together
+ * and four reads would be four chances for the form to pre-fill from a different moment than the picture it
+ * shows beside it.
+ */
+export async function getOwnProfileForEditing(
+  db: Db,
+  accountId: number
+): Promise<{
+  displayName: string | null;
+  bio: string | null;
+  website: string | null;
+  isPublic: boolean;
+  pictureUrl: string | null;
+  social: SocialHandle[];
+  /** The bylines this account has been recognised as — empty until a claim is approved. */
+  bylines: Array<{ slug: string; name: string; records: number }>;
+}> {
+  const [member, pictureUrl, social, bylines] = await Promise.all([
+    db.one<{ display_name: string | null; bio: string | null; website: string | null; is_public: boolean }>(
+      `select display_name, bio, website, is_public from ozikoro_member where account_id = $1`,
+      [accountId]
+    ),
+    getAccountPicture(db, accountId),
+    listMemberSocial(db, accountId),
+    listOwnBylines(db, accountId),
+  ]);
+
+  return {
+    displayName: member?.display_name ?? null,
+    bio: member?.bio ?? null,
+    website: member?.website ?? null,
+    // A member row that does not exist yet is a person who has not chosen — and `ozikoro_member.is_public`
+    // defaults to true, so the form's box must show what the row WOULD be, not what a missing row is not.
+    isPublic: member?.is_public ?? true,
+    pictureUrl,
+    social,
+    bylines,
+  };
+}
+
+/**
+ * Save the profile fields `/account/` owns: the name, the biography, the website and the visibility.
+ *
+ * ── WHY THIS IS NOT `updateMemberProfile` ────────────────────────────────────────────────────────────
+ *
+ * `updateMemberProfile` (above) writes **every** profile column and nulls the ones it is not given, because
+ * `/researchers/<id>/` is its one caller and that form carries all of them. `/account/` carries the four
+ * fields the owner named and nothing else, so calling that function from here would **silently wipe a
+ * researcher's headline, institution, department, ORCID and research interests** the first time they edited
+ * their biography from the account screen. Two forms writing the same row must each write only what they
+ * draw, which is why this one names its columns rather than reusing a function whose contract is "set all of
+ * them".
+ *
+ * ── THE OWNERSHIP RULE, WHICH IS THE SAME RULE THE PASSWORD FORM FOLLOWS ─────────────────────────────
+ *
+ * `accountId !== actorId` throws. The caller supplies the account id **from the session**; no account id is
+ * ever accepted from the form, so there is no request shape that can point this at somebody else's record.
+ * The check is here rather than in the route because the library is what every future caller reaches, and a
+ * rule enforced at one call site is a rule the next call site does not have.
+ *
+ * The bar is deliberately lower than the password form's: that one demands the current password, because a
+ * change to it can lock the owner out permanently. **A profile edit cannot lock anybody out, is reversible
+ * by the person themselves from the same screen, and is therefore proved by the session alone.** What must
+ * not be lower is who may be edited, and that is absolute.
+ */
+export async function saveOwnProfile(
+  db: Db,
+  input: {
+    accountId: number;
+    actorId: number;
+    displayName: string | null;
+    bio: string | null;
+    website: string | null;
+    isPublic: boolean;
+  }
+): Promise<void> {
+  if (input.accountId !== input.actorId) {
+    throw new MemberError('not_your_profile', 'That is not your profile to change.');
+  }
+  await ensureMember(db, input.accountId);
+
+  const before = await db.one<{
+    display_name: string | null;
+    bio: string | null;
+    website: string | null;
+    is_public: boolean | null;
+  }>(`select display_name, bio, website, is_public from ozikoro_member where account_id = $1`, [
+    input.accountId,
+  ]);
+
+  await db.query(
+    `update ozikoro_member
+        set display_name = $2, bio = $3, website = $4, is_public = $5, updated_at = now()
+      where account_id = $1`,
+    [input.accountId, input.displayName, input.bio, input.website, input.isPublic]
+  );
+
+  /*
+   * The display name is mirrored onto the shared account row, because that is the name the OTHER two sites
+   * and every archive screen that reads `account.display_name` will show — the masthead, the admin users
+   * list, the article byline fallback. A person who renames themselves here and finds the old name in the
+   * masthead has been given a field that half works.
+   *
+   * `coalesce` rather than a direct assignment: an empty display name means "leave it as it was", not "blank
+   * the account" — `account.display_name` is the last non-empty name this person has been known by, and the
+   * profile row is where an empty name is recorded.
+   */
+  if (input.displayName) {
+    await db.query(`update account set display_name = $2 where id = $1`, [
+      input.accountId,
+      input.displayName,
+    ]);
+  }
+
+  await audit(db, {
+    entityType: 'ozikoro_member',
+    entityId: input.accountId,
+    action: 'update_own_profile',
+    before: before
+      ? {
+          displayName: before.display_name,
+          website: before.website,
+          isPublic: before.is_public,
+          hasBio: Boolean(before.bio),
+        }
+      : null,
+    after: {
+      displayName: input.displayName,
+      website: input.website,
+      isPublic: input.isPublic,
+      // The biography is recorded as a presence rather than reproduced, for the reason `updateMemberProfile`
+      // gives: it can run to thousands of characters and the audit trail is not a second copy of the record.
+      hasBio: Boolean(input.bio),
+    },
+    actorId: input.actorId,
+  });
+}
+
+/**
+ * Save the account's social handles, and remove the ones the form left empty.
+ *
+ * ── THE TWO STATEMENTS, AND WHY THEIR ORDER MATTERS ──────────────────────────────────────────────────
+ *
+ * The delete removes only networks the form did NOT submit, so it can never remove a row the insert is about
+ * to write; the upsert then writes the submitted ones. **The two sets are disjoint by construction**, which
+ * is what makes a single non-transactional `delete` + `insert` safe here rather than merely lucky: an
+ * `insert … on conflict do update` in the same statement as a delete of the same row is the case Postgres
+ * refuses with "tuple to be updated was already modified", and a `jsonb` blob written twice would have no
+ * such protection at all.
+ *
+ * ── EVERY SUBMITTED FIELD IS VALIDATED, AND THE FIRST REFUSAL STOPS THE WHOLE SAVE ────────────────────
+ *
+ * Validated before either statement runs, so a form with one bad handle does not leave the good ones saved
+ * and the bad one silently dropped — **a partial save is the worst outcome available**: the person sees an
+ * error, does not know what was written, and cannot tell from the screen what state their profile is in. A
+ * refusal writes nothing at all.
+ */
+export async function saveOwnSocialLinks(
+  db: Db,
+  input: { accountId: number; actorId: number; handles: Record<string, string> }
+): Promise<void> {
+  if (input.accountId !== input.actorId) {
+    throw new MemberError('not_your_profile', 'That is not your profile to change.');
+  }
+
+  const networks: string[] = [];
+  const usernames: string[] = [];
+
+  for (const spec of SOCIAL_NETWORKS) {
+    const raw = input.handles[spec.field] ?? '';
+    const problem = socialUsernameProblem(raw);
+    if (problem) throw new MemberError('bad_username', `${spec.label}: ${problem}`);
+
+    const handle = normaliseSocialUsername(raw);
+    if (handle === null) continue;
+    networks.push(spec.key);
+    usernames.push(handle);
+  }
+
+  const before = await listMemberSocial(db, input.accountId);
+
+  await db.query(
+    `delete from ozikoro_member_social where account_id = $1 and network <> all($2::text[])`,
+    [input.accountId, networks]
+  );
+
+  if (networks.length > 0) {
+    await db.query(
+      `insert into ozikoro_member_social (account_id, network, username)
+       select $1, n, u from unnest($2::text[], $3::text[]) as t(n, u)
+       on conflict (account_id, network) do update set username = excluded.username, updated_at = now()`,
+      [input.accountId, networks, usernames]
+    );
+  }
+
+  await audit(db, {
+    entityType: 'ozikoro_member_social',
+    entityId: input.accountId,
+    action: 'update_social',
+    // Handles are short and public, so unlike the biography they are recorded in full — a removal has to be
+    // readable from the audit trail or "who took my handle off" has no answer.
+    before: { handles: before.map((h) => `${h.network}:${h.username}`) },
+    after: { handles: networks.map((n, i) => `${n}:${usernames[i]}`) },
+    actorId: input.actorId,
+  });
+}
+
+/**
+ * Set — or clear — the account's own picture.
+ *
+ * `avatarUrl` must be a path this site serves or `null`. **The route that uploads the file is what decides
+ * the value**, and it passes the `/media/<key>` path `getStorage()` built; this function's job is the
+ * ownership check and the audit row, not the shape of an address.
+ */
+export async function setOwnAvatarUrl(
+  db: Db,
+  input: { accountId: number; actorId: number; avatarUrl: string | null; note?: string }
+): Promise<void> {
+  if (input.accountId !== input.actorId) {
+    throw new MemberError('not_your_profile', 'That is not your profile to change.');
+  }
+
+  const before = await getAccountPicture(db, input.accountId);
+
+  await db.query(`update account set avatar_url = $2 where id = $1`, [input.accountId, input.avatarUrl]);
+
+  await audit(db, {
+    entityType: 'account',
+    entityId: input.accountId,
+    action: input.avatarUrl ? 'set_profile_picture' : 'clear_profile_picture',
+    before: { avatarUrl: before },
+    after: { avatarUrl: input.avatarUrl },
+    actorId: input.actorId,
+    note: input.note ?? null,
+  });
+}
+
+/**
+ * The bylines an account has been recognised as.
+ *
+ * ⚠️ **EMPTY FOR EVERY ACCOUNT TODAY, AND THAT IS THE MEASURED STATE OF THIS ARCHIVE RATHER THAN A BUG.**
+ * `ozikoro_contributor.account_id` is set only when an editor approves a claim (`decideContributorClaim`
+ * does it), and on the live database **zero of the sixteen bylines are linked to an account** and **zero
+ * claims have been made**. So a writer who edits their biography on `/account/` sees it on their researcher
+ * profile immediately and **on `/author/<slug>/` only once their claim is approved** — which is the
+ * archive's own identity rule and not something this read can shortcut: a matching name is not proof, and
+ * the alternative to review is that anyone can claim the authorship of 1,051 published records.
+ *
+ * The page says exactly this, with a link to `/claims/`, rather than leaving a writer to wonder why their
+ * own byline page does not show the biography they just wrote.
+ */
+export async function listOwnBylines(
+  db: Db,
+  accountId: number
+): Promise<Array<{ slug: string; name: string; records: number }>> {
+  const rows = await db.rows<Record<string, unknown>>(
+    `select c.slug, c.display_name as name,
+            (select count(*)::int from ozikoro_article a
+              where a.author_id = c.id and a.status = 'published' and a.is_page = false) as records
+       from ozikoro_contributor c
+      where c.account_id = $1
+      order by records desc, c.display_name`,
+    [accountId]
+  );
+  return rows.map((r) => ({
+    slug: String(r.slug),
+    name: String(r.name),
+    records: Number(r.records ?? 0),
+  }));
 }
 
 // ---------------------------------------------------------------------------

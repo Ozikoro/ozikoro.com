@@ -31,7 +31,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { listArticles, countArticles, getBylineProfile } from '@ozikoro/platform';
+import { listArticles, countArticles, getBylineProfile, listMemberSocial, socialHref } from '@ozikoro/platform';
 import { ArticleEntry } from '../../_components/article-entry';
 
 export const dynamic = 'force-dynamic';
@@ -85,6 +85,22 @@ export default async function AuthorPage({ params }: PageProps) {
   const db = await getDb();
   const byline = await getBylineProfile(db, slug);
   const name = byline?.name ?? articles[0]?.authorName ?? slug;
+
+  /*
+   * ⚠️ **THE HANDLES ARE READ ONLY WHERE THE RECORD LINKS AN ACCOUNT, AND TODAY THAT IS NOBODY.**
+   *
+   * `listMemberSocial` is asked for `byline.accountId`, which `decideContributorClaim` sets when — and only
+   * when — an editor approves a claim. **Measured on the live database: zero of the sixteen bylines are
+   * linked to an account, and zero claims have been made.** So this block renders for nobody today, and it is
+   * written anyway because the alternative is a biography that a writer edits on `/account/` and cannot see
+   * on their own byline page the moment their claim IS approved. It costs one indexed query on a page that
+   * already makes four.
+   *
+   * **THE LINK IS NOT MADE ON A MATCHING NAME.** The same rule this page's header already states: a name is
+   * neither unique nor secret, which is why `/claims/` exists and why an editor decides. A page that joined
+   * on the name would be attributing 1,051 published records to whoever shares a byline.
+   */
+  const bylineSocial = byline?.accountId ? await listMemberSocial(db, byline.accountId) : [];
 
   /*
    * The role line reads the research profile where the record links one, and says what the archive holds
@@ -203,6 +219,70 @@ export default async function AuthorPage({ params }: PageProps) {
           </section>
         </div>
       ) : null}
+
+      {/*
+        ── WHERE THE WRITER PUBLISHES ELSEWHERE ──────────────────────────────────────────────────────────
+
+        ⚠️ **THIS RENDERS FOR NOBODY IN THE ARCHIVE TODAY, AND THAT IS A MEASURED FACT RATHER THAN AN
+        OVERSIGHT.** `bylineSocial` is read from the account the record links, and no byline has one — zero of
+        sixteen. See the note where it is read. It is written now so that the moment an editor approves a
+        claim the whole profile arrives at once rather than the biography arriving and the handles not.
+
+        The `href` is built by `socialHref` from a constant host, never from the stored value; an unrecognised
+        handle falls to the `<span>`, which is a handle shown and not made clickable. Exact same rule and the
+        same function as `/researchers/<id>/`, deliberately — two renderers of one value is where a security
+        rule gets fixed in one place.
+      */}
+      {bylineSocial.length > 0 ? (
+        <div className="wrap section" style={{ paddingTop: 0 }}>
+          <section>
+            <p className="eyebrow">Elsewhere</p>
+            <ul className="chips">
+              {bylineSocial.map((handle) => {
+                const href = socialHref(handle.network, handle.username);
+                return (
+                  <li key={handle.network}>
+                    {href ? (
+                      <a className="chip" href={href} rel="noopener noreferrer">
+                        {handle.label} · {handle.username}
+                      </a>
+                    ) : (
+                      <span className="chip">
+                        {handle.label} · {handle.username}
+                      </span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        </div>
+      ) : null}
+
+      <div className="wrap" style={{ paddingTop: 0, paddingBottom: 0 }}>
+        {/*
+          THE WRITER'S OWN DOOR, SAID WHERE A WRITER WOULD LOOK FOR IT.
+
+          *"especially writers to change their bio"* — so the byline page states where the biography and the
+          picture are edited, and states the one thing about it that is not yet true: until a claim is approved
+          the biography above is the one the WordPress import brought across, not one this person has written.
+        */}
+        <p className="small muted">
+          {byline?.accountId ? (
+            <>
+              This is {name}&rsquo;s own byline — the biography and picture above are the ones they set on their
+              account, and they can change them at <Link href="/account/">their account page</Link>.
+            </>
+          ) : (
+            <>
+              Written by {name}. No account is linked to this byline yet, so nobody can correct the biography
+              above from this site.{' '}
+              <Link href="/claims/">If this is your work, claim the byline</Link> — once an editor approves it,
+              the biography, the picture and any social handles on that account appear here.
+            </>
+          )}
+        </p>
+      </div>
 
       <div className="wrap section" style={{ paddingTop: 0 }}>
         <p className="eyebrow">Records</p>

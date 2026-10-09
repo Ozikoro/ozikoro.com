@@ -45,6 +45,13 @@ export * from './archive.ts';
 export * from './media.ts';
 export * from './media-key.ts';
 export * from './members.ts';
+/*
+ * The social handles a person publishes beside their profile. A module of its own rather than more of
+ * `members.ts`, because the network list, the handle grammar and the address template are a self-contained
+ * rule that three places must agree on — the form, the table's check constraint and the renderer — and a
+ * rule that must be read in one piece is easier to keep true than one spread through a 1,100-line library.
+ */
+export * from './member-social.ts';
 export * from './roles.ts';
 export * from './users.ts';
 export * from './editorial.ts';
