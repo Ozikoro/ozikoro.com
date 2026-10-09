@@ -149,6 +149,32 @@ as an asset, not as code to tidy.
 The icon set (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`) is generated from the same
 artwork. The file this replaced was a generic placeholder shipped by the site builder.
 
+## Deployment, and the one thing that takes the site down
+
+The Academy is deployed as a **standalone container on the host**, not as a compose service. That is
+deliberate: the archive's deploy script excludes `apps/academy` and `docker/` so it can never hand the
+host a compose file that tries to build the Academy from a source tree the host does not have. The
+Academy's own deploy is `/opt/ozituma/deploy-academy.sh` on the host.
+
+**`--network-alias academy` IS LOAD-BEARING. Its absence took the site down for several minutes.**
+
+Caddy proxies to `academy:3000`. Compose creates that name as a network alias automatically, from the
+**service** name. A `docker run` creates an alias only from the **container** name — so recreating the
+container without the flag put `ozituma-academy-1` on the network and nothing called `academy`, and
+every public request answered **502**.
+
+The failure is invisible from inside the container:
+
+```sh
+docker exec ozituma-academy-1 wget -qO- http://127.0.0.1:3000/api/health   # 200 — looks fine
+docker inspect ozituma-academy-1 --format '{{range $k,$v := .NetworkSettings.Networks}}{{range $v.Aliases}}{{.}} {{end}}{{end}}'
+# ozituma-academy-1 1377cf2a4229        ← no `academy`; Caddy cannot resolve it
+```
+
+So the deploy script now probes **from Caddy**, because Caddy is what the public goes through and it
+reaches the app by that name. A check that asks the app whether it is well cannot see this class of
+fault at all.
+
 ## Deployment
 
 Built and run as one container behind the host's Caddy, which terminates TLS and proxies to port
