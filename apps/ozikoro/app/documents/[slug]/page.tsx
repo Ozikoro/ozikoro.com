@@ -35,7 +35,27 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: named.name,
     description: item.caption ?? item.description ?? `${KIND_LABEL[item.kind] ?? 'Item'} ${item.reference} in the Ozikoro archive.`,
-    robots: { index: false, follow: true },
+    /*
+     * ── THIS PAGE IS LISTED IN A SITEMAP, SO IT SAYS `index`, AND IT DID NOT UNTIL 2026-10-09 ──────
+     *
+     * This carried `robots: { index: false, follow: true }` — *"a record is an archive entry rather
+     * than a landing page"* — while `packages/ozikoro/src/seo.ts` listed **every media record in
+     * `/sitemap/media`**. Measured on the live site: 5,046 URLs in that child, and every one of them
+     * answered `<meta name="robots" content="noindex, follow">`. **A sitemap full of `noindex` URLs is
+     * the defect it reads as**: Search Console files that child as excluded rather than as indexed,
+     * and the file's whole purpose — telling a crawler what is here worth reading — is inverted.
+     *
+     * The record page is the page that gets `index` back, because it is the one with an address of
+     * its own: it carries the record's caption or description, its creator, its credit, the rights
+     * recorded against it, its dimensions, the histories it is used in, and `ImageObject`/`MediaObject`
+     * structured data. `/document-viewer/?doc=…` keeps `noindex` and its own note below, because
+     * **that** page really does have a hundred parameter spellings of one record — which is the
+     * concern this directive was written for, applied to the page it does not describe.
+     *
+     * The alternative — leaving the directive and taking the records out of the sitemap — was
+     * rejected: it would make the archive's largest holdings invisible to a crawler, which is what
+     * `/sitemap/photographs` was added to stop.
+     */
   };
 }
 

@@ -48,9 +48,17 @@ export const metadata: Metadata = {
   title: 'Document viewer',
   description: 'Read a document the Ozikoro archive holds, in the page, and download its file.',
   /*
-   * The record pages are `noindex, follow` for the same reason: a record is an archive entry rather than a
-   * landing page. A viewer is a reading view of one, and one page with a hundred parameter spellings is a
-   * hundred addresses a crawler would have to choose between.
+   * ⚠️ THIS DIRECTIVE IS ABOUT *THIS* PAGE, AND IT USED TO CLAIM THE RECORD PAGES SHARED IT.
+   *
+   * It read: *"The record pages are `noindex, follow` for the same reason: a record is an archive entry
+   * rather than a landing page."* **The record pages are `index` as of 2026-10-09**, because
+   * `packages/ozikoro/src/seo.ts` lists every media record in a sitemap (`/sitemap/photographs` and
+   * `/sitemap/media`) and a sitemap URL carrying `noindex` is a defect rather than a crawl instruction.
+   * See the note on `apps/ozikoro/app/documents/[slug]/page.tsx`.
+   *
+   * THE REASON BELOW IS STILL TRUE OF THE VIEWER AND ONLY OF THE VIEWER: it takes its record from
+   * `?doc=<slug>`, so one record has as many addresses here as there are spellings of its slug. That is
+   * a page a crawler has to choose between, and it has no address of its own to be listed at.
    */
   robots: { index: false, follow: true },
 };
