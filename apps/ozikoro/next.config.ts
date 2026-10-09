@@ -283,26 +283,207 @@ const nextConfig: NextConfig = {
      *  client-side media request — so an exception there would grant access nothing uses. */
     const mediaSources = mediaOrigin === null ? '' : ` ${mediaOrigin}`;
 
-    const csp = [
-      "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
-      `img-src 'self' data: https://i.ytimg.com${mediaSources}`,
-      `media-src 'self'${mediaSources}`,
-      "connect-src 'self'",
-      "frame-src 'self' https://www.youtube-nocookie.com",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "object-src 'none'",
-    ].join('; ');
+    /*
+     * ── THE ADSENSE ORIGINS, AND THE ONE STRUCTURAL RULE THAT KEEPS THEM OUT OF THE PDF POLICY ──────────
+     *
+     * The owner's account issued an ad snippet and asked for it to be placed; a page that carries it can no
+     * longer be served `script-src 'self' 'unsafe-inline'`, because the loader is an EXTERNAL script on
+     * `pagead2.googlesyndication.com` and a document that refuses it shows no ad at all while answering 200.
+     * That refusal is exactly what was already measured on the live site for another third party:
+     *
+     *     https://static.cloudflareinsights.com/beacon.min.js   blocked by script-src 'self' 'unsafe-inline'
+     *
+     * WHICH DIRECTIVES MOVE, AND WHY EACH ONE DOES
+     *
+     *   script-src    the loader itself, and the code it injects: the responsive unit is built by scripts
+     *                 that arrive from `*.googlesyndication.com` and are pushed through
+     *                 `googleads.g.doubleclick.net` and the ad services hosts.
+     *   img-src       the creative's own pixels and the beacons that report an impression; `*.gstatic.com`
+     *                 serves some of them.
+     *   frame-src     the ad itself is an iframe — `googleads.g.doubleclick.net` for the unit and
+     *                 `tpc.googlesyndication.com` for the third-party-creative container are the two hosts
+     *                 named by the serving path, and a `frame-src` that omits them leaves a reserved gap.
+     *   connect-src   the unit calls back with beacons, so the responses are fetches from this document.
+     *   style-src     the unit writes its own inline styles into this document AND lets Google's own sheets
+     *                 load; `'unsafe-inline'` is already present above, so only the origin is added.
+     *   font-src      ad creatives that use a Google web font.
+     *
+     * ⚠️ `googleads.g.doubleclick.net`, `securepubads.g.doubleclick.net` and `tpc.googlesyndication.com` are
+     * NOT written as separate entries: **each is already matched by a wildcard that has to be here anyway**
+     * (`*.doubleclick.net`, `*.googlesyndication.com`). An entry that the policy already covers is one more
+     * line to maintain and one more thing that reads as deliberate when it is only a duplicate. The loader's
+     * own minified source was read to derive this rather than guessed — `pagead2.googlesyndication.com`,
+     * `www.google.com`, `services.google.com`, `securepubads.g.doubleclick.net` and
+     * `googleads.g.doubleclick.net` are the hosts it names.
+     *
+     * ── AND ONE CANDIDATE WAS TRIED, MEASURED AND **REMOVED**, WHICH IS THE OTHER HALF OF THIS METHOD ────
+     *
+     * `https://www.googletagservices.com` was written into `script-src`, `img-src` and `frame-src` from the
+     * general knowledge that AdSense once loaded its code from there. **Nothing in this change ever asked for
+     * it, and it was removed rather than left in "just in case":**
+     *
+     *   · the string `googletagservices` occurs **zero times** in the 206,910-byte loader this account's own
+     *     snippet fetches (grep over the artifact, not a recollection);
+     *   · the directive probe — which loads a resource from each candidate origin from a page governed by this
+     *     very policy — reported it *admitted*, meaning the policy permitted it, **not** that anything wanted
+     *     it: no measured run, filled or unfilled, has ever requested that host;
+     *   · it is the Google Publisher Tag's host, which is Ad Manager's loader and not AdSense's.
+     *
+     * ⚠️ **THE OPPOSITE CASE IS WHY THE BROWSER HAD TO BE THE INSTRUMENT, AND IT IS RECORDED BECAUSE IT IS THE
+     * STRONGEST EVIDENCE IN THIS FILE.** `adtrafficquality` ALSO occurs zero times in the loader — and the
+     * browser requested `ep1.adtrafficquality.google` on every ad-carrying page anyway, from a second script
+     * the loader fetches. **So neither a written list nor a reading of the loader's source would have found
+     * it, and the only thing that did was the console.** That is the argument for removing a candidate that no
+     * measurement supports and for adding one that a measurement names.
+     *
+     * ⚠️ AND GOOGLE'S OWN CURRENT GUIDANCE IS A CAVEAT ON THE WHOLE APPROACH, RECORDED HERE RATHER THAN
+     * DISCOVERED LATER. AdSense's help page *"Integrate the AdSense ad code with a Content Security Policy"*
+     * (support.google.com/adsense/answer/16283098) now says: *"Because the domains that the AdSense ad code
+     * uses change over time, we only support strict CSP (option 2)"* — a nonce-based `script-src` with
+     * `'strict-dynamic'`, not this allow-list. **This archive cannot adopt that without a second, larger
+     * change** (every inline script on 53 design screens and in `seoHead`'s output would need a per-request
+     * nonce, and the documented policy adds `'unsafe-eval'` plus `https: http:`), so the allow-list is used
+     * and the risk is stated: **if Google moves the serving hosts, the ad stops and the console will say
+     * which directive refused it.** The alternative is not silently better — `https: http:` admits a script
+     * from any host on the web over plain HTTP.
+     */
+    const adScript = [
+      'https://pagead2.googlesyndication.com',
+      'https://*.googlesyndication.com',
+      'https://*.google.com',
+      'https://*.doubleclick.net',
+      'https://*.googleadservices.com',
+      /*
+       * ⚠️ THE SECOND MEASURED ENTRY FOR THIS HOST, AND IT ARRIVED ON A DIFFERENT DIRECTIVE THAN THE FIRST.
+       *
+       * The first round of measurement produced a `connect-src` refusal for `ep1.adtrafficquality.google` and
+       * that origin was added to `connect-src` alone. **The next run, with that fix in place, produced a
+       * DIFFERENT refusal — `script-src` for `ep2.adtrafficquality.google`** — because a refused resource is a
+       * resource whose successors are never requested: the ad code does not ask for the next thing until the
+       * last thing answered. **So a policy cannot be finished in one pass, and each round exposes the next.**
+       *
+       * The two hosts are different endpoints of the same Google ad traffic-quality service (`ep1` is called,
+       * `ep2` is loaded as code), which is why the WILDCARD is used here rather than a third literal host: the
+       * service demonstrably serves numbered endpoints, and listing `ep1`, `ep2` and then `ep3` is a policy
+       * that breaks on a schedule.
+       */
+      'https://*.adtrafficquality.google',
+    ];
+    const adImg = [
+      'https://*.googlesyndication.com',
+      'https://*.doubleclick.net',
+      'https://*.google.com',
+      'https://*.gstatic.com',
+      /*
+       * ⚠️ THE FOURTH DIRECTIVE FOR THIS HOST, AND THE POINT AT WHICH THE MEASUREMENT BECAME A PATTERN RATHER
+       * THAN A SURPRISE. Measured one round at a time, each run made only after the previous fix was in the
+       * build, because a refused resource is a resource whose successors are never requested:
+       *
+       *     round 1   connect-src   ep1.adtrafficquality.google   /getconfig/sodar
+       *     round 2   script-src    ep2.adtrafficquality.google
+       *     round 3   frame-src     ep2.adtrafficquality.google
+       *     round 4   img-src       ep1.adtrafficquality.google   <- this line
+       *
+       * **The service is called, loaded, framed and pixel-beaconed**, so of the six directives that can request
+       * a URL it is needed in the four that describe a fetch. It is NOT added to `style-src` or `font-src`: no
+       * measured round has ever requested a stylesheet or a font from it, and those are the two resource types
+       * a traffic-quality endpoint has no reason to serve.
+       */
+      'https://*.adtrafficquality.google',
+    ];
+    const adFrame = [
+      'https://*.googlesyndication.com',
+      'https://*.doubleclick.net',
+      'https://*.google.com',
+      /*
+       * ⚠️ THE THIRD DIRECTIVE THIS ONE HOST HAS NEEDED, AND IT IS THE SAME LESSON AS `connect-src` ABOVE.
+       * Measured in order, each round run only after the previous fix was in the build:
+       *
+       *     round 1   connect-src   ep1.adtrafficquality.google
+       *     round 2   script-src    ep2.adtrafficquality.google
+       *     round 3   frame-src     ep2.adtrafficquality.google   <- this line
+       *
+       * The ad code frames this service as well as calling and loading it, so **`adtrafficquality.google` is
+       * named in three of the eleven directives** and no single measurement would have said so.
+       */
+      'https://*.adtrafficquality.google',
+    ];
+    const adConnect = [
+      'https://*.googlesyndication.com',
+      'https://*.doubleclick.net',
+      'https://*.google.com',
+      'https://*.googleadservices.com',
+      /*
+       * ⚠️ `adtrafficquality.google` IS NOT IN ANY LIST OF AD ORIGINS THIS CHANGE STARTED FROM, AND IT WAS
+       * FOUND THE ONLY WAY IT COULD BE: BY LOADING A REAL PAGE IN CHROME AND READING THE CONSOLE.
+       *
+       * Measured on the review server with the ad code live, on `/`, `/documents/`, `/photographs/`,
+       * `/clan-towns/` and a record page, the browser's own words:
+       *
+       *     Connecting to
+       *       'https://ep1.adtrafficquality.google/getconfig/sodar?sv=200&tid=gda&tv=r20261007&st=env&sjk=…'
+       *     violates the following Content Security Policy directive: "connect-src 'self' …"
+       *
+       * It is Google's ad traffic-quality (invalid-traffic) endpoint, requested by the ad code itself, and no
+       * amount of reading the loader's minified source would have found it — the host does not appear in it.
+       * **A policy written from a list would have shipped this refusal**, which is why the brief's instruction
+       * to measure rather than guess is the one that produced this line.
+       */
+      'https://*.adtrafficquality.google',
+      /*
+       * ⚠️ `csi.gstatic.com` — GOOGLE'S CLIENT-SIDE INSTRUMENTATION, NAMED BY THE BROWSER ON A LATER MEASURED
+       * ROUND AND ABSENT FROM EVERY LIST THIS CHANGE STARTED FROM:
+       *
+       *     Connecting to 'https://csi.gstatic.com/csi?v=3&s=adsbygoogle&action=…'
+       *     violates the following Content Security Policy directive: "connect-src …"
+       *
+       * The wildcard is used rather than the literal `csi.gstatic.com` for the reason given at
+       * `adtrafficquality.google`: the service is served from numbered and sharded hosts, and `gstatic.com` is
+       * **already trusted twice in this policy** — `img-src` and `font-src`, because the archive loads the
+       * design's own Noto faces from `fonts.gstatic.com`. A further subdomain of a host family the policy
+       * already trusts for images and fonts is the narrowest honest way to admit a telemetry call.
+       */
+      'https://*.gstatic.com',
+    ];
+    const adStyle = ['https://*.googlesyndication.com'];
+    const adFont = ['https://*.gstatic.com'];
 
     /*
-     * The publication's policy: the strict policy above, with ONLY the two directives the browser's PDF
-     * viewer needs changed. Derived by substitution so the other nine directives cannot drift.
+     * ── ONE SOURCE OF TRUTH FOR THE ELEVEN DIRECTIVES, AND `ads` IS THE ONLY ARGUMENT ───────────────────
+     *
+     * `policy(false)` reproduces **byte for byte** the policy this file served before the ad code arrived,
+     * and `pdfCsp` is derived from THAT and not from the ad-carrying string. This is not tidiness. The
+     * publication policy used to be `csp.replace(…).replace(…)`, so **any origin added to `csp` appeared in
+     * the PDF policy automatically** — a change made for an HTML ad would have silently given every served
+     * PDF an ad-capable script policy as well, which is a worse document and is exactly the leak the brief
+     * forbids. Making the ad argument explicit means the leak cannot happen by construction, and the two
+     * `.replace()` calls below are unchanged, so the PDF policy's only difference from `policy(false)` is
+     * still the two directives the browser's PDF viewer needs.
      */
-    const pdfCsp = csp
+    const policy = (ads: boolean): string =>
+      [
+        "default-src 'self'",
+        `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}${ads ? ` ${adScript.join(' ')}` : ''}`,
+        `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com${ads ? ` ${adStyle.join(' ')}` : ''}`,
+        `font-src 'self' https://fonts.gstatic.com${ads ? ` ${adFont.join(' ')}` : ''}`,
+        `img-src 'self' data: https://i.ytimg.com${mediaSources}${ads ? ` ${adImg.join(' ')}` : ''}`,
+        `media-src 'self'${mediaSources}`,
+        `connect-src 'self'${ads ? ` ${adConnect.join(' ')}` : ''}`,
+        `frame-src 'self' https://www.youtube-nocookie.com${ads ? ` ${adFrame.join(' ')}` : ''}`,
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "object-src 'none'",
+      ].join('; ');
+
+    const csp = policy(true);
+
+    /*
+     * The publication's policy: `policy(false)` — the strict policy with NO ad origins — with ONLY the two
+     * directives the browser's PDF viewer needs changed. Derived by substitution so the other nine
+     * directives cannot drift.
+     */
+    const pdfCsp = policy(false)
       .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
       .replace("object-src 'none'", "object-src 'self'");
 

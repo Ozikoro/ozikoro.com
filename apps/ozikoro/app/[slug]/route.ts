@@ -27,6 +27,11 @@ import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, r
 import { getCurrentAccount } from '@/lib/session';
 import { hasCapability } from '@/lib/access';
 import { discussionHtml } from '@/lib/discussion';
+/*
+ * The owner's ad code, for the record pages this route serves. See the call site: a record is exactly the
+ * "record page" the brief names, so this is the one document producer that carries a unit unconditionally.
+ */
+import { withAdsense } from '@/lib/adsense';
 
 export const dynamic = 'force-dynamic';
 
@@ -898,6 +903,34 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   } catch (error) {
     console.error('article: could not record the read', String(error).slice(0, 200));
   }
+
+  /*
+   * ── THE OWNER'S AD CODE, ON EVERY PUBLISHED RECORD ──────────────────────────────────────────────────
+   *
+   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* The brief
+   * names "a record page" first among the places a unit belongs, and **this is that page for all 1,051
+   * published histories and folktales** — one placement, because a folktale is served by this route and not
+   * by a second one. `article.html` carries exactly one `</main>`, so the unit lands at the foot of the
+   * article and the discussion box below it, which is the order a reader expects.
+   *
+   * ── WHERE IT RUNS, AND THE TWO THINGS IT MUST BE AFTER ──────────────────────────────────────────────
+   *
+   * **AFTER `withSeoHead`, WHICH REPLACES THE WHOLE `<head>`.** That call is inside the `try` above and it
+   * substitutes `<head>[\s\S]*?</head>` wholesale, so a loader written before it would be thrown away with the
+   * design's own head and the page would serve an `<ins>` nothing can fill. Running here also puts the loader
+   * after the editor's saved design overrides, so a stored edit cannot remove it.
+   *
+   * **BEFORE THE DISCUSSION BOX, SO THE AD IS ABOVE THE COMMENTS.** `insertDiscussion` inserts at the last
+   * `</main>`, the same anchor the unit uses; whichever runs first sits further from the closing tag. The
+   * reading matter, then the paid placement, then the thread.
+   *
+   * ⚠️ **THIS ROUTE HAS NO EDITOR AND NO FORM AT THE END OF ITS BODY, WHICH IS WHY THE UNIT IS UNCONDITIONAL
+   * HERE.** `article.html` draws the reading frame; the `contenteditable` the owner writes in lives in the
+   * `dashboard-editor` design screen, which this route does not serve. And the 403 agreement-refusal document
+   * and the legacy WordPress pages return from `servePublishedPage`/the refusal branch **before this line**,
+   * so neither — a legal gate and a retired page — is given a paid placement by running this here.
+   */
+  html = withAdsense(html);
 
   /*
    * ── THE DISCUSSION BOX, ON BOTH OF THE OWNER'S RECORD-SHAPED KINDS ──────────────────────────────────

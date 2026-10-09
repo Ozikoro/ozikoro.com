@@ -78,6 +78,11 @@ import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
  * `cultural-calendar`. It returns any other screen byte for byte unchanged; see its call site below.
  */
 import { withDiscussion } from '@/lib/discussion';
+/*
+ * The owner's ad code, for the screens a reader reads. See the call site far below, and `@/lib/adsense` for
+ * why this is an allow-list of screen NAMES rather than a rule over the document.
+ */
+import { ADSENSE_READER_SCREENS, withAdsense } from '@/lib/adsense';
 import {
   citationFor,
   fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
@@ -3130,6 +3135,40 @@ export async function GET(
    * that rewrote the same heading would discard the rest. Nothing runs after this.
    */
   html = await withDesignOverrides(html, name, new URL(request.url));
+
+  /*
+   * ── THE OWNER'S AD CODE, AND IT IS AN INSERTION AT SERVE TIME RATHER THAN AN EDIT TO THE DESIGN ──────
+   *
+   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* For the
+   * fifty-three design screens the answer has one hard constraint on it, set by the brief and by this
+   * repository's oldest rule: **`apps/ozikoro/public/design/` is inviolable.** Sixty-five files, byte-compared
+   * against `design/calm-comfort-construct/public/design`, and their parity is a check that must keep passing.
+   * So the loader is written into the served `<head>` and the unit into the served body **after every fill and
+   * after the owner's own overrides**, and not one byte of the deliverable changes.
+   *
+   * ── WHY IT RUNS HERE, BETWEEN THE OVERRIDES AND THE DISCUSSION BOX ────────────────────────────────────
+   *
+   * **After `withSeoHead`, and that ordering is the whole reason it is not higher up.** `withSeoHead`
+   * REPLACES the entire `<head>` — `seo-head.ts` matches `<head>[\s\S]*?</head>` and substitutes it — so a
+   * loader injected before that call is discarded with the design's own head and the page serves an `<ins>`
+   * with nothing to fill it. This is the same trap the override comment above records, and the same one the
+   * design's own `<script src="../reader.js">` links fall into.
+   *
+   * **Before `withDiscussion`, so the order down the page is reading matter, then the ad, then the comments.**
+   * Both insert at the last `</main>` — `withDiscussion` through `insertDiscussion`, the ad through
+   * `withAdsenseUnit` — so whichever runs first ends up further from the closing tag. Running the ad first
+   * puts the unit at the foot of the article and the discussion below it, which is what a reader expects and
+   * what keeps a paid rectangle above the comment thread rather than between two comments.
+   *
+   * ⚠️ **`ADSENSE_READER_SCREENS` IS AN ALLOW-LIST BECAUSE THIS ROUTE SERVES ALL FIFTY-THREE SCREENS.** The
+   * dashboards, the editor — whose `<main>` holds the owner's `contenteditable` — the upload form, the 404 and
+   * the type proof are all served from here, and the brief names the editor, the 404 and forms as places an ad
+   * must not go. A deny-list would let the next screen added to the deliverable inherit a unit; this cannot.
+   * The list, and the reason each excluded name is excluded, is written out in `@/lib/adsense`.
+   */
+  if (ADSENSE_READER_SCREENS.has(name)) {
+    html = withAdsense(html);
+  }
 
   /*
    * ── AND THE DISCUSSION BOX, WHICH IS THE LAST THING ON THE PAGE RATHER THAN THE LAST EDIT TO IT ─────

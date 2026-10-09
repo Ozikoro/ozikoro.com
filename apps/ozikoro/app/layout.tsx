@@ -3,6 +3,9 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { accountItemFor, FAVICON_LINKS, renderModeSwitcher, WORDMARK_MARK_SRC } from '@ozikoro/platform';
 import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
+import { isAdsenseReaderPath } from '@/lib/adsense';
+import AdsenseUnit from './_components/adsense-unit';
+import { AdsenseLoader } from './_components/adsense-loader';
 import './globals.css';
 
 /**
@@ -144,6 +147,27 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     primaryHref: workspace.primaryHref,
   });
 
+  /*
+   * ── WHETHER THIS PAGE CARRIES THE OWNER'S AD CODE, DECIDED HERE AND NOWHERE ELSE ────────────────────
+   *
+   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* The
+   * answer this shell gives is `isAdsenseReaderPath` — an allow-list of the React route families that are
+   * the archive's reading and browsing surface: the clan register, the town records, the researchers'
+   * directory, a byline, the entity and label records, and a project.
+   *
+   * ⚠️ **IT IS AN ALLOW-LIST BECAUSE THIS LAYOUT SERVES MORE THAN PUBLIC PAGES, AND THAT WAS MEASURED
+   * RATHER THAN ASSUMED.** `/account/`, `/submit/`, `/library/`, `/workspace/`, `/reviews/` and `/claims/`
+   * all answer **307 to `/signin`**, and `/contact/`, `/join/` and `/search/` answer 200 with a form. An ad
+   * script emitted for every path that reaches this point would therefore have been emitted on the account
+   * screen and the sign-in-gated surfaces — which the owner asked not to happen — and a deny-list would
+   * acquire each new private route silently. The list cannot.
+   *
+   * **AND THE FIRST BRANCH ABOVE IS NEVER REACHED BY IT.** `/admin`, `/signin` and `/design` return before
+   * this line, so the back office, the sign-in screen and the design editor cannot receive the loader even if
+   * a name were later added to the allow-list by mistake.
+   */
+  const ads = isAdsenseReaderPath(pathname);
+
   return (
     <html lang="en">
       <head>
@@ -203,6 +227,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;600&display=swap"
         />
+        {/*
+          THE AD CODE'S LOADER, ONCE PER DOCUMENT, AND ONLY ON A PAGE THAT CARRIES A UNIT.
+
+          It is the owner's own `<script async src="…adsbygoogle.js?client=ca-pub-…">`, written from the
+          address in `@/lib/adsense` rather than typed again here. `async` is the snippet's, and it is why the
+          unit below is written as an `adsbygoogle` queue push: the push registers the unit whether the loader
+          has arrived or not, so a slow or refused loader costs the ad and not the page.
+
+          ⚠️ **THIS IS THE ONLY PLACE THE LOADER IS WRITTEN FOR THE REACT ROUTES, AND IT IS NOT THE ONLY
+          PLACE IT IS WRITTEN FOR THE SITE.** The design screens — which include `/`, `/archive/`,
+          `/documents/` and `/photographs/` — and every record at `/<slug>/` are served as whole documents by
+          their own routes and never reach this layout, so each of those writes the loader from the same
+          constants. Three document producers, one address.
+        */}
+        {ads ? <AdsenseLoader /> : null}
       </head>
       <body>
         <a className="skip" href="#main">
@@ -372,7 +411,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
         </header>
 
-        <main id="main">{children}</main>
+        {/*
+          ── THE UNIT, AT THE FOOT OF THE READING AREA AND NOWHERE ELSE ────────────────────────────────
+
+          `{children}` is the whole page, so a unit printed after it is a block after the reading matter: it
+          cannot land inside a paragraph, because nothing here inserts into prose. That is the placement the
+          owner's `data-ad-format="auto"` asks for and it is the only placement this file makes — **it is not
+          in the masthead, not between the rail and the article, and not in the footer**, because a paid
+          rectangle beside the company notice is the one that reads as a banner rather than as a placement.
+
+          ⚠️ **AND IT IS INSIDE `<main>` SO THAT IT IS NEVER INSIDE A FORM.** The React routes allowed here
+          render their own content into this element; none of the six is a form page, and the browser check
+          that proves the served unit is not inside a `<form>` or a `[contenteditable]` is recorded in the
+          round's evidence rather than asserted here.
+        */}
+        <main id="main">
+          {children}
+          {ads ? <AdsenseUnit /> : null}
+        </main>
 
         <footer className="site-foot">
           <div className="wrap">
