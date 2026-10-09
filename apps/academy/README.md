@@ -76,6 +76,41 @@ nothing in the Academy yet reads a role or exposes an administration surface.
   migration chain**, because production and this repository diverged after migration `0033` — see the
   header of `0001_academy.sql`.
 
+## The launch gate
+
+The site is hidden from the public while it is being prepared. Set `ACADEMY_COMING_SOON=1` and every
+page answers with a Coming Soon page instead.
+
+It is answered in `src/server.ts`, **before the page router**, not as a route. That distinction is the
+whole point: a gate implemented as a route is only a gate for requests that reach the router, so the
+pages behind it stay fetchable by anyone who knows the URL. Here no Academy page renders and no route
+loader or server function runs while the gate is closed.
+
+**What stays reachable, and why:**
+
+| Path | Why it is not gated |
+| --- | --- |
+| `/api/health` | The container healthcheck. Gating it marks a healthy container unhealthy and gets it restarted — a way to take the site down by hiding it. |
+| `/api/session` | The family-session contract. It answers `401` to anyone without a cookie, so it discloses nothing, and closing it would break the shop and archive joining the shared sign-in. |
+| `/robots.txt` | Answered, with a blanket `Disallow`, because a crawler that finds no robots.txt assumes everything is permitted. |
+
+**`public/robots.txt` must not be re-added.** Nitro serves files from `public/` before the server
+entry runs, so a static file there silently overrides the gate — the gate was closed and the live
+`robots.txt` still said `Allow: /`. It is answered from `src/backend/coming-soon.ts` instead, for both
+states, because a cached `Disallow: /` would keep the site out of search results after launch.
+
+Every gated response carries `X-Robots-Tag: noindex, nofollow, noarchive, nosnippet` as well as the
+meta tag. A `robots.txt` is a request; a header is what actually removes a page that has already been
+indexed.
+
+The Coming Soon page inlines its styles and the Ozikoro mark rather than referencing `/assets` and
+`/brand`, because those are gated too — a gate page whose stylesheet is blocked renders as unstyled
+text. It is not a secrecy measure: the source is a public repository, so the client bundles behind the
+gate disclose nothing that is not already readable on GitHub.
+
+**To open the site:** set `ACADEMY_COMING_SOON=0` in `/opt/ozituma/.env` and recreate the container.
+The default in `docker-compose.prod.yml` is closed on purpose — opening is the deliberate act.
+
 ## Running it
 
 ```sh
@@ -113,6 +148,32 @@ as an asset, not as code to tidy.
 
 The icon set (`favicon.svg`, `favicon.ico`, `apple-touch-icon.png`) is generated from the same
 artwork. The file this replaced was a generic placeholder shipped by the site builder.
+
+## Deployment, and the one thing that takes the site down
+
+The Academy is deployed as a **standalone container on the host**, not as a compose service. That is
+deliberate: the archive's deploy script excludes `apps/academy` and `docker/` so it can never hand the
+host a compose file that tries to build the Academy from a source tree the host does not have. The
+Academy's own deploy is `/opt/ozituma/deploy-academy.sh` on the host.
+
+**`--network-alias academy` IS LOAD-BEARING. Its absence took the site down for several minutes.**
+
+Caddy proxies to `academy:3000`. Compose creates that name as a network alias automatically, from the
+**service** name. A `docker run` creates an alias only from the **container** name — so recreating the
+container without the flag put `ozituma-academy-1` on the network and nothing called `academy`, and
+every public request answered **502**.
+
+The failure is invisible from inside the container:
+
+```sh
+docker exec ozituma-academy-1 wget -qO- http://127.0.0.1:3000/api/health   # 200 — looks fine
+docker inspect ozituma-academy-1 --format '{{range $k,$v := .NetworkSettings.Networks}}{{range $v.Aliases}}{{.}} {{end}}{{end}}'
+# ozituma-academy-1 1377cf2a4229        ← no `academy`; Caddy cannot resolve it
+```
+
+So the deploy script now probes **from Caddy**, because Caddy is what the public goes through and it
+reaches the app by that name. A check that asks the app whether it is well cannot see this class of
+fault at all.
 
 ## Deployment
 

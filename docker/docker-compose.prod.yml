@@ -392,6 +392,24 @@ services:
       # the Caddyfile's `reverse_proxy academy:3000` are three places that must agree.
       PORT: '3000'
       HOST: '0.0.0.0'
+      # THE ONE VARIABLE THAT MAKES THE BACKEND REAL. Compose passes a service only the variables it
+      # names, so a password in /opt/ozituma/.env is not enough on its own — the fault this file
+      # records twice elsewhere, where the symptom is a silent failure rather than a startup error.
+      DATABASE_URL: postgres://ozituma:${POSTGRES_PASSWORD}@postgres:5432/ozituma
+      # Decides `secure` on the session cookie.
+      ACADEMY_SITE_URL: ${ACADEMY_SITE_URL:-https://academy.ozikoro.com}
+      # Scopes the session to the whole ozikoro.com family, so shop.ozikoro.com and ozikoro.com can
+      # read it. It cannot reach ozituma.com — a cookie may only be shared within one registrable
+      # domain — which is why the shared thing is the account rather than the session.
+      OZIKORO_AUTH_COOKIE_DOMAIN: ${OZIKORO_AUTH_COOKIE_DOMAIN:-.ozikoro.com}
+      # THE LAUNCH GATE. While set, every page answers with a Coming Soon page and
+      # `X-Robots-Tag: noindex`. `/api/health` and `/api/session` stay reachable, so the container
+      # stays healthy and the shop and archive can still join the shared sign-in.
+      #
+      # IT DEFAULTS TO CLOSED HERE, AND THAT IS DELIBERATE. This file is the production definition,
+      # and a gate whose default is open is a gate discovered to have been open. Opening the site is
+      # the deliberate act: set ACADEMY_COMING_SOON=0 in /opt/ozituma/.env, or remove this line.
+      ACADEMY_COMING_SOON: ${ACADEMY_COMING_SOON:-1}
     expose:
       - '3000'
     healthcheck:
