@@ -902,8 +902,32 @@
  *
  * ⚠️ **`h4` IS THE ARCHIVE'S HEADING — 2,309 of 4,083, 57% of every heading in the corpus** — and 408
  * records use `h4` as their SHALLOWEST heading, so for those it is the top-level section marker in the
- * record. `h5` is next at 441. `h1` is zero: the sanitiser drops it (see below), so there is nothing to
- * size.
+ * record. `h5` is next at 441. `h1` is zero on the served page: the sanitiser used to DROP an authored
+ * `<h1>` (see below), so there was nothing to size.
+ *
+ * ── ⚠️ EVERY NUMBER AND ONE SENTENCE ABOVE IS THE **BEFORE** PICTURE, AND THE SERVED LEVELS MOVED ─────
+ *
+ * The owner's next report — *"some articles sources is not in order"* — was the outline this block's own
+ * census had already described from the other end: **516 of the 1,051 served article pages skipped a heading
+ * level** (every page fetched and its headings read, live, before the change; 28 after), because the archive
+ * splices its own two `h2`s (`#record` *"The written record"* and `#context` *"Historical context"*) between
+ * headings the author wrote at `h4`. `fillArticle` now runs `normaliseHeadingLevels(…, 3)`, so a record's own
+ * top level sits directly beneath the archive's `h2` container, and an authored `<h1>` is demoted to `h2` by
+ * the sanitiser instead of being dropped. Measured through the served pipeline over the same 1,051 histories,
+ * before and after:
+ *
+ *     before   h1 0   h2 927   h3 453   h4 2,602   h5 441   h6  8     shallowest h4 in 411 records
+ *     after    h1 0   h2   0   h3 4,093 h4   262   h5  64   h6 12     shallowest h3 in all 720
+ *
+ * **So the archive's dominant heading now paints at the `h3` step — 1.35em (24.4px), `margin-top: 2rem` —
+ * where the same heading painted at the `h4` step, 1.18em (21.3px), before.** That is a visible change to
+ * every article's section headings, and it is a CONSEQUENCE of the level fix rather than a decision of its
+ * own: these rules are level-based and the level is what was wrong. **1.35em stays inside the scale set out
+ * below** (1.6em is the ceiling, `h4` is 1.18em), so the scale still steps as designed and the declarations
+ * themselves are unchanged. The 28 pages that still skip are the records whose own levels are non-contiguous
+ * or whose shallower heading stands later in the document than a deeper one — six authored `h5`s followed by
+ * one `h4`, on `umueri-the-ancestral-homeland-of-eri-the-children-of-eri` — and the offset rule preserves the
+ * author's own structure rather than inventing a level they did not write.
  *
  * ── WHAT WAS PAINTED, MEASURED IN CHROME AT 1280 px BEFORE THIS BLOCK EXISTED ──────────────────────────
  *

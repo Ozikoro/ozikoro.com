@@ -38,6 +38,30 @@
  * The archive's own bodies already use one of them: the WordPress dump holds `<code` seventeen times
  * and `<pre` not at all, so this keeps seventeen runs of markup that were being thrown away and
  * invents no new presentation for anything already stored.
+ *
+ * ── AND WHY `h1` IS NOT ON IT, WHICH IS A DIFFERENT DECISION FROM EVERY OTHER ABSENCE ───────────────
+ *
+ * Every other tag missing from this list is missing because it is decoration this archive refuses. `h1`
+ * is missing for a reason that is about the PAGE rather than about the tag, and it is written down where
+ * the editor meets it: *"`h1` is deliberately not on the allowlist (the design draws one `<h1>` per page
+ * and it is the record's title), so the menu starts at Heading 2"* —
+ * `apps/ozikoro/app/admin/classic-editor/editor.tsx`. **The design's rule is one `<h1>` per page and the
+ * page's own `<h1>` is the record's title, so a body `<h1>` cannot be served as one.**
+ *
+ * ⚠️ BUT `h1` WAS BEING **DROPPED**, AND DROPPING A HEADING IS NOT THE SAME AS DEMOTING IT. The tag went
+ * and its text stayed as bare prose, so the heading was demolished into a paragraph. MEASURED on the
+ * live archive before this changed: **17 published records carry an authored `<h1>`** — 26 `<h1>` elements
+ * between them, and 9 further records in review or trash — and on `/ndi-igbo-meet-the-igbo-people/` the
+ * reader met *"Who are the Igbo people?"* as an unheaded run of text where the record's own opening heading
+ * had been. **`normaliseHeadingLevels`
+ * below already DEMOTES an `h1` to the site's outline — its own unit test pins `<h1>One</h1>` →
+ * `<h2>One</h2>` — and the drop happened first, in this function, so the demoter never saw it.** Two rules
+ * in one pipeline disagreeing about the same element is the drift this repository keeps recording.
+ *
+ * **So an `h1` is now rewritten to `h2` rather than discarded** (see `DEMOTED_H1` and the note in
+ * `sanitiseArchiveHtml`): the words stay a heading, they stay out of the page's own `<h1>`, and the
+ * record's outline is what decides where in the hierarchy they end up. **`h1` is still not in this set,
+ * deliberately: nothing here should ever emit an `<h1>`.**
  */
 const ALLOWED_TAGS = new Set([
   'p','br','hr','strong','b','em','i','u','s','sub','sup','small','mark','abbr','cite','q','time',
@@ -54,6 +78,16 @@ const DROPPED_WITH_CONTENT = new Set([
   'script','style','iframe','object','embed','applet','form','input','button','select','textarea',
   'option','meta','link','base','noscript','template','svg','math','canvas',
 ]);
+
+/**
+ * Where an author's own `<h1>` lands: `h2`.
+ *
+ * Not `h1` — the page has one and it is the record's title. Not nothing — 17 published records had a
+ * heading demolished into prose by that. `h2` is the safe level for a function that does not know which
+ * page it is rendering into, and `normaliseHeadingLevels` moves it again from there. See the note on
+ * `ALLOWED_TAGS` and the one inside `sanitiseArchiveHtml`.
+ */
+const DEMOTED_H1 = 'h2';
 
 /** Attributes allowed per tag. `*` applies to every allowed tag. */
 const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
@@ -275,13 +309,26 @@ export function sanitiseArchiveHtml(html: string, options: SanitiseOptions = {})
 
     const tag = parseAttributesTag({ name: match[2]!.toLowerCase(), closing: match[1] === '/', selfClosing: match[4] === '/', attributeSource: match[3] ?? '' });
 
-    if (!ALLOWED_TAGS.has(tag.name)) continue; // dropped, but its text content stays
+    /*
+     * AN AUTHORED `<h1>` IS DEMOTED TO `h2`, NOT DROPPED — the decision the note on `ALLOWED_TAGS` records.
+     *
+     * The design's rule is one `<h1>` per page and that `<h1>` is the record's title, so a body `<h1>`
+     * may not be emitted as one. It may not be DELETED either: deleting the tag keeps its text and turns
+     * a heading into prose, which is what happened to 17 published records. `h2` is the safe landing
+     * level here because this function does not know which page it is being rendered into — the record's
+     * own heading level is decided afterwards by `normaliseHeadingLevels`, which is the function that
+     * does know the outline. Opening and closing tags are rewritten alike, or a paired `<h1>` would emit
+     * an `<h2>` that nothing closes.
+     */
+    const element = tag.name === 'h1' ? DEMOTED_H1 : tag.name;
+
+    if (!ALLOWED_TAGS.has(element)) continue; // dropped, but its text content stays
     if (tag.closing) {
-      out.push(`</${tag.name}>`);
+      out.push(`</${element}>`);
       continue;
     }
 
-    const allowed = ALLOWED_ATTRIBUTES[tag.name] ?? new Set<string>();
+    const allowed = ALLOWED_ATTRIBUTES[element] ?? new Set<string>();
     const universal = ALLOWED_ATTRIBUTES['*']!;
     const attributes: string[] = [];
 
@@ -320,12 +367,12 @@ export function sanitiseArchiveHtml(html: string, options: SanitiseOptions = {})
     // An image with no usable source is dropped rather than rendered as a broken plate. The
     // design draws its own deliberate empty plate for a record with no picture, and a broken
     // image icon is not that.
-    const isImage = tag.name === 'img';
+    const isImage = element === 'img';
     if (isImage && !attributes.some((a) => a.startsWith('src='))) {
       if (options.dropBrokenMedia !== false) continue;
     }
 
-    if (tag.name === 'a') {
+    if (element === 'a') {
       const href = attributes.find((a) => a.startsWith('href='));
       if (href && !attributes.some((a) => a.startsWith('rel='))) {
         // Off-site links get rel, which the design assumes and the plan requires.
@@ -334,7 +381,7 @@ export function sanitiseArchiveHtml(html: string, options: SanitiseOptions = {})
       }
     }
 
-    const rendered = attributes.length > 0 ? `<${tag.name} ${attributes.join(' ')}>` : `<${tag.name}>`;
+    const rendered = attributes.length > 0 ? `<${element} ${attributes.join(' ')}>` : `<${element}>`;
     out.push(rendered);
   }
 
@@ -420,26 +467,41 @@ export interface PrepareOptions extends SanitiseOptions {
  *
  * Deliberately NOT applied to headings outside a record's body: the page's own h1 and the site's
  * section headings are ours, not the author's.
+ *
+ * ── AND `topLevel`, BECAUSE "BENEATH THE PAGE'S h1" IS NOT ALWAYS "BENEATH THE PAGE'S h1 DIRECTLY" ──
+ *
+ * `h2` is the right landing level on a page where the record's body IS the page. **It is the wrong level
+ * on the article page**, where the archive wraps the body in a section of its own and gives that section
+ * an `<h2>`: `#record` — *"The written record"* — and an `<h2>` `#context` — *"Historical context"* — both
+ * of which `fillArticleProse` splices into the body's own flow. With the body's headings at `h2` they are
+ * **siblings of the section that contains them**, which is the interleaving the owner reported: the
+ * archive's outline is not a hierarchy at all.
+ *
+ * So the caller names the level its container sits at, and the record's shallowest heading lands directly
+ * beneath it — `normaliseHeadingLevels(body, 3)` on the article page, where the container is an `h2`.
+ * **The default stays `2`, so every existing caller is unchanged**, and the offset rule above is untouched:
+ * the author's relative structure still moves by one amount.
  */
-export function normaliseHeadingLevels(html: string): string {
+export function normaliseHeadingLevels(html: string, topLevel = 2): string {
   if (!html) return html;
 
   const levels = [...html.matchAll(/<h([1-6])\b/gi)].map((m) => Number(m[1]));
   if (levels.length === 0) return html;
 
   /*
-   * The shallowest heading the record uses becomes h2 — whatever it currently is.
+   * The shallowest heading the record uses becomes `topLevel` — whatever it currently is.
    *
    * The first version of this returned early when the shallowest heading was h2 or deeper, on the
    * reasoning that only a heading ABOVE h2 was a problem. That was wrong, and a test caught it: a
    * record whose headings are all h4 still skips, because the page's own h1 is followed by h4 with
    * h2 and h3 missing. Depth in the source is not the question; the question is whether the content's
-   * top level sits directly beneath the page title.
+   * top level sits directly beneath the level its container stands at.
    *
-   * An offset of zero for content already at h2, so the majority of records are untouched.
+   * An offset of zero for content already at the target, so the majority of records are untouched.
    */
+  const target = Math.min(Math.max(Math.round(topLevel), 2), 6);
   const shallowest = Math.min(...levels);
-  const offset = 2 - shallowest;
+  const offset = target - shallowest;
   return html.replace(/<h([1-6])\b([^>]*)>([\s\S]*?)<\/h\1>/gi, (_m, level: string, attrs: string, body: string) => {
     const next = Math.min(Math.max(Number(level) + offset, 2), 6);
     return `<h${next}${attrs}>${body}</h${next}>`;

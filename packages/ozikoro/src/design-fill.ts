@@ -3099,8 +3099,41 @@ export function fillArticle(html: string, a: RealArticle): string {
    * `normaliseHeadingLevels` and `tidyWhitespace` change how a record READS — moving headings, collapsing
    * paragraphs — and applying them to the served page would alter the outline of every record in the archive
    * in one go. That is a separate decision with its own measurement, and this change is the security one.
+   *
+   * ── ⚠️ AND THAT DEFERRAL IS NOW ANSWERED, BECAUSE THE OWNER REPORTED WHAT IT WAS HOLDING BACK ──────
+   *
+   * *"some articles sources is not in order"* — `https://ozikoro.com/ogbunike-a-historical-and-cultural-town-in-anambra-state/`.
+   * MEASURED ON THE SERVED PAGES, before this change: **516 of the archive's 1,051 article pages skipped a
+   * heading level** (every served page fetched and its headings read, live), the author's WordPress headings
+   * keeping their original depth (`h4` is the SHALLOWEST heading in 411 of them) while this function splices
+   * the archive's own `h2`s — `#record` *"The written record"* and `#context` *"Historical context"* — between
+   * them. The owner's example is the shape exactly:
+   *
+   *     h1  Ogbunike: A Historical and Cultural Town in Anambra State
+   *     h2  The written record          ← the archive's own
+   *     h4  Location                    ← the author's, four levels deep in a document that has one h1
+   *     h2  Historical context          ← the archive's own, spliced into the middle of the author's sections
+   *     h4  Reference                   ← 🔴 the same level as "Tourism and Cultural Significance"
+   *
+   * so **"Reference" reads as one more subsection of the article rather than as its closing apparatus**, and
+   * the outline is not a hierarchy at all. That is the fault he was looking at, arriving from the direction
+   * this comment left open.
+   *
+   * THE LEVEL IS `3`, NOT `2`, AND THAT IS THE DECISION. The body is served INSIDE a section of the archive's
+   * own that carries an `<h2>` — `#record` — so the author's top-level headings belong directly BENEATH that
+   * `h2`, not beside it. `normaliseHeadingLevels(safe, 3)` moves the record's shallowest heading to `h3` and
+   * every other heading by the same offset, so the author's relative structure is preserved exactly, as that
+   * function's own contract says. On the owner's example every one of the six headings becomes `h3` and the
+   * outline runs `h1 → h2 → h3 → h2 → h3 …` with no missing level. **28 of the 1,051 pages still skip one
+   * after this change** (all 1,051 served pages re-fetched and re-measured), and they are the records whose
+   * authored levels are non-contiguous or whose shallower heading stands LATER in the document than a deeper
+   * one — `umueri-the-ancestral-homeland-of-eri-the-children-of-eri` is six authored `h5`s followed by one
+   * `h4`. The offset rule preserves the author's own structure rather than inventing a level they did not write.
+   *
+   * It runs on the SANITISED body, because the sanitiser is what removes the builder's residue and its own
+   * `<h1>`→`<h2>` demotion is what makes an authored `<h1>` visible to this pass at all.
    */
-  const safe = sanitiseArchiveHtml(resolved);
+  const safe = normaliseHeadingLevels(sanitiseArchiveHtml(resolved), 3);
   // The featured image goes in the design's own figure; the body is tidied so it does not repeat it, and so
   // its WordPress widths do not run past the reading column.
   const tidied = tidyBody(safe, a.image);
@@ -3157,11 +3190,39 @@ export function fillArticle(html: string, a: RealArticle): string {
    * The previous version REPLACED the reading column: it rewrote "In this history" into the article's own
    * headings and moved the citation to the top. **Both were design decisions and neither was this work's to
    * make.** The frame wins; the record's words fit it.
+   *
+   * ── THE SECTION AND ITS WORDS COME FROM ONE FUNCTION, BECAUSE TWO PATTERNS DRIFTED ──────────────────
+   *
+   * This used to be two patterns that had to agree about where a sources section begins:
+   * `extractReferences(body)` found the entries, and the `replace` below cut the section out of the prose.
+   * **They did not agree, and the disagreement was visible on the page.** The cut required a heading whose
+   * text was bare (`[^<]*`), while `extractReferences` falls back to a paragraph or an inline `Sources:`
+   * and so recognised the section anyway. The shape of the failure is `<h4><strong>References:</strong></h4>`
+   * followed by a list, which the cut could not match.
+   *
+   * MEASURED BOTH WAYS, because the two ways count different things and both are true:
+   *
+   *   * through this pipeline, over the 1,051 published bodies: **394 records recognised their sources AND
+   *     kept the same entries inline in the prose** — the entries rendered twice.
+   *   * on the served pages, before and after: **118 of 1,051 pages left the source LIST itself in the
+   *     article while the panel held the same entries; after this change 3 do** (`anam-origins-of-a-riverine-igbo-community`,
+   *     `beyond-wrestling-sport-in-pre-colonial-west-africa`, `nkpor-a-historical-cultural-and-economic-legacy`
+   *     — all three report no boundary because the section's name stands mid-paragraph, and cutting there
+   *     would delete the sentence in front of it).
+   *
+   * The mirror fault is the owner's example: `<h4><strong>Reference</strong></h4>` is invisible to
+   * `extractReferences`' heading marker for the same reason, so its three entries were recognised by nothing
+   * and "Reference" stayed in the outline as if it were a subsection of the article. **On the served pages,
+   * 324 of 1,051 records showed an EMPTY sources area before this change and 169 do after** — 155 records
+   * that wrote their sources now show them where the design puts them.
+   *
+   * So there is now one function, `referencesSection`, which returns both the entries and where the section
+   * starts; `extractReferences` is a view of it. **A boundary read twice is a boundary that can disagree
+   * with itself**, and this one did.
    */
-  const refs = extractReferences(anchoredBody);
-  const rest = refs.length > 0
-    ? anchoredBody.replace(/<h[2-4][^>]*>\s*(?:\d+\.\s*)?(?:references?|sources?|bibliography|works cited|further reading)[^<]*<\/h[2-4]>[\s\S]*$/i, '')
-    : anchoredBody;
+  const referenceSection = referencesSection(anchoredBody);
+  const refs = referenceSection.items;
+  const rest = refs.length > 0 && referenceSection.start >= 0 ? anchoredBody.slice(0, referenceSection.start) : anchoredBody;
   /*
    * THE FIRST PARAGRAPH, WHICHEVER PARAGRAPH IT IS.
    *
@@ -3891,6 +3952,46 @@ export function fillArticleProse(
  * inferred and nothing is invented**: an ordered list under such a heading, or the sentences following one.
  */
 export function extractReferences(body: string): string[] {
+  return referencesSection(body).items;
+}
+
+/**
+ * Where a record's sources section begins, and what it holds.
+ *
+ * ── ONE FUNCTION, BECAUSE THE CALLER NEEDS BOTH HALVES AND TWO PATTERNS DISAGREED ─────────────────────
+ *
+ * `fillArticle` needs the entries for the design's own "Sources and references" panel AND the index of the
+ * heading that opened the section, so that the section can be taken out of the prose. Those two facts are the
+ * same fact, and they were read by two different patterns — with a measured result on the served pages:
+ *
+ *   * **118 of the archive's 1,051 served article pages carried the source LIST twice** — once in the article
+ *     and once in the design's own *"Sources and references"* panel — because `extractReferences` recognised
+ *     the section (through its paragraph/inline fallbacks) while the cut-out pattern required a heading whose
+ *     text carried no tags at all. **`<h4><strong>References:</strong></h4>` is the shape that fails**, and it
+ *     is common: the bodies were written in a word processor. **3 pages still do** after this change, and the
+ *     three are named where the boundary decision is explained below.
+ *   * **324 of 1,051 served pages showed an EMPTY sources area** — the owner's example among them — because
+ *     the section was not recognised at all; its bibliography was served as ordinary prose. **169 do now**,
+ *     so 155 records that wrote their sources show them in the panel the design drew for them.
+ *
+ * ⚠️ THE HEADING MARKER USED TO READ `[^<]*?` BEFORE AND AFTER THE NAME, which is what a heading with no
+ * emphasis looks like — `<h2>References</h2>`. **A word processor writes `<h2><strong>References</strong></h2>`
+ * and that pattern cannot see the word at all.** The heading is now matched through its inline markup, with
+ * the name still required to be the heading's own text (only whitespace and tags may precede it), so
+ * `<h2>The References We Used</h2>` is still not a sources section and `<h2><strong>References</strong></h2>` is.
+ * The same blind spot sits around the COLON — `<p><strong>References</strong>:</p>` closes the emphasis before
+ * it — and that is tolerated too; 9 published records turn on it. What is deliberately NOT matched is a name
+ * joined to its citation by a `<br>` inside one paragraph (`traces-of-igbo-names-from-the-slave-ships`), and a
+ * name whose citations sit in bare `<div>`s (`the-impact-of-western-christianity-on-nsukka-igbo-marriage-rituals-a-cultural-and-spiritual-dilemma`):
+ * **2 records, named rather than guessed at**, because the pattern that would catch them is loose enough to
+ * swallow prose.
+ *
+ * The four markers, and everything after them, are otherwise exactly what they were: measured against this
+ * archive's own 1,051 published bodies, so that **495 records that name a section are found** rather than the
+ * 334 a heading-only rule found. Through this pipeline, over those bodies: **728 records recognised before,
+ * 885 after, and none lost.**
+ */
+export function referencesSection(body: string): { items: string[]; start: number } {
   /*
    * A SOURCES SECTION IS DETECTED WHEREVER A WRITER PUTS IT, NOT ONLY IN A HEADING.
    *
@@ -3902,7 +4003,7 @@ export function extractReferences(body: string): string[] {
    *
    * So the marker is looked for in four places, in order of how much they can be trusted:
    *
-   *   1. a heading of any level that names the section
+   *   1. a heading of any level that names the section — through any inline markup the heading carries
    *   2. a paragraph that is NOTHING BUT the name, with or without a colon — `<p>Sources</p>`
    *   3. a paragraph that OPENS with the name and a colon — `<p>Sources: Horton, J. A. B. …</p>`
    *   4. the name used inline, with the citations following it in the same paragraph
@@ -3911,24 +4012,62 @@ export function extractReferences(body: string): string[] {
    * sentences that follow, because a citation in this archive is as often a paragraph as a list item.
    */
   const NAME = '(?:\\d+\\.\\s*)?(?:references?|sources?|bibliography|works cited|further reading)';
+  /** An inline tag — the emphasis a word processor puts inside a heading. */
+  const TAG = '<[^>]+>';
+  /** Nothing but whitespace and inline tags: what the writer's word processor put around the words. */
+  const GAP = `(?:\\s|${TAG})*`;
+  /*
+   * ⚠️ THE MARKER IS TOLERANT OF INLINE MARKUP **IN THREE PLACES, NOT ONE**, AND THEY HAD TO BE MEASURED
+   * ONE AT A TIME. The blind spot was a single `[^<]*` twice over, and it produces three shapes:
+   *
+   *     <h4><strong>References:</strong></h4>     the emphasis CLOSES AFTER the colon   — the commonest
+   *     <p><strong>References</strong>:</p>       the emphasis closes BEFORE the colon   — the second
+   *     <p><strong>References</strong><br>…</p>   bare citations, no list and no colon  — the residue
+   *
+   * COUNTED, over the archive's 1,051 published bodies: **538 carry a heading that names the section, and 202
+   * of those headings carry inline markup inside them.** 281 carry the name in a PARAGRAPH instead, of which
+   * **272 were already found** (the colon stands next to the name, inside the emphasis) and **9 were not**
+   * (the emphasis closes before the colon). The residue shape is 1 record.
+   *
+   * So tags are allowed before the name, between the name and its colon, and after the colon. **The name is
+   * still required to be the heading's or the paragraph's own first text** — `<h2>The References We Used</h2>`
+   * is not a sources section — because only whitespace and tags may precede it.
+   */
   const markers: RegExp[] = [
-    // 1. A heading that names it.
-    new RegExp(`<h[1-6][^>]*>[^<]*?\\b${NAME}\\b[^<]*<\\/h[1-6]>`, 'i'),
-    // 2. A paragraph that is only the name.
-    new RegExp(`<p[^>]*>(?:<[^>]+>)*\\s*${NAME}\\s*:?\\s*(?:<[^>]+>)*<\\/p>`, 'i'),
+    // 1. A heading that names it, through whatever inline markup the heading carries.
+    new RegExp(`<h[1-6][^>]*>${GAP}?\\b${NAME}\\b(?:[^<]|${TAG})*?<\\/h[1-6]>`, 'i'),
+    // 2. A paragraph that is only the name, with or without its colon, wherever the emphasis closed.
+    new RegExp(`<p[^>]*>${GAP}${NAME}${GAP}:?${GAP}<\\/p>`, 'i'),
     // 3. A paragraph that opens with the name and a colon.
-    new RegExp(`<p[^>]*>(?:<[^>]+>)*\\s*${NAME}\\s*:`, 'i'),
+    new RegExp(`<p[^>]*>${GAP}${NAME}${GAP}:`, 'i'),
     // 4. The name followed by a colon, inline.
-    new RegExp(`\\b${NAME}\\b\\s*:`, 'i'),
+    new RegExp(`\\b${NAME}\\b${GAP}:`, 'i'),
   ];
 
   let at = -1;
+  let start = -1;
   let matched = '';
   for (const re of markers) {
     const m = re.exec(body);
-    if (m) { at = m.index + m[0].length; matched = m[0]; break; }
+    if (m) {
+      /*
+       * THE BOUNDARY IS ONLY A BOUNDARY IF THE MARKER BEGINS THE BLOCK IT WAS FOUND IN.
+       *
+       * Markers 1–3 match a `<h…>` or a `<p>…` and so open the section — the caller may cut there. **Marker 4
+       * matches the word alone, wherever in a paragraph it stands**, and 7 of the 15 records it finds have
+       * real prose in front of it inside the same block (`anam-origins-of-a-riverine-igbo-community`:
+       * *"Anam was never simply the offspring of one ancestor. Its peo…sources:"*). Cutting there would delete
+       * that sentence from the served page while the panel showed only what followed the colon. **A repeated
+       * source is a smaller fault than a deleted sentence**, so those records keep their prose and report no
+       * boundary.
+       */
+      start = /^<[hp]/i.test(m[0]) ? m.index : -1;
+      at = m.index + m[0].length;
+      matched = m[0];
+      break;
+    }
   }
-  if (at === -1) return [];
+  if (at === -1) return { items: [], start: -1 };
 
   // The region from the marker to the end, or to the next heading — whichever comes first.
   const after = body.slice(at);
@@ -3940,14 +4079,14 @@ export function extractReferences(body: string): string[] {
 
   // A list, if the section has one.
   const items = [...region.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/g)].map((m) => clean(m[1] ?? '')).filter(Boolean);
-  if (items.length > 0) return items.slice(0, 60);
+  if (items.length > 0) return { items: items.slice(0, 60), start };
 
   // Otherwise the paragraphs — and the rest of the line the marker itself opened, when it had one.
   const inline = clean(matched.replace(/^<[^>]*>|<[^>]*>$/g, ''));
   const paras = [...region.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)].map((m) => clean(m[1] ?? '')).filter(Boolean);
   const first = inline.includes(':') ? inline.slice(inline.indexOf(':') + 1).trim() : '';
   const all = [first, ...paras].filter((t) => t.length > 20);
-  return all.slice(0, 60);
+  return { items: all.slice(0, 60), start };
 }
 
 

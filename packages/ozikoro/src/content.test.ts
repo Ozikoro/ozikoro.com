@@ -313,3 +313,42 @@ test('the sanitiser normalises headings as part of preparing a record', () => {
   assert.ok(out.includes('<h2>Section</h2>'), `expected an h2, got: ${out}`);
   assert.ok(!out.includes('<h4>'), `an h4 survived: ${out}`);
 });
+
+/*
+ * ── AND THE LEVEL THE RECORD IS MOVED TO IS THE CALLER'S, BECAUSE THE CONTAINER IS THE CALLER'S ──────
+ *
+ * `h2` is right where the record's body IS the page. On the served article page the archive wraps the body
+ * in its own section carrying an `<h2>` (`#record`, *"The written record"*), so the record's top level
+ * belongs at `h3` — otherwise the archive's container and the author's sections are siblings, which is the
+ * interleaving the owner reported as *"some articles sources is not in order"*.
+ */
+test('a caller can put the record one level beneath its own container', () => {
+  assert.equal(normaliseHeadingLevels('<h4>Location</h4><h4>Reference</h4>', 3), '<h3>Location</h3><h3>Reference</h3>');
+  assert.equal(normaliseHeadingLevels('<h1>One</h1><h4>Two</h4>', 3), '<h3>One</h3><h6>Two</h6>');
+});
+
+test('the default target level is still h2', () => {
+  assert.equal(normaliseHeadingLevels('<h4>One</h4>'), normaliseHeadingLevels('<h4>One</h4>', 2));
+  assert.equal(normaliseHeadingLevels('<h4>One</h4>', 2), '<h2>One</h2>');
+});
+
+/*
+ * ⚠️ THE `h1` DECISION, PINNED IN BOTH DIRECTIONS.
+ *
+ * The design draws one `<h1>` per page and it is the record's title, so a body `<h1>` may not be served as
+ * one — that is why `h1` is not on `ALLOWED_TAGS`. But it may not be DELETED either: 17 published records
+ * had their opening heading demolished into prose that way. It is DEMOTED to `h2` and the outline function
+ * above then places it. These two cases are the whole rule.
+ */
+test('an authored h1 is demoted to h2 by the sanitiser, never emitted as an h1', () => {
+  const out = sanitiseArchiveHtml('<h1>Who are the Igbo people?</h1><p>text</p>');
+  assert.equal(out, '<h2>Who are the Igbo people?</h2><p>text</p>');
+  assert.ok(!/<h1[\s>]/i.test(out), 'an h1 reached the output');
+});
+
+test('an authored h1 with inline markup keeps the markup and the words', () => {
+  assert.equal(
+    sanitiseArchiveHtml('<h1><strong>References</strong></h1>'),
+    '<h2><strong>References</strong></h2>'
+  );
+});

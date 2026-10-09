@@ -32,6 +32,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { DASHBOARD_UNBUILT_MAP, LINKED_SCREENS, fillAbout, fillDashboardLinks } from './design-fill.ts';
+import { extractReferences, referencesSection } from './design-fill.ts';
 import { fillTopics } from './design-fill.ts';
 import { MARQUEE_PLACES, fillHome, fillMarquee } from './design-fill.ts';
 import { HOME_STRIP_PLACES, fillHomeTowns, fillTown } from './design-fill.ts';
@@ -4543,4 +4544,97 @@ test('an in-page control whose target this page does not draw is not served', ()
     /href="\/watch\/#series"/,
     'a link to a section on another page is not this page’s business'
   );
+});
+
+/*
+ * ── THE SOURCES SECTION, AND THE HEADING A WORD PROCESSOR WROTE ──────────────────────────────────────
+ *
+ * The owner reported *"some articles sources is not in order"* on
+ * `/ogbunike-a-historical-and-cultural-town-in-anambra-state/`, whose body ends:
+ *
+ *     <h4><strong>Reference</strong></h4>
+ *     <ul><li>Catholic Diocese of Onitsha. (2015, May 1). …</li> …</ul>
+ *
+ * **The heading marker required `[^<]*` either side of the section's name, so it could not see a heading
+ * with any inline markup in it** — which is what a word processor writes. MEASURED through the served
+ * pipeline over the archive's own bodies: 115 published records had their bibliography served as ordinary
+ * prose with an EMPTY sources panel, and a further 395 served it TWICE, because `extractReferences`
+ * recognised the section through its paragraph fallbacks while the cut-out pattern did not. These cases pin
+ * the marker, the boundary, and the reason the two now come from one function.
+ */
+
+test('a sources heading written with inline markup is found', () => {
+  const body = '<h4><strong>Reference</strong></h4><ul><li>Catholic Diocese of Onitsha. (2015). A.</li><li>B. (n.d.). C.</li></ul>';
+  assert.deepEqual(extractReferences(body), ['Catholic Diocese of Onitsha. (2015). A.', 'B. (n.d.). C.']);
+});
+
+test('a plain sources heading is still found', () => {
+  const body = '<h3>References</h3><ul><li>Isichei, E. (1976). A history of the Igbo people.</li></ul>';
+  assert.deepEqual(extractReferences(body), ['Isichei, E. (1976). A history of the Igbo people.']);
+});
+
+test('the section has ONE boundary, and it is where the section begins', () => {
+  const body = '<p>Prose.</p><h3><em>Sources</em></h3><ul><li>A citation long enough to count.</li></ul>';
+  const section = referencesSection(body);
+  assert.equal(section.items.length, 1);
+  /* The prose before the heading is what the caller keeps; the heading and the list are the section. */
+  assert.equal(body.slice(0, section.start), '<p>Prose.</p>');
+});
+
+test('a sources word inside a sentence is not a heading', () => {
+  const body = '<h3>The Sources of the Nile</h3><ul><li>Not a bibliography.</li></ul>';
+  assert.deepEqual(extractReferences(body), []);
+});
+
+/*
+ * ⚠️ A REPEATED SOURCE IS A SMALLER FAULT THAN A DELETED SENTENCE. Marker 4 finds the word inside a
+ * paragraph that has already begun — `anam-origins-of-a-riverine-igbo-community` is the measured one — and
+ * cutting there would take the sentence in front of it off the served page while the panel showed only what
+ * followed the colon. So it reports no boundary.
+ */
+test('an inline name mid-paragraph yields entries but no boundary to cut at', () => {
+  const body =
+    '<p dir="ltr">Anam was never simply the offspring of one ancestor. Its people flow from several sources:</p>' +
+    '<ul dir="ltr"><li><strong>Nteje:</strong> important for Umudiora and Umueze Anam</li></ul>';
+  const section = referencesSection(body);
+  assert.equal(section.items.length, 1);
+  assert.equal(section.start, -1);
+});
+
+test('a record with no sources section reports neither entries nor a boundary', () => {
+  const section = referencesSection('<p>Just prose, and nothing else at all.</p>');
+  assert.deepEqual(section.items, []);
+  assert.equal(section.start, -1);
+});
+
+/*
+ * ── THE SAME BLIND SPOT, IN ITS OTHER TWO PLACES ─────────────────────────────────────────────────────
+ *
+ * Inline markup hides the name in three positions, not one, and they were measured one at a time:
+ *
+ *     <h4><strong>References:</strong></h4>     63 published records   the emphasis closes AFTER the colon
+ *     <p><strong>References</strong>:</p>        9 published records   the emphasis closes BEFORE the colon
+ *     <p><strong>References</strong><br>…</p>   1 published record    bare citations, no list, no colon
+ *
+ * The first two are found; the third is named here because it is NOT — `referencesSection` reads lists and
+ * paragraphs, and that record keeps its sources in the one paragraph the name opens. **A named residue of
+ * one is better than a pattern loose enough to swallow prose**, and the reader loses nothing: the record
+ * shows its own sources, exactly as it does today.
+ */
+test('a paragraph whose emphasis closes before the colon is still a sources section', () => {
+  const body = '<p><strong>References</strong>:</p><p>Ugwu, A. (2009). Igbo history and culture. Onitsha: Africana.</p>';
+  const section = referencesSection(body);
+  assert.equal(section.items.length, 1);
+  assert.equal(section.start, 0);
+});
+
+test('a colon inside the emphasis is found too, which the old rule already managed', () => {
+  const body = '<p><strong>References:</strong></p><ul><li>Isichei, E. (1976). A history of the Igbo people.</li></ul>';
+  assert.equal(referencesSection(body).items.length, 1);
+});
+
+test('the named residue: a name joined to its citation by a line break is not a section', () => {
+  const body = '<p><strong>References</strong><br> African Origins. (n.d.). African names from the transatlantic slave trade.</p>';
+  const section = referencesSection(body);
+  assert.deepEqual(section.items, []);
 });
