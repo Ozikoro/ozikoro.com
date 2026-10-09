@@ -40,6 +40,7 @@ import {
   SITE_ORIGIN,
   type PieceKind,
   mediaUrlResolver,
+  nameUnheldFigures,
   rewriteBodyImages,
 } from '@ozikoro/platform';
 import { requireCapabilityOrRedirect } from '@/lib/access';
@@ -296,7 +297,7 @@ export async function EditorScreen({
      * `mediaUrlResolver` are the same two functions the served article route calls, so the preview cannot
      * disagree with the page.
      */
-    previewHtml = sanitiseArchiveHtml(rewriteBodyImages(stored.bodyHtml, await mediaUrlResolver(db)));
+    previewHtml = nameUnheldFigures(sanitiseArchiveHtml(rewriteBodyImages(stored.bodyHtml, await mediaUrlResolver(db))));
     if (stored.featuredMediaId !== null) {
       const chosen = await db.one<{ storage_key: string | null; title: string | null }>(
         `select storage_key, coalesce(title, storage_key) as title from ozikoro_media where id = $1`,

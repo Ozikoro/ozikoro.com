@@ -98,6 +98,7 @@ export * from './redirects.ts';
 export * from './knowledge.ts';
 export * from './design-fill.ts';
 export * from './design-paths.ts';
+export * from './missing-figure.ts';
 /*
  * WHICH WORKSPACES AN ACCOUNT MAY LOOK AT.
  *

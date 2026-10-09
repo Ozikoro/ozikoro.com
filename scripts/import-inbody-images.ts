@@ -54,13 +54,31 @@
  * YouTube player or to a citation cannot be touched by this. A record whose picture could not be recovered
  * keeps the dead address it had, which is the honest state; **nothing is invented to fill the space.**
  *
+ * ── AND WHEN NEITHER THE ARCHIVE NOR THE ORIGIN HAS IT, ASK THE PLACE UPLOADS ACTUALLY SURVIVE ───────
+ *
+ * The two sources this script knew were the live archive and the pre-cutover origin. **Two is not all of
+ * them.** A WordPress host drops its uploads when the site moves, and the file is still in a web archive —
+ * measured this round, `…/2025/12/kalabari-ladies-…-2A7B43F.jpg` answers `404` on the origin and is held by
+ * the Wayback Machine in a capture of 2026-04-06, 263,902 bytes.
+ *
+ * `--wayback` adds that source, and only as a SECOND one: the origin is always asked first, and the index is
+ * consulted only after it refuses. **A recovery from a web archive is recorded as one** — `recordWebArchiveProvenance`
+ * writes the archive and the capture date onto the row, in the `credit` field a reader sees on
+ * `/documents/<slug>/`, because a photograph with a false provenance is worse than a missing one.
+ *
+ * ⚠️ AND THE INDEX IS A SERVICE THAT ANSWERS `503` UNDER LOAD, SO ITS ANSWERS ARE THREE, NOT TWO. It says a
+ * capture exists, it says there is none, or **it cannot be asked** — and the third is printed as `unknown`
+ * and never counted as proof that a file is gone. Be a guest: `--wayback --concurrency 2`.
+ *
  * Usage:
  *   node scripts/import-inbody-images.ts                    # measure only: A / B / C and every C named
  *   node scripts/import-inbody-images.ts --apply             # fetch B, store it, open a row, rewrite bodies
  *   node scripts/import-inbody-images.ts --apply --limit 20  # stop after twenty downloads
  *   node scripts/import-inbody-images.ts --host blogger.googleusercontent.com --apply
+ *   node scripts/import-inbody-images.ts --apply --wayback --concurrency 2
  */
 import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import { getDb, closeDb, type Db } from '@ozituma/db/client';
@@ -93,13 +111,41 @@ interface Options {
   limit: number;
   articleIds: number[];
   concurrency: number;
+  /**
+   * Ask the Internet Archive for a file its own origin has stopped serving.
+   *
+   * OFF BY DEFAULT, AND THE DEFAULT IS THE POINT: a normal run reports what the origin says and stops, which
+   * is what makes `C` in this file's own vocabulary mean "this address answers nowhere". With `--wayback` a
+   * `C` is only reached after a second, named source has also been asked, and every file that comes from
+   * there carries the archive and the capture date in its own record.
+   */
+  wayback: boolean;
+  /**
+   * A file of captures the Wayback CDX index already answered for, keyed by address.
+   *
+   * WHY THIS EXISTS: **one prefix query answers for a thousand addresses; a thousand per-address queries
+   * answer the same question and take hours.** Under load the index answers `503` far more often than it
+   * answers a single-URL query, so a run that only asks per address reports most of the corpus as `unknown`
+   * — measured this round. A prefix sweep (`url=ozikoro.com/wp-content/uploads/2025/05/*`) returns every
+   * archived file in a month in one request, and this flag lets that evidence prime the run.
+   *
+   * It is evidence, not a shortcut around the rules: the JSON is the index's own answer, and the bytes are
+   * still fetched from the archive and still sniffed before anything is stored.
+   */
+  waybackIndex: string | null;
 }
 
 function parseArgs(argv: string[]): Options {
-  const o: Options = { apply: false, wpOrigin: DEFAULT_WP_ORIGIN, hosts: [], limit: 0, articleIds: [], concurrency: 6 };
+  const o: Options = { apply: false, wpOrigin: DEFAULT_WP_ORIGIN, hosts: [], limit: 0, articleIds: [], concurrency: 6, wayback: false, waybackIndex: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]!;
     if (a === '--apply') o.apply = true;
+    else if (a === '--wayback') o.wayback = true;
+    else if (a === '--wayback-index') {
+      const v = argv[++i];
+      if (!v) throw new Error('--wayback-index needs the path of a JSON file of captures');
+      o.waybackIndex = v;
+    }
     else if (a === '--wp-origin') {
       const v = argv[++i];
       if (!v) throw new Error('--wp-origin needs an address, or the word "none"');
@@ -141,6 +187,15 @@ interface Attempt {
   bytes: number;
   mime: string | null;
   key: string | null;
+  /**
+   * What the web-archive second source said, when it was asked. Present on an `origin-refused` outcome only.
+   *
+   * `none` is an answer; **`unknown` is not**, and is kept apart so a run that could not reach the index is
+   * never reported as a run that proved the file is not archived.
+   */
+  archived?: 'none' | 'unknown';
+  /** The web archive a file came from, and the capture it came from, when it did not come from its origin. */
+  recoveredFrom?: { archive: string; timestamp: string };
 }
 
 /**
@@ -195,6 +250,214 @@ async function fetchDirect(url: string): Promise<{ ok: boolean; status: number; 
   } catch (error) {
     return { ok: false, status: 0, contentType: '', body: Buffer.alloc(0), error: String(error).slice(0, 160) };
   }
+}
+
+/*
+ * ── THE SECOND SOURCE, AND WHY "NOT ARCHIVED" AND "I COULD NOT ASK" ARE DIFFERENT ANSWERS ──────────────
+ *
+ * A WordPress host drops the uploads the moment the site moves, so the origin and the live archive can both
+ * refuse a file while it still exists elsewhere. The Wayback Machine is the single most likely place a
+ * `wp-content/uploads` file survives, and **a CDX query per address is cheap** — but it is also a service
+ * that answers `503` with an HTML page under load, and that page is not an answer to the question.
+ *
+ * **Treating a `503` as "no snapshot" would put a false "not archived" into this report and stop the one
+ * search that might have found the file.** So the query returns three states, not two, and the caller prints
+ * the third as its own outcome:
+ *
+ *     a 200 capture exists        -> download it, and say so on the record
+ *     the index answers "nothing" -> the address is not archived (as of this run)
+ *     the index could not be asked -> **unknown**, and named as unknown
+ *
+ * The download is the `id_` form, which is the archived bytes themselves rather than a Wayback page that
+ * wraps them: `https://web.archive.org/web/<timestamp>id_/<original>`.
+ */
+const WAYBACK_HOST = 'web.archive.org';
+
+/** A capture the index has already been asked about, and answered. */
+interface PrimedCapture {
+  timestamp: string;
+  mimetype: string;
+  bytes: number;
+}
+
+let waybackIndexCache: Map<string, PrimedCapture | null> | null = null;
+
+/**
+ * What the primed index says about this address: a capture, a proven absence, or nothing at all.
+ *
+ * **`null` IS AN ANSWER AND `undefined` IS NOT.** The file records the index's negative answers as well as
+ * its positive ones — a `200`-filtered per-address query that returned nothing is a measurement, and
+ * re-asking it live would both waste the archive's time and, on a loaded day, turn a proven "not archived"
+ * into a reported "unknown". A URL the file does not mention at all is the only case that goes to the index.
+ *
+ * ⚠️ AND THE ADDRESS IS TRIED WITHOUT ITS QUERY AND FRAGMENT TOO, the same normalisation
+ * `rewriteBodyImages` already makes. WordPress writes a video's address with a cache-buster —
+ * `…-CulturalHeri.mp4?_=1` — and the archive holds the file under the bare address. **An exact-match-only
+ * lookup reports a file the archive is holding as not held**, which is how the 49.9 MB Agbeji recording
+ * would have stayed missing while its capture sat in the index.
+ */
+function primedLookup(url: string): { found: boolean; capture: PrimedCapture | null } {
+  const index = readWaybackIndex();
+  const candidates = [url, url.replace(/[?#].*$/, ''), decodeEntitiesForFetch(url), decodeEntitiesForFetch(url).replace(/[?#].*$/, '')];
+  for (const candidate of candidates) {
+    if (index.has(candidate)) return { found: true, capture: index.get(candidate) ?? null };
+  }
+  return { found: false, capture: null };
+}
+
+/**
+ * Read the file of answers `--wayback-index` supplies, once.
+ *
+ * A file that cannot be read or parsed is **not** treated as an empty index: an empty index would silently
+ * turn every address into a live CDX query, which is exactly the slow path this flag exists to avoid, and
+ * the run would look like it had swept when it had not.
+ */
+function readWaybackIndex(): Map<string, PrimedCapture | null> {
+  if (waybackIndexCache) return waybackIndexCache;
+  waybackIndexCache = new Map();
+  if (!opts.waybackIndex) return waybackIndexCache;
+  try {
+    const parsed = JSON.parse(readFileSync(opts.waybackIndex, 'utf8')) as Record<string, PrimedCapture | null>;
+    for (const [url, capture] of Object.entries(parsed)) {
+      if (capture === null) {
+        waybackIndexCache.set(url, null);
+        continue;
+      }
+      if (capture && /^\d{14}$/.test(String(capture.timestamp ?? ''))) {
+        waybackIndexCache.set(url, {
+          timestamp: String(capture.timestamp),
+          mimetype: String(capture.mimetype ?? ''),
+          bytes: Number(capture.bytes) || 0,
+        });
+      }
+    }
+    const captures = [...waybackIndexCache.values()].filter(Boolean).length;
+    console.log(
+      `wayback index primed: ${captures} capture(s), ${waybackIndexCache.size - captures} proven absent, from ${opts.waybackIndex}`
+    );
+  } catch (error) {
+    console.log(`!! --wayback-index could not be read (${String(error).slice(0, 120)}); every address will be asked live`);
+  }
+  return waybackIndexCache;
+}
+
+interface WaybackSnapshot {
+  /** The capture's own timestamp, `YYYYMMDDhhmmss`, which is what the record states. */
+  timestamp: string;
+  mimetype: string;
+  bytes: number;
+}
+
+type WaybackAnswer =
+  | { state: 'archived'; snapshot: WaybackSnapshot }
+  | { state: 'not-archived' }
+  | { state: 'unasked'; reason: string };
+
+/** Ask the CDX index for the earliest capture of this address that answered 200. */
+async function askWayback(url: string): Promise<WaybackAnswer> {
+  const api =
+    `https://${WAYBACK_HOST}/cdx/search/cdx?url=${encodeURIComponent(url)}` +
+    '&output=json&filter=statuscode:200&limit=1&fl=timestamp,mimetype,length';
+  /*
+   * THE INDEX IS UNDER LOAD AND `503` IS NORMAL, SO A SINGLE REQUEST IS NOT AN ANSWER.
+   *
+   * Measured this round: the same CDX query returned `503` twice and `200` on the third attempt within a
+   * minute. **Without a retry the run would have written "the Wayback index could not be asked" onto files
+   * the archive actually holds** — and, worse, a reader of that report could conclude the file does not
+   * exist. Three attempts with a short backoff, and the `unasked` answer is kept for when all three fail.
+   */
+  let last: WaybackAnswer | null = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));
+    const res = await fetchDirect(api);
+    if (!res.ok) {
+      last = { state: 'unasked', reason: `the index answered HTTP ${res.status}` };
+      continue;
+    }
+    const text = res.body.toString('utf8').trim();
+    // The archive serves an HTML "Temporarily Offline" page with a 200 under load; that is not an index answer.
+    if (text.startsWith('<')) {
+      last = { state: 'unasked', reason: 'the index answered an HTML page (it is offline or overloaded)' };
+      continue;
+    }
+    let rows: string[][];
+    try {
+      rows = JSON.parse(text) as string[][];
+    } catch {
+      last = { state: 'unasked', reason: 'the index answer was not JSON' };
+      continue;
+    }
+    if (rows.length < 2) return { state: 'not-archived' };
+    /*
+     * ⚠️ THE COLUMNS ARE READ BY NAME, NOT BY POSITION, AND THE FIRST VERSION GOT THIS WRONG.
+     *
+     * The answer is a header row followed by data rows, and **which columns are present is decided by the
+     * `fl=` parameter — which the index does not always honour.** Assuming a leading `urlkey` gave
+     * `timestamp = "video/mp4"` on a captured MP4, so the run asked for
+     * `https://web.archive.org/web/video/mp4id_/…`, the archive answered `200` with an HTML error page, and
+     * the log announced *"the Wayback Machine holds a capture of vide-o/-mp"*. It was caught only because
+     * every download is sniffed — but a parse that is right by luck is not a parse.
+     *
+     * So the header names the columns, and a row without a `timestamp` is not a capture.
+     */
+    const header = rows[0]!;
+    const at = (row: string[], name: string) => row[header.indexOf(name)];
+    const timestamp = at(rows[1]!, 'timestamp');
+    if (!/^\d{14}$/.test(timestamp ?? '')) return { state: 'not-archived' };
+    return {
+      state: 'archived',
+      snapshot: {
+        timestamp: timestamp!,
+        mimetype: at(rows[1]!, 'mimetype') ?? '',
+        bytes: Number(at(rows[1]!, 'length')) || 0,
+      },
+    };
+  }
+  return last ?? { state: 'unasked', reason: 'the index was never reached' };
+}
+
+/**
+ * The address the capture is fetched from — the `id_` form, which serves the archived bytes themselves.
+ *
+ * Without `id_` the archive returns its own wrapper page: a toolbar, rewritten links and the file inside.
+ * Those bytes are not the file, and `sniffMediaBytes` would — correctly — refuse them.
+ */
+function waybackAddress(url: string, timestamp: string): string {
+  return `https://${WAYBACK_HOST}/web/${timestamp}id_/${url}`;
+}
+
+/** `20260406201257` -> `2026-04-06`, which is the date the record states. */
+function waybackDate(timestamp: string): string {
+  return `${timestamp.slice(0, 4)}-${timestamp.slice(4, 6)}-${timestamp.slice(6, 8)}`;
+}
+
+/**
+ * Say on the record where the file came from and when it was captured.
+ *
+ * **A photograph with a false provenance is worse than a missing one**, so a file recovered from a web
+ * archive says so in the record a reader can see — the `credit` field of `/documents/<slug>/`, which is the
+ * same field the archive already uses for attribution and the one field on that page that is printed whether
+ * or not a licence is recorded.
+ *
+ * ⚠️ AND IT MUST NOT EAT THE ATTRIBUTION ALREADY THERE. `credit` is capped at 300 characters
+ * (`MEDIA_TEXT_LIMITS`), 7 of the 51 unfilled rows already state one, and **a blind `slice(0, 300)` would
+ * silently cut the end off somebody's name.** So the snapshot address is dropped before the existing credit
+ * is, and if the two together still do not fit, the credit is left exactly as it was and the run says so.
+ */
+async function recordWebArchiveProvenance(db: Db, mediaId: number, timestamp: string, url: string): Promise<void> {
+  const row = await db.one<{ credit: string | null }>(`select credit from ozikoro_media where id = $1`, [mediaId]);
+  // Idempotent: a second run replaces its own sentence rather than stacking a second copy of it.
+  const previous = /^Recovered from the Internet Archive Wayback Machine, capture of \d{4}-\d{2}-\d{2}\..*?\s*(?=Recovered|$)?/;
+  const existing = (row?.credit ?? '').trim().replace(previous, '').trim();
+  const stamp = `Recovered from the Internet Archive Wayback Machine, capture of ${waybackDate(timestamp)}.`;
+  const withAddress = `${stamp} Snapshot: ${waybackAddress(url, timestamp)}`;
+  const candidates = [existing ? `${withAddress} ${existing}` : withAddress, existing ? `${stamp} ${existing}` : stamp];
+  const credit = candidates.find((c) => c.length <= 300);
+  if (!credit) {
+    console.log(`     !  provenance NOT written: the existing credit leaves no room inside 300 characters`);
+    return;
+  }
+  await db.query(`update ozikoro_media set credit = $1, updated_at = now() where id = $2`, [credit, mediaId]);
 }
 
 /** A slug nothing else in `ozikoro_media` holds. `slug` is `not null unique` on that table. */
@@ -372,14 +635,86 @@ let bytes = 0;
 async function importOne(t: Need): Promise<void> {
   const url = decodeEntitiesForFetch(t.url);
   const isWordPress = /^https?:\/\/(?:www\.)?ozikoro\.com\/wp-content\//i.test(url);
-  const got = isWordPress && opts.wpOrigin
+  let got = isWordPress && opts.wpOrigin
     ? await fetchWithCurl(url, opts.wpOrigin)
     : await fetchDirect(url);
 
+  /*
+   * ── AND WHEN THE ORIGIN REFUSES, THE SECOND SOURCE IS ASKED BEFORE THE FILE IS CALLED UNRECOVERABLE ──
+   *
+   * The origin is a migration source, not a home: it answered for a while and then stopped, and **a `404`
+   * from the origin is not evidence that the file is gone from everywhere** — a WordPress host's uploads
+   * often survive in a web archive long after the site behind them is switched off.
+   *
+   * ⚠️ AND THE ORIGIN HAS TWO WAYS OF REFUSING, WHICH IS THE PART THAT IS EASY TO GET WRONG. It can answer
+   * `404`, and it can answer **`200` with an HTML page** — measured this round on
+   * `pubs.sciepub.com/ajams/3/1/3/Table/2.png`, which returns `200 text/html`, 9,518 bytes. A fallback
+   * written against `res.ok` alone would treat the second as a success, refuse the bytes as "not a file",
+   * and **never ask the archive about a picture the archive may be holding**. So the question asked here is
+   * not "did the origin answer" but "did the origin answer with a file", and only then is the attempt over.
+   */
+  let originDetail = `HTTP ${got.status}${got.contentType ? ` ${got.contentType}` : ''}${got.error ? ` ${got.error}` : ''}`;
+  let recoveredFrom: { timestamp: string; mimetype: string; bytes: number } | null = null;
+  let archiveNote = '';
+  /** `none` is an answer; `unknown` is not. Kept as a value rather than parsed back out of the sentence. */
+  let archiveState: 'none' | 'unknown' | null = null;
+
+  const originIsAFile =
+    got.ok && got.body.length > 0 && !looksLikeSvg(got.body.subarray(0, 512)) && sniffMediaBytes(got.body.subarray(0, 512), got.contentType) !== null;
+
+  if (!originIsAFile && opts.wayback) {
+    const primed = primedLookup(url);
+    const answer: WaybackAnswer = primed.found
+      ? primed.capture
+        ? { state: 'archived', snapshot: primed.capture }
+        : { state: 'not-archived' }
+      : await askWayback(url);
+    if (answer.state === 'archived') {
+      const fetched = await fetchDirect(waybackAddress(url, answer.snapshot.timestamp));
+      /*
+       * ⚠️ A `200` FROM THE ARCHIVE IS NOT A FILE EITHER — THE SAME RULE, ONE HOP FURTHER OUT.
+       *
+       * A wrong capture address (see `askWayback`'s note about column order) makes the archive answer `200`
+       * with **its own error page**, and a fallback that trusted `res.ok` would store that page as a
+       * photograph. So the bytes are sniffed here as well as below, and a capture that is not a file is
+       * reported as a capture that could not be used.
+       */
+      const usable = fetched.ok && sniffMediaBytes(fetched.body.subarray(0, 512), fetched.contentType) !== null;
+      if (usable) {
+        got = fetched;
+        recoveredFrom = answer.snapshot;
+        archiveNote = `the Wayback Machine holds a capture of ${waybackDate(answer.snapshot.timestamp)}`;
+        console.log(`  W  archived ${answer.snapshot.timestamp}  ${t.url.slice(0, 88)}`);
+      } else {
+        archiveNote = `a capture of ${waybackDate(answer.snapshot.timestamp)} is indexed but did not answer with a file (HTTP ${fetched.status}${fetched.contentType ? ` ${fetched.contentType}` : ''})`;
+        // Indexed and not fetched is not "proven absent": the file is there and the download failed.
+        archiveState = 'unknown';
+        console.log(`  C  ${originDetail.padEnd(22)} ${t.url.slice(0, 88)}  | ${archiveNote}`);
+      }
+    } else if (answer.state === 'not-archived') {
+      archiveNote = 'the Wayback Machine holds no 200 capture of it';
+      archiveState = 'none';
+      console.log(`  C  ${originDetail.padEnd(22)} ${t.url.slice(0, 88)}  | ${archiveNote}`);
+    } else {
+      archiveNote = `the Wayback index could not be asked: ${answer.reason}`;
+      archiveState = 'unknown';
+      console.log(`  ?  ${originDetail.padEnd(22)} ${t.url.slice(0, 88)}  | ${archiveNote}`);
+    }
+  }
+
   if (!got.ok) {
-    const detail = `HTTP ${got.status}${got.contentType ? ` ${got.contentType}` : ''}${got.error ? ` ${got.error}` : ''}`;
-    console.log(`  C  ${detail.padEnd(22)} ${t.url.slice(0, 96)}`);
-    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'origin-refused', detail, bytes: 0, mime: null, key: null });
+    const detail = archiveNote ? `${originDetail}; ${archiveNote}` : originDetail;
+    attempts.push({
+      url: t.url,
+      articles: [...t.articles],
+      outcome: 'origin-refused',
+      detail,
+      bytes: 0,
+      mime: null,
+      key: null,
+      // Null when `--wayback` was not asked for at all: nothing was proven either way.
+      ...(archiveState ? { archived: archiveState } : {}),
+    });
     return;
   }
 
@@ -397,9 +732,20 @@ async function importOne(t: Need): Promise<void> {
   const sniffed = sniffMediaBytes(head, got.contentType);
   if (!sniffed) {
     const looksHtml = /^\s*<(!doctype|html|head|body)/i.test(got.body.subarray(0, 64).toString('utf8'));
-    const detail = `declared ${got.contentType || 'nothing'}, bytes are not a stored format${looksHtml ? ' (an HTML document)' : ''}`;
+    const detail =
+      `declared ${got.contentType || 'nothing'}, bytes are not a stored format${looksHtml ? ' (an HTML document)' : ''}` +
+      (archiveNote ? `; ${archiveNote}` : '');
     console.log(`  !  not a file           ${t.url.slice(0, 96)}  ${detail}`);
-    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'not-a-file', detail, bytes: got.body.length, mime: got.contentType || null, key: null });
+    attempts.push({
+      url: t.url,
+      articles: [...t.articles],
+      outcome: 'not-a-file',
+      detail,
+      bytes: got.body.length,
+      mime: got.contentType || null,
+      key: null,
+      ...(archiveState ? { archived: archiveState } : {}),
+    });
     return;
   }
   if (got.body.length === 0) {
@@ -448,10 +794,29 @@ async function importOne(t: Need): Promise<void> {
       `update ozikoro_media set storage_key = $1, slug = $2, kind = $3, mime_type = $4, filesize_bytes = $5, source_url = $6, updated_at = now() where id = $7`,
       [stored.key, slug, sniffed.kind, sniffed.mime, got.body.length, url, mediaId]
     );
+    /*
+     * AND IF THE FILE CAME FROM A WEB ARCHIVE, THE RECORD SAYS SO. **A photograph with a false provenance is
+     * worse than a missing one**, and this archive's whole point is provenance — so the source and the
+     * capture date are written onto the row a reader can see (`/documents/<slug>/`, the `credit` field),
+     * not merely printed in this run's log where nobody will meet them again.
+     */
+    if (recoveredFrom) {
+      await recordWebArchiveProvenance(db, mediaId, recoveredFrom.timestamp, url);
+      console.log(`     provenance: Wayback capture of ${waybackDate(recoveredFrom.timestamp)} written to the record`);
+    }
     imported += 1;
     bytes += got.body.length;
     console.log(`  B  ${String(got.body.length).padStart(9)} B  ${sniffed.mime.padEnd(16)} ${stored.key}`);
-    attempts.push({ url: t.url, articles: [...t.articles], outcome: 'imported', detail: sniffed.mime, bytes: got.body.length, mime: sniffed.mime, key: stored.key });
+    attempts.push({
+      url: t.url,
+      articles: [...t.articles],
+      outcome: 'imported',
+      detail: sniffed.mime,
+      bytes: got.body.length,
+      mime: sniffed.mime,
+      key: stored.key,
+      ...(recoveredFrom ? { recoveredFrom: { archive: 'Internet Archive Wayback Machine', timestamp: recoveredFrom.timestamp } } : {}),
+    });
   } catch (error) {
     if (t.adoptId === null) {
       try { await db.query(`delete from ozikoro_media where id = $1`, [mediaId]); } catch { /* no key, so no picker offers it */ }
@@ -505,13 +870,43 @@ console.log(`records rewritten               ${rewritten}`);
 console.log(`rows adopted (a row the migration left empty) ${adopted}`);
 
 /*
+ * WHERE THE BYTES CAME FROM, COUNTED SEPARATELY. **A recovery and a recovery from a web archive are not the
+ * same fact about a file**, so the run says how many of each it wrote, and how many captures it was told
+ * about but could not fetch.
+ */
+const fromArchive = attempts.filter((a) => a.recoveredFrom);
+if (fromArchive.length > 0) {
+  console.log(`\nRECOVERED FROM A WEB ARCHIVE — ${fromArchive.length} file(s), each with its source and capture date on its own record:`);
+  for (const a of fromArchive) {
+    console.log(`  ${a.recoveredFrom!.archive}  capture of ${waybackDate(a.recoveredFrom!.timestamp)}  ->  ${a.key}\n      ${a.url}`);
+  }
+}
+
+/*
  * WHAT IS LEFT, NAMED. A record whose picture answers nowhere keeps the dead address it had — that is the
  * honest state, and this is the list somebody has to act on. It is printed every run, so a second run is a
  * measurement rather than a no-op nobody can see.
+ *
+ * ⚠️ AND THE THREE ANSWERS ARE KEPT APART, BECAUSE TWO OF THEM ARE NOT THE SAME. An address the origin
+ * refused and the index has no capture of is **not archived**. An address the origin refused while the index
+ * could not be asked is **unknown**, and calling that "not recoverable" would be reporting a guess as a
+ * measurement. The third line below is the one to re-run.
  */
 const stranded = attempts.filter((a) => a.outcome === 'origin-refused' || a.outcome === 'not-a-file' || a.outcome === 'failed');
 if (stranded.length > 0) {
+  const unknown = stranded.filter((a) => a.archived === 'unknown');
+  const proven = stranded.filter((a) => a.archived !== 'unknown');
   console.log(`\nCOULD NOT BE RECOVERED — ${stranded.length} address(es), left exactly as they were:`);
   for (const s of stranded) console.log(`  ${s.outcome.padEnd(15)} ${s.url}\n                  ${s.detail}  | records ${s.articles.join(', ')}`);
+  if (unknown.length > 0) {
+    console.log(
+      `\n  ⚠️ ${unknown.length} of those were NOT proven absent anywhere: the Wayback index could not be asked ` +
+        `about them. They are unknown, not unrecoverable — re-run to ask again.`
+    );
+  }
+  if (proven.length > 0 && opts.wayback) {
+    console.log(`  ${proven.length} were asked of both sources and answered nowhere.`);
+  }
 }
 await closeDb();
+

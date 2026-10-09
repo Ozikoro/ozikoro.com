@@ -16,6 +16,7 @@
     "./media": "./src/media.ts",
     "./media-key": "./src/media-key.ts",
     "./media-bytes": "./src/media-bytes.ts",
+    "./missing-figure": "./src/missing-figure.ts",
     "./members": "./src/members.ts",
     "./roles": "./src/roles.ts",
     "./users": "./src/users.ts",

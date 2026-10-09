@@ -26,6 +26,7 @@ import type { Db } from '@ozituma/db';
 import { EXTERNAL_AUDIO_LABELS, isExternalAudioService } from './external-audio.ts';
 import { designScreenLinks } from './design-paths.ts';
 import { normaliseHeadingLevels, sanitiseArchiveHtml } from './content.ts';
+import { nameUnheldFigures } from './missing-figure.ts';
 import { namedBackers, type NamedBacker } from './partners.ts';
 
 /*
@@ -3102,7 +3103,27 @@ export function fillArticle(html: string, a: RealArticle): string {
   const safe = sanitiseArchiveHtml(resolved);
   // The featured image goes in the design's own figure; the body is tidied so it does not repeat it, and so
   // its WordPress widths do not run past the reading column.
-  const body = tidyBody(safe, a.image);
+  const tidied = tidyBody(safe, a.image);
+
+  /*
+   * ── AND A PICTURE THIS ARCHIVE DOES NOT HOLD BECOMES A STATEMENT RATHER THAN A BROKEN FRAME ─────────
+   *
+   * `rewriteBodyImages` leaves an address it cannot resolve exactly as it was — correctly, because
+   * substituting another photograph would be worse than showing none — and `sanitiseArchiveHtml` does not
+   * remove it either, because the tag does carry a `src`. So the served page carried
+   * `<img src="https://ozikoro.com/wp-content/uploads/…-photo.jpg">` in the middle of a sentence about a
+   * photograph, and **the site's own `img-src 'self' data: https://i.ytimg.com` refused it: a broken frame,
+   * in a record whose whole purpose is to be a reliable account of something.**
+   *
+   * Deleting the tag is the other wrong answer — the sentence around it goes on referring to a picture and
+   * nothing says where it went. `nameUnheldFigures` replaces the element with the archive's own
+   * `.unsourced` statement, names the file, and keeps the address as the record of where the picture stood.
+   *
+   * IT RUNS HERE, LAST, AND THE PLACE IS LOAD-BEARING: only after `rewriteBodyImages` has pointed every held
+   * address at `/media/…` can "does this archive hold this file?" be answered by looking at the address, and
+   * only after `tidyBody` has dropped a repeat of the featured image is the body the one a reader sees.
+   */
+  const body = nameUnheldFigures(tidied);
 
   /*
    * ── AND THE RECORD'S OWN IN-PAGE TARGETS GET THE SAME ROOM ABOVE THEM AS THE FRAME'S ──────────────
