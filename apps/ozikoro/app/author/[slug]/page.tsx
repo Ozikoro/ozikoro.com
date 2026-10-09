@@ -31,7 +31,14 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getDb } from '@ozituma/db/client';
-import { listArticles, countArticles, getBylineProfile, listMemberSocial, socialHref } from '@ozikoro/platform';
+import {
+  listArticles,
+  countArticles,
+  getBylineProfile,
+  listMemberSocial,
+  sameOriginPortrait,
+  socialHref,
+} from '@ozikoro/platform';
 import { ArticleEntry } from '../../_components/article-entry';
 
 export const dynamic = 'force-dynamic';
@@ -103,6 +110,22 @@ export default async function AuthorPage({ params }: PageProps) {
   const bylineSocial = byline?.accountId ? await listMemberSocial(db, byline.accountId) : [];
 
   /*
+   * ⚠️ THE PORTRAIT IS FILTERED TO WHAT THIS SITE CAN ACTUALLY SERVE, AND THAT IS NOT BELT-AND-BRACES.
+   *
+   * The `<img>` below used `byline.avatarUrl` directly and this page's own header promised it was "the
+   * author's own portrait … never a Gravatar default". **That promise is a property of the DATA, not of the
+   * page**, and measured in this checkout it is false: one of the 16 byline rows still carries
+   * `https://secure.gravatar.com/avatar/…?d=mm&r=g`, on the row behind 314 published records. The page would
+   * have drawn a request this site's CSP (`img-src 'self' data: https://i.ytimg.com`) REFUSES — a broken-image
+   * box where a person's face belongs, which is the exact fault an agent measured on `/researchers/` when 22
+   * Gravatar avatars were refused.
+   *
+   * `sameOriginPortrait` returns the value only when it is a path this site serves, so anything from another
+   * host falls through to the monogram. **A bad portrait becomes a monogram, never a broken box.**
+   */
+  const portrait = sameOriginPortrait(byline?.avatarUrl);
+
+  /*
    * The role line reads the research profile where the record links one, and says what the archive holds
    * otherwise — a byline is a contributor to the archive, and "Independent researcher" would be a claim
    * about a person this page has no record for.
@@ -134,9 +157,9 @@ export default async function AuthorPage({ params }: PageProps) {
 
       <div className="wrap section">
         <div className="profile-head">
-          {byline?.avatarUrl ? (
-            /* The author's own portrait, from the archive's media store — never a Gravatar default. */
-            <img className="avatar" src={byline.avatarUrl} alt={`Portrait of ${name}`} />
+          {portrait ? (
+            /* A portrait this site serves. See `portrait` above for why an external address is not drawn. */
+            <img className="avatar" src={portrait} alt={`Portrait of ${name}`} />
           ) : (
             <p className="avatar" role="img" aria-label={`Monogram for ${name}: no portrait has been supplied`}>
               {initials(name)}
@@ -203,7 +226,13 @@ export default async function AuthorPage({ params }: PageProps) {
             <span>Biography supplied</span>
           </p>
           <p className="stat">
-            <b>{byline?.avatarUrl ? 'Yes' : 'Monogram'}</b>
+            {/*
+              THE COUNT AGREES WITH THE HEAD, WHICH IS THE POINT. It read `byline.avatarUrl`, so a byline whose
+              stored portrait is a Gravatar address reported "Yes" above a monogram. **A figure that disagrees
+              with the thing beside it is worse than no figure**, so this reads the same filtered value the
+              portrait itself does.
+            */}
+            <b>{portrait ? 'Yes' : 'Monogram'}</b>
             <span>Portrait supplied</span>
           </p>
         </div>

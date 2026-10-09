@@ -1552,6 +1552,36 @@ export async function getProfileForEditing(db: Db, accountId: number): Promise<{
 }
 
 /**
+ * A portrait value, if and only if this site can actually draw it — otherwise `null`.
+ *
+ * ── WHY A PAGE NEEDS THIS AND NOT JUST A CAREFUL IMPORT ──────────────────────────────────────────────
+ *
+ * ⚠️ **`/author/<slug>/` DREW A BROKEN IMAGE, AND THE COMMENT ABOVE IT CLAIMED IT COULD NOT.** The byline page
+ * renders `byline.avatarUrl` with no guard and its own header says *"the author's own portrait … never a
+ * Gravatar default"* — **but that is a property of the DATA, not of the page.** It holds only while
+ * `backfill-author-portraits.ts` has been run against the database being served, and measured here it has not:
+ * 15 of this checkout's 16 rows carry an `avatar_url` and at least one of them is
+ * `https://secure.gravatar.com/avatar/…?d=mm&r=g` on a byline with 314 published records.
+ *
+ * It would be a cosmetic fault anywhere and it is worse than that here: **this site's Content-Security-Policy
+ * is `img-src 'self' data: https://i.ytimg.com` plus the advertisement origins, so a Gravatar URL is not
+ * merely a stock face — it is a request the browser REFUSES**, and the page shows a broken-image box where a
+ * person's portrait should be. An agent measured exactly that on `/researchers/`: 22 Gravatar avatars refused.
+ *
+ * So the rule the pages state is enforced where it is used. Only a path this site serves is returned, which
+ * means a stored value from any other host — Gravatar's silhouette, a hotlink, a value a migration wrote —
+ * falls through to the monogram the page already knows how to draw. **The page still draws either way**, which
+ * is the failing-safe shape the archive asks for: a missing portrait is a monogram, never a broken box.
+ *
+ * `'/media/'` with the trailing slash, so a protocol-relative `//host/path` cannot slip through it.
+ */
+export function sameOriginPortrait(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.startsWith('/media/') ? trimmed : null;
+}
+
+/**
  * One byline, as `/author/<slug>/` needs it: the record's own portrait and biography, and the
  * published research profile the record links to it — or none.
  *

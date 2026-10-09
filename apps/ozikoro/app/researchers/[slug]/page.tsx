@@ -18,6 +18,7 @@ import {
   getResearcherBio,
   listByAccount,
   listMemberSocial,
+  sameOriginPortrait,
   socialHref,
 } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
@@ -129,8 +130,14 @@ export default async function ResearcherPage({
           A monogram where none is set, never a stock face — the rule `/researchers/` already states about
           Gravatar's `d=mm` silhouette, and the reason `alt` names whose picture it is either way.
         */}
-        {researcher.avatarUrl ? (
-          <img className="avatar" src={researcher.avatarUrl} alt={`Portrait of ${researcher.name}`} />
+        {sameOriginPortrait(researcher.avatarUrl) ? (
+          /* A path this site serves. `sameOriginPortrait` is the same guard `/author/<slug>/` uses, so a
+             stored address this site's CSP refuses becomes a monogram rather than a broken image. */
+          <img
+            className="avatar"
+            src={sameOriginPortrait(researcher.avatarUrl)!}
+            alt={`Portrait of ${researcher.name}`}
+          />
         ) : (
           <p className="avatar" aria-hidden="true">{initials(researcher.name)}</p>
         )}

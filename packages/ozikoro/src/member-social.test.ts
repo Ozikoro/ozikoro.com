@@ -31,6 +31,7 @@ import {
   socialNetwork,
   socialUsernameProblem,
 } from './member-social.ts';
+import { sameOriginPortrait } from './publications.ts';
 
 test('every network builds an address on a constant host', () => {
   for (const network of SOCIAL_NETWORKS) {
@@ -165,4 +166,33 @@ test('every network key is distinct, and every form field is distinct', () => {
   assert.equal(new Set(keys).size, keys.length);
   assert.equal(new Set(fields).size, fields.length);
   assert.equal(SOCIAL_NETWORKS.length, 6);
+});
+
+test('a portrait this site cannot serve is refused, so the page draws a monogram instead of a broken box', () => {
+  /*
+   * ⚠️ THIS PINS A FAULT FOUND BY MEASURING RATHER THAN BY READING. `/author/<slug>/` rendered
+   * `byline.avatarUrl` with no guard while its own header promised "never a Gravatar default" — and one of
+   * the 16 byline rows in this checkout still carries `https://secure.gravatar.com/avatar/…?d=mm&r=g`, behind
+   * 314 published records. This site's CSP is `img-src 'self' data: https://i.ytimg.com` plus the ad origins,
+   * so that address is a request the browser REFUSES: the page drew a broken-image box, which is the same
+   * fault an agent measured on `/researchers/` when 22 Gravatar avatars were refused.
+   */
+  assert.equal(sameOriginPortrait('/media/ozikoro/15198-probe-portrait.png'), '/media/ozikoro/15198-probe-portrait.png');
+  assert.equal(sameOriginPortrait('  /media/ozikoro/a b.png  '), '/media/ozikoro/a b.png');
+  for (const no of [
+    'https://secure.gravatar.com/avatar/abc?s=96&d=mm&r=g',
+    'http://127.0.0.1:3110/media/ozikoro/x.png',
+    // Protocol-relative: this is why the guard tests `/media/` WITH its trailing slash and not just a leading one.
+    '//evil.example.invalid/media/x.png',
+    '/media',
+    '/mediaevil/x.png',
+    'media/x.png',
+    'javascript:alert(1)',
+    '',
+    '   ',
+    null,
+    undefined,
+  ]) {
+    assert.equal(sameOriginPortrait(no as string | null | undefined), null, `${JSON.stringify(no)} must not be drawn`);
+  }
 });

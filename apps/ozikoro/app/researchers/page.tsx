@@ -49,7 +49,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getDb } from '@ozituma/db/client';
-import { listResearchDirectory } from '@ozikoro/platform';
+import { listResearchDirectory, sameOriginPortrait } from '@ozikoro/platform';
 
 export const dynamic = 'force-dynamic';
 
@@ -241,9 +241,15 @@ export default async function ResearchersPage({
             {writers.map((w) => (
               <article className="entry" key={`w-${w.slug}`}>
                 <div className="profile-head">
-                  {w.avatarUrl ? (
-                    /* The author's own portrait, from the archive's media store — never a Gravatar default. */
-                    <img className="avatar" src={w.avatarUrl} alt={`Portrait of ${w.name}`} loading="lazy" />
+                  {sameOriginPortrait(w.avatarUrl) ? (
+                    /*
+                     * The author's own portrait, from the archive's media store — and only when THIS SITE
+                     * can serve it. Measured here: one byline row still carries a `secure.gravatar.com`
+                     * `d=mm` address, which this site's CSP (`img-src 'self' data: https://i.ytimg.com`)
+                     * refuses — so an unguarded `<img>` drew a broken box, not a stock face. The guard makes
+                     * it fall through to the monogram below.
+                     */
+                    <img className="avatar" src={sameOriginPortrait(w.avatarUrl)!} alt={`Portrait of ${w.name}`} loading="lazy" />
                   ) : (
                     <p
                       className="avatar"
@@ -326,8 +332,8 @@ export default async function ResearchersPage({
                     monogram remains the answer for the much commoner case of no picture set, and it is never a
                     stock face.
                   */}
-                  {p.avatarUrl ? (
-                    <img className="avatar" src={p.avatarUrl} alt={`Portrait of ${p.name}`} loading="lazy" />
+                  {sameOriginPortrait(p.avatarUrl) ? (
+                    <img className="avatar" src={sameOriginPortrait(p.avatarUrl)!} alt={`Portrait of ${p.name}`} loading="lazy" />
                   ) : (
                     <p
                       className="avatar"
