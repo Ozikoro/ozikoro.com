@@ -143,8 +143,17 @@ try {
     for (const u of gaRequests) console.log(`        ${u.slice(0, 150)}`);
     console.log(`     GA4 HIT SENT          ${hit ? 'YES' : 'no'}`);
     if (refusals.length > 0) {
-      console.log(`     CSP REFUSALS (${refusals.length}):`);
-      for (const r of refusals) console.log(`        ${r.text.replace(/\s+/g, ' ').slice(0, 400)}`);
+      // ⚠️ GROUPED BY ORIGIN, because a page can refuse the same host forty times and the report needs the
+      // DISTINCT hosts rather than the count. `/researchers/` does exactly this with Gravatar avatars.
+      const byOrigin = new Map();
+      for (const r of refusals) {
+        const m = r.text.match(/'(https?:\/\/[^/']+)/) ?? r.text.match(/"(https?:\/\/[^/"]+)/);
+        const origin = m ? m[1] : '(origin not named)';
+        const directive = (r.text.match(/directive: "([a-z-]+)/) ?? [])[1] ?? '(directive not named)';
+        byOrigin.set(`${origin}  ·  ${directive}`, (byOrigin.get(`${origin}  ·  ${directive}`) ?? 0) + 1);
+      }
+      console.log(`     CSP REFUSALS (${refusals.length}, grouped by origin):`);
+      for (const [key, n] of byOrigin) console.log(`        ${n}×  ${key}`);
     } else {
       console.log('     CSP REFUSALS          none');
     }
