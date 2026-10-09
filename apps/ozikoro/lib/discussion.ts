@@ -35,6 +35,7 @@ import {
 } from '@ozikoro/platform';
 import { getCurrentAccount } from './session';
 import { hasCapability } from './access';
+import { insertAfterElementId } from './html-anchor.ts';
 
 /**
  * The three design screens that are discussion pages, and the address each one is served at.
@@ -139,7 +140,40 @@ async function resolveSubjectSafe(
 }
 
 /**
- * The same box, inserted into a document that is already built, before its closing `</main>`.
+ * The same box, inserted into a document that is already built, **immediately after `Cite this article`**.
+ *
+ * ── THE OWNER'S REQUEST, AND THE MEASUREMENT THAT EXPLAINS IT ────────────────────────────────────────
+ *
+ * > *"comment section should be immediately after 'Cite this article' and be part of the article width, not
+ * > be at the footer where it is now."*
+ *
+ * The box was never literally in the footer — `insertDiscussion` has always put it before the closing
+ * `</main>`. **What the measurement showed is why it reads as the footer to him.** Measured on the review
+ * server's own copy of this record (**20402 bytes**): `Cite this article` closed at byte 17398, the related
+ * cards followed at 17416, the page-turn at 18721 — **and the box did not begin until 19248. Between the
+ * citation and the box sat 1850 bytes of OTHER things**, so the thread was the last object on the page after
+ * two blocks that are not the article.
+ *
+ * ── WHAT THE ANCHOR IS NOW, AND WHY IT IS NOT `lastIndexOf` ──────────────────────────────────────────
+ *
+ * The insertion point is the offset just after the `</section>` that closes the document's `id="citation"`
+ * element — computed by walking that element's own tags (`insertAfterElementId` in `./html-anchor.ts`), not
+ * searched for. **A `</section>` is not unique in a record page either**, and `</div>` is worse, so neither
+ * is used as a needle.
+ *
+ * ⚠️ **THE FALLBACK IS THE OLD ANCHOR, AND IT IS THE REASON NO PAGE LOSES ITS BOX.** A document with no
+ * `id="citation"` — which is every design screen that carries a discussion — falls through to
+ * `insertDiscussion`, i.e. before the last `</main>`, which is byte-for-byte what those pages served before
+ * this change. `withDiscussion` on all 53 design screens therefore behaves exactly as it did.
+ */
+export function insertDiscussionAfterCitation(html: string, block: string): string {
+  if (!block) return html;
+  const placed = insertAfterElementId(html, 'citation', block);
+  return placed ?? insertDiscussion(html, block);
+}
+
+/**
+ * The same box, inserted into a document that is already built.
  *
  * ⚠️ **A SCREEN THIS DOES NOT HANDLE IS RETURNED UNCHANGED, BYTE FOR BYTE.** The design deliverable is
  * inviolable and this runs on all 52 screens; the identity is asserted rather than asserted-in-a-comment.
@@ -159,7 +193,13 @@ export async function withDiscussion(
   });
   if (!block) return html;
 
-  const out = insertDiscussion(html, block);
+  /*
+   * The same anchor rule as the record page, so the two cannot diverge: after `Cite this article` when the
+   * document has one, and before the closing `</main>` when it does not. Of the three design screens that
+   * carry a discussion — `watch`, `projects`, `cultural-calendar` — none has a citation, so all three take
+   * the fallback and serve exactly the markup they served before.
+   */
+  const out = insertDiscussionAfterCitation(html, block);
   if (out === html) {
     console.error(`[discussion] ${screen} has no </main>, so the discussion box was not inserted`);
   }

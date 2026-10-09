@@ -23,15 +23,15 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getDb, type Db } from '@ozituma/db/client';
-import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, redirectFor, siteSeoFrom, mediaPath, mediaUrlResolver, resolveRecordSeo, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, recordRead, insertDiscussion, type RealArticle } from '@ozikoro/platform';
+import { fillArticle, loadRecordSeo, loadSeoVerification, loadSiteSeoSettings, redirectFor, siteSeoFrom, mediaPath, mediaUrlResolver, resolveRecordSeo, rewriteBodyImages, seoHead, withSeoHead, designScriptPaths, designScreenLinks, can, withStoredDesignOverrides, playableEpisodeAudioSql, SITE_ORIGIN, agreementRefusalDocument, withdrawnInstitutionalAccess, recordRead, type RealArticle } from '@ozikoro/platform';
 import { getCurrentAccount } from '@/lib/session';
 import { hasCapability } from '@/lib/access';
-import { discussionHtml } from '@/lib/discussion';
+import { discussionHtml, insertDiscussionAfterCitation } from '@/lib/discussion';
 /*
  * The owner's ad code, for the record pages this route serves. See the call site: a record is exactly the
  * "record page" the brief names, so this is the one document producer that carries a unit unconditionally.
  */
-import { withAdsense } from '@/lib/adsense';
+import { warnIfAdBelowDiscussion, withAdsense } from '@/lib/adsense';
 
 export const dynamic = 'force-dynamic';
 
@@ -907,11 +907,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   /*
    * ── THE OWNER'S AD CODE, ON EVERY PUBLISHED RECORD ──────────────────────────────────────────────────
    *
-   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* The brief
-   * names "a record page" first among the places a unit belongs, and **this is that page for all 1,051
-   * published histories and folktales** — one placement, because a folktale is served by this route and not
-   * by a second one. `article.html` carries exactly one `</main>`, so the unit lands at the foot of the
-   * article and the discussion box below it, which is the order a reader expects.
+   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* — and, in
+   * this round, *"make sure the google adsense is placed well in the articles."* The brief names "a record
+   * page" first among the places a unit belongs, and **this is that page for all 1,051 published histories
+   * and folktales**: one placement, because a folktale is served by this route and not by a second one.
+   *
+   * 🔴 **THE UNIT IS NO LONGER AT THE FOOT, WHICH IS WHAT THE SECOND HALF OF THAT REQUEST WAS ABOUT.**
+   * Measured on the review server's own copy of `/egwu-amala-the-paddle-dance-of-nigerias-river-communities/`
+   * (**20402 bytes**), the unit used to sit at **byte 18912** — after the page-turn navigation at 18721 and
+   * after the related cards at 17416, **92.7% of the way down the document**, and after the comment thread at
+   * 19248 as well. A reader who reached it had finished the article, which is the lowest-viewability placement
+   * a unit can have. `withAdsenseUnit` now places it after the third paragraph of `.prose`, inside the reading
+   * column at byte 12521 (21.7% of the way through the reading matter); the measurement and the fallback chain
+   * are in `@/lib/adsense`.
    *
    * ── WHERE IT RUNS, AND THE TWO THINGS IT MUST BE AFTER ──────────────────────────────────────────────
    *
@@ -920,9 +928,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
    * design's own head and the page would serve an `<ins>` nothing can fill. Running here also puts the loader
    * after the editor's saved design overrides, so a stored edit cannot remove it.
    *
-   * **BEFORE THE DISCUSSION BOX, SO THE AD IS ABOVE THE COMMENTS.** `insertDiscussion` inserts at the last
-   * `</main>`, the same anchor the unit uses; whichever runs first sits further from the closing tag. The
-   * reading matter, then the paid placement, then the thread.
+   * **AND IT NO LONGER HAS TO RUN BEFORE THE DISCUSSION BOX.** That constraint was real while both insertions
+   * anchored on the same closing `</main>`: *"whichever runs first sits further from the closing tag"* was
+   * true, and it was a fact about this file rather than about the page. **The anchors are disjoint now** —
+   * the unit is inside the reading matter, the box is spliced after `Cite this article` — and the unit's own
+   * second fallback anchors on the box's marker. So both orders produce byte-identical documents; that was
+   * measured, not argued, in `apps/ozikoro/lib/placement.test.ts`. The call is left where it was because it
+   * is still the safe order for the design screens, where a page can have neither a `.prose` nor a citation
+   * and both insertions fall back to the closing `</main>`.
+   *
+   * `warnIfAdBelowDiscussion` at the bottom of this handler then asks the served bytes for the invariant, so
+   * a future change to either anchor fails loudly rather than silently serving a paid block under a thread.
    *
    * ⚠️ **THIS ROUTE HAS NO EDITOR AND NO FORM AT THE END OF ITS BODY, WHICH IS WHY THE UNIT IS UNCONDITIONAL
    * HERE.** `article.html` draws the reading frame; the `contenteditable` the owner writes in lives in the
@@ -950,6 +966,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
    *
    * AND IT CANNOT COST THE READER THE RECORD. The same rule the reading-history block above states: a box
    * that will not draw is a missing box, not a 404 on 1,051 published histories.
+   *
+   * ⚠️ **AND IT GOES IMMEDIATELY AFTER `Cite this article`, WHICH IS THE OWNER'S REQUEST THIS ROUND.**
+   * `insertDiscussionAfterCitation` splices the box at the offset just after `<section id="citation">`'s
+   * closing `</section>`, which puts it inside the article's reading column and ahead of the related cards
+   * and the page-turn. A record with no such element falls back to the closing `</main>` — the position it
+   * served before. See `@/lib/discussion` for the measurement that asked for it.
    */
   try {
     const block = await discussionHtml({
@@ -958,10 +980,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
       kindLabel: row.topic && row.topic.trim().toLowerCase() === 'folklores' ? 'this folktale' : 'this record',
       search: new URL(request.url).searchParams,
     });
-    html = insertDiscussion(html, block);
+    html = insertDiscussionAfterCitation(html, block);
   } catch (error) {
     console.error('article: could not draw the discussion', String(error).slice(0, 200));
   }
+
+  /*
+   * ── THE ORDER, ASKED OF THE BYTES THAT ARE ABOUT TO GO OUT ───────────────────────────────────────────
+   *
+   * The ad must stay above the comments — that was the rule before this change and it still is. It used to
+   * be guaranteed by which of the two insertions above ran first; it is now a property of the two anchors.
+   * This states it on the served document so a later change to either anchor is a logged fault rather than a
+   * paid block served under a comment thread. It never throws and never changes the response: a page that
+   * draws no unit, or no thread, is not a fault.
+   */
+  warnIfAdBelowDiscussion(html, `/${row.slug}/`);
 
   return new Response(html, {
     headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },

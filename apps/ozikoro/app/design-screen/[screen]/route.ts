@@ -82,7 +82,7 @@ import { withDiscussion } from '@/lib/discussion';
  * The owner's ad code, for the screens a reader reads. See the call site far below, and `@/lib/adsense` for
  * why this is an allow-list of screen NAMES rather than a rule over the document.
  */
-import { ADSENSE_READER_SCREENS, withAdsense } from '@/lib/adsense';
+import { ADSENSE_READER_SCREENS, warnIfAdBelowDiscussion, withAdsense } from '@/lib/adsense';
 import {
   citationFor,
   fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
@@ -3154,11 +3154,15 @@ export async function GET(
    * with nothing to fill it. This is the same trap the override comment above records, and the same one the
    * design's own `<script src="../reader.js">` links fall into.
    *
-   * **Before `withDiscussion`, so the order down the page is reading matter, then the ad, then the comments.**
-   * Both insert at the last `</main>` — `withDiscussion` through `insertDiscussion`, the ad through
-   * `withAdsenseUnit` — so whichever runs first ends up further from the closing tag. Running the ad first
-   * puts the unit at the foot of the article and the discussion below it, which is what a reader expects and
-   * what keeps a paid rectangle above the comment thread rather than between two comments.
+   * **AND IT NO LONGER HAS TO RUN BEFORE `withDiscussion`.** That was a real constraint while both insertions
+   * anchored on the same closing `</main>`: *"whichever runs first ends up further from the closing tag"* was
+   * true of the code rather than of the page. **The anchors are disjoint on every document carrying a
+   * `.prose`** — the unit goes after the reading matter's third paragraph, and the box after `Cite this
+   * article` — and on the three screens that carry a discussion but no `.prose` (`watch`, `projects`,
+   * `cultural-calendar`, measured) the unit's own second fallback anchors on the discussion box's marker, so
+   * it lands directly above the thread whichever call runs first. `apps/ozikoro/lib/placement.test.ts` holds
+   * both halves of that as a test. **The order of the two calls below is unchanged from what shipped, and the
+   * guarantee no longer rests on it.**
    *
    * ⚠️ **`ADSENSE_READER_SCREENS` IS AN ALLOW-LIST BECAUSE THIS ROUTE SERVES ALL FIFTY-THREE SCREENS.** The
    * dashboards, the editor — whose `<main>` holds the owner's `contenteditable` — the upload form, the 404 and
@@ -3182,13 +3186,25 @@ export async function GET(
    * already carries; a comment box is not design text and must not be reachable by an override keyed on the
    * page, so the box goes on after the last pass rather than into it. It is also the one line this route
    * takes from the comments work: `withDiscussion` returns any screen it does not handle **byte for byte
-   * unchanged**, asserted in `apps/ozikoro/lib/discussion.test.ts`, so the other 49 screens are untouched.
+   * unchanged** — `discussionScreenPath` answers `null` for 50 of the 53 names, and the comparison is made
+   * on the served bytes in this round's measurements rather than asserted here.
    *
    * The full reasoning — why a comment is filed under a page address, why `pending` is the state the schema
    * writes, and why the two example shapes are shown to nobody but a moderator — is in
    * `packages/ozikoro/src/comments.ts` and in the header of `apps/ozikoro/lib/discussion.ts`.
    */
   html = await withDiscussion(html, name, new URL(request.url).searchParams);
+
+  /*
+   * ── THE ORDER, ASKED OF THE BYTES THAT ARE ABOUT TO GO OUT ───────────────────────────────────────────
+   *
+   * The ad must stay above the comments — that rule is older than this change and it still is. It used to be
+   * guaranteed by which of the two insertions above ran first; it is now a property of the two anchors. This
+   * states it on the served document, so a later change to either anchor is a logged fault rather than a paid
+   * block served under a comment thread. It never throws and never changes the response: a screen that draws
+   * no unit, or no thread, is not a fault.
+   */
+  warnIfAdBelowDiscussion(html, `/${name}/`);
 
   /*
    * ── AND THE IN-PAGE CONTROL THAT POINTS AT SOMETHING THIS PAGE NO LONGER DRAWS ───────────────────────

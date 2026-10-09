@@ -65,6 +65,45 @@
   max-width: 46rem;
 }
 
+/*
+ * ── AND WHEN THE BOX IS INSIDE THE ARTICLE'S OWN COLUMN ─────────────────────────────────────────────
+ *
+ * The owner: *"comment section should be immediately after 'Cite this article' and be part of the article
+ * width, not be at the footer where it is now."* So `insertDiscussionAfterCitation` splices the section into
+ * the record's `.prose`, directly after `<section id="citation">`. Two things follow, and both were measured
+ * on the served page rather than assumed:
+ *
+ *   1. **`.wrap` IS THE PAGE CONTAINER AND MUST NOT BE RE-APPLIED INSIDE THE ARTICLE.** It carries
+ *      `max-width: var(--container)` (76rem) and `padding-inline: var(--s-5)` (1.5rem — measured on the
+ *      served page as `padding-left: 24px`, and as 16px below the design's 40rem breakpoint, where
+ *      `main.css:402` swaps `--s-5` for `--s-4`). Inside a reading column that is already `var(--measure)`
+ *      (34rem) wide, the padding is the part that bites: the box's content sits that far in from the
+ *      citation text above it, which is exactly the misalignment this placement exists to remove. The
+ *      container is neutralised here, and **only inside a `.prose`**, so the three design screens that carry
+ *      a discussion keep the `.wrap` their own pages need.
+ *   2. **`.prose` IS THE ARTICLE'S TYPE, NOT THE APPLICATION'S.** It sets `--font-serif`, 1.13rem and
+ *      `line-height: 1.85` (`showcase.css:310`), and the design's `.btn` rule sets no font-family of its own —
+ *      so without this the buttons and the `<textarea>` would inherit the article's serif. A comment form is
+ *      the archive's surface, not the article's prose, and it is put back on the page's own UI face and body
+ *      size here.
+ *
+ * The measure itself is `--measure`, the SAME token `.prose { max-width: … }` uses (`main.css:220`), so the
+ * two columns are equal at every width by construction rather than by a number copied out of a measurement.
+ * `.oz-discussion-inner`'s own 46rem cap is deliberately left alone: at 1280 px the parent is the 34rem prose
+ * and at 390 px it is the `.sx-page` content box, so it never binds there — and it is still the right cap for
+ * the design screens, which have no `.prose` to borrow a measure from.
+ */
+.sx-page .prose > .oz-discussion > .wrap {
+  max-width: none;
+  padding-inline: 0;
+}
+
+.sx-page .prose > .oz-discussion {
+  font-family: var(--font-sans);
+  font-size: var(--t-base);
+  line-height: var(--lh-body);
+}
+
 .oz-discussion-head h2 {
   margin: var(--s-2) 0 var(--s-3);
   font-size: clamp(1.35rem, 1.1rem + 1.2vw, 1.85rem);
