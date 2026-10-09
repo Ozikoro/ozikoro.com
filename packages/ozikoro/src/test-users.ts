@@ -15,9 +15,18 @@
  * source, because "the page must not present a contributor as a login account" is a claim about the page.
  *
  * ⚠️ **IT NEEDS THE PGLITE CLUSTER, SO THE REVIEW SERVER MUST BE STOPPED.** PGlite is single-process; this is
- * the same rule `knowledge.test.ts` and the `test-*.ts` scripts in this package follow.
+ * the same rule `test-knowledge.ts` and the `test-*.ts` scripts in this package follow.
  *
- * Run with: npm -w @ozikoro/platform run test
+ * ⚠️ **AND THAT IS WHY IT IS `test-*.ts` AND NOT `*.test.ts`, WHICH IT WAS.** The `*.test.ts` glob is what
+ * the root `test:unit` script gives to `node --test`, so CI ran this under a job named *"Typecheck and
+ * database-free suites"* — where it failed for two separate reasons, neither of them the code under test:
+ * the runner has no `.data/pg` at all, and on a developer's machine the review server holds the single-process
+ * cluster (measured: *"REFUSING TO OPEN THE PGLITE CLUSTER: ANOTHER PROCESS HOLDS IT"*). Even with a cluster
+ * present it asserts on data — *"the archive credits no contributors at all"* is what a freshly migrated,
+ * empty one answers — because the bylines come from the WordPress import, which is not committed. It now runs
+ * with the rest of the real-archive suites in `test:ozikoro-data`.
+ *
+ * Run with: npm -w @ozikoro/platform run test:users
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';

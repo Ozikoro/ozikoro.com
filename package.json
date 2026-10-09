@@ -70,7 +70,7 @@
     "test:ozikoro": "npm -w @ozikoro/platform run test && npm run test:ozikoro-data",
     "import:ozikoro-wp": "npm -w @ozikoro/platform run import:wordpress",
     "import:ozikoro-archive": "npm -w @ozikoro/platform run import:archive -- --apply",
-    "test:ozikoro-data": "npm -w @ozikoro/platform run test:archive && npm -w @ozikoro/platform run test:members && npm -w @ozikoro/platform run test:editorial && npm -w @ozikoro/platform run test:trash && npm -w @ozikoro/platform run test:publications && npm -w @ozikoro/platform run test:rights && npm -w @ozikoro/platform run test:search && npm -w @ozikoro/platform run test:graph && npm -w @ozikoro/platform run test:pronunciation && npm -w @ozikoro/platform run test:planner && npm -w @ozikoro/platform run test:redirects && npm run test:spotify",
+    "test:ozikoro-data": "npm -w @ozikoro/platform run test:archive && npm -w @ozikoro/platform run test:members && npm -w @ozikoro/platform run test:editorial && npm -w @ozikoro/platform run test:authoring && npm -w @ozikoro/platform run test:trash && npm -w @ozikoro/platform run test:seo-records && npm -w @ozikoro/platform run test:publications && npm -w @ozikoro/platform run test:rights && npm -w @ozikoro/platform run test:search && npm -w @ozikoro/platform run test:graph && npm -w @ozikoro/platform run test:pronunciation && npm -w @ozikoro/platform run test:planner && npm -w @ozikoro/platform run test:knowledge && npm -w @ozikoro/platform run test:users && npm -w @ozikoro/platform run test:redirects && npm run test:spotify",
     "import:media-store": "npm -w @ozikoro/platform run import:media-store -- --apply",
     "import:media-upload": "npm -w @ozikoro/platform run import:media-upload",
     "backup": "npm -w @ozikoro/platform run backup",

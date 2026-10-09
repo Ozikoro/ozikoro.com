@@ -59,6 +59,8 @@
     "check:capabilities": "node src/ops/capability-check.ts",
     "test:pronunciation": "node src/test-pronunciation.ts",
     "test:planner": "node src/test-planner.ts",
+    "test:knowledge": "node --test src/test-knowledge.ts",
+    "test:users": "node --test src/test-users.ts",
     "test:seo-verification": "node --test src/seo-verification.test.ts"
   },
   "dependencies": {

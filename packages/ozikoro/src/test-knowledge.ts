@@ -18,7 +18,18 @@
  * to `trust: "ai_assisted"`, an ungrounded answer. The excerpt length is asserted so a future edit cannot
  * quietly restore the whole body.
  *
- * Run with: npm -w @ozikoro/platform run test
+ * Run with: npm -w @ozikoro/platform run test:knowledge
+ *
+ * ⚠️ **THIS FILE IS `test-*.ts` AND NOT `*.test.ts` BECAUSE IT IS NOT DATABASE-FREE.** It was
+ * `src/knowledge.test.ts`, and the `*.test.ts` glob is what the root `test:unit` script hands to
+ * `node --test` — so CI ran it under a job named *"Typecheck and database-free suites"* and it failed
+ * there for a reason that was nothing to do with code: **it does `await getDb()` and asserts on the
+ * archive's own rows** (that there are published articles to retrieve from, and that a question nothing
+ * matches returns nothing). Measured on a freshly migrated, empty cluster — which is the most a runner
+ * could build — it fails with *"the archive has published articles to retrieve from"*. The data it needs
+ * is the imported WordPress archive, which lives only in `.data/pg` on a developer's machine and is
+ * deliberately not committed. So it moved to the suite that runs against the real archive, alongside
+ * `test-archive.ts` and the rest of `test:ozikoro-data`.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

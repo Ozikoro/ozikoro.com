@@ -248,8 +248,23 @@ test('an episode with no playable audio gets no player, and the sidebar is not l
   // The sidebar’s own "Listen" link went with the panel rather than scrolling nowhere.
   assertFragmentsResolve(out, 'no audio');
   assert.doesNotMatch(out, /href="#listen"/);
-  // The entity fallback is the archive’s own statement of the absence, not an empty row.
-  assert.match(out, /The archive holds no clan, town or place recorded for this entry/);
+  /*
+   * ⚠️ NO ENTITY ROW AND NO SENTENCE EXPLAINING ITS ABSENCE — AND THAT IS THE OWNER’S RULING, NOT AN
+   * OMISSION. This assertion replaces one that required the sentence
+   * *"The archive holds no clan, town or place recorded for this entry"*, which `fillArticle` used to print
+   * whenever a record named no entity. He read it on the page and said:
+   *
+   *   *"the articles with no clan, there's no need to display this text, so remove it entire in all the
+   *    articles/contents with no clan selected"*
+   *
+   * So the branch in `design-fill.ts` now draws **nothing** — the empty string is the deliberate output —
+   * and the sentence survives there only inside the comment recording why it went. The previous version of
+   * this test kept asserting the deleted sentence, which is why it failed: **the assertion was stale, and the
+   * source was right.** What is locked in here is the ruling itself, so an empty entity row cannot come back
+   * as either a chip row or an apology for there not being one.
+   */
+  assert.doesNotMatch(out, /sx-article-entities/, 'a record that names no entity gets no chip row at all');
+  assert.doesNotMatch(out, /The archive holds no clan, town or place recorded for this entry/);
 });
 
 test('a record with no related histories gets no related section and no link to one', () => {

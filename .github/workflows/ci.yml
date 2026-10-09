@@ -22,6 +22,16 @@
 # **a change that passes CI here has not been checked against the archive.**
 #
 # The import chain to make them runnable in CI is the obvious next step, and it is not built.
+#
+# THE `unit` JOB'S NAME IS TRUE AGAIN, AND IT WAS NOT. Two suites that read the ARCHIVE'S OWN ROWS were
+# sitting under the `src/*.test.ts` glob that job hands to `node --test`, so a job called
+# "database-free" was failing on data: `knowledge.test.ts` and `users.test.ts`, both `await getDb()`,
+# both asserting the imported WordPress archive is present (published articles to retrieve from;
+# contributor bylines with their record counts). A runner has no `.data/pg` at all, and a freshly
+# migrated one is empty, so **they could not pass here whatever else was fixed.** They are
+# `src/test-knowledge.ts` and `src/test-users.ts` now, and run with the real-archive suites in
+# `npm run test:ozikoro-data`. Nothing was deleted and no assertion was weakened: the same assertions
+# moved to the suite whose described purpose is to make them.
 
 name: CI
 
@@ -40,9 +50,96 @@ jobs:
         with:
           # Node 26 runs TypeScript directly, which is how these suites are written: no build step.
           node-version: '26'
+          # The lock file is committed, so the dependency tree is reproducible and cacheable.
+          # Without this every push re-downloads it, which is most of the job's wall-clock on a
+          # tree this size.
+          cache: npm
 
       - name: Install
         run: npm ci
 
       - name: Typecheck and run the database-free suites
         run: npm run test:unit
+
+  # ---------------------------------------------------------------------------
+  # THE BUILD, WHICH NOTHING CHECKED
+  #
+  # `unit` typechecks and runs the database-free suites, and BOTH OF THOSE PASS ON A TREE THAT DOES
+  # NOT BUILD. A type error is not the only way a Next.js build fails: a server component that
+  # imports a client-only module, a route that reads `window` during prerender, a page whose
+  # `generateStaticParams` throws — each compiles under `tsc --noEmit` and fails in `next build`.
+  # So a change that breaks the build reached the branch silently, and the first person to find out
+  # was whoever ran `serve-review.sh` or the Dockerfile.
+  #
+  # WHY IT ALSO RUNS build-standalone.sh RATHER THAN ONLY `npm run build`
+  #
+  # `output: 'standalone'` deliberately does NOT put `public/` or `.next/static` into the standalone
+  # bundle, so a plain `next build` **succeeds and produces an artefact that serves 404 for every
+  # image, every stylesheet and every JS chunk.** This repository has already paid for that once,
+  # which is why the script exists and why its assertions are on the artefact rather than on the
+  # commands having run. Asserting it here is the difference between "the build passed" and "the
+  # thing we deploy is complete".
+  #
+  # ── THE DATABASE QUESTION, MEASURED RATHER THAN ASSUMED ──────────────────────────────────────────
+  #
+  # **THIS JOB NEEDS NO DATABASE, AND THAT WAS MEASURED RATHER THAN HOPED FOR.** A build-time database
+  # dependency is the obvious way for this job to fail for a NEW reason: the archive renders pages that
+  # open PGlite, and a runner has no cluster. The Dockerfile says the same thing in its own comment —
+  # `npm -w @ozikoro/site run build … needs no DATABASE_URL. If a route ever becomes statically
+  # rendered, this is where a build-time database dependency appears` — and this job runs that command.
+  #
+  # It holds today because every route that reads the archive is `force-dynamic`, so `next build` never
+  # opens the cluster. Measured on this checkout, into a throwaway output directory so the running
+  # review server's `.next` was untouched:
+  #
+  #     OZIKORO_DIST_DIR=.next-empty-test OZITUMA_DB_PATH=/tmp/ozempty-pg npx next build
+  #       -> exit 0; every route listed `ƒ (Dynamic)  server-rendered on demand`
+  #       -> /tmp/ozempty-pg WAS NEVER CREATED, so the build did not open the database at all
+  #
+  # **AND THE DAY SOMEONE MAKES A DB-READING ROUTE STATIC, THIS JOB FAILS — WHICH IS THE POINT.** That
+  # is exactly what happened on 2026-10-09: changing the two sitemap routes from `force-dynamic` to
+  # `revalidate = 3600` turned the sitemap index into a build-time prerender and the build died with
+  # `REFUSING TO OPEN THE PGLITE CLUSTER` (reverted in f3de74d). On a runner with no cluster the failure
+  # is the same shape, and it arrives here instead of during a deploy. **So if this job ever goes red
+  # with a PGlite or "no such table" error, the cause is a route that stopped being dynamic — not a
+  # missing database that should be added to CI.**
+  #
+  # WHAT IT COSTS
+  #
+  # `npm run build` builds apps/web and apps/ozikoro, and `build-standalone.sh` builds apps/ozikoro a
+  # second time (its own first command), then copies and asserts. Three Next builds plus the install.
+  # **NO WALL-CLOCK FIGURE IS GIVEN HERE, because it has not been measured on a GitHub runner.** The
+  # first version of this comment estimated 4-7 minutes; an unmeasured estimate in a workflow comment
+  # is a claim nobody can check. It runs in parallel with `unit`, so the added wall-clock is the longer
+  # job rather than the sum.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Production build and deployable artefact
+    runs-on: ubuntu-latest
+    # A hung build is a failure worth seeing, not a job that occupies a runner for six hours.
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # THE TWO APPS THE DOCKERFILE BUILDS, AND ONLY THOSE TWO. `npm run build` is `--workspaces
+      # --if-present`, so it reaches apps/web and apps/ozikoro. The archive is then built AGAIN by the
+      # step below, because that build is `build-standalone.sh`'s own first command and cannot be
+      # skipped from here. The duplication is deliberate for now rather than an oversight: this step is
+      # what proves apps/web — the dictionary — still compiles, and nothing else in this job builds it.
+      - name: Build both deployed apps
+        run: npm run build
+
+      # Builds apps/ozikoro, copies in the public/ and .next/static that Next leaves out, and then
+      # asserts on the filesystem — server.js, public/, the design stylesheets, the accessibility CSS
+      # and a non-empty static chunk directory. It exits non-zero BEFORE anything is served, so a short
+      # copy fails here rather than as a site with 51 of 52 design screens.
+      - name: Assert the archive's deployable artefact is complete
+        run: bash scripts/build-standalone.sh
