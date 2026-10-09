@@ -14,29 +14,7 @@
 import { getDb } from '@ozituma/db/client';
 import { listIndexableUrls, loadSitemapGroups, sitemapIndex, SITEMAP_GROUPS } from '@ozikoro/platform';
 
-/*
- * ⚠️ `revalidate` RATHER THAN `force-dynamic`, AND THE DIFFERENCE IS A HEADER GOOGLE READS.
- *
- * Measured on the live site: every sitemap response carried TWO `cache-control` headers —
- *
- *     cache-control: private, no-cache, no-store, max-age=0, must-revalidate   ← added by Next
- *     cache-control: public, max-age=3600                                      ← set by this route
- *
- * *The route was already asking to be cached for an hour; `force-dynamic` made Next add `no-store`
- * beside it.* **When two `cache-control` headers disagree, the most restrictive one governs** — so the
- * sitemap was uncacheable at every layer, and Cloudflare reported `cf-cache-status: DYNAMIC` on it.
- *
- * **That matters for exactly one reason, and it is the reason this file exists.** A sitemap is what a
- * crawler fetches to learn the site's shape; if nothing may cache it, then every fetch — Google's
- * included — reaches the origin, and **a fetch that lands while the container is being recreated for a
- * deploy fails.** *The archive was deployed eight times in one day. Every one of those was a window in
- * which a sitemap fetch could fail and be recorded as one.*
- *
- * **`revalidate = 3600` gives the response a single, honest hour of life** — *long enough that a deploy
- * cannot take the sitemap away from a crawler, short enough that a newly published record appears the
- * same day.* **The archive changes when someone publishes, not between two crawls of the same minute.**
- */
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const db = await getDb();
