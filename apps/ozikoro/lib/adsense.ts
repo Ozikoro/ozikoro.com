@@ -302,7 +302,20 @@ export function warnIfAdBelowDiscussion(html: string, where: string): boolean {
   return false;
 }
 
-/** Both halves, for a document that is served with no framework around it. */
+/**
+ * Both halves of the ad code, for a document that is served with no framework around it.
+ *
+ * ⚠️ **THE OWNER'S ANALYTICS TAG DELIBERATELY DOES NOT RIDE ON THIS CALL.** It was the obvious place to put
+ * it — one call, three producers — and it is wrong for a measured reason: `ADSENSE_READER_SCREENS` gates this
+ * call on a **26-name allow-list**, while the analytics tag belongs on **all 53 screens and every record**.
+ * Appending the tag here would have measured exactly the pages that carry an ad and silently missed the
+ * dashboards, the 404 and the 27 other screens — **and it would have made the two policies look like one
+ * policy**, which is the drift this repository keeps paying for. So `withAnalyticsTag` from `./analytics` is
+ * called at each producer's own call site, beside this one, and the two lists cannot be confused.
+ *
+ * **THE ORDER BETWEEN THE TWO IS INDIFFERENT AND THAT IS ANCHORED RATHER THAN TRUSTED:** the tag is spliced at
+ * the document's last `</head>` and the unit inside the reading matter, so neither can move the other.
+ */
 export function withAdsense(html: string): string {
   return withAdsenseUnit(withAdsenseLoader(html));
 }

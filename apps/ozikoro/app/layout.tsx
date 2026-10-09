@@ -6,6 +6,7 @@ import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
 import { isAdsenseReaderPath } from '@/lib/adsense';
 import AdsenseUnit from './_components/adsense-unit';
 import { AdsenseLoader } from './_components/adsense-loader';
+import { AnalyticsTag } from './_components/analytics-tag';
 import './globals.css';
 
 /**
@@ -242,6 +243,33 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           constants. Three document producers, one address.
         */}
         {ads ? <AdsenseLoader /> : null}
+        {/*
+          ── THE OWNER'S GA4 TAG, AND WHY IT IS HERE RATHER THAN INSIDE THE `ads` CONDITION ABOVE ──────────
+
+          The owner: *"i could not find the website analytics, like it was before. i need to be knowing how
+          much views, where it came from, which link got it, and how much traffic and the country locations…"*
+          He supplied the tag for `G-RKRGY9QCSH` himself, and it is written from `@/lib/analytics` so this file
+          and the two string producers cannot disagree about the id or the address.
+
+          ⚠️ **`ads` IS THE AD QUESTION AND THIS IS NOT IT.** `isAdsenseReaderPath` answers *"may a third party
+          be paid to put a rectangle on this page?"* — it excludes the editor, the forms and the 404 for
+          editorial reasons. **The analytics question is *"how many people came here, and from where?"* and its
+          wrong answer on a page nobody wanted measured is one row too many, not a paid placement beside an
+          appeal.** So the tag is rendered on **every path that reaches this shell**, and the pages that are
+          still not measured are the ones closed by the branch above: `/admin/`, `/signin/` and `/design`.
+
+          ⚠️ **THOSE THREE ARE EXCLUDED ON PURPOSE AND THE REASON IS THE OWNER'S OWN REPORT.** His question is
+          about the archive's readers; his own administrative sessions are not readers, and a back-office page
+          view counted as traffic would make the one number he asked for less true. `/signin/` is the same
+          screen an administrator passes through to get there. **The cost of this exclusion is stated rather
+          than hidden: page views on `/admin/` and `/signin/` are not collected, and if he wants them the tag
+          goes in the `hasOwnChrome` branch above.** `/design-screen/…` is not an exclusion at all — it returns
+          its own whole document and carries the tag from the screen route.
+
+          ⚠️ AND IT FIRES IMMEDIATELY WITH NO CONSENT GATE. GA4 sets cookies on first visit; that is the
+          owner's decision, stated in plain words in this round's report and in `@/lib/analytics`.
+        */}
+        <AnalyticsTag />
       </head>
       <body>
         <a className="skip" href="#main">

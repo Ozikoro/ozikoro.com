@@ -83,6 +83,11 @@ import { withDiscussion } from '@/lib/discussion';
  * why this is an allow-list of screen NAMES rather than a rule over the document.
  */
 import { ADSENSE_READER_SCREENS, warnIfAdBelowDiscussion, withAdsense } from '@/lib/adsense';
+/*
+ * The owner's analytics tag, for EVERY screen rather than the reader allow-list above. See the call site far
+ * below and `@/lib/analytics` for why the two questions are different questions.
+ */
+import { withAnalyticsTag } from '@/lib/analytics';
 import {
   citationFor,
   fillAcademy, fillApproach, fillArchiveIndex, fillCareers, fillCite, fillCollections, fillCulturalCalendar,
@@ -1120,6 +1125,25 @@ export async function GET(
     html = withA11yLink(html);
     html = withThemeLink(html);
     html = await withDesignOverrides(html, name, url);
+    /*
+     * ⚠️ **AND THE ANALYTICS TAG, WHICH THIS SECOND RETURN PATH MISSED UNTIL IT WAS MEASURED.** A screen
+     * absent from `FILLED` is served from here and **never reaches the generated head** — so the one
+     * `withAnalyticsTag` call further down the handler is not on this path at all. **Measured on the review
+     * server before this line existed: `GET /404/` was `200` with `x-middleware-rewrite: /design-screen/404`
+     * and ZERO occurrences of the measurement id**, which is precisely the fault the tag's own unit test
+     * cannot see, because that test builds its own document rather than taking a served one.
+     *
+     * **THE 404 IS THE SCREEN THAT MADE THIS VISIBLE AND IT IS THE ONE SCREEN WHERE THE MISS WOULD HURT MOST:**
+     * it is the page an owner checks when he suspects a link is broken, and a broken link is found by its
+     * pageviews rather than by reading the design. The other screens on this path have no fill because the
+     * archive holds no record for them yet, and measuring them is how the owner learns which of his pages are
+     * being reached at all.
+     *
+     * ⚠️ **BOTH BRANCHES CALL THE SAME FUNCTION FROM THE SAME MODULE, SO THE TWO PATHS CANNOT DRIFT.** It is
+     * not a second tag and not a second mechanism — `withAnalyticsTag` is idempotent, so a future change that
+     * makes a screen both unfilled and overridden-down-the-other-path still counts one pageview.
+     */
+    html = withAnalyticsTag(html);
     return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } });
   }
 
@@ -3173,6 +3197,29 @@ export async function GET(
   if (ADSENSE_READER_SCREENS.has(name)) {
     html = withAdsense(html);
   }
+
+  /*
+   * ── AND THE OWNER'S ANALYTICS TAG, ON EVERY SCREEN THIS ROUTE SERVES ────────────────────────────────
+   *
+   * ⚠️ **THIS IS UNCONDITIONAL ON PURPOSE AND IT IS THE ONE PLACE THE TWO LISTS COULD HAVE BEEN CONFUSED.**
+   * `ADSENSE_READER_SCREENS` above is 26 names out of the 53 this route serves, and the 27 it leaves out are
+   * the dashboards, the editor, the upload form, the 404, the type proof and the solicitation pages. **The
+   * owner asked for traffic and geography on the site, not for a paid rectangle in a form** — so the tag goes
+   * on all 53, and a screen the deliverable gains tomorrow is measured from the moment it is served rather
+   * than from the moment somebody remembers to add it to a list.
+   *
+   * **THE 404 IS INCLUDED, AND IT IS ARGUABLY THE MOST USEFUL SCREEN IN THE SET.** `/404/` answers **200**
+   * measured — `DESIGN_SCREENS` rewrites it to `/design-screen/404` — so a not-found is served as a page and a
+   * pageview report is the one instrument that says a link is broken. It carries no ad; it carries the tag.
+   *
+   * ⚠️ **IT RUNS AFTER `withSeoHead` FOR THE SAME REASON THE AD CODE DOES: `withSeoHead` REPLACES THE WHOLE
+   * `<head>`.** A tag injected before that call is discarded with the design's own head — `seo-head.ts` matches
+   * `<head>[\s\S]*?</head>` and substitutes it — and the site would serve a measurement of nothing while every
+   * other page worked, which is the most expensive shape of this fault to find. It is also after the owner's
+   * stored overrides, so a saved edit cannot remove it, and it is *before or after `withDiscussion` indifferently*
+   * because the tag's anchor is the closing `</head>` and the box's is a citation section in the body.
+   */
+  html = withAnalyticsTag(html);
 
   /*
    * ── AND THE DISCUSSION BOX, WHICH IS THE LAST THING ON THE PAGE RATHER THAN THE LAST EDIT TO IT ─────

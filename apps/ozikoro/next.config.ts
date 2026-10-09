@@ -449,26 +449,93 @@ const nextConfig: NextConfig = {
     const adFont = ['https://*.gstatic.com'];
 
     /*
-     * ── ONE SOURCE OF TRUTH FOR THE ELEVEN DIRECTIVES, AND `ads` IS THE ONLY ARGUMENT ───────────────────
+     * ── THE ANALYTICS ORIGINS, WHICH ARE A THIRD SET AND NOT PART OF THE AD SET ─────────────────────────
      *
-     * `policy(false)` reproduces **byte for byte** the policy this file served before the ad code arrived,
-     * and `pdfCsp` is derived from THAT and not from the ad-carrying string. This is not tidiness. The
-     * publication policy used to be `csp.replace(…).replace(…)`, so **any origin added to `csp` appeared in
-     * the PDF policy automatically** — a change made for an HTML ad would have silently given every served
-     * PDF an ad-capable script policy as well, which is a worse document and is exactly the leak the brief
-     * forbids. Making the ad argument explicit means the leak cannot happen by construction, and the two
-     * `.replace()` calls below are unchanged, so the PDF policy's only difference from `policy(false)` is
-     * still the two directives the browser's PDF viewer needs.
+     * The owner: *"i could not find the website analytics, like it was before. i need to be knowing how much
+     * views, where it came from, which link got it, and how much traffic and the country locations…"* and he
+     * supplied his own GA4 tag for `G-RKRGY9QCSH`. A page that carries `gtag.js` cannot be served
+     * `script-src 'self' 'unsafe-inline'` either — measured, not reasoned:
+     *
+     *     Loading the script 'https://www.googletagmanager.com/gtag/js?id=G-RKRGY9QCSH' violates the following
+     *     Content Security Policy directive: "script-src 'self' 'unsafe-inline' https://pagead2.googlesyndication.com
+     *     https://*.googlesyndication.com https://*.google.com …"
+     *
+     * ⚠️ **AND THE FIRST THING THAT MEASUREMENT SETTLED IS A TRAP THIS FILE WOULD OTHERWISE HAVE FALLEN INTO:
+     * `https://*.google.com` DOES NOT MATCH `www.googletagmanager.com`.** A CSP host wildcard matches one label
+     * — `*.google.com` covers `analytics.google.com` and `www.google.com`, and it does NOT cover
+     * `googletagmanager.com` or `google-analytics.com`, which are different registrable domains however Google
+     * brands them. The ad list has been trusted for images and beacons for two rounds and it admits neither of
+     * the two hosts GA4 actually uses, so **an analytics tag added on the assumption that the ad list already
+     * covered it would have been refused on every page of the site.**
+     *
+     * ── WHY THIS IS A THIRD SET AND NOT THREE MORE LINES IN THE AD LISTS ────────────────────────────────
+     *
+     * `ads` is an argument to `policy()` because a PDF must not carry an ad-capable script policy. **Analytics
+     * is not an ad and the same argument does not apply to a reader-facing HTML page** — but the two are not
+     * interchangeable in either direction:
+     *
+     *   · putting GA in `adScript` would make every GA origin arrive only when `ads` is true, which is a
+     *     different decision from "this page may be measured" and would tie the owner's traffic numbers to
+     *     the ad allow-list;
+     *   · treating it as part of the *base* policy is what the first attempt did, and it put every GA origin
+     *     into `pdfCsp` as well — **the leak the brief forbids, caught by measuring the served PDF rather than
+     *     by reading this file.** The second argument below is the fix; see the note on `policy`.
+     *
+     * So `analytics` is its own argument with its own origin list, `csp = policy(true, true)` for every HTML
+     * document, and **`pdfCsp = policy(false, false)` holds ZERO GA and ZERO ad origins** — measured after the
+     * fix and quoted in this round's report.
+     *
+     * ⚠️ **EVERY HOST BELOW WAS NAMED BY THE BROWSER, AND A CANDIDATE NO ROUND NAMED DOES NOT GO IN.** That is
+     * the method the ad list records in its own header — *"a refused resource is one whose successors are never
+     * requested, so a list or a reading of the source would have shipped the refusals"* — and it is why this
+     * list was built one measured round at a time rather than from Google's documentation.
+     *
+     *   script-src    `www.googletagmanager.com` — the loader the owner's own snippet names. Named by round 1.
+     *   img-src       `*.google-analytics.com` — the `_gid`/session pixel GA4 falls back to, and the region
+     *                 shards it redirects to. Named by round 2.
+     *   connect-src   the same two families: the beacons (`/g/collect`) leave this document as fetches, and
+     *                 `googletagmanager.com` is called back for config and for Google Signals.
+     *
+     * ⚠️ **IT IS DELIBERATELY NOT IN `style-src` OR `font-src`.** No measured round requested a stylesheet or a
+     * font from any of these hosts, and the ad list's own rule is that an entry the policy already covers, or
+     * that nothing asked for, is one more line that reads as deliberate when it is only a duplicate.
      */
-    const policy = (ads: boolean): string =>
+    const gaScript = ['https://www.googletagmanager.com'];
+    const gaImg = ['https://*.google-analytics.com'];
+    const gaConnect = ['https://www.googletagmanager.com', 'https://*.google-analytics.com'];
+
+    /*
+     * ── ONE SOURCE OF TRUTH FOR THE ELEVEN DIRECTIVES, AND TWO EXPLICIT ARGUMENTS ───────────────────────
+     *
+     * **`ads` WAS THE ONLY ARGUMENT, AND ADDING ANALYTICS PROVED THAT WAS ONE ARGUMENT SHORT.** `pdfCsp` is
+     * derived from the strict policy *by substitution* precisely so an origin added for an HTML page cannot
+     * reach a served PDF. The first version of the analytics change put the GA origins in the base list — so
+     * they appeared in **every** policy, and `policy(false)` stopped being "the policy this file served before
+     * the ad code arrived". **That was caught by measuring the served PDF rather than by reading this file:**
+     *
+     *     GET /ichi-mark-the-igbo-scarification/pdf   ->  200  application/pdf
+     *       script-src 'self' 'unsafe-inline' https://www.googletagmanager.com
+     *       img-src 'self' data: https://i.ytimg.com https://*.google-analytics.com
+     *       connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com
+     *
+     * — an analytics-capable script policy on a document whose whole job is to be a file, which is the leak
+     * the brief names in as many words. **The fix is the second argument, not a `.replace()`:** every
+     * third-party origin in this policy is now behind `ads` or `analytics`, so the strict policy is a base a
+     * caller has to ask to widen, and a future third set cannot silently join it.
+     *
+     * `policy(false, …)` therefore still reproduces **byte for byte** the policy this file served before the
+     * ad code arrived (and before analytics), and the two `.replace()` calls below are unchanged, so the PDF
+     * policy's only difference from it is still the two directives the browser's PDF viewer needs.
+     */
+    const policy = (ads: boolean, analytics: boolean): string =>
       [
         "default-src 'self'",
-        `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}${ads ? ` ${adScript.join(' ')}` : ''}`,
+        `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}${ads ? ` ${adScript.join(' ')}` : ''}${analytics ? ` ${gaScript.join(' ')}` : ''}`,
         `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com${ads ? ` ${adStyle.join(' ')}` : ''}`,
         `font-src 'self' https://fonts.gstatic.com${ads ? ` ${adFont.join(' ')}` : ''}`,
-        `img-src 'self' data: https://i.ytimg.com${mediaSources}${ads ? ` ${adImg.join(' ')}` : ''}`,
+        `img-src 'self' data: https://i.ytimg.com${mediaSources}${ads ? ` ${adImg.join(' ')}` : ''}${analytics ? ` ${gaImg.join(' ')}` : ''}`,
         `media-src 'self'${mediaSources}`,
-        `connect-src 'self'${ads ? ` ${adConnect.join(' ')}` : ''}`,
+        `connect-src 'self'${ads ? ` ${adConnect.join(' ')}` : ''}${analytics ? ` ${gaConnect.join(' ')}` : ''}`,
         `frame-src 'self' https://www.youtube-nocookie.com${ads ? ` ${adFrame.join(' ')}` : ''}`,
         "frame-ancestors 'none'",
         "base-uri 'self'",
@@ -476,14 +543,21 @@ const nextConfig: NextConfig = {
         "object-src 'none'",
       ].join('; ');
 
-    const csp = policy(true);
+    /*
+     * Every HTML page this application serves: the ad origins AND the analytics origins. **These are the only
+     * two callers that ask for either, and the PDF below asks for neither.**
+     */
+    const csp = policy(true, true);
 
     /*
-     * The publication's policy: `policy(false)` — the strict policy with NO ad origins — with ONLY the two
-     * directives the browser's PDF viewer needs changed. Derived by substitution so the other nine
-     * directives cannot drift.
+     * The publication's policy: `policy(false, false)` — the strict policy with NO ad origins and NO analytics
+     * origins — with ONLY the two directives the browser's PDF viewer needs changed. Derived by substitution
+     * so the other nine directives cannot drift.
+     *
+     * ⚠️ **`false, false` IS THE WHOLE POINT OF THE SECOND ARGUMENT.** Measured after the fix, the served PDF
+     * policy holds zero `googletagmanager`, zero `google-analytics` and zero `googlesyndication` origins.
      */
-    const pdfCsp = policy(false)
+    const pdfCsp = policy(false, false)
       .replace("frame-ancestors 'none'", "frame-ancestors 'self'")
       .replace("object-src 'none'", "object-src 'self'");
 

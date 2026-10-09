@@ -32,6 +32,8 @@ import { discussionHtml, insertDiscussionAfterCitation } from '@/lib/discussion'
  * "record page" the brief names, so this is the one document producer that carries a unit unconditionally.
  */
 import { warnIfAdBelowDiscussion, withAdsense } from '@/lib/adsense';
+/* The owner's GA4 tag, on every record. See the call site near the end of the handler and `@/lib/analytics`. */
+import { withAnalyticsTag } from '@/lib/analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -947,6 +949,28 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
    * so neither — a legal gate and a retired page — is given a paid placement by running this here.
    */
   html = withAdsense(html);
+
+  /*
+   * ── AND THE OWNER'S GA4 TAG, ON EVERY RECORD THIS ROUTE SERVES ───────────────────────────────────────
+   *
+   * The owner: *"i need to be knowing how much views, where it came from, which link got it, and how much
+   * traffic and the country locations…"* **This route is where the archive's traffic actually is** — all 1,051
+   * published histories and folktales, one route — so it is the single most important place the tag is
+   * written, and it comes from `@/lib/analytics` rather than being typed here so the id and the two `gtag`
+   * calls cannot drift from the layout's or the design screens' copy.
+   *
+   * ⚠️ **IT IS UNCONDITIONAL HERE FOR THE SAME REASON THE AD CODE IS, AND THE TWO EXCLUSIONS ARE THE ROUTE'S
+   * OWN CONTROL FLOW RATHER THAN A NAME LIST.** `servePublishedPage` returns a legacy WordPress page and the
+   * two 403 refusal documents **before** line 949 above, and the 404 returns before it as well — so **a legal
+   * gate, a retired page and a not-found body are not measured**, which is the list the brief asks to be
+   * decided rather than inherited. A record the archive publishes is always measured, whatever it is about.
+   *
+   * ⚠️ **IT RUNS AFTER `withSeoHead` FOR THE REASON THE AD COMMENT ABOVE RECORDS: THAT CALL REPLACES THE
+   * ENTIRE `<head>`.** A tag written before it would be discarded with the design's own head and the record
+   * would serve no measurement at all — and this is the one route where that would cost the owner the largest
+   * share of his numbers. It is equally after the editor's stored overrides, so a saved edit cannot remove it.
+   */
+  html = withAnalyticsTag(html);
 
   /*
    * ── THE DISCUSSION BOX, ON BOTH OF THE OWNER'S RECORD-SHAPED KINDS ──────────────────────────────────
