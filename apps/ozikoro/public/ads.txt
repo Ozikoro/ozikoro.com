@@ -1,0 +1,27 @@
+# ads.txt — Authorized Digital Sellers
+#
+# ⚠️ THIS IS A REQUIREMENT OF GOOGLE ADSENSE, NOT A NICETY, AND ITS ABSENCE IS SILENT.
+#
+# It was measured absent on 2026-10-09 — `/ads.txt` answered 404 while `/robots.txt` answered 200 —
+# and AdSense's own documentation is plain about the consequence: **without it the site is reported
+# as "unauthorized" in the AdSense console and demand for its inventory is suppressed.** *Nothing
+# breaks; the ads simply earn less, and no page says why.*
+#
+# FORMAT, and the reason each field is here:
+#
+#     <domain>, <publisher id>, <relationship>, <certification authority id>
+#
+#   google.com                    the ad system that may sell this inventory
+#   pub-7838607083592256          the owner's AdSense publisher id
+#   DIRECT                        Google sells it directly, not through a reseller
+#   f08c47fec0942fa0              Google's own TAG Certified Against Fraud authority id
+#
+# ⚠️ AND IT IS SERVED AS A STATIC FILE RATHER THAN A ROUTE, WHICH WAS A MEASURED DECISION.
+# `apps/ozikoro/app/robots.txt/route.ts` is a route because robots.txt needs a computed `Sitemap:`
+# line. This file is one fixed line, and `apps/ozikoro/middleware.ts`'s matcher already excludes
+# `.*\.(?:…|xml|txt)$` — so `/ads.txt` never reaches the middleware and is served from `public/`
+# at the site root, which is where AdSense looks for it.
+#
+# Adding a second, dynamic line for another ad system is a route then; until there is one, a file
+# that cannot compute anything is the honest shape.
+google.com, pub-7838607083592256, DIRECT, f08c47fec0942fa0
