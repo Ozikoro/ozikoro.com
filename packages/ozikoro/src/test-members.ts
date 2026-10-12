@@ -282,10 +282,242 @@ assert('with no institution recorded', (await getMember(db, independent.id))?.in
 
 console.log('\n--- claiming a migrated byline ---');
 
+/*
+ * ── WHAT THE CLAIM SCREEN SHOWS, TESTED WHERE IT IS DECIDED ──────────────────────────────────────────
+ *
+ * The screen's own fault, found by the owner using it: it served every unclaimed byline, largest first,
+ * counting drafts — so a byline with 524 unpublished imports outranked one with 282 published records,
+ * under a heading that says "Your bylines". Four things are therefore asserted here rather than on the
+ * page, because here is where they are decided:
+ *
+ *   1 · the COUNT is of published records, and the unpublished are counted separately;
+ *   2 · the ORDER is by name, not by size;
+ *   3 · the MATCH is the account's own name or email, whole-word, and says which;
+ *   4 · an account that matches nothing is told nothing false — no byline is marked likely for it, and
+ *      the bylines are still returned, because a spelling the matcher misses is the case that must work.
+ *
+ * A fixture account is used for the matching so the assertions do not depend on the real owner's row
+ * existing in this database. It is created through `registerAccount` and removed by `cleanup`, like the
+ * other test accounts.
+ */
 const bylines = await listClaimableBylines(db, reader.id);
 assert('there are unclaimed bylines to claim', bylines.length > 0, `${bylines.length} available`);
-const target = bylines[0]!;
-assert('the largest byline is a real author', target.articleCount > 0, `${target.name}: ${target.articleCount} records`);
+assert(
+  'the list is ordered by name, not by how many records a byline holds',
+  bylines.every((byline, index) => index === 0 || bylines[index - 1]!.name.localeCompare(byline.name) <= 0),
+  bylines.slice(0, 4).map((b) => b.name).join(' · ')
+);
+assert(
+  'and a byline with no published record never outranks one with published records',
+  (() => {
+    const firstPublished = bylines.findIndex((byline) => byline.publishedCount > 0);
+    const firstEmpty = bylines.findIndex((byline) => byline.publishedCount === 0);
+    return firstPublished === -1 || firstEmpty === -1 || firstPublished < firstEmpty;
+  })(),
+  bylines.map((b) => `${b.name}:${b.publishedCount}`).slice(0, 5).join(' · ')
+);
+
+// THE COUNTS ARE TWO, AND THEY ARE THE DATABASE'S. Read straight out of `ozikoro_article` so the
+// assertion is about the STATUS FILTER rather than about a number this test also chose.
+const counted = await db.rows<{ id: string; published: number; unpublished: number }>(
+  `select k.id,
+          count(*) filter (where ar.status = 'published')::int as published,
+          count(*) filter (where ar.status <> 'published')::int as unpublished
+     from ozikoro_contributor k
+     left join ozikoro_article ar on ar.author_id = k.id
+    where k.account_id is null
+    group by k.id`
+);
+const countsById = new Map(counted.map((row) => [Number(row.id), row]));
+assert(
+  'a byline counts only published records as what it holds',
+  bylines.every((byline) => byline.publishedCount === countsById.get(byline.id)?.published),
+  bylines.map((b) => `${b.name}:${b.publishedCount}/${countsById.get(b.id)?.published}`).join(' · ')
+);
+assert(
+  'and every unpublished record is still counted, separately',
+  bylines.every((byline) => byline.draftCount === countsById.get(byline.id)?.unpublished),
+  bylines.map((b) => `${b.name}:${b.draftCount}/${countsById.get(b.id)?.unpublished}`).join(' · ')
+);
+
+const largest = [...bylines].sort((a, b) => b.publishedCount - a.publishedCount)[0]!;
+assert(
+  'the byline with the most published records is a real author',
+  largest.publishedCount > 0,
+  `${largest.name}: ${largest.publishedCount} published, ${largest.draftCount} unpublished`
+);
+const zeroPublished = bylines.find((byline) => byline.publishedCount === 0 && byline.draftCount > 0);
+assert(
+  'a byline with drafts and no published work exists, and is not counted as findable work',
+  Boolean(zeroPublished),
+  zeroPublished ? `${zeroPublished.name}: ${zeroPublished.draftCount} unpublished` : 'none in this database'
+);
+
+console.log('\n--- the match rule: the account’s own name and email, and nothing else ---');
+
+const matchesTarget = await db.one<Record<string, unknown>>(
+  `select k.id, k.display_name as name
+     from ozikoro_contributor k
+    where k.account_id is null
+      and (select count(*)::int from ozikoro_article ar where ar.author_id = k.id and ar.status = 'published') > 0
+    order by k.display_name limit 1`
+);
+assert('a byline with published records exists to match against', Boolean(matchesTarget), String(matchesTarget?.name ?? 'none'));
+
+const matchEmail = `${String(matchesTarget!.name).toLowerCase().replace(/[^a-z0-9]+/g, '')}@example.invalid`;
+/*
+ * A fixture whose email is derived from a real byline is left behind by any run that dies before
+ * `cleanup`, and `registerAccount` refuses a duplicate address — so a previous failure would make this
+ * test fail for the wrong reason. The row is removed first, by the same address this test is about to
+ * use, so nothing else can match it.
+ */
+await db.query(`delete from account where email = $1`, [matchEmail]);
+const matchFixture = await registerAccount(db, { email: matchEmail, password: 'a long enough password' });
+await db.query(`update account set display_name = $1 where id = $2`, [String(matchesTarget!.name), matchFixture.id]);
+
+const matched = await listClaimableBylines(db, matchFixture.id, { email: matchEmail, displayName: String(matchesTarget!.name) });
+const matchedLikely = matched.filter((byline) => byline.likely);
+assert(
+  'an account whose email is the byline’s words and whose name is the byline matches it',
+  matchedLikely.length === 1 && matchedLikely[0]!.id === Number(matchesTarget!.id),
+  matchedLikely.map((b) => b.name).join(', ') || 'nothing matched'
+);
+assert(
+  'and the reason shown to the reader names the byline and the field it matched',
+  Boolean(matchedLikely[0]?.matchReason?.includes(String(matchesTarget!.name))),
+  matchedLikely[0]?.matchReason ?? 'no reason'
+);
+assert(
+  'and every fact that matched is shown, not only the first',
+  Boolean(
+    matchedLikely[0]?.matchReason?.includes(matchEmail.split('@')[0]!) &&
+      /email address/i.test(matchedLikely[0]?.matchReason ?? '')
+  ),
+  matchedLikely[0]?.matchReason ?? 'no reason'
+);
+assert(
+  'and a byline that did not match is not marked as likely, nor given a reason',
+  matched
+    .filter((byline) => byline.id !== Number(matchesTarget!.id))
+    .every((byline) => !byline.likely && byline.matchReason === null)
+);
+assert(
+  'every byline is still returned when some match, so nothing is hidden by the match',
+  matched.length === (await listClaimableBylines(db, matchFixture.id)).length,
+  `${matched.length} vs ${(await listClaimableBylines(db, matchFixture.id)).length}`
+);
+/*
+ * THE LIST IS IN NAME ORDER AND THE PAGE IS WHAT PUTS THE MATCH FIRST. This function does not reorder —
+ * it flags — so the assertion above ("the list is ordered by name") holds for a matching account too, and
+ * the screen's own "Matching your account" section is what leads with it. That division is deliberate:
+ * a caller that wants the flag without the reordering, such as an admin screen, gets the flag.
+ */
+assert(
+  'and the list stays in name order even when the account matches one of them',
+  matched.every((byline, index) => index === 0 || matched[index - 1]!.name.localeCompare(byline.name) <= 0)
+);
+
+const noMatchEmail = `${SUFFIX}-nomatch-${Date.now()}@example.invalid`;
+const noMatchFixture = await registerAccount(db, { email: noMatchEmail, password: 'a long enough password' });
+await db.query(`update account set display_name = $1 where id = $2`, [`${SUFFIX} No Match`, noMatchFixture.id]);
+
+const unmatched = await listClaimableBylines(db, noMatchFixture.id, {
+  email: noMatchEmail,
+  displayName: `${SUFFIX} No Match`,
+});
+assert('an account that matches nothing is told nothing', unmatched.every((byline) => !byline.likely && byline.matchReason === null));
+assert(
+  'and is still served every byline, in name order',
+  unmatched.length === bylines.length &&
+    unmatched.every((byline, index) => index === 0 || unmatched[index - 1]!.name.localeCompare(byline.name) <= 0),
+  `${unmatched.length} bylines`
+);
+
+// A SINGLE WORD IS NOT AN IDENTITY. A one-word byline is never matched by a word of it appearing inside
+// a longer name — otherwise a reader whose name contains "Emeka" would be told the byline "Emeka" is
+// likely theirs on one word alone, which is the false positive the whole rule is written to avoid. This
+// needs no fixture row: the identity is the account's, and the byline is matched against it.
+const singleWordPerson = await listClaimableBylines(db, noMatchFixture.id, {
+  email: null,
+  displayName: 'Akachukwu',
+});
+assert(
+  'a one-word name does not claim a byline that merely contains it',
+  singleWordPerson.filter((byline) => byline.name === 'Akachukwu Vitalis').every((byline) => !byline.likely),
+  singleWordPerson.find((byline) => byline.name === 'Akachukwu Vitalis')?.matchReason ?? 'not matched'
+);
+assert(
+  'while the whole name does match it, which is the difference the rule draws',
+  (
+    await listClaimableBylines(db, noMatchFixture.id, { email: null, displayName: 'Akachukwu Vitalis' })
+  ).some((byline) => byline.name === 'Akachukwu Vitalis' && byline.likely)
+);
+
+/*
+ * ── THE OWNER'S OWN CASE, WHERE THE ARCHIVE HAS HIS ACCOUNT ──────────────────────────────────────────
+ *
+ * The person this screen confused is `idenzeme@gmail.com`, whose display name is "Idenze Ezeme" and who
+ * has a byline of that exact name sitting unclaimed in the table. The live archive has this account; a
+ * fresh database does not, so the block is skipped rather than faked when the row is absent. It is
+ * reported either way, because "we did not check" and "we checked and it matched" are different facts.
+ */
+const ownerRow = await db.one<{ id: string; email: string; display_name: string | null }>(
+  `select a.id, a.email, a.display_name
+     from account a
+    where exists (select 1 from ozikoro_contributor k where k.account_id is null and k.display_name = a.display_name)
+      and a.display_name is not null and position(' ' in a.display_name) > 0
+    order by case when a.role = 'owner' then 0 else 1 end, a.id
+    limit 1`
+);
+if (ownerRow) {
+  const ownerBylines = await listClaimableBylines(db, Number(ownerRow.id), {
+    email: ownerRow.email,
+    displayName: ownerRow.display_name,
+  });
+  const ownerLikely = ownerBylines.filter((byline) => byline.likely);
+  const ownerMatch = ownerLikely[0];
+  assert(
+    `a person with an unclaimed byline of their own name has exactly that byline matched (${ownerRow.display_name})`,
+    ownerLikely.length === 1 && ownerMatch?.name === ownerRow.display_name,
+    `${ownerLikely.length} matched: ${ownerLikely.map((b) => b.name).join(', ') || 'none'}`
+  );
+  assert(
+    'and the byline that matched is reachable in the list, not filtered out of it',
+    ownerBylines.some((byline) => byline.id === ownerMatch?.id)
+  );
+  assert(
+    'and the reason names the field that matched, so a wrong match could be seen',
+    /account’s name|email address/i.test(ownerLikely[0]?.matchReason ?? ''),
+    ownerLikely[0]?.matchReason ?? 'no reason'
+  );
+  console.log(
+    `  · ${ownerRow.display_name}: matched ${ownerLikely.length} of ${ownerBylines.length} bylines; ` +
+      `reason — ${ownerLikely[0]?.matchReason ?? 'none'}`
+  );
+} else {
+  console.log('  · no account with an unclaimed same-name byline on this database, so the owner case is not asserted here');
+}
+
+// THE EMAIL RULE ITSELF, WITH AN ADDRESS BUILT TO BE MATCHED. The owner's real address does NOT match
+// his byline (a letter is dropped between the words), so the rule is exercised with one that does.
+const separatedEmail = 'idenze.ezeme@example.invalid';
+assert(
+  'an address that is the byline’s words separated matches it',
+  (
+    await listClaimableBylines(db, noMatchFixture.id, { email: separatedEmail, displayName: null })
+  ).some((byline) => byline.name === 'Idenze Ezeme' && byline.likely),
+  (
+    await listClaimableBylines(db, noMatchFixture.id, { email: separatedEmail, displayName: null })
+  ).find((byline) => byline.name === 'Idenze Ezeme')?.matchReason ?? 'not matched'
+);
+assert(
+  'and letters out of order do not, which is what stops a surname being read out of an unrelated one',
+  !(
+    await listClaimableBylines(db, noMatchFixture.id, { email: 'ezemeidenze@example.invalid', displayName: null })
+  ).some((byline) => byline.likely)
+);
+
+const target = matchedLikely[0] ?? bylines[0]!;
 
 await requestContributorClaim(db, { contributorId: target.id, accountId: reader.id, evidence: 'I am this author.' });
 const pending = await listContributorClaims(db, { status: 'pending' });
