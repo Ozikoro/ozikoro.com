@@ -61,6 +61,39 @@ jobs:
       - name: Typecheck and run the database-free suites
         run: npm run test:unit
 
+      # -----------------------------------------------------------------------
+      # THE CHECKS THAT EXISTED AND WERE NEVER RUN
+      #
+      # `package.json` defines sixteen `check:` scripts. Until this step the CI ran NONE of them. They
+      # were written one at a time across hundreds of rounds, each to catch a fault that had already
+      # happened, and then left for a human to remember. Nobody did. Measured 2026-10-15, two were
+      # failing on a clean tree:
+      #
+      #   check:boundaries   3 `loading.tsx` boundaries sat above pages that redirect before rendering.
+      #                      A Suspense boundary over a route that never renders is dead code, and
+      #                      React renders it concurrently with the redirect, so a visitor saw a
+      #                      skeleton flash before being sent away. The three files are deleted.
+      #   check:residue      Four `ozikoro_audit` rows carried the `zztest` fixture prefix — residue
+      #                      from an interrupted run. Cleared: "115 table(s) checked, every one clean."
+      #                      **This check has the worst history here: round 54 found two test accounts,
+      #                      marked public and listed in the sitemap, that every suite had passed over.**
+      #
+      # THESE TEN NEED NO DATABASE, SERVER OR NETWORK. The other six — `check:design-parity`,
+      # `check:links`, `check:sitemap`, `check:assets`, `check:grounding` and `check:handover` — fetch a
+      # served page and are NOT here; adding them means starting a server in this job. **UNTIL THAT IS
+      # DONE THEY REMAIN UNRUN, WHICH IS THE FAULT THIS STEP FIXES FOR THE OTHER TEN.**
+      # -----------------------------------------------------------------------
+      - name: The repository's own checks
+        run: |
+          set -e
+          for c in check:residue check:capabilities check:capability-fn check:secrets \
+                   check:design check:boundaries check:body-links check:screens \
+                   check:narration check:mail; do
+            echo "::group::$c"
+            npm run "$c"
+            echo "::endgroup::"
+          done
+
   # ---------------------------------------------------------------------------
   # THE BUILD, WHICH NOTHING CHECKED
   #
