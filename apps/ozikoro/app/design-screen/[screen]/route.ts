@@ -79,13 +79,19 @@ import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
  */
 import { withDiscussion } from '@/lib/discussion';
 /*
- * The owner's ad code, for the screens a reader reads. See the call site far below, and `@/lib/adsense` for
- * why this is an allow-list of screen NAMES rather than a rule over the document.
+ * ⚠️ **THE AD CODE IS DELIBERATELY NOT IMPORTED HERE ANY MORE, AND THE OMISSION IS THE CHANGE.** This route
+ * served 26 of the 53 design screens from `ADSENSE_READER_SCREENS` — the front page, the archive listing, the
+ * media and document listings, the reading pages and the reference pages — and **the owner's report is that
+ * not one of them was ever meant to carry an ad**: *"the ads i put on the website was never meant to be on
+ * anywhere else apart from articles and researches … now why is it showing everywhere on my website?"* A design
+ * screen is a listing, a calendar, a register or a proof; it is not an article, and the allow-list that said
+ * otherwise is deleted in `@/lib/adsense` with the argument in place of the list. **Re-adding an import of
+ * `withAdsense` here would put a paid rectangle back on `/`, `/archive/`, `/documents/` and 23 more screens**,
+ * which is the whole fault.
  */
-import { ADSENSE_READER_SCREENS, warnIfAdBelowDiscussion, withAdsense } from '@/lib/adsense';
 /*
- * The owner's analytics tag, for EVERY screen rather than the reader allow-list above. See the call site far
- * below and `@/lib/analytics` for why the two questions are different questions.
+ * The owner's analytics tag, on EVERY screen rather than the reading subset the ads used to admit. See the
+ * call site far below and `@/lib/analytics` for why the two questions are different questions.
  */
 import { withAnalyticsTag } from '@/lib/analytics';
 import {
@@ -3161,59 +3167,45 @@ export async function GET(
   html = await withDesignOverrides(html, name, new URL(request.url));
 
   /*
-   * ── THE OWNER'S AD CODE, AND IT IS AN INSERTION AT SERVE TIME RATHER THAN AN EDIT TO THE DESIGN ──────
+   * ── 🔴 THE OWNER'S AD CODE IS GONE FROM THIS ROUTE, AND THAT IS THIS ROUND'S FIRST JOB ───────────────
    *
-   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* For the
-   * fifty-three design screens the answer has one hard constraint on it, set by the brief and by this
-   * repository's oldest rule: **`apps/ozikoro/public/design/` is inviolable.** Sixty-five files, byte-compared
-   * against `design/calm-comfort-construct/public/design`, and their parity is a check that must keep passing.
-   * So the loader is written into the served `<head>` and the unit into the served body **after every fill and
-   * after the owner's own overrides**, and not one byte of the deliverable changes.
+   * The owner: *"the ads i put on the website was never meant to be on anywhere else apart from articles and
+   * researches … now why is it showing everywhere on my website?"* **This route was the largest single reason
+   * he was seeing that.** It served a unit and the AdSense loader to 26 of the 53 design screens — measured on
+   * the review server before this change, one unit each on `/`, `/archive/`, `/collections/`, `/topics/`,
+   * `/documents/`, `/photographs/`, `/publications/`, `/listen/`, `/watch/`, `/igbo-calendar/`,
+   * `/cultural-calendar/`, `/projects/`, `/about/`, `/cite/`, `/ledger/`, `/folklore/`, `/market-days/`,
+   * `/journeys/`, `/material-culture/`, `/publication/`, `/researchers/199/` and more.
    *
-   * ── WHY IT RUNS HERE, BETWEEN THE OVERRIDES AND THE DISCUSSION BOX ────────────────────────────────────
+   * **NOT ONE OF THOSE IS AN ARTICLE OR A RESEARCH READING PAGE.** They are the front page, the listings, the
+   * media pages, the calendars, the reference pages and the legal pages. So `ADSENSE_READER_SCREENS` is
+   * deleted rather than narrowed — the argument is written out in `@/lib/adsense` — and this route no longer
+   * imports, checks or calls the ad code at all.
    *
-   * **After `withSeoHead`, and that ordering is the whole reason it is not higher up.** `withSeoHead`
-   * REPLACES the entire `<head>` — `seo-head.ts` matches `<head>[\s\S]*?</head>` and substitutes it — so a
-   * loader injected before that call is discarded with the design's own head and the page serves an `<ins>`
-   * with nothing to fill it. This is the same trap the override comment above records, and the same one the
-   * design's own `<script src="../reader.js">` links fall into.
-   *
-   * **AND IT NO LONGER HAS TO RUN BEFORE `withDiscussion`.** That was a real constraint while both insertions
-   * anchored on the same closing `</main>`: *"whichever runs first ends up further from the closing tag"* was
-   * true of the code rather than of the page. **The anchors are disjoint on every document carrying a
-   * `.prose`** — the unit goes after the reading matter's third paragraph, and the box after `Cite this
-   * article` — and on the three screens that carry a discussion but no `.prose` (`watch`, `projects`,
-   * `cultural-calendar`, measured) the unit's own second fallback anchors on the discussion box's marker, so
-   * it lands directly above the thread whichever call runs first. `apps/ozikoro/lib/placement.test.ts` holds
-   * both halves of that as a test. **The order of the two calls below is unchanged from what shipped, and the
-   * guarantee no longer rests on it.**
-   *
-   * ⚠️ **`ADSENSE_READER_SCREENS` IS AN ALLOW-LIST BECAUSE THIS ROUTE SERVES ALL FIFTY-THREE SCREENS.** The
-   * dashboards, the editor — whose `<main>` holds the owner's `contenteditable` — the upload form, the 404 and
-   * the type proof are all served from here, and the brief names the editor, the 404 and forms as places an ad
-   * must not go. A deny-list would let the next screen added to the deliverable inherit a unit; this cannot.
-   * The list, and the reason each excluded name is excluded, is written out in `@/lib/adsense`.
+   * ⚠️ **AND THE INSERTION POINT IS WORTH KNOWING IF THE DECISION IS EVER REVISITED, WHICH IS WHY IT IS KEPT.**
+   * It ran *after* `withSeoHead` because that call REPLACES the whole `<head>` (`seo-head.ts` matches
+   * `<head>[\s\S]*?</head>` and substitutes it), so a loader injected before it is discarded with the design's
+   * own head and the page serves an `<ins>` nothing can fill; and after `withDesignOverrides` so a stored edit
+   * cannot remove it. **`/design/` and `public/design/` remain inviolable** — 65 files, byte-compared, and the
+   * ad code was always a serve-time insertion rather than an edit to the deliverable.
    */
-  if (ADSENSE_READER_SCREENS.has(name)) {
-    html = withAdsense(html);
-  }
 
   /*
    * ── AND THE OWNER'S ANALYTICS TAG, ON EVERY SCREEN THIS ROUTE SERVES ────────────────────────────────
    *
-   * ⚠️ **THIS IS UNCONDITIONAL ON PURPOSE AND IT IS THE ONE PLACE THE TWO LISTS COULD HAVE BEEN CONFUSED.**
-   * `ADSENSE_READER_SCREENS` above is 26 names out of the 53 this route serves, and the 27 it leaves out are
-   * the dashboards, the editor, the upload form, the 404, the type proof and the solicitation pages. **The
-   * owner asked for traffic and geography on the site, not for a paid rectangle in a form** — so the tag goes
-   * on all 53, and a screen the deliverable gains tomorrow is measured from the moment it is served rather
-   * than from the moment somebody remembers to add it to a list.
+   * ⚠️ **THIS WAS ALWAYS UNCONDITIONAL, AND IT IS THE ONE THING THAT SURVIVED THE ROUND THAT REMOVED THE ADS.**
+   * It used to sit below a check against a list of 26; now there is no list and no ad, and the tag is the whole
+   * of what this route adds to a design screen. **The owner asked for traffic and geography on the site, not
+   * for a paid rectangle in a form** — so the tag goes on all 53, and a screen the deliverable gains tomorrow
+   * is measured from the moment it is served rather than from the moment somebody remembers to add it to a
+   * list.
    *
    * **THE 404 IS INCLUDED, AND IT IS ARGUABLY THE MOST USEFUL SCREEN IN THE SET.** `/404/` answers **200**
    * measured — `DESIGN_SCREENS` rewrites it to `/design-screen/404` — so a not-found is served as a page and a
    * pageview report is the one instrument that says a link is broken. It carries no ad; it carries the tag.
    *
-   * ⚠️ **IT RUNS AFTER `withSeoHead` FOR THE SAME REASON THE AD CODE DOES: `withSeoHead` REPLACES THE WHOLE
-   * `<head>`.** A tag injected before that call is discarded with the design's own head — `seo-head.ts` matches
+   * ⚠️ **IT RUNS AFTER `withSeoHead` AND THAT ORDERING IS STILL LOAD-BEARING: THAT CALL REPLACES THE WHOLE
+   * `<head>`.** A tag injected before it is discarded with the design's own head — `seo-head.ts` matches
    * `<head>[\s\S]*?</head>` and substitutes it — and the site would serve a measurement of nothing while every
    * other page worked, which is the most expensive shape of this fault to find. It is also after the owner's
    * stored overrides, so a saved edit cannot remove it, and it is *before or after `withDiscussion` indifferently*
@@ -3243,15 +3235,15 @@ export async function GET(
   html = await withDiscussion(html, name, new URL(request.url).searchParams);
 
   /*
-   * ── THE ORDER, ASKED OF THE BYTES THAT ARE ABOUT TO GO OUT ───────────────────────────────────────────
+   * ── AND THE ORDER GUARD GOES WITH THE UNIT IT GUARDED ────────────────────────────────────────────────
    *
-   * The ad must stay above the comments — that rule is older than this change and it still is. It used to be
-   * guaranteed by which of the two insertions above ran first; it is now a property of the two anchors. This
-   * states it on the served document, so a later change to either anchor is a logged fault rather than a paid
-   * block served under a comment thread. It never throws and never changes the response: a screen that draws
-   * no unit, or no thread, is not a fault.
+   * `warnIfAdBelowDiscussion(html, '/<name>/')` stood here and asked the served bytes whether a unit had landed
+   * below the thread. **There is no unit on this route any more, so there is nothing to ask about**: the guard
+   * is a no-op on every document (it returns `true` when either the unit or the thread is absent), and a call
+   * that can only ever say "fine" is the shape this repository deletes rather than leaves. The rule it enforced
+   * — *the ad stays above the comments* — is still enforced, on the one route that draws both, at the bottom of
+   * `app/[slug]/route.ts`.
    */
-  warnIfAdBelowDiscussion(html, `/${name}/`);
 
   /*
    * ── AND THE IN-PAGE CONTROL THAT POINTS AT SOMETHING THIS PAGE NO LONGER DRAWS ───────────────────────

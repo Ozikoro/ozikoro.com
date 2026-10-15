@@ -907,21 +907,41 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
   }
 
   /*
-   * ── THE OWNER'S AD CODE, ON EVERY PUBLISHED RECORD ──────────────────────────────────────────────────
+   * ── THE OWNER'S AD CODE, ON THE ONLY PAGE KIND THAT KEEPS IT, AND HOW MANY UNITS A RECORD EARNS ──────
    *
-   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* — and, in
-   * this round, *"make sure the google adsense is placed well in the articles."* The brief names "a record
-   * page" first among the places a unit belongs, and **this is that page for all 1,051 published histories
-   * and folktales**: one placement, because a folktale is served by this route and not by a second one.
+   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* — then
+   * *"make sure the google adsense is placed well in the articles."* — and then, this round, both halves of the
+   * rule at once:
    *
-   * 🔴 **THE UNIT IS NO LONGER AT THE FOOT, WHICH IS WHAT THE SECOND HALF OF THAT REQUEST WAS ABOUT.**
-   * Measured on the review server's own copy of `/egwu-amala-the-paddle-dance-of-nigerias-river-communities/`
-   * (**20402 bytes**), the unit used to sit at **byte 18912** — after the page-turn navigation at 18721 and
-   * after the related cards at 17416, **92.7% of the way down the document**, and after the comment thread at
-   * 19248 as well. A reader who reached it had finished the article, which is the lowest-viewability placement
-   * a unit can have. `withAdsenseUnit` now places it after the third paragraph of `.prose`, inside the reading
-   * column at byte 12521 (21.7% of the way through the reading matter); the measurement and the fallback chain
-   * are in `@/lib/adsense`.
+   *     *"the ads i put on the website was never meant to be on anywhere else apart from articles and
+   *      researches, which is exactly three in a page. now why is it showing everywhere on my website?"*
+   *     *"i meant not just three, and could be more if the content is long, but not to be showing everywhere
+   *      else on the website like i am seeing now"*
+   *
+   * **THIS ROUTE IS NOW THE ONLY CALLER OF `withAdsense` IN THE WHOLE APPLICATION, WHICH IS THE FIRST HALF OF
+   * THAT.** The other two — `app/layout.tsx` for the React public routes and `app/design-screen/[screen]/route.ts`
+   * for 26 of the 53 design screens — no longer import or call it, so the homepage, the listings, the media
+   * pages, the calendars, the reference pages, a town record, a byline, a researcher's profile and the author
+   * directory all serve no unit and no loader. **The measured before/after, page kind by page kind, is in this
+   * round's report; the argument for deleting the two allow-lists rather than narrowing them is in
+   * `@/lib/adsense`.**
+   *
+   * ── AND THE SECOND HALF: THE UNITS SCALE WITH THE RECORD'S OWN LENGTH ────────────────────────────────
+   *
+   * `withAdsense` places **one unit per rung of the ladder the record reaches**, measured from the record's own
+   * reading matter: after the 3rd paragraph, then the 18th, then the 40th, and never more than three. Across the
+   * 1,042 published records measured for it that is 551 records with one unit, 363 with two, 46 with three, and
+   * 82 — the single-photograph records, one paragraph and a caption — with none. **The corpus's paragraph
+   * percentiles, the choice of rungs and the cap are all written out in `@/lib/adsense`, beside the note that
+   * says the AdSense placement policy contains no ad-density number and that none is invented here.**
+   *
+   * 🔴 **AND THE UNIT IS NOT AT THE FOOT, WHICH WAS THE EARLIER FAULT IN THE SAME PLACE.** Measured on the
+   * review server's own copy of `/egwu-amala-the-paddle-dance-of-nigerias-river-communities/` (**20402 bytes**),
+   * the unit used to sit at **byte 18912** — after the page-turn navigation at 18721 and after the related cards
+   * at 17416, **92.7% of the way down the document**, and after the comment thread at 19248 as well. A reader
+   * who reached it had finished the article, which is the lowest-viewability placement a unit can have. The
+   * anchor is inside `.prose` now, and **there is no `</main>` fallback any more**: a record whose reading matter
+   * is one paragraph serves no unit rather than a unit at the foot of the page.
    *
    * ── WHERE IT RUNS, AND THE TWO THINGS IT MUST BE AFTER ──────────────────────────────────────────────
    *
@@ -931,16 +951,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
    * after the editor's saved design overrides, so a stored edit cannot remove it.
    *
    * **AND IT NO LONGER HAS TO RUN BEFORE THE DISCUSSION BOX.** That constraint was real while both insertions
-   * anchored on the same closing `</main>`: *"whichever runs first sits further from the closing tag"* was
-   * true, and it was a fact about this file rather than about the page. **The anchors are disjoint now** —
-   * the unit is inside the reading matter, the box is spliced after `Cite this article` — and the unit's own
-   * second fallback anchors on the box's marker. So both orders produce byte-identical documents; that was
-   * measured, not argued, in `apps/ozikoro/lib/placement.test.ts`. The call is left where it was because it
-   * is still the safe order for the design screens, where a page can have neither a `.prose` nor a citation
-   * and both insertions fall back to the closing `</main>`.
+   * anchored on the same closing `</main>`: *"whichever runs first sits further from the closing tag"* was true,
+   * and it was a fact about this file rather than about the page. **The anchors are disjoint now** — the units
+   * are inside the reading matter, the box is spliced after `Cite this article` — so both orders produce
+   * byte-identical documents; that was measured, not argued, in `apps/ozikoro/lib/placement.test.ts`, and the
+   * multiple-unit case is asserted there too (the units keep document order, and the last of them is above the
+   * thread).
    *
-   * `warnIfAdBelowDiscussion` at the bottom of this handler then asks the served bytes for the invariant, so
-   * a future change to either anchor fails loudly rather than silently serving a paid block under a thread.
+   * `warnIfAdBelowDiscussion` at the bottom of this handler then asks the served bytes for the invariant, so a
+   * future change to either anchor fails loudly rather than silently serving a paid block under a thread.
    *
    * ⚠️ **THIS ROUTE HAS NO EDITOR AND NO FORM AT THE END OF ITS BODY, WHICH IS WHY THE UNIT IS UNCONDITIONAL
    * HERE.** `article.html` draws the reading frame; the `contenteditable` the owner writes in lives in the
@@ -959,11 +978,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ slug
    * written, and it comes from `@/lib/analytics` rather than being typed here so the id and the two `gtag`
    * calls cannot drift from the layout's or the design screens' copy.
    *
-   * ⚠️ **IT IS UNCONDITIONAL HERE FOR THE SAME REASON THE AD CODE IS, AND THE TWO EXCLUSIONS ARE THE ROUTE'S
-   * OWN CONTROL FLOW RATHER THAN A NAME LIST.** `servePublishedPage` returns a legacy WordPress page and the
-   * two 403 refusal documents **before** line 949 above, and the 404 returns before it as well — so **a legal
-   * gate, a retired page and a not-found body are not measured**, which is the list the brief asks to be
-   * decided rather than inherited. A record the archive publishes is always measured, whatever it is about.
+   * ⚠️ **IT IS UNCONDITIONAL HERE, AND THE TWO EXCLUSIONS ARE THE ROUTE'S OWN CONTROL FLOW RATHER THAN A NAME
+   * LIST.** `servePublishedPage` returns a legacy WordPress page and the two 403 refusal documents (lines 142
+   * and 295) **before** `html = withAdsense(html)` at line 970, and the 404 returns before it as well (346) —
+   * so **a legal gate, a retired page and a not-found body are not measured**, which is the list the brief asks
+   * to be decided rather than inherited. A record the archive publishes is always measured, whatever it is
+   * about. ⚠️ **The ad code is no longer the reason those three are excluded and the tag's own line number is
+   * now the one that matters** — the ad comment above records the same three returns and is written to stand on
+   * its own rather than on a line number that this round moved.
    *
    * ⚠️ **IT RUNS AFTER `withSeoHead` FOR THE REASON THE AD COMMENT ABOVE RECORDS: THAT CALL REPLACES THE
    * ENTIRE `<head>`.** A tag written before it would be discarded with the design's own head and the record

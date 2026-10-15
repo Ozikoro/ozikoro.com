@@ -3,13 +3,13 @@
  *
  * ── WHY THIS FILE EXISTS, AND THE MEASUREMENT THAT ASKED FOR IT ─────────────────────────────────────
  *
- * The ad unit now goes INSIDE the reading matter, after the document's third paragraph, and the discussion
- * now goes immediately after `<section id="citation">`. **Neither of those places has a unique tag in the
- * document, which is the whole difficulty:**
+ * The ad units now go INSIDE the reading matter, each one after a paragraph of a ladder the record's own
+ * length decides, and the discussion now goes immediately after `<section id="citation">`. **Neither of those
+ * places has a unique tag in the document, which is the whole difficulty:**
  *
  *     `</p>`  appears 14 times in one published record, and thousands of times across the archive
  *     `</div>` appears 5 times inside a single `.prose`, and the box's own markup contends for it
- *     `</main>` is unique — and that uniqueness is exactly why the old anchor was the closing `</main>`
+ *     `</main>` is unique — and that uniqueness is exactly why the old anchors were the closing `</main>`
  *            and why the box sat at the foot of the page instead of after the citation
  *
  * **So a `lastIndexOf`-style anchor cannot express either position, and a `replace` would be worse:** a
@@ -17,8 +17,8 @@
  * every paragraph in the archive. Both are the fault this module exists to make impossible.
  *
  * What is needed is an offset computed from the document's OWN STRUCTURE — *the third `<p>` that is a
- * direct child of the element whose class list contains `prose`* — and that is a one-pass scan with a tag
- * stack, which is what this file is.
+ * direct child of the element whose class list contains `prose`*, and then the eighteenth and the fortieth —
+ * and that is a one-pass scan with a tag stack, which is what this file is.
  *
  * ── WHAT IT IS NOT ──────────────────────────────────────────────────────────────────────────────────
  *
@@ -37,7 +37,8 @@
  *
  * ⚠️ **EVERY CALLER MUST HOLD A FALLBACK.** Every function here returns `null` rather than guessing, and a
  * page that cannot find its anchor must serve a missing box — never a mangled one and never a 404. See
- * `withAdsenseUnit` and `insertDiscussionAfterCitation` for the chains that do that.
+ * `withAdsenseUnits` (whose own fallback is now the refusal itself, since the `</main>` anchor was removed as
+ * the placement the owner reported) and `insertDiscussionAfterCitation` for the chains that do that.
  */
 
 /** Elements that never have a closing tag, so they never open a level on the stack. */

@@ -122,8 +122,8 @@ ${GA_INLINE}
  * Put the owner's tag in a document's `<head>`.
  *
  * Returns the document **byte for byte unchanged** when it has no `</head>`, which is the same contract
- * `withAdsenseLoader` and `insertDiscussion` hold and the reason a fill that cannot find its anchor is a
- * missing measurement rather than a mangled page.
+ * `insertDiscussion` holds and the reason a fill that cannot find its anchor is a missing measurement rather
+ * than a mangled page.
  *
  * ⚠️ **AND IT RETURNS THE DOCUMENT UNCHANGED WHEN THE TAG IS ALREADY IN IT, WHICH IS NOT DEFENSIVENESS FOR ITS
  * OWN SAKE.** Two producers call this on documents that can also reach the other: a design screen served at
@@ -140,15 +140,16 @@ export function withAnalyticsTag(html: string): string {
 }
 
 /*
- * ── WHICH PAGES CARRY THE TAG, AND WHY THIS IS NOT `ADSENSE_READER_SCREENS` ─────────────────────────────
+ * ── WHICH PAGES CARRY THE TAG, AND WHY THE AD QUESTION IS A DIFFERENT ONE ───────────────────────────────
  *
- * `adsense.ts` holds an allow-list of 26 reading screens and 7 React route families, and the brief asks
- * whether the same list is right for analytics. **It is not, and the reason is that the two lists answer
- * different questions.** The ad list answers *"may a third party be paid to put a rectangle here?"* — a
- * question about a reader's attention and about the site's own editorial integrity, which is why the
- * solicitation pages, the recruitment page and the 404 are excluded. **The analytics list answers *"how many
- * people came here, and where from?"* — a question that is worth asking about almost every page, and whose
- * worst case on a page nobody wanted measured is one row too many in a report.**
+ * The brief asked whether the ad list is the right list for analytics. **It is not, and the reason is that the
+ * two questions are different questions.** The ad question answers *"may a third party be paid to put a
+ * rectangle here?"* — a question about a reader's attention and about the site's own editorial integrity,
+ * which is why the solicitation pages, the recruitment page and the 404 are excluded, and why the ads have
+ * since been narrowed to the article and folktale records alone (`@/lib/adsense` holds that rule, the ladder
+ * that scales the units with a record's length, and the measurement the ladder came from). **The analytics
+ * question answers *"how many people came here, and where from?"* — a question that is worth asking about
+ * almost every page, and whose worst case on a page nobody wanted measured is one row too many in a report.**
  *
  * SO THE TAG GOES ON EVERY DOCUMENT THESE THREE PRODUCERS SERVE, AND THE ARGUMENT IS MADE PER PRODUCER BELOW.
  * There is no allow-list here **on purpose**, and the two places that a list would still be wrong are closed by
@@ -156,11 +157,14 @@ export function withAnalyticsTag(html: string): string {
  *
  *   1. **THE LEGAL GATE, THE 403 AND THE RETIRED WORDPRESS PAGES ARE CLOSED BY THE RECORD ROUTE'S OWN CONTROL
  *      FLOW.** `app/[slug]/route.ts` serves a legacy page through `servePublishedPage` and returns its two 403
- *      refusal documents **before** the line that calls `withAdsense` — measured in the file: `await
- *      servePublishedPage(db, clean)` returns at line 345 and `html = withAdsense(html)` is at line 949, with
- *      the 403 responses at 293 and the 404 at 346. The tag rides on that same call, so those documents carry
- *      it no more than they carry an ad. **A gate a reader cannot pass must not be a page this archive
- *      counts.**
+ *      refusal documents **before** the line that calls `withAnalyticsTag` — and the same returns are ahead of
+ *      `withAdsense`, which is what the tag's placement used to be argued from before the ads were narrowed to
+ *      this one route. **The line numbers moved when the ad code left the other two producers and the ladder
+ *      arrived, so they are stated as a shape rather than as offsets:** the 403 responses are in the handler's
+ *      first half, `servePublishedPage` and its 404 return below them, and both `withAdsense` and
+ *      `withAnalyticsTag` are at the end, after `withSeoHead` and the editor's stored overrides. The tag rides
+ *      at the end of that same flow, so those documents carry it no more than they carry an ad. **A gate a
+ *      reader cannot pass must not be a page this archive counts.**
  *   2. **THE BACK OFFICE AND THE SIGN-IN SCREEN ARE MEASURED, AND THAT IS THE DECISION.** `layout.tsx`'s
  *      `hasOwnChrome` branch returns before the public shell and would be the natural place to exclude
  *      `/admin`, `/signin` and `/design` — **and it deliberately does not.** `/admin/` is the surface the

@@ -3,9 +3,6 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import { accountItemFor, FAVICON_LINKS, renderModeSwitcher, WORDMARK_MARK_SRC } from '@ozikoro/platform';
 import { switcherFor, workspaceViewer } from '@/lib/workspace-modes';
-import { isAdsenseReaderPath } from '@/lib/adsense';
-import AdsenseUnit from './_components/adsense-unit';
-import { AdsenseLoader } from './_components/adsense-loader';
 import { AnalyticsTag } from './_components/analytics-tag';
 import './globals.css';
 
@@ -149,25 +146,31 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   });
 
   /*
-   * ── WHETHER THIS PAGE CARRIES THE OWNER'S AD CODE, DECIDED HERE AND NOWHERE ELSE ────────────────────
+   * ── WHY THIS SHELL NO LONGER ASKS WHETHER THE PAGE CARRIES AN AD ────────────────────────────────────
    *
-   * The owner: *"i did not see where to place the google adsense ads, so please add it yourself."* The
-   * answer this shell gives is `isAdsenseReaderPath` — an allow-list of the React route families that are
-   * the archive's reading and browsing surface: the clan register, the town records, the researchers'
-   * directory, a byline, the entity and label records, and a project.
+   * 🔴 **THE OWNER: *"the ads i put on the website was never meant to be on anywhere else apart from
+   * articles and researches … now why is it showing everywhere on my website?"*** — and this file was one
+   * of the three places it was showing.
    *
-   * ⚠️ **IT IS AN ALLOW-LIST BECAUSE THIS LAYOUT SERVES MORE THAN PUBLIC PAGES, AND THAT WAS MEASURED
-   * RATHER THAN ASSUMED.** `/account/`, `/submit/`, `/library/`, `/workspace/`, `/reviews/` and `/claims/`
-   * all answer **307 to `/signin`**, and `/contact/`, `/join/` and `/search/` answer 200 with a form. An ad
-   * script emitted for every path that reaches this point would therefore have been emitted on the account
-   * screen and the sign-in-gated surfaces — which the owner asked not to happen — and a deny-list would
-   * acquire each new private route silently. The list cannot.
+   * It used to compute `const ads = isAdsenseReaderPath(pathname)` from an allow-list of seven React route
+   * families (`/clan-towns/`, `/clans/`, `/town/<slug>/`, `/researchers/`, `/author/<slug>/`, `/entities/`,
+   * `/project/`) and on a true it wrote **both** the AdSense loader into `<head>` and an `<AdsenseUnit />`
+   * at the foot of `<main>`. Measured in the served HTML on the review server, that is exactly what a
+   * listing, a place record and a byline were serving: `/clan-towns/`, `/researchers/`, `/town/anam/` and
+   * `/author/nze/` all carried a unit and the loader, and **not one of them is an article.**
    *
-   * **AND THE FIRST BRANCH ABOVE IS NEVER REACHED BY IT.** `/admin`, `/signin` and `/design` return before
-   * this line, so the back office, the sign-in screen and the design editor cannot receive the loader even if
-   * a name were later added to the allow-list by mistake.
+   * **None of those seven families is an article or a research reading page**, so the list is deleted
+   * rather than narrowed and this shell no longer writes either half of the ad code. The one page kind that
+   * keeps a unit is the published record at `/<slug>/`, and that is a route this layout never serves — it
+   * builds its own whole document. See `@/lib/adsense` for the ladder that decides how many units a record
+   * earns, and for why an allow-list was the wrong shape for the new rule.
+   *
+   * ⚠️ **THE ANALYTICS TAG BELOW IS NOT AFFECTED AND MUST NOT BE MADE CONDITIONAL ON THE AD QUESTION.** The
+   * owner asked for traffic, referrers and countries on the site, which is every page; the old `ads` flag
+   * answered *"may a third party be paid to put a rectangle here?"*, which is now a question about exactly
+   * one page kind. The two were deliberately separate before this change and the separation is what made
+   * removing one without the other a single-line edit.
    */
-  const ads = isAdsenseReaderPath(pathname);
 
   return (
     <html lang="en">
@@ -229,34 +232,20 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           href="https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,400;0,600;0,700;1,400&family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Mono:wght@400;600&display=swap"
         />
         {/*
-          THE AD CODE'S LOADER, ONCE PER DOCUMENT, AND ONLY ON A PAGE THAT CARRIES A UNIT.
-
-          It is the owner's own `<script async src="…adsbygoogle.js?client=ca-pub-…">`, written from the
-          address in `@/lib/adsense` rather than typed again here. `async` is the snippet's, and it is why the
-          unit below is written as an `adsbygoogle` queue push: the push registers the unit whether the loader
-          has arrived or not, so a slow or refused loader costs the ad and not the page.
-
-          ⚠️ **THIS IS THE ONLY PLACE THE LOADER IS WRITTEN FOR THE REACT ROUTES, AND IT IS NOT THE ONLY
-          PLACE IT IS WRITTEN FOR THE SITE.** The design screens — which include `/`, `/archive/`,
-          `/documents/` and `/photographs/` — and every record at `/<slug>/` are served as whole documents by
-          their own routes and never reach this layout, so each of those writes the loader from the same
-          constants. Three document producers, one address.
-        */}
-        {ads ? <AdsenseLoader /> : null}
-        {/*
-          ── THE OWNER'S GA4 TAG, AND WHY IT IS HERE RATHER THAN INSIDE THE `ads` CONDITION ABOVE ──────────
+          ── THE OWNER'S GA4 TAG, AND WHY IT IS UNCONDITIONAL NOW ─────────────────────────────────────────
 
           The owner: *"i could not find the website analytics, like it was before. i need to be knowing how
           much views, where it came from, which link got it, and how much traffic and the country locations…"*
           He supplied the tag for `G-RKRGY9QCSH` himself, and it is written from `@/lib/analytics` so this file
           and the two string producers cannot disagree about the id or the address.
 
-          ⚠️ **`ads` IS THE AD QUESTION AND THIS IS NOT IT.** `isAdsenseReaderPath` answers *"may a third party
-          be paid to put a rectangle on this page?"* — it excludes the editor, the forms and the 404 for
-          editorial reasons. **The analytics question is *"how many people came here, and from where?"* and its
-          wrong answer on a page nobody wanted measured is one row too many, not a paid placement beside an
-          appeal.** So the tag is rendered on **every path that reaches this shell**, and the pages that are
-          still not measured are the ones closed by the branch above: `/admin/`, `/signin/` and `/design`.
+          ⚠️ **THIS WAS ALWAYS THE OTHER QUESTION, AND THE ROUND THAT REMOVED THE AD CODE FROM THIS SHELL IS
+          WHAT MADE THE POINT PROVABLE.** `ads` answered *"may a third party be paid to put a rectangle on
+          this page?"* — an editorial question with an editorial answer. **The analytics question is *"how
+          many people came here, and from where?"* and its wrong answer on a page nobody wanted measured is
+          one row too many, not a paid placement beside an appeal.** So the tag is rendered on **every path
+          that reaches this shell**, and the pages that are still not measured are the ones closed by the
+          branch above: `/admin/`, `/signin/` and `/design`.
 
           ⚠️ **THOSE THREE ARE EXCLUDED ON PURPOSE AND THE REASON IS THE OWNER'S OWN REPORT.** His question is
           about the archive's readers; his own administrative sessions are not readers, and a back-office page
@@ -440,23 +429,22 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </header>
 
         {/*
-          ── THE UNIT, AT THE FOOT OF THE READING AREA AND NOWHERE ELSE ────────────────────────────────
+          ── WHY THERE IS NO AD UNIT AT THE FOOT OF THIS READING AREA ANY MORE ───────────────────────────
 
-          `{children}` is the whole page, so a unit printed after it is a block after the reading matter: it
-          cannot land inside a paragraph, because nothing here inserts into prose. That is the placement the
-          owner's `data-ad-format="auto"` asks for and it is the only placement this file makes — **it is not
-          in the masthead, not between the rail and the article, and not in the footer**, because a paid
-          rectangle beside the company notice is the one that reads as a banner rather than as a placement.
+          🔴 **THE OWNER: *"the ads i put on the website was never meant to be on anywhere else apart from
+          articles and researches … now why is it showing everywhere on my website?"*** There used to be an
+          `<AdsenseUnit />` printed here after `{children}` on the seven React route families the old
+          allow-list admitted. **Not one of those seven is an article** — they are the clan register, the town
+          records, the researchers' directory, a byline, the entity and label records and a project — so the
+          element and the list went in the same change.
 
-          ⚠️ **AND IT IS INSIDE `<main>` SO THAT IT IS NEVER INSIDE A FORM.** The React routes allowed here
-          render their own content into this element; none of the six is a form page, and the browser check
-          that proves the served unit is not inside a `<form>` or a `[contenteditable]` is recorded in the
-          round's evidence rather than asserted here.
+          ⚠️ **AND `</main>` WAS NEVER A PLACEMENT; IT WAS THE ABSENCE OF ONE.** This is the anchor the
+          record route's own comment calls out by measurement: *"the unit was the LAST thing in `<main>` …
+          a unit a reader only meets after finishing the article is the lowest-viewability placement a unit
+          can have."* The unit that remains is inside `.prose`, after a paragraph of the reading matter, and
+          it is placed by `@/lib/adsense` for the published records at `/<slug>/` only.
         */}
-        <main id="main">
-          {children}
-          {ads ? <AdsenseUnit /> : null}
-        </main>
+        <main id="main">{children}</main>
 
         <footer className="site-foot">
           <div className="wrap">
