@@ -20,10 +20,29 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const db = await getDb();
   const label = await getLabelBySlug(db, slug);
   if (!label) return { title: 'Not found' };
+  /*
+   * NO `robots` HERE, AND ITS ABSENCE IS THE DIRECTIVE.
+   *
+   * This page carried `robots: { index: false, follow: true }`, so it served `noindex, follow` while the
+   * sitemap listed all 10,175 of these addresses and the comment on that query said each one "is a real
+   * page listing the records filed under it". **Two halves of the archive disagreed about the same page,
+   * and Search Console reported the consequence as "Excluded by 'noindex' tag".** Measured on the served
+   * site before this change: `/labels/igbo/` was 56,649 bytes with 37 internal links and
+   * `<meta name="robots" content="noindex, follow">`.
+   *
+   * The root layout (`app/layout.tsx`) already declares `robots: { index: true, follow: true }` for the
+   * archive, and a page-level `robots` replaces it rather than merging. So the override is deleted and the
+   * page inherits the layout's directive — **one statement of it, in the place that owns the site's
+   * identity**, rather than a second `robots` written here to fight the first.
+   *
+   * ⚠️ THE OTHER `noindex` PAGES ARE NOT THIS PAGE AND KEEP THEIRS: `/signin/`, `/join/`, `/library/`,
+   * `/workspace/`, `/submit/`, `/reviews/`, `/account/` and the rest are back office or forms, each
+   * excluded on purpose and each served by a different mechanism — a header, a redirect, or its own
+   * metadata. None of them reads this file, and none was touched.
+   */
   return {
     title: label.name,
     description: `Records in the Ozikoro archive filed under ${label.name}.`,
-    robots: { index: false, follow: true },
   };
 }
 
@@ -34,18 +53,23 @@ export default async function LabelPage({ params }: { params: Promise<{ slug: st
   if (!label) notFound();
 
   /*
-   * IS THIS SUBJECT A CLAN THE DICTIONARY ALREADY PUBLISHES?
+   * IS THIS SUBJECT AN ENTRY THE CLAN REGISTER ALREADY PUBLISHES?
    *
-   * Item 8 is "Ozituma integration linking to the dictionary rather than duplicating it." Round 141
-   * measured both sides and found they already overlap: 93 labels match a published clan by slug, 99 by
+   * Item 8 was "Ozituma integration linking to the dictionary rather than duplicating it." Round 141
+   * measured both sides and found they already overlap: 93 labels match a published entry by slug, 99 by
    * name, and 268 articles carry such a label — umueri, nimo, abagana, idemili and the rest.
    *
-   * So this needs no entity, no source, no period and no rights decision. It is a lookup. Building an
-   * Ozikoro clan page would be exactly the duplication item 8 exists to prevent.
+   * THE RATIONALE HAS CHANGED, SO THE DESTINATION HAS CHANGED WITH IT.
    *
-   * `published = true` matters: the clan table holds 228 rows and only 188 are published, and a link to an
-   * unpublished entry would be a 404 on the other site. A failure is caught rather than thrown, because a
-   * missing clan must not stop a subject page rendering.
+   * That comment used to end "Building an Ozikoro clan page would be exactly the duplication item 8 exists
+   * to prevent." The owner has since decided the register belongs to Ozikoro, and the register is now built
+   * at `/clans/` on this site. Link to the dictionary from here and the subject page would send a reader off
+   * the site to read a page this site now serves — and to a route the dictionary is in the process of
+   * giving up. So the link is internal, and it reads the register's own slug rather than the label's.
+   *
+   * `published = true` still matters: the table holds 228 rows and only 188 are published, and an
+   * unpublished entry has no page to link to. A failure is caught rather than thrown, because a missing
+   * entry must not stop a subject page rendering.
    */
   const clan = await db
     .one<{ slug: string; region: string | null }>(
@@ -84,13 +108,13 @@ export default async function LabelPage({ params }: { params: Promise<{ slug: st
         <h1>{label.name}</h1>
         {clan ? (
           <p className="small muted">
-            {/* A fixed external destination: one dictionary, one address. Not a per-request value. */}
-            <Link href={`https://ozituma.com/clans/${clan.slug}/`}>
-              Read the dictionary’s entry for {label.name}
+            {/* The register is this site's now, so this stays inside Ozikoro. */}
+            <Link href={`/clans/${clan.slug}/`}>
+              Read the register entry for {label.name}
             </Link>
           {clan.region ? (
             <span>
-              {' '}· the dictionary places it in {clan.region}
+              {' '}· the register places it in {clan.region}
             </span>
           ) : null}
           </p>

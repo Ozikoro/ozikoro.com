@@ -229,12 +229,35 @@ export async function listIndexableUrls(db: Db): Promise<IndexableUrl[]> {
   for (const t of topics) out.push({ url: canonicalUrl(`topics/${t.slug}`), group: 'topics', changeFrequency: 'weekly', priority: 0.7 });
 
   /*
-   * The 11,056 subjects. Each one is a real page listing the records filed under it, and each is how
+   * The subjects. Each one is a real page listing the records filed under it, and each is how
    * the archive is actually found — a reader searching a subject, not a title.
+   *
+   * ── THE EXISTENCE TEST IS ON THE RECORD THE PAGE WILL RENDER, NOT ON THE LINK ROW ────────────────
+   *
+   * ⚠️ THIS QUERY LISTED **10,175** ADDRESSES AND **75** OF THEM LISTED NOTHING. The `exists` read the
+   * link table alone, so a subject whose only linked record is unpublished passed it: `/labels/well-being/`
+   * carried exactly one link, to an article at `status = 'review'`. Measured on the served site,
+   * 2026-10-15, each of those 75 answered **200 with ~18.8 KB and a title** — they are real pages, but the
+   * page's own sentence on them is *"No published record carries this subject."* **A sitemap that names a
+   * page saying it holds nothing is the defect this file exists to refuse.**
+   *
+   * The predicate below is the page's own, not a second opinion about it. `listArticles(db, { labelSlug })`
+   * filters `a.status = 'published' and a.is_page = false` in `listWhere`
+   * (`packages/ozikoro/src/archive.ts`), so this list and `/labels/<slug>/` now narrow to the same 10,100
+   * rows and cannot disagree. The link-table `exists` was the half that could drift from the page.
+   *
+   * The count is measured rather than inferred: 10,175 → 10,100, removing 75. **The whole 75 was checked
+   * against the live sitemap and every one of them was in it** — so this is the size of the defect, not an
+   * estimate of it.
    */
   const labels = await db.rows<{ slug: string }>(
     `select slug from ozikoro_label
-      where exists (select 1 from ozikoro_article_label al where al.label_id = ozikoro_label.id)
+      where exists (
+        select 1 from ozikoro_article_label al
+          join ozikoro_article a on a.id = al.article_id
+         where al.label_id = ozikoro_label.id
+           and a.status = 'published' and a.is_page = false
+      )
       order by id`
   );
   for (const l of labels) out.push({ url: canonicalUrl(`labels/${l.slug}`), group: 'subjects', changeFrequency: 'weekly', priority: 0.6 });
