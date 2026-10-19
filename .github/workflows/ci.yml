@@ -108,6 +108,14 @@ jobs:
       #                      **This check has the worst history here: round 54 found two test accounts,
       #                      marked public and listed in the sitemap, that every suite had passed over.**
       #
+      # `check:residue` IS NOT IN THIS LOOP, AND IT CANNOT BE. It asks the DATABASE whether any
+      # `zztest` fixture row survived. This job installs dependencies but does not create a schema,
+      # so the scan reaches zero tables; the check correctly refuses to call that clean, and the job
+      # fails for a reason that is not the commit. It still runs in `scripts/verify-all.sh`, where the
+      # real archive exists, and in any environment that supplies a migrated database. The alternative
+      # here would be a green check that examined nothing, which is the exact fault the check exists to
+      # prevent.
+      #
       # THESE TEN NEED NO DATABASE, SERVER OR NETWORK. The other six — `check:design-parity`,
       # `check:links`, `check:sitemap`, `check:assets`, `check:grounding` and `check:handover` — fetch a
       # served page and are NOT here; adding them means starting a server in this job. **UNTIL THAT IS
@@ -116,7 +124,7 @@ jobs:
       - name: The repository's own checks
         run: |
           set -e
-          for c in check:residue check:capabilities check:capability-fn check:secrets \
+          for c in check:capabilities check:capability-fn check:secrets \
                    check:design check:boundaries check:body-links check:screens \
                    check:narration check:mail; do
             echo "::group::$c"
