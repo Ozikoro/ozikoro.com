@@ -28,6 +28,7 @@ import { designScreenLinks } from './design-paths.ts';
 import { normaliseHeadingLevels, sanitiseArchiveHtml } from './content.ts';
 import { nameUnheldFigures } from './missing-figure.ts';
 import { namedBackers, type NamedBacker } from './partners.ts';
+import { sameOriginPortrait } from './publications.ts';
 
 /*
  * AND THE NAMES THEMSELVES GO OUT WITH THE FILLS. `data/partners.json` is read by `partners.ts`, and the
@@ -3411,7 +3412,30 @@ export type RealDocument = {
 
 /** One document card, in the design's `.sx-pdf-grid > article` markup. */
 export function renderDocument(d: RealDocument): string {
-  return `<article><span class="sx-file-icon">PDF</span><div><small>${esc(d.label)}</small><h3><a href="${esc(d.recordHref)}">${esc(d.title)}</a></h3><p>${esc(d.note)}</p><p><a href="${esc(d.recordHref)}">${esc(d.actionLabel ?? 'Record and citation')}</a> · <a href="${esc(d.href)}" download>Download PDF${d.size ? ` · ${esc(d.size)}` : ''} <span aria-hidden="true">↓</span></a></p></div></article>`;
+  /*
+   * ⚠️ THE ACTION ROW CARRIES THE DESIGN'S OWN `.sx-document-actions`, AND IT DID NOT BEFORE.
+   *
+   * `documents.html` puts a document card's two action links in `<div class="sx-document-actions">` — the
+   * row that `showcase.css` lays out as `display:grid;gap:.5rem` and that its two breakpoints re-place
+   * (`grid-column:2;display:flex` at 60rem, `grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr` at
+   * 40rem). This renderer drew the same two links in a bare `<p>` and took none of it, so **the design's own
+   * responsive placement for the action row was in the stylesheet and applied to nothing.**
+   *
+   * It was found by `scripts/check-design-parity.mjs` reporting `.sx-document-actions` missing from
+   * `/documents/` while `.sx-pdf-mark` and `.chips` — the two classes that really did go with the
+   * demonstration card — were legitimately absent. **The check was right and the page was thin**, which is
+   * why this is a change to the page and not an entry in the check's replacement map.
+   *
+   * The row is a `<div>`, because that is what the design puts the class on: `documents.html` draws
+   * `<div class="sx-document-actions">`. **A class on the wrong element is half a fix** — this file's own
+   * `check-design-parity.mjs` reads the structural classes the design applies to a container
+   * (`section`, `div`, `form`, `nav`, `aside`), so the first version of this change put the class on a `<p>`
+   * and the check went on reporting it missing while `curl` showed it in the served HTML. The measurement
+   * and the reading disagreed, and the measurement was right.
+   *
+   * Nothing about the links, their order or their words moves.
+   */
+  return `<article><span class="sx-file-icon">PDF</span><div><small>${esc(d.label)}</small><h3><a href="${esc(d.recordHref)}">${esc(d.title)}</a></h3><p>${esc(d.note)}</p><div class="sx-document-actions"><a href="${esc(d.recordHref)}">${esc(d.actionLabel ?? 'Record and citation')}</a> · <a href="${esc(d.href)}" download>Download PDF${d.size ? ` · ${esc(d.size)}` : ''} <span aria-hidden="true">↓</span></a></div></div></article>`;
 }
 
 /**
@@ -5283,7 +5307,36 @@ function anchorHeading(html: string, tag: string, label: string, id: string): st
  */
 function personCard(c: AboutData['contributors'][number]): string {
   const bio = c.bio?.trim();
-  const portrait = c.avatarUrl?.trim();
+  /*
+   * ⚠️ **THE PORTRAIT IS FILTERED TO WHAT THIS SITE CAN SERVE, AND THIS SURFACE WAS THE LAST ONE THAT WAS NOT.**
+   *
+   * `/about/` is the widest portrait surface in the archive: it draws **every** contributor who has a
+   * published record. It rendered `c.avatarUrl` with no guard — and this function's own paragraph above
+   * explains why an unguarded value is not a portrait but a REQUEST THE BROWSER REFUSES: the WordPress REST
+   * import read `avatar_urls`, which is Gravatar, so the stored value is
+   * `https://secure.gravatar.com/avatar/…?d=mm&r=g` and this site's Content-Security-Policy is
+   * `img-src 'self' data: https://i.ytimg.com` plus the advertisement and analytics origins. A refused image
+   * is a broken-image box where a person's face belongs.
+   *
+   * **AND THE LAST AGENT WHO FIXED THIS SAID THE SAME THING ABOUT A ROUTE THEY HAD NOT MEASURED.** The commit
+   * that added `sameOriginPortrait` to `/author/<slug>/` recorded the live database as holding "one" Gravatar
+   * address, on a byline with no published record. Measured in this checkout after that commit, the row set is:
+   *
+   *     16 contributors · 11 Gravatar addresses on a byline WITH published records · 4 Gravatar on 0 · 1 null
+   *
+   * so the byline with 314 published records that commit described as a single stray is in fact **eleven
+   * reachable people**, and `/about/` was drawing all eleven. Measured on the review server before this line
+   * existed: **11 `https://secure.gravatar.com` `<img>` elements in the served `/about/` markup**, and 0 on
+   * `/researchers/`, which the earlier commit had already guarded.
+   *
+   * `sameOriginPortrait` is the ONE guard this repository has for this, and it is reused rather than
+   * reimplemented: a second parsing rule for the same question is how two surfaces come to disagree about
+   * one portrait. It returns the value only for a `/media/` path, so anything from another host falls through
+   * to the monogram below. **A bad portrait becomes a monogram, never a broken box** — and because the
+   * fall-through is the branch that already existed, a contributor with a real `/media/` portrait is drawn
+   * exactly as before.
+   */
+  const portrait = sameOriginPortrait(c.avatarUrl);
   const tile = portrait
     ? `<img src="${esc(portrait)}" alt="Portrait of ${esc(c.name)}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`
     : `<span aria-hidden="true" style="position:absolute;inset:0;display:grid;place-items:center;font-family:'Noto Serif',serif;font-size:3rem;color:#d8b25a;font-weight:700">${esc(monogram(c.name))}</span>`;

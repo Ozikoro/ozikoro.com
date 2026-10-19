@@ -40,6 +40,36 @@ on:
   pull_request:
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # ⚠️ THE CHECK THIS FILE STILL DOES NOT RUN, AND THE MEASUREMENT THAT SAYS WHY
+  #
+  # `check:design-parity` was found failing on THREE ROUTES — `/documents`, `/clan-towns` and `/about` — and
+  # nothing ran it, which is how it failed unseen. It is now green on those routes, and the obvious next step
+  # was to add it here. **It cannot go here, and that was measured rather than assumed.**
+  #
+  # The check fetches the RENDERED pages and compares their structure against the design screens, so it needs
+  # a server whose pages are structurally complete — which means the REAL imported archive. Driven in a
+  # scratch standalone against a freshly migrated, EMPTY cluster (what a runner has) on 2026-10-15:
+  #
+  #     /documents  FAIL       the real document cards, and so `.sx-document-actions`, are absent
+  #     /listen     FAIL       no episode is deposited
+  #     /clan-towns HTTP 500
+  #     /submit     HTTP 500
+  #     5 ROUTE(S) DO NOT MATCH THEIR DESIGN
+  #
+  # **A job that is red on every commit for a reason that is not the commit is not a check** — the lesson
+  # this file already records for the integration suites, whose blocker is the same one: 72 MB of extracted
+  # JSON, live access to the site being replaced, or a seeded fixture that does not exist. Clearing it for
+  # the design check means committing the corpus and the media store, which is the owner's call and not an
+  # agent's.
+  #
+  # SO IT RUNS WHERE THE ARCHIVE AND THE SERVER BOTH EXIST, AND CANNOT BE SKIPPED THERE:
+  # `scripts/verify-all.sh` runs it after the typecheck and the archive suites, and **refuses to pass if
+  # nothing is answering on 3110**, printing `bash scripts/serve-review.sh` as the command that fixes it. A
+  # local gate that fails loudly beats a CI job that fails for the wrong reason and is therefore ignored.
+  # If the owner wants it on every push, the thing to build is a seeded fixture archive — named here so the
+  # next reader does not re-litigate the decision.
+  # ---------------------------------------------------------------------------
   unit:
     name: Typecheck and database-free suites
     runs-on: ubuntu-latest

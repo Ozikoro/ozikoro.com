@@ -384,6 +384,31 @@
   padding: 6px 8px;
 }
 .wpedit #wp-content-editor-tools .wp-media-buttons { margin-right: auto; }
+.wpedit .wp-switch-editor {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 0;
+}
+.wpedit .wp-switch-editor .button {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 3px 3px 0 0;
+  border-color: #c3c4c7;
+  background: #f6f7f7;
+  color: #50575e;
+  line-height: 26px;
+}
+.wpedit .wp-switch-editor .button:hover { background: #f0f0f1; color: #1d2327; }
+.wpedit .wp-switch-editor .button[aria-selected='true'] {
+  position: relative;
+  top: 1px;
+  background: #fff;
+  border-bottom-color: #fff;
+  color: #1d2327;
+  font-weight: 600;
+  box-shadow: none;
+}
 .wpedit .mce-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -393,7 +418,17 @@
   border-bottom: 1px solid #dcdcde;
   padding: 4px 6px;
 }
+.wpedit .mce-toolbar select {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 170px;
+  height: 28px;
+  margin: 0 4px 0 0;
+  padding: 0 22px 0 6px;
+  font-size: 13px;
+}
 .wpedit .mce-toolbar[data-row='2'][hidden] { display: none; }
+.wpedit .mce-toolbar-toggle { margin-left: auto; }
 .wpedit .mce-btn {
   background: #f6f7f7;
   border: 1px solid transparent;
@@ -425,6 +460,36 @@
 .wpedit .mce-btn .mce-ico-em { font-style: italic; font-weight: 400; }
 .wpedit .mce-btn .mce-ico-s { text-decoration: line-through; }
 .wpedit .mce-separator { width: 1px; height: 22px; background: #dcdcde; margin: 0 4px; }
+
+/* WordPress QuickTags, which are the Text tab's toolbar rather than the Visual one. */
+.wpedit .quicktags-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 6px;
+  background: #f6f7f7;
+  border-bottom: 1px solid #dcdcde;
+}
+.wpedit .quicktags-toolbar .ed_button {
+  min-width: 0;
+  min-height: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  color: #1d2327;
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: none;
+}
+.wpedit .quicktags-toolbar .ed_button:hover,
+.wpedit .quicktags-toolbar .ed_button:focus-visible {
+  border-color: #c3c4c7;
+  background: #f0f0f1;
+  color: #1d2327;
+}
 
 /*
  * THE READ MORE MARKER, DRAWN WHERE WORDPRESS DRAWS ITS OWN.

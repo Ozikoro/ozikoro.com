@@ -206,6 +206,108 @@ const OMITTED_SECTION_HEADINGS = {
 };
 
 /*
+ * ── DESIGN ELEMENTS THE SERVE-TIME FILL DELIBERATELY REPLACES, WITH THE REASON AND THE REPLACEMENT ─────
+ *
+ * ⚠️ THIS IS NOT A SECOND `EXPECTED_OMISSIONS`, AND THE DIFFERENCE IS THE WHOLE POINT. `EXPECTED_OMISSIONS`
+ * says *"the archive cannot honestly fill this, so it is absent and that is correct"*. This map says
+ * something stronger and harder to abuse: **the design's element was removed on purpose and something else
+ * now stands where it stood.** Every entry must name the replacement, because an entry that cannot name one
+ * is a silent omission wearing a better name.
+ *
+ * WHY THE DISTINCTION HAD TO EXIST, MEASURED. Three routes failed this check, and none of the three was a
+ * page that had drifted by accident:
+ *
+ *   /about      the fill deletes `<section id="terms">` — three `<h2>`s over three sentences that BEGIN
+ *               "Binding terms must be supplied…", "The complete data-controller notice must be supplied",
+ *               "Each record displays its own access and reuse terms". Those are the design's own notes to
+ *               the person building the site, and the last of the three is a claim about the archive rather
+ *               than about the record. The served page states the same three subjects with real facts
+ *               elsewhere (see the entry below), so the headings left with the placeholders they headed.
+ *
+ *   /documents  the fill rewrites the hero's `<h1>`, and the publication card that carried `.sx-pdf-mark`
+ *               and `.chips` is inside the container it empties. The owner asked for the rewrite in his own
+ *               words; the container's demonstration card is replaced by an honest empty state.
+ *
+ * THE OTHER TWO FAILURES WERE NOT REPLACEMENTS AND WERE NOT WAIVED HERE — they were FIXED, in the page
+ * itself. `/clan-towns` was missing the design's register header and its "Towns with photographs" section,
+ * which is a real gap rather than a rewrite, and `apps/ozikoro/app/clan-towns/page.tsx` now draws both. *A
+ * map that can excuse anything is how a check stops reporting, so the two cases were told apart by asking
+ * what the page draws instead — and where the answer was "nothing", the page was changed, not the check.*
+ *
+ * `route -> { '<class or heading text>': 'what replaced it, and where the replacement is' }`
+ */
+const REPLACED_AT_SERVE_TIME = {
+  '/clan-towns': {
+    /*
+     * ── THE H1, AND WHY THE OTHER FOUR FINDINGS ON THIS ROUTE WERE NOT TREATED THE SAME WAY ────────────
+     *
+     * The design heads this screen `<h1>Ethnicities, tribes, clans &amp; towns</h1>`. The served page heads
+     * it `<h1>Clans, towns &amp; communities</h1>`. **That rename is the owner's own instruction**, quoted
+     * at the top of `apps/ozikoro/app/clan-towns/page.tsx`: *"add them all to the /towns page, and maybe
+     * rename it to /clan-towns to accommodate both."* The page is at the address he named and headed with
+     * the words he chose, so the heading is a replacement and not a gap.
+     *
+     * ⚠️ AND THE OTHER FOUR THINGS THIS CHECK REPORTED ON THE SAME ROUTE WERE REAL GAPS, WHICH IS THE
+     * DISTINCTION THIS MAP EXISTS TO MAKE. `.sx-reg-head`, `.sx-head` and their two headings — "Register
+     * entries" and "Towns with photographs" — were **not** superseded by anything: the page drew neither
+     * the register's own head nor the design's second section, so eighteen place cards appeared with no
+     * statement of what the list was, and the archive's own photographs of places were never gathered
+     * anywhere. Nothing stood where they stood, so nothing could be declared as standing there. They were
+     * built: `page.tsx` now draws both from rows the archive already holds.
+     *
+     * The test applied to each finding was *"what does the page draw instead?"* — a replacement it can
+     * name, or a page that has to change. Only the first answer belongs in this map.
+     */
+    'ethnicities, tribes, clans & towns': 'the page h1; the owner renamed the screen to /clan-towns and headed it "Clans, towns & communities"',
+  },
+  '/about': {
+    /*
+     * `#terms` — `<section class="wrap section" id="terms">` holding the `.grid-3` of three placeholder
+     * cards. Removed by `fillAbout` (`packages/ozikoro/src/design-fill.ts`, the `id="terms"` replacement),
+     * which documents the owner reading those exact sentences back and asking why the page told him terms
+     * and privacy had not been supplied.
+     *
+     * WHERE THE THREE SUBJECTS LIVE NOW, so this entry can be checked rather than trusted:
+     *   Terms       the institution box states "Binding terms of use have not been supplied… and every
+     *               published history has a permanent address that will not change."
+     *   Privacy     the same box points at `/privacy/`, which serves the notice the company published
+     *               rather than a sentence saying it is missing.
+     *   Licensing   the principles paragraph above it carries the real count — "0 recorded licences for
+     *               3,488 media items", which is a figure and not a promise.
+     */
+    'grid-3': 'the #terms placeholder cards; the same three subjects are stated with real facts in the institution box and the principles paragraph',
+    terms: 'placeholder heading of the removed #terms section; the terms position is stated in the institution box',
+    privacy: 'placeholder heading of the removed #terms section; the notice is served at /privacy/ and linked from the institution box',
+    licensing: 'placeholder heading of the removed #terms section; the licence count is stated in the principles paragraph',
+  },
+  '/documents': {
+    /*
+     * The hero heading. The design reads `<h1>Published work, ready to read.</h1>`; the served page reads
+     * `<h1>Documents</h1>`. **The owner asked for this and then declined to be asked again**: offered the
+     * H1, the badge, the two eyebrows and the browser title to choose between, he chose none, so the fill
+     * took the one a reader can see without being asked — the contradiction between a slogan promising
+     * published work and the "0 published" badge directly beneath it. The words are the page's own
+     * `<title>`, its nav item and the breadcrumb of every record under it.
+     */
+    'published work, ready to read.': 'the hero h1; the served page is headed "Documents", which is the page\'s own title, nav item and breadcrumb',
+    /*
+     * The demonstration publication card inside `#research`, which `fillDocuments` replaces wholesale with
+     * an honest empty state, because `ozikoro_publication` holds no rows. `.sx-pdf-mark` (the "PDF · 28
+     * pages" badge) and `.chips` (the Research / Igbo market systems tags) exist only on that card.
+     *
+     * `.sx-document-actions` is NOT listed, and this check was RIGHT to keep reporting it. `renderDocument`
+     * draws the real cards with their own download and record links, and it was drawing that row in a bare
+     * `<p>` — so the design's own `display:grid;gap:.5rem` rule and both of its breakpoints applied to
+     * nothing. **The page was thin, not the assertion**, so the page was changed: the row now carries the
+     * class, on the `<div>` the design puts it on. Excusing it here would have hidden a real gap in the
+     * served markup for as long as the excuse survived.
+     */
+    'sx-pdf-mark': 'the demonstration publication card\'s PDF badge; the #research container is replaced by the empty state, because the archive holds no publication',
+    chips: 'the demonstration publication card\'s tag row; it went with the same card, and the real document cards render their own links rather than chips',
+  },
+};
+
+/*
  * ROUTES WITH NO DESIGN SCREEN, NAMED RATHER THAN INFERRED.
  *
  * These are not parity questions — the design does not draw them, so there is no design to be held to. An
@@ -289,7 +391,7 @@ function headingMatches(design, page) {
   });
 }
 
-let failures = 0, omissions = 0, checked = 0, unverified = 0;
+let failures = 0, omissions = 0, replacedCount = 0, checked = 0, unverified = 0;
 const noScreen = [];
 
 for (const [route, screen] of ROUTES) {
@@ -325,8 +427,18 @@ for (const [route, screen] of ROUTES) {
   }
 
   checked += 1;
-  const missing = design.sections.filter((s) => !page.sections.includes(s));
+  /*
+   * THE REPLACEMENT MAP IS CONSULTED HERE, AND THE ORDER OF THE TWO FILTERS IS THE SAFETY PROPERTY.
+   *
+   * A class or heading named in `REPLACED_AT_SERVE_TIME` leaves the failure set — and it is reported in
+   * `detail` below rather than dropped, because **a waiver that prints nothing is indistinguishable from a
+   * check that stopped looking.** The `PLACEHOLDER` regex still runs first on headings, so the design's own
+   * demonstration text is reported as `earned` (absent correctly) before this map is asked about it; only a
+   * heading that survived that test can be excused here.
+   */
+  const replaced = REPLACED_AT_SERVE_TIME[route] ?? {};
   const declared = EXPECTED_OMISSIONS[route] ?? {};
+  const missing = design.sections.filter((s) => !page.sections.includes(s));
   const undeclared = missing.filter((s) => !(s in declared));
   const pageText = page.headings.map((p) => p.text);
   const omittedHeadings = OMITTED_SECTION_HEADINGS[route] ?? [];
@@ -335,7 +447,9 @@ for (const [route, screen] of ROUTES) {
     // A placeholder's absence is the correct state, not a defect. See PLACEHOLDER above.
     .filter((h) => !PLACEHOLDER.test(h.text))
     // A heading inside a declared-absent section goes with the section.
-    .filter((h) => !omittedHeadings.some((o) => norm(h.text).startsWith(norm(o)) || norm(o).startsWith(norm(h.text))));
+    .filter((h) => !omittedHeadings.some((o) => norm(h.text).startsWith(norm(o)) || norm(o).startsWith(norm(h.text))))
+    // A heading the fill replaced on purpose, with the replacement named in the map.
+    .filter((h) => !(h.text in replaced));
   const placeholders = design.headings
     .filter((h) => !headingMatches(h.text, pageText) && PLACEHOLDER.test(h.text));
 
@@ -358,10 +472,23 @@ for (const [route, screen] of ROUTES) {
    * So the findings are collected first and the verdict is derived from what SURVIVED the loop. `unresolved`
    * starts as the undeclared sections and loses one each time a conditional state proves it present.
    */
-  const unresolved = [...undeclared];
+  /*
+   * A REPLACED CLASS IS NOT UNRESOLVED. It is filtered here as well as in the loop below because the loop
+   * exists to REMOVE things from `unresolved` — and the verdict is derived from what survives. A class that
+   * is excused in `detail` but still sitting in `unresolved` is a waiver that prints while the route fails,
+   * which is the exact "check that can print ok twelve times and still fail" fault this block was rewritten
+   * to remove, one level down.
+   */
+  const unresolved = undeclared.filter((s) => !(s in replaced));
   const detail = [];
   for (const s of missing) {
     if (s in declared) { detail.push(`         omitted  .${s}  — ${declared[s]}`); omissions += 1; continue; }
+    /*
+     * A CLASS THE FILL REPLACED IS REPORTED, NOT SILENTLY DROPPED. It is not an `omitted` and it is not a
+     * `MISSING`: it is a design element that stood where the served page now stands something else, so the
+     * line names the replacement. `unresolved` never received it, which is what stops it failing the route.
+     */
+    if (s in replaced) { detail.push(`         replaced .${s}  — ${replaced[s]}`); replacedCount += 1; continue; }
 
     // Conditional structure: produce the state and look for it there rather than exempting it.
     const trigger = CONDITIONAL[route]?.[s];
@@ -389,6 +516,14 @@ for (const [route, screen] of ROUTES) {
   for (const h of missedHeadings) {
     detail.push(`         MISSING  h${h.level}: "${h.text.slice(0, 68)}"`);
   }
+  /*
+   * THE REPLACED HEADINGS PRINT TOO. They were filtered out of `missedHeadings` above, so without this loop
+   * the one thing a reader of this output needs in order to judge a waiver — the sentence that says what
+   * stands in the heading's place — would never be shown.
+   */
+  for (const h of design.headings.filter((x) => !headingMatches(x.text, pageText) && x.text in replaced)) {
+    detail.push(`         replaced h${h.level}: "${h.text.slice(0, 60)}" — ${replaced[h.text]}`);
+  }
   for (const h of placeholders) {
     detail.push(`         earned   h${h.level}: "${h.text.slice(0, 60)}" — design placeholder, absent correctly`);
   }
@@ -407,6 +542,12 @@ if (noScreen.length > 0) {
 console.log(`  compared ${checked} route(s) against their design screen`);
 console.log(`  unverified, behind a loading boundary or an auth gate ${unverified}`);
 console.log(`  declared omissions ${omissions}`);
+/*
+ * THE REPLACEMENT COUNT PRINTS ON EVERY RUN, PASSING OR FAILING, FOR THE SAME REASON `declared omissions`
+ * DOES: a map that can excuse a page is the most dangerous kind of tolerance in this file, so the number of
+ * things it is currently excusing is stated where a reader cannot miss it. Zero is the healthy reading.
+ */
+console.log(`  design elements deliberately replaced at serve time ${replacedCount}`);
 if (failures > 0) {
   console.log(`  ${failures} ROUTE(S) DO NOT MATCH THEIR DESIGN`);
 } else {

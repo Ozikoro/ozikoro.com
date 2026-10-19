@@ -63,8 +63,12 @@
  * record's outline is what decides where in the hierarchy they end up. **`h1` is still not in this set,
  * deliberately: nothing here should ever emit an `<h1>`.**
  */
+/*
+ * `del` and `ins` are on this line for the Text tab's QuickTags, whose buttons write those two semantic
+ * tags. They are inline text markup like `s`, not presentation the archive refuses.
+ */
 const ALLOWED_TAGS = new Set([
-  'p','br','hr','strong','b','em','i','u','s','sub','sup','small','mark','abbr','cite','q','time',
+  'p','br','hr','strong','b','em','i','u','s','del','ins','sub','sup','small','mark','abbr','cite','q','time',
   'h2','h3','h4','h5','h6',
   'pre','code',
   'ul','ol','li','dl','dt','dd',
@@ -135,6 +139,8 @@ const ALLOWED_ATTRIBUTES: Record<string, Set<string>> = {
   source: new Set(['src', 'type', 'srcset', 'sizes', 'media']),
   track: new Set(['src', 'kind', 'srclang', 'label', 'default']),
   time: new Set(['datetime']),
+  del: new Set(['datetime']),
+  ins: new Set(['datetime']),
   td: new Set(['colspan', 'rowspan']),
   th: new Set(['colspan', 'rowspan', 'scope']),
   col: new Set(['span']),

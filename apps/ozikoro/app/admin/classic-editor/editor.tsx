@@ -14,7 +14,9 @@
  *   * **Distraction Free Writing** — the meta boxes and the surrounding furniture step aside and the
  *     writing is what is left on the screen;
  *   * the **Visual / Text tabs**, which is `switchEditors` in WordPress: the same document, two ways to
- *     see it, and one field submitted either way;
+ *     see it, and one field submitted either way. Text mode has WordPress's own **QuickTags** bar
+ *     (`strong`, `em`, link, blockquote, `del`, `ins`, image, lists, `code`, More, close), not the Visual
+ *     toolbar over a textarea, and its insertions act at the textarea caret;
  *   * the **permalink control** under the title, which is `editPermalink()` — a display line with an
  *     `Edit` button, a text input, and `OK` / `Cancel`;
  *   * the **dirty-document guard** — `beforeunload.edit-post` returns *"The changes you made will be lost
@@ -71,7 +73,7 @@
  * is a sibling in the other column, so a fold cannot touch the typed document, and the seeding effect above
  * survives unchanged.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   TOOLBAR_ROW_1,
   TOOLBAR_ROW_2,
@@ -87,8 +89,29 @@ import {
   READ_MORE_TAG,
   visualBoxDocument,
 } from '@/lib/classic-editor-content';
+import {
+  QUICKTAGS,
+  applyQuickTag,
+  wordpressDatetime,
+  type QuickTag,
+  type QuickTagOptions,
+  type QuickTagResult,
+} from '@/lib/classic-editor-text';
 import { MetaBox } from './meta-box';
 import { MediaPicker, mediaSrc, type PickerItem } from './media-picker';
+
+const PRESSABLE_CONTROLS = new Set([
+  'bold',
+  'italic',
+  'underline',
+  'strikethrough',
+  'bullist',
+  'numlist',
+  'blockquote',
+  'link',
+  'unlink',
+  'code',
+]);
 
 export type PieceKind = 'post' | 'page';
 
@@ -214,6 +237,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
   const noun = isPage ? 'Page' : 'Post';
 
   const editorRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hiddenBodyRef = useRef<HTMLTextAreaElement>(null);
 
   /*
@@ -278,6 +302,12 @@ export function ClassicEditor(props: ClassicEditorProps) {
    * degrade to the start of the box again.
    */
   const savedCaret = useRef<Range | null>(null);
+  /** The Text tab's selection, saved for the same reason the Visual tab saves its Range. */
+  const savedTextSelection = useRef<{ start: number; end: number } | null>(null);
+  /** Selection to restore after React has committed an insertion into the Text tab. */
+  const pendingTextSelection = useRef<{ start: number; end: number } | null>(null);
+  /** The last address the link button was given, which WordPress reuses while a link is open. */
+  const lastLinkUrl = useRef('');
   /** Set when a submit was refused because the content box had lost what was typed into it. */
   const [lostBody, setLostBody] = useState(false);
   const [title, setTitle] = useState(piece?.title ?? '');
@@ -324,8 +354,14 @@ export function ClassicEditor(props: ClassicEditorProps) {
   const [statusChoice, setStatusChoice] = useState(piece?.status === 'review' ? 'review' : 'draft');
 
   const [visual, setVisual] = useState(true);
+  /** WordPress's `ed.openTags`: the Text-tab tags opened by a first click and awaiting a closing click. */
+  const [openTextTags, setOpenTextTags] = useState<string[]>([]);
+  /** QuickTags stamps its `del` and `ins` buttons once, when the editor script loads. */
+  const quickTagDatetime = useMemo(() => wordpressDatetime(), []);
   const [secondRow, setSecondRow] = useState(false);
   const [dfw, setDfw] = useState(false);
+  const [activeFormats, setActiveFormats] = useState<string[]>([]);
+  const [formatBlock, setFormatBlock] = useState('');
   const [editingSlug, setEditingSlug] = useState(false);
   const [slugDraft, setSlugDraft] = useState(piece?.slugIsPlaceholder ? '' : (piece?.slug ?? ''));
   const [editingStatus, setEditingStatus] = useState(false);
@@ -454,6 +490,146 @@ export function ClassicEditor(props: ClassicEditorProps) {
   function markClean() {
     setDirty(false);
     dirtyRef.current = false;
+  }
+
+  /** Read the browser's current formatting state for the Visual toolbar. */
+  const refreshToolbarState = useCallback(() => {
+    const box = editorRef.current;
+    const selection = window.getSelection();
+    if (!visual || !box || !selection || selection.rangeCount === 0 || !selection.anchorNode || !box.contains(selection.anchorNode)) {
+      setActiveFormats((current) => (current.length === 0 ? current : []));
+      setFormatBlock((current) => (current === '' ? current : ''));
+      return;
+    }
+
+    const query = (name: string) => {
+      try {
+        return document.queryCommandState(name);
+      } catch {
+        return false;
+      }
+    };
+    const next: string[] = [];
+    if (query('bold')) next.push('bold');
+    if (query('italic')) next.push('italic');
+    if (query('underline')) next.push('underline');
+    if (query('insertUnorderedList')) next.push('bullist');
+    if (query('insertOrderedList')) next.push('numlist');
+
+    const element = enclosingElement(selection.anchorNode);
+    if (element?.closest('blockquote')) next.push('blockquote');
+    if (element?.closest('a')) next.push('link', 'unlink');
+    if (element?.closest('s')) next.push('strikethrough');
+    if (element?.closest('code')) next.push('code');
+
+    setActiveFormats((current) =>
+      current.length === next.length && current.every((value, index) => value === next[index]) ? current : next
+    );
+
+    /*
+     * A paragraph inside a blockquote is still the blockquote the writer is looking at. TinyMCE writes
+     * `<blockquote>text</blockquote>` itself, but stored WordPress bodies also carry
+     * `<blockquote><p>text</p></blockquote>`, and the nearest `<p>` must not hide the outer quotation
+     * from the Format menu. A `<pre>` or heading inside a quotation still wins, because that is the
+     * block the writer asked for.
+     */
+    const block = element?.closest('h2, h3, h4, h5, h6, pre, p');
+    const nextBlock = block?.tagName === 'P' && element?.closest('blockquote') ? 'BLOCKQUOTE' : block?.tagName.toUpperCase() ?? 'P';
+    setFormatBlock((current) => (current === nextBlock ? current : nextBlock));
+  }, [visual]);
+
+  useEffect(() => {
+    if (!visual) {
+      setActiveFormats([]);
+      setFormatBlock('');
+      return undefined;
+    }
+    document.addEventListener('selectionchange', refreshToolbarState);
+    refreshToolbarState();
+    return () => document.removeEventListener('selectionchange', refreshToolbarState);
+  }, [refreshToolbarState, visual]);
+
+  /** Keep the Text tab's selection while a toolbar button or the media picker takes focus. */
+  function rememberTextSelection() {
+    const box = textareaRef.current;
+    if (!box) return;
+    savedTextSelection.current = { start: box.selectionStart, end: box.selectionEnd };
+  }
+
+  function currentTextSelection(): { start: number; end: number } {
+    const box = textareaRef.current;
+    if (box) return { start: box.selectionStart, end: box.selectionEnd };
+    return savedTextSelection.current ?? { start: mirror.length, end: mirror.length };
+  }
+
+  /** Write a pure QuickTag result into the textarea and remember where its caret belongs. */
+  function applyTextResult(result: QuickTagResult) {
+    pendingTextSelection.current = { start: result.selectionStart, end: result.selectionEnd };
+    setOpenTextTags(result.openTags);
+    setMirror(result.value);
+    markDirty();
+    setWords(countWords(result.value));
+  }
+
+  useEffect(() => {
+    if (visual) return;
+    const pending = pendingTextSelection.current;
+    const box = textareaRef.current;
+    if (!pending || !box) return;
+    pendingTextSelection.current = null;
+    box.focus();
+    const start = Math.min(pending.start, box.value.length);
+    const end = Math.min(pending.end, box.value.length);
+    box.setSelectionRange(start, end);
+  }, [mirror, visual]);
+
+  /** Insert literal text where the Text tab's caret is, replacing its selection when there is one. */
+  function replaceTextSelection(text: string, selection = currentTextSelection()) {
+    const box = textareaRef.current;
+    const source = box?.value ?? mirror;
+    const start = Math.max(0, Math.min(selection.start, selection.end, source.length));
+    const end = Math.max(start, Math.min(Math.max(selection.start, selection.end), source.length));
+    applyTextResult({
+      value: source.slice(0, start) + text + source.slice(end),
+      selectionStart: start + text.length,
+      selectionEnd: start + text.length,
+      openTags: openTextTags,
+    });
+  }
+
+  /** A QuickTag click, including the two buttons WordPress prompts for. */
+  function runQuickTag(tag: QuickTag) {
+    if (visual) return;
+    const box = textareaRef.current;
+    if (!box) return;
+    const { start, end } = currentTextSelection();
+    let options: QuickTagOptions = { openTags: openTextTags, datetime: quickTagDatetime };
+
+    if (tag.kind === 'link') {
+      const linkIsOpen = openTextTags.includes('link');
+      if (linkIsOpen) {
+        options = { ...options, url: lastLinkUrl.current };
+      } else {
+        const prompt = tag.prompt;
+        if (!prompt) return;
+        const answer = window.prompt(prompt.message, prompt.initial);
+        if (answer === null || answer.length === 0) return;
+        lastLinkUrl.current = answer;
+        options = { ...options, url: answer };
+      }
+    } else if (tag.kind === 'image') {
+      const prompt = tag.prompt;
+      if (!prompt) return;
+      const answer = window.prompt(prompt.message, prompt.initial);
+      if (answer === null || answer.length === 0) return;
+      let alt = '';
+      if (prompt.altMessage) {
+        alt = window.prompt(prompt.altMessage, prompt.altInitial ?? '') ?? '';
+      }
+      options = { ...options, url: answer, alt };
+    }
+
+    applyTextResult(applyQuickTag(box.value, start, end, tag, options));
   }
 
   function syncBody() {
@@ -711,6 +887,9 @@ export function ClassicEditor(props: ClassicEditorProps) {
    */
   function switchTo(next: 'visual' | 'text') {
     const { view, html } = switchEditorView(next, syncBody());
+    savedCaret.current = null;
+    savedTextSelection.current = null;
+    pendingTextSelection.current = null;
     setMirror(html);
     if (view === 'visual') pendingVisualHtml.current = html;
     setVisual(view === 'visual');
@@ -755,6 +934,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
    */
   function openPicker(which: 'insert' | 'featured') {
     savedCaret.current = which === 'insert' ? caretInsideBox() : null;
+    savedTextSelection.current = which === 'insert' && !visual ? currentTextSelection() : null;
     setPicker(which);
   }
 
@@ -783,6 +963,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
     }
     markDirty();
     setWords(countWords(currentHtml()));
+    refreshToolbarState();
   }
 
   /**
@@ -826,6 +1007,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
     }
     markDirty();
     setWords(countWords(currentHtml()));
+    refreshToolbarState();
   }
 
   /**
@@ -851,8 +1033,29 @@ export function ClassicEditor(props: ClassicEditorProps) {
         className="mce-btn"
         onClick={() => runControl(control)}
         title={control.title}
+        aria-pressed={PRESSABLE_CONTROLS.has(control.id) ? activeFormats.includes(control.id) : undefined}
       >
         <i className={control.labelClass ?? 'mce-ico-plain'}>{control.label}</i>
+      </button>
+    );
+  }
+
+  /** A Text-tab button. `mousedown` is prevented so the textarea keeps its selection until the click runs. */
+  function renderQuickTag(tag: QuickTag) {
+    const isOpen = openTextTags.includes(tag.id);
+    const label = isOpen ? `/${tag.label}` : tag.label;
+    const title = isOpen && tag.closeTitle ? tag.closeTitle : tag.title;
+    return (
+      <button
+        key={tag.id}
+        type="button"
+        className="ed_button button button-small"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => runQuickTag(tag)}
+        title={title}
+        aria-label={title}
+      >
+        {label}
       </button>
     );
   }
@@ -892,15 +1095,9 @@ export function ClassicEditor(props: ClassicEditorProps) {
    */
   function insertReadMore() {
     if (!visual) {
-      /*
-       * THE TEXT TAB IS SHOWING, so there is no caret in a rendered box to place the marker at. The tag
-       * itself goes into the box at the end — the same honest half-gesture Add Media makes there, for the
-       * same reason: the writer sees what arrived and can move it, and the tag is what this tab holds.
-       */
-      const next = `${mirror}${READ_MORE_TAG}`;
-      setMirror(next);
-      markDirty();
-      setWords(countWords(next));
+      const selection = savedTextSelection.current ?? currentTextSelection();
+      savedTextSelection.current = null;
+      replaceTextSelection(READ_MORE_TAG, selection);
       return;
     }
     editorRef.current?.focus();
@@ -1039,14 +1236,13 @@ export function ClassicEditor(props: ClassicEditorProps) {
     setPicker(null);
     if (!visual) {
       /*
-       * THE TEXT TAB IS SHOWING, so there is no caret to place anything at. The markup goes into the box at
-       * the end rather than nowhere, which is the honest half of the gesture: the writer can see what arrived
-       * and move it, instead of a click that did nothing at all.
+       * The picker takes focus from the textarea, so the selection is restored from the one captured when
+       * Add Media was pressed. With no caret, the insertion goes at the end, where "after what is there"
+       * is the least surprising answer.
        */
-      const next = `${mirror}${mediaMarkupFor(item)}`;
-      setMirror(next);
-      markDirty();
-      setWords(countWords(next));
+      const selection = savedTextSelection.current ?? currentTextSelection();
+      savedTextSelection.current = null;
+      replaceTextSelection(mediaMarkupFor(item), selection);
       return;
     }
     const box = editorRef.current;
@@ -1241,7 +1437,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
           <div id="post-body" className="metabox-holder columns-2">
             <div id="post-body-content">
               <div id="postdivrich" className="postarea">
-                {/* The row above the toolbar: Add Media, the tabs, the toolbar toggles. */}
+                {/* The row above the toolbar: Add Media, the tabs, and Distraction Free Writing. */}
                 <div id="wp-content-editor-tools">
                   <span className="wp-media-buttons">
                     {/*
@@ -1285,15 +1481,6 @@ export function ClassicEditor(props: ClassicEditorProps) {
                   <button
                     type="button"
                     className="button"
-                    aria-pressed={secondRow}
-                    onClick={() => setSecondRow((v) => !v)}
-                    title="Toolbar Toggle — shows and hides the second row of buttons"
-                  >
-                    Toolbar Toggle
-                  </button>
-                  <button
-                    type="button"
-                    className="button"
                     aria-pressed={dfw}
                     onClick={() => setDfw((v) => !v)}
                     title="Distraction Free Writing"
@@ -1302,43 +1489,57 @@ export function ClassicEditor(props: ClassicEditorProps) {
                   </button>
                 </div>
 
-                {/*
-                  ROW ONE, RENDERED FROM THE LIST IN `@/lib/classic-editor`.
+                {visual ? (
+                  <>
+                    {/*
+                      ROW ONE, RENDERED FROM THE LIST IN `@/lib/classic-editor`.
 
-                  Every entry there is a `command`, a `wrap` or an `unavailable` with its reason, and the
-                  type will not accept an entry that says nothing — so a button that is drawn here is a
-                  button that does something, or one that is visibly disabled and says why. The test in
-                  `lib/classic-editor.test.ts` is what holds the list to the archive's allowlist.
-                */}
-                <div className="mce-toolbar" data-row="1" role="toolbar" aria-label="Formatting">
-                  {/*
-                    THE FORMAT MENU, WHICH WORDPRESS PUTS AT THE HEAD OF ROW ONE (`formatselect` is the
-                    first entry in its `mce_buttons`). "Preformatted" writes `<pre>`, and the archive's
-                    sanitiser now keeps it — see the note on `ALLOWED_TAGS` in `packages/ozikoro/src/content.ts`.
-                  */}
-                  <select
-                    aria-label="Format"
-                    defaultValue=""
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (value) command('formatBlock', value);
-                      event.target.value = '';
-                    }}
-                  >
-                    <option value="">Format</option>
-                    <option value="P">Paragraph</option>
-                    <option value="H2">Heading 2</option>
-                    <option value="H3">Heading 3</option>
-                    <option value="H4">Heading 4</option>
-                    <option value="PRE">Preformatted</option>
-                  </select>
-                  {TOOLBAR_ROW_1.map((control) => renderControl(control))}
-                </div>
+                      The Visual toolbar is drawn only while Visual is the showing tab. The Text tab has its
+                      own QuickTags bar, because WordPress does: the Visual buttons act on a rendered
+                      selection and cannot act on text in a textarea.
+                    */}
+                    <div className="mce-toolbar" data-row="1" role="toolbar" aria-label="Formatting">
+                      <select
+                        aria-label="Format"
+                        title="Format"
+                        value={formatBlock}
+                        onChange={(event) => {
+                          if (event.target.value) command('formatBlock', event.target.value);
+                        }}
+                      >
+                        <option value="">Format</option>
+                        <option value="P">Paragraph</option>
+                        <option value="H2">Heading 2</option>
+                        <option value="H3">Heading 3</option>
+                        <option value="H4">Heading 4</option>
+                        <option value="H5">Heading 5</option>
+                        <option value="H6">Heading 6</option>
+                        <option value="BLOCKQUOTE">Blockquote</option>
+                        <option value="PRE">Preformatted</option>
+                      </select>
+                      {TOOLBAR_ROW_1.map((control) => renderControl(control))}
+                      <button
+                        type="button"
+                        className="mce-btn mce-toolbar-toggle"
+                        aria-label="Toolbar Toggle"
+                        aria-pressed={secondRow}
+                        onClick={() => setSecondRow((value) => !value)}
+                        title="Toolbar Toggle — shows and hides the second row of buttons"
+                      >
+                        <i className="mce-ico-plain" aria-hidden="true">≡</i>
+                      </button>
+                    </div>
 
-                {/* Row two, which the Toolbar Toggle reveals. TinyMCE's `wp_adv`. */}
-                <div className="mce-toolbar" data-row="2" role="toolbar" aria-label="More formatting" hidden={!secondRow}>
-                  {TOOLBAR_ROW_2.map((control) => renderControl(control))}
-                </div>
+                    {/* Row two, which the Toolbar Toggle reveals. TinyMCE's `wp_adv`. */}
+                    <div className="mce-toolbar" data-row="2" role="toolbar" aria-label="More formatting" hidden={!secondRow}>
+                      {TOOLBAR_ROW_2.map((control) => renderControl(control))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="quicktags-toolbar" role="toolbar" aria-label="Text formatting">
+                    {QUICKTAGS.map(renderQuickTag)}
+                  </div>
+                )}
 
                 <div id="wp-content-editor-container">
                   {visual ? (
@@ -1374,10 +1575,15 @@ export function ClassicEditor(props: ClassicEditorProps) {
                     />
                   ) : (
                     <textarea
+                      ref={textareaRef}
                       id="content-text"
                       aria-label="Content, as HTML"
                       value={mirror}
                       spellCheck={false}
+                      onSelect={rememberTextSelection}
+                      onClick={rememberTextSelection}
+                      onKeyUp={rememberTextSelection}
+                      onBlur={rememberTextSelection}
                       onChange={(event) => {
                         setMirror(event.target.value);
                         markDirty();
@@ -1967,6 +2173,7 @@ export function ClassicEditor(props: ClassicEditorProps) {
           onClose={() => {
             // A picker that was closed chose nothing, so the caret it was holding is stale and is dropped.
             savedCaret.current = null;
+            savedTextSelection.current = null;
             setPicker(null);
           }}
         />

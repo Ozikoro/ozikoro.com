@@ -1,0 +1,42 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/deploy.yml
+      - apps/ozikoro/**
+      - apps/web/**
+      - packages/**
+      - scripts/**
+      - docs/**
+      - data/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy the archive
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      AWS_REGION: us-east-1
+      INSTANCE_ID: i-0cf8b21633d2aaf22
+      REMOTE_DIR: /opt/ozituma/app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Deploy source and rebuild the archive
+        run: bash scripts/deploy-to-host.sh

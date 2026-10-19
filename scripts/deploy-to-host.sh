@@ -44,7 +44,6 @@
 set -euo pipefail
 
 INSTANCE_ID="${INSTANCE_ID:-i-0cf8b21633d2aaf22}"
-AWS_PROFILE="${AWS_PROFILE:-ozikoro}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/ozituma/app}"
 COMPOSE="-f docker/docker-compose.prod.yml -f docker/docker-compose.ozikoro.yml"
@@ -62,7 +61,10 @@ done
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
-AWS=(aws --profile "$AWS_PROFILE" --region "$AWS_REGION")
+AWS=(aws --region "$AWS_REGION")
+if [ -n "${AWS_PROFILE:-}" ]; then
+  AWS=(aws --profile "$AWS_PROFILE" --region "$AWS_REGION")
+fi
 
 # ── A LOCK ON THE DEPLOY, BECAUSE TWO OF THESE AT ONCE COST THE OWNER AN HOUR ──────────────────────
 #

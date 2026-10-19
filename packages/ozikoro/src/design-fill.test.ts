@@ -3010,6 +3010,62 @@ test('the people note does not claim the authors supplied no portrait, a card sh
   assert.ok(!/gravatar/i.test(out), 'no Gravatar default may be rendered as a person\'s portrait');
 });
 
+test('a Gravatar address the browser would refuse is drawn as a monogram, not a broken box', () => {
+  /*
+   * ⚠️ THE ASSERTION ABOVE COULD NOT FAIL, AND THAT IS WHY THIS TEST EXISTS.
+   *
+   * `assert.ok(!/gravatar/i.test(out), …)` reads as the Gravatar rule and is not one: **none of the
+   * contributors in that fixture carries a Gravatar address**, so the test passed for the trivial reason that
+   * there was nothing to match. A rule asserted against data the rule cannot see is a rule nobody is
+   * checking — the same shape as the check whose verdict was frozen above the loop written to change it.
+   *
+   * WHAT IS MEASURED HERE, AND WHY IT IS THE SURFACE THAT MATTERED. `/about/` draws **every** contributor
+   * with a published record, so it is the widest portrait surface in the archive. Its `personCard` rendered
+   * `c.avatarUrl` with no guard while this site's Content-Security-Policy is
+   * `img-src 'self' data: https://i.ytimg.com` plus the ad and analytics origins — so a Gravatar address is
+   * not a stock face, it is **a request the browser refuses**, and a reader sees a broken-image box where a
+   * person's face belongs.
+   *
+   * MEASURED IN THIS CHECKOUT, which is the number the earlier fix did not have: of 16 contributors, **11
+   * carry a `secure.gravatar.com` address on a byline with published records** (the largest is 314 records)
+   * and `/about/` drew all eleven. The commit that guarded `/author/<slug>/` recorded the live database as
+   * holding one such address on a byline with no reachable record; on this database it was eleven reachable
+   * people, so the guard it applied to three surfaces was the right rule applied to too few of them.
+   *
+   * THE ASSERTION IS THE READER'S OUTCOME, NOT THE IMPLEMENTATION. It does not check that a particular
+   * function was called: it asserts the served markup contains no Gravatar address at all, that the card
+   * still names the person, and that the tile has become the monogram **with its accessible name** — because
+   * the monogram is `aria-hidden`, so that label is the only place a screen reader learns there is no
+   * portrait. And it asserts a `/media/` portrait beside it is still drawn, so a guard that simply refused
+   * every portrait would fail here rather than pass as "no Gravatar rendered".
+   */
+  const html = readFileSync(join(SCREENS, 'about.html'), 'utf8');
+  const out = fillAbout(html, {
+    published: 1051, inReview: 0, media: 3488, towns: 188,
+    sources: 293, licences: 61, folklores: 41, photographs: 3462, documents: 12,
+    contributors: [
+      /* The row this checkout really holds for the archive's largest byline: 314 published records. */
+      { slug: 'chuka', name: 'Chuka Odike', records: 314, bio: 'Civil engineer and writer.', avatarUrl: 'https://secure.gravatar.com/avatar/8247c1fc8b7a141eb7362a397cf0250d0f3a1b2?s=96&d=mm&r=g' },
+      { slug: 'nze', name: 'Idenze Ezeme', records: 185, bio: null, avatarUrl: '/media/ozikoro/620-IMG_9354-1.jpeg' },
+      /* The protocol-relative shape, which is why `sameOriginPortrait` tests `/media/` with its slash. */
+      { slug: 'akeni', name: 'Akeni Probe', records: 2, bio: null, avatarUrl: '//secure.gravatar.com/avatar/abc?s=96&d=mm&r=g' },
+    ],
+  });
+  assert.ok(!/gravatar/i.test(out),
+    'a Gravatar address must not appear in the served markup at all — the browser refuses it, so it is a broken box');
+  assert.ok(!/<img[^>]*secure\.gravatar/i.test(out), 'no <img> may point at a refused host');
+  assert.match(out, /Monogram tile for Chuka Odike: no portrait has been supplied/,
+    'the refused portrait becomes the monogram, and the tile keeps the accessible name that states the absence');
+  assert.match(out, /aria-hidden="true"[^>]*>CO<\/span>/,
+    'the monogram itself is drawn, so the card is not left with an empty frame');
+  assert.ok(out.includes('<a href="/author/chuka/">Chuka Odike</a>'),
+    'the person is still named and still linked: the guard must not remove the contributor from the page');
+  assert.ok(out.includes('<img src="/media/ozikoro/620-IMG_9354-1.jpeg" alt="Portrait of Idenze Ezeme"'),
+    'a portrait this site DOES serve is still drawn — a guard that refused every portrait would fail here');
+  assert.ok(!out.includes('//secure.gravatar.com'),
+    'a protocol-relative Gravatar address is refused too, not treated as a same-origin path');
+});
+
 /* ------------------------------------------------------------------------------------------------
  * THE DESIGN'S OWN FOOTERS LINK SIX `about.html` FRAGMENTS, AND THE ABOUT PAGE NOW CARRIES THREE IDS
  * ------------------------------------------------------------------------------------------------

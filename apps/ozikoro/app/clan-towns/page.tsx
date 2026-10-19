@@ -188,7 +188,7 @@ export default async function ClanTownsPage({
     page,
   };
 
-  const [register, facets] = await Promise.all([
+  const [register, facets, photographed] = await Promise.all([
     listPlaces(db, {
       kind: kind || null,
       // The ethnicity step always carries a value — the design's select has no "any people" option and
@@ -204,6 +204,31 @@ export default async function ClanTownsPage({
       offset: (page - 1) * PAGE_SIZE,
     }),
     getPlaceFacets(db),
+    /*
+     * ── THE DESIGN'S SECOND SECTION, WHICH THIS PAGE DID NOT DRAW ────────────────────────────────────
+     *
+     * `towns.html` holds TWO containers: the register list under `.sx-reg-head`, and below it
+     * `<div class="sx-head">` headed "Towns with photographs" over its own `.sx-town-grid`. This page drew
+     * neither heading — it rendered the register's page of entries straight into a `.sx-town-grid` — and
+     * `check-design-parity.mjs` reported both as missing, with the h1 and the "Register entries" heading.
+     *
+     * **THE CHECK WAS RIGHT, AND THIS IS THE PAGE CHANGE RATHER THAN A WAIVER IN THE CHECK.** The two
+     * missing headings are not decoration: without the register's own head a reader gets eighteen place
+     * cards with no statement of what the list is or how many entries it holds, and without the second
+     * section the archive's own photographs of places are never gathered in the one place a reader would
+     * look for them. Both are drawn from rows the archive already holds, so neither invents anything.
+     *
+     * THE QUERY IS THE UNFILTERED REGISTER, NOT THE PAGE'S OWN FILTERS, and that is deliberate: this
+     * section says *"the register holds photographs of these places"*, which is a fact about the archive
+     * rather than about the reader's current search. A reader filtered to one clan would otherwise be told
+     * the archive holds photographs of that clan's neighbours and nothing else.
+     *
+     * `limit: 500` is the ceiling `listPlaces` itself clamps to, and the register holds 188 published
+     * entries — so this reads the whole register. `imageKey` is the archive's own photograph of the place,
+     * granted only when a record's title names that entry and no other (see `places.ts`); `renderNothing`
+     * below is what happens when no entry has one.
+     */
+    listPlaces(db, { limit: 500 }),
   ]);
 
   const filtered = Boolean(
@@ -234,6 +259,15 @@ export default async function ClanTownsPage({
   const beyond = register.total > 0 && page > totalPages;
   const first = (page - 1) * PAGE_SIZE + 1;
   const last = Math.min(page * PAGE_SIZE, register.total);
+
+  /*
+   * THE ENTRIES THE ARCHIVE HOLDS A PHOTOGRAPH OF, for the design's "Towns with photographs" section.
+   *
+   * Read from the unfiltered register, deliberately: the section states a fact about the archive, not
+   * about the reader's current search. See the query above for why, and the section's own comment for why
+   * six is a cap rather than a filter.
+   */
+  const featured = photographed.data.filter((p) => p.imageKey).slice(0, 6);
 
   /*
    * THE HIDDEN INPUTS THAT KEEP THE OTHER CONTROL'S ANSWER.
@@ -478,6 +512,27 @@ export default async function ClanTownsPage({
           </div>
         ) : (
           <>
+            {/*
+              ── THE REGISTER'S OWN HEADING, WHICH THE DESIGN DRAWS AND THIS PAGE DID NOT ────────────────
+              `towns.html`: `<div class="sx-reg-head"><p class="eyebrow" id="register-crumbs">Igbo</p>
+              <h2 id="res-h">Register entries</h2></div><p class="sx-reg-count">188 entries</p>`.
+              **The count is the register's, read from the same query the list is drawn from**, so the head
+              cannot claim a number the eighteen cards beneath it contradict; `aria-labelledby` on the
+              section is what names the list for a reader who cannot see the heading.
+            */}
+            <div className="sx-reg-head">
+              <div>
+                <p className="eyebrow" id="register-crumbs">
+                  {selection.ethnic || 'The register'}
+                </p>
+                <h2 id="res-h">Register entries</h2>
+              </div>
+              <p className="sx-reg-count" id="register-count">
+                {filtered
+                  ? `${register.total} of ${facets.total} entries`
+                  : `${register.total} ${register.total === 1 ? 'entry' : 'entries'}`}
+              </p>
+            </div>
             <div className="sx-town-grid">
               {register.data.map((entry) => (
                 <Link key={entry.slug} href={`/town/${entry.slug}/`}>
@@ -539,6 +594,50 @@ export default async function ClanTownsPage({
                 )}
               </span>
             </nav>
+
+            {/*
+              ── THE DESIGN'S SECOND SECTION: ITS HEAD AND ITS OWN PHOTOGRAPH GRID ──────────────────────
+              `towns.html` draws this below the register — `<div class="sx-head">` headed "Towns with
+              photographs" over a `.sx-town-grid` of place cards that lead with a photograph. This page
+              never drew it, which is one of the three things `check-design-parity.mjs` reported.
+
+              WHAT EARNS A CARD IS THE ARCHIVE'S OWN ANSWER, not a choice made here: `imageKey` is granted
+              only when a published record's title names that entry and no other, so a photograph that
+              could stand for two places is withheld from both rather than shown to one (see `places.ts`,
+              and the two published Igbodos that `11219-obi-of-igbodo.jpg` belongs to only one of).
+
+              NOTHING IS DRAWN WHEN NO ENTRY HAS ONE. The section is omitted entirely rather than headed
+              over an empty grid, because a heading promising photographs above nothing is the same fault
+              as the design's demonstration cards: it names something the page cannot show.
+
+              `slice(0, 6)` IS THE DESIGN'S OWN SHAPE — `towns.html` shows a short featured row — and it
+              is a CAP rather than a filter: the register beneath already lists every entry, this section's
+              job is to show what the archive holds pictures of.
+            */}
+            {featured.length > 0 ? (
+              <section className="wrap section" style={{ borderTop: '1px solid var(--rule)' }}>
+                <div className="sx-head">
+                  <div>
+                    <p className="eyebrow">Featured places</p>
+                    <h2>Towns with photographs</h2>
+                  </div>
+                </div>
+                <div className="sx-town-grid">
+                  {featured.map((entry) => (
+                    <Link key={`photo-${entry.slug}`} href={`/town/${entry.slug}/`}>
+                      <img src={mediaPath(entry.imageKey!)} alt="" loading="lazy" />
+                      <span>
+                        <small>{entry.region ?? 'Region not recorded'}</small>
+                        <strong className="oz-igbo" lang="ig">
+                          {entry.name}
+                        </strong>
+                        <em>View connected records →</em>
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              </section>
+            ) : null}
 
             <p className="sx-source-note sx-light-note">
               {filtered
