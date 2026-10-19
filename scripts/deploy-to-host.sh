@@ -288,7 +288,8 @@ fi
 # ── STAGE ───────────────────────────────────────────────────────────────────────────────────────
 BUCKET="ozikoro-deploy-$(date -u +%Y%m%d-%H%M%S)"
 STAGE="$(mktemp -d)"
-trap 'rm -rf "$STAGE"; deploy_lock_release' EXIT
+MANIFEST_TMP="$(mktemp /tmp/ozikoro-deploy-manifest.XXXXXX)"
+trap 'rm -rf "$STAGE"; rm -f "$MANIFEST_TMP"; deploy_lock_release' EXIT
 
 echo "==> staging to $STAGE"
 for f in "${KEEP[@]}"; do
@@ -297,8 +298,8 @@ for f in "${KEEP[@]}"; do
 done
 ( cd "$STAGE" && find . -type f | sort \
     | while read -r f; do printf '%s  %s\n' "$(shasum -a 256 "$f" | cut -d' ' -f1)" "${f#./}"; done ) \
-  > "$STAGE/../deploy-manifest.txt" 2>/dev/null || true
-mv "$STAGE/../deploy-manifest.txt" /tmp/deploy-manifest.txt
+  > "$MANIFEST_TMP" 2>/dev/null || true
+mv "$MANIFEST_TMP" /tmp/deploy-manifest.txt
 echo "    manifest: $(wc -l < /tmp/deploy-manifest.txt | tr -d ' ') files"
 
 # ── WHAT THIS DEPLOY IS, IN THREE FACTS, FOR THE IMMUTABLE TAG AND ITS PROVENANCE LINE ─────────
