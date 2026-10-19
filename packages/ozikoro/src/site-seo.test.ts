@@ -413,6 +413,18 @@ test('a setting round-trips, an empty one clears it, and a moved record keeps it
     return;
   }
 
+  /*
+   * A RUNNER HAS AN EMPTY CLUSTER, NOT NO CLUSTER AT ALL. `getDb` creates the PGlite directory and
+   * opens it, so the catch above cannot tell CI apart from a usable database; the first query below
+   * is what discovers that no migrations have been applied. This suite belongs to the database-free
+   * job, so an absent schema is a skip, not a failure.
+   */
+  const schema = await db.one<{ account_table: string | null }>(`select to_regclass('public.account')::text as account_table`);
+  if (!schema?.account_table) {
+    t.skip('the cluster has no migrations applied (there is no account table)');
+    return;
+  }
+
   const SUFFIX = 'zztest-site-seo';
   const { setSiteSeoSetting, setRedirect } = await import('./site-seo.ts');
 

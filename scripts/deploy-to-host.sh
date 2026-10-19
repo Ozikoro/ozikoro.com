@@ -358,6 +358,10 @@ cat > /tmp/deploy-remote.sh <<'REMOTE'
 set -u
 cd __REMOTE_DIR__ || exit 1
 TS=$(date -u +%Y-%m-%dT%H-%M-%SZ)
+REV="__REV__"
+MANIFEST_SHA="__MANIFEST_SHA__"
+DIRTY="__DIRTY__"
+FILE_COUNT="__FILE_COUNT__"
 AK=$(awk -F= '/^AWS_ACCESS_KEY_ID=/{sub(/^AWS_ACCESS_KEY_ID=/,"");print;exit}' /opt/ozituma/.env)
 SK=$(awk -F= '/^AWS_SECRET_ACCESS_KEY=/{sub(/^AWS_SECRET_ACCESS_KEY=/,"");print;exit}' /opt/ozituma/.env)
 export AWS_ACCESS_KEY_ID="$AK" AWS_SECRET_ACCESS_KEY="$SK" AWS_DEFAULT_REGION=__AWS_REGION__
@@ -707,11 +711,12 @@ REMOTE
 # platform-specific in-place flag, and it fails loudly if a placeholder is left behind.
 DEPLOY_BUCKET="$BUCKET" DEPLOY_REMOTE_DIR="$REMOTE_DIR" DEPLOY_AWS_REGION="$AWS_REGION" \
 DEPLOY_COMPOSE="$COMPOSE" DEPLOY_DO_BUILD="$DO_BUILD" DEPLOY_INSTANCE_ID="$INSTANCE_ID" \
+DEPLOY_REV="$REV" DEPLOY_MANIFEST_SHA="$MANIFEST_SHA" DEPLOY_DIRTY="$DIRTY" DEPLOY_FILE_COUNT="$FILE_COUNT" \
 python3 - <<'PYSUB'
 import pathlib, os, sys
 p = pathlib.Path('/tmp/deploy-remote.sh')
 s = p.read_text()
-for name in ['BUCKET', 'REMOTE_DIR', 'AWS_REGION', 'COMPOSE', 'DO_BUILD', 'INSTANCE_ID']:
+for name in ['BUCKET', 'REMOTE_DIR', 'AWS_REGION', 'COMPOSE', 'DO_BUILD', 'INSTANCE_ID', 'REV', 'MANIFEST_SHA', 'DIRTY', 'FILE_COUNT']:
     s = s.replace(f'__{name}__', os.environ.get(f'DEPLOY_{name}', ''))
 p.write_text(s)
 left = [l for l in s.split('\n') if '__' in l and l.split('__')[1][:1].isupper() and l.split('__')[1].rstrip('_').isupper()]
