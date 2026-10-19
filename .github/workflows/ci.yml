@@ -108,23 +108,24 @@ jobs:
       #                      **This check has the worst history here: round 54 found two test accounts,
       #                      marked public and listed in the sitemap, that every suite had passed over.**
       #
-      # `check:residue` IS NOT IN THIS LOOP, AND IT CANNOT BE. It asks the DATABASE whether any
-      # `zztest` fixture row survived. This job installs dependencies but does not create a schema,
-      # so the scan reaches zero tables; the check correctly refuses to call that clean, and the job
-      # fails for a reason that is not the commit. It still runs in `scripts/verify-all.sh`, where the
-      # real archive exists, and in any environment that supplies a migrated database. The alternative
-      # here would be a green check that examined nothing, which is the exact fault the check exists to
-      # prevent.
+      # `check:residue` AND `check:capabilities` ARE NOT IN THIS LOOP, AND THEY CANNOT BE. Both ask
+      # the DATABASE a question: residue asks whether any `zztest` fixture row survived, and
+      # capabilities asks which role holds each capability required by the source. This job installs
+      # dependencies but does not create a schema, so both correctly refuse to call an empty database
+      # clean and the job fails for a reason that is not the commit. Both still run in
+      # `scripts/verify-all.sh`, where the real archive exists, and in any environment that supplies a
+      # migrated database. The alternative here would be a green check that examined nothing, which is
+      # the exact fault these checks exist to prevent.
       #
-      # THESE TEN NEED NO DATABASE, SERVER OR NETWORK. The other six — `check:design-parity`,
+      # THESE EIGHT NEED NO DATABASE, SERVER OR NETWORK. The other six — `check:design-parity`,
       # `check:links`, `check:sitemap`, `check:assets`, `check:grounding` and `check:handover` — fetch a
       # served page and are NOT here; adding them means starting a server in this job. **UNTIL THAT IS
-      # DONE THEY REMAIN UNRUN, WHICH IS THE FAULT THIS STEP FIXES FOR THE OTHER TEN.**
+      # DONE THEY REMAIN UNRUN, WHICH IS THE FAULT THIS STEP FIXES FOR THE OTHER EIGHT.**
       # -----------------------------------------------------------------------
       - name: The repository's own checks
         run: |
           set -e
-          for c in check:capabilities check:capability-fn check:secrets \
+          for c in check:capability-fn check:secrets \
                    check:design check:boundaries check:body-links check:screens \
                    check:narration check:mail; do
             echo "::group::$c"
