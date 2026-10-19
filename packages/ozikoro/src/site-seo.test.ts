@@ -34,7 +34,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Db } from '@ozituma/db/client';
@@ -397,6 +397,16 @@ test('a setting round-trips, an empty one clears it, and a moved record keeps it
   const configured = process.env.DATABASE_URL?.trim();
   if (!configured) {
     const dataDir = process.env.OZITUMA_DB_PATH || join(WORKSPACE, '.data', 'pg');
+    /*
+     * DO NOT CREATE THE CLUSTER JUST TO DISCOVER WHETHER IT EXISTS. The test runner starts several
+     * files concurrently; two of them calling `getDb()` on the same absent path race for the cluster
+     * lock, and the loser exits the process. CI has no cluster, so this is the database-free case and
+     * must be decided before anything opens the directory.
+     */
+    if (!dataDir.includes('://') && !existsSync(dataDir)) {
+      t.skip(`no database at ${dataDir}`);
+      return;
+    }
     const held = dataDir.includes('://') ? null : holderOf(dataDir);
     if (held) {
       t.skip(`the database is held by pid ${held.pid} (${held.argv[held.argv.length - 1] ?? 'unknown command'}), so this test cannot open it`);
