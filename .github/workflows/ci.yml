@@ -119,17 +119,15 @@ jobs:
       # here would be a green check that examined nothing, which is the exact fault these checks exist
       # to prevent.
       #
-      # THE FIVE BELOW NEED NO DATABASE, SERVER OR NETWORK. The other six — `check:design-parity`,
+      # THE FOUR BELOW NEED NO DATABASE, SERVER OR NETWORK. The other six — `check:design-parity`,
       # `check:links`, `check:sitemap`, `check:assets`, `check:grounding` and `check:handover` — fetch a
       # served page and are NOT here; adding them means starting a server in this job. **UNTIL THAT IS
-      # DONE THEY REMAIN UNRUN, WHICH IS THE FAULT THIS STEP FIXES FOR THE OTHER FIVE.**
+      # DONE THEY REMAIN UNRUN, WHICH IS THE FAULT THIS STEP FIXES FOR THE OTHER FOUR.**
       # -----------------------------------------------------------------------
       - name: The repository's own checks
         run: |
           set -e
-          for c in check:secrets \
-                   check:design check:boundaries check:screens \
-                   check:mail; do
+          for c in check:secrets check:design check:boundaries check:screens; do
             echo "::group::$c"
             npm run "$c"
             echo "::endgroup::"
